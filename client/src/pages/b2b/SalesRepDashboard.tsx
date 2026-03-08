@@ -526,8 +526,8 @@ export default function SalesRepDashboard() {
                               </Badge>
                             </div>
                             <span className="text-sm text-muted-foreground">
-                              ${tier.minSales.toLocaleString()}
-                              {tier.maxSales ? ` - $${tier.maxSales.toLocaleString()}` : '+'}
+                              ${tier.minSales.toLocaleString('en-US')}
+                              {tier.maxSales ? ` - $${tier.maxSales.toLocaleString('en-US')}` : '+'}
                             </span>
                           </div>
 

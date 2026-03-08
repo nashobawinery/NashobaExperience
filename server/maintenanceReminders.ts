@@ -190,7 +190,7 @@ function scheduleNextReminder(): void {
   const msUntilNextRun = nextRun.getTime() - Date.now();
   const minutesUntilNextRun = Math.round(msUntilNextRun / 60000);
   
-  console.log(`[Maintenance Reminders] Next reminder run scheduled for ${nextRun.toLocaleString()} (in ${minutesUntilNextRun} minutes)`);
+  console.log(`[Maintenance Reminders] Next reminder run scheduled for ${nextRun.toLocaleString('en-US')} (in ${minutesUntilNextRun} minutes)`);
   
   reminderTimeout = setTimeout(async () => {
     await sendOverdueWorkOrderReminders();

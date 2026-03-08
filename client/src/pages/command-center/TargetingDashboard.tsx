@@ -195,7 +195,7 @@ export function TargetingOverview() {
               <span className="text-xs text-muted-foreground">Total Targeted</span>
             </div>
             <p className="text-xl font-bold" data-testid="text-total-targeted">
-              {loadingRoi ? <Skeleton className="h-7 w-12" /> : parseInt(roiSummary?.overview?.total_targeted || "0").toLocaleString()}
+              {loadingRoi ? <Skeleton className="h-7 w-12" /> : parseInt(roiSummary?.overview?.total_targeted || "0").toLocaleString('en-US')}
             </p>
           </CardContent>
         </Card>
@@ -206,7 +206,7 @@ export function TargetingOverview() {
               <span className="text-xs text-muted-foreground">Conversions</span>
             </div>
             <p className="text-xl font-bold" data-testid="text-total-conversions">
-              {loadingRoi ? <Skeleton className="h-7 w-12" /> : parseInt(roiSummary?.overview?.total_conversions || "0").toLocaleString()}
+              {loadingRoi ? <Skeleton className="h-7 w-12" /> : parseInt(roiSummary?.overview?.total_conversions || "0").toLocaleString('en-US')}
             </p>
           </CardContent>
         </Card>
@@ -245,7 +245,7 @@ export function TargetingOverview() {
                       <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         <span>{c.targetCount} targets</span>
                         <span>{c.channel === "email" ? "Email" : "SMS"}</span>
-                        <span>{new Date(c.weekStart).toLocaleDateString()}</span>
+                        <span>{new Date(c.weekStart).toLocaleDateString('en-US')}</span>
                       </div>
                     </div>
                     <div className="text-right space-y-1">
@@ -302,7 +302,7 @@ export function TargetingOverview() {
                     <Badge className={SEGMENT_COLORS[sp.segment] || ""}>
                       {sp.segment?.replace("_", " ")}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">{parseInt(sp.total_targeted).toLocaleString()} targeted</span>
+                    <span className="text-xs text-muted-foreground">{parseInt(sp.total_targeted).toLocaleString('en-US')} targeted</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
@@ -330,7 +330,7 @@ export function TargetingOverview() {
 
 function CampaignGenerator({ onBack, onCreated }: { onBack: () => void; onCreated: (id: number) => void }) {
   const { toast } = useToast();
-  const [name, setName] = useState(`Weekly Targets - ${new Date().toLocaleDateString()}`);
+  const [name, setName] = useState(`Weekly Targets - ${new Date().toLocaleDateString('en-US')}`);
   const [targetCount, setTargetCount] = useState(500);
   const [segments, setSegments] = useState<string[]>(["at_risk", "lapsed", "dormant"]);
   const [channel, setChannel] = useState("email");
@@ -460,7 +460,7 @@ function CampaignGenerator({ onBack, onCreated }: { onBack: () => void; onCreate
             <div className="space-y-1">
               <p className="text-sm font-medium">Ready to generate?</p>
               <p className="text-xs text-muted-foreground">
-                The AI will score {targetCount.toLocaleString()} customers from {segments.length} segments, 
+                The AI will score {targetCount.toLocaleString('en-US')} customers from {segments.length} segments, 
                 assign optimal offers, and project conversion rates and revenue.
               </p>
             </div>
@@ -477,7 +477,7 @@ function CampaignGenerator({ onBack, onCreated }: { onBack: () => void; onCreate
               ) : (
                 <>
                   <Zap className="h-4 w-4 mr-2" />
-                  Generate {targetCount.toLocaleString()} Targets
+                  Generate {targetCount.toLocaleString('en-US')} Targets
                 </>
               )}
             </Button>
@@ -816,7 +816,7 @@ function MemberCard({ member, rank }: { member: TargetMember; rank: number }) {
                 <span className="text-muted-foreground">Lifetime Spend:</span> {formatCurrency(member.lifetime_spend)}
               </div>
               <div>
-                <span className="text-muted-foreground">Last Visit:</span> {member.last_visit_date ? new Date(member.last_visit_date).toLocaleDateString() : "N/A"}
+                <span className="text-muted-foreground">Last Visit:</span> {member.last_visit_date ? new Date(member.last_visit_date).toLocaleDateString('en-US') : "N/A"}
               </div>
             </div>
           </div>
@@ -859,7 +859,7 @@ export function RoiProjections() {
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">Total Conversions</p>
-            <p className="text-2xl font-bold">{totalConversions.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{totalConversions.toLocaleString('en-US')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -935,7 +935,7 @@ export function RoiProjections() {
                     </Badge>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-muted-foreground">{parseInt(sp.total_targeted).toLocaleString()} targeted</span>
+                        <span className="text-xs text-muted-foreground">{parseInt(sp.total_targeted).toLocaleString('en-US')} targeted</span>
                         <span className="text-xs font-medium">{formatPercent(convRate)} conv.</span>
                       </div>
                       <Progress value={Math.min(convRate * 4, 100)} className="h-2" />

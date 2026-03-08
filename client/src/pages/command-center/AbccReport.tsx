@@ -270,7 +270,7 @@ export function AbccGallonsReport() {
                     <p className="text-2xl font-bold" data-testid={`text-gallons-${bev.value}`}>
                       {gallons.toFixed(2)}
                     </p>
-                    <p className="text-xs text-muted-foreground">gallons ({units.toLocaleString()} units)</p>
+                    <p className="text-xs text-muted-foreground">gallons ({units.toLocaleString('en-US')} units)</p>
                   </>
                 )}
               </CardContent>
@@ -297,7 +297,7 @@ export function AbccGallonsReport() {
                   total gallons ({reportData?.summary
                     ?.filter(s => s.beverage_type !== "non_alcoholic" && s.beverage_type !== "unclassified")
                     .reduce((sum, s) => sum + parseInt(s.total_units || "0"), 0)
-                    .toLocaleString() || 0} units)
+                    .toLocaleString('en-US') || 0} units)
                 </p>
               </>
             )}
@@ -382,8 +382,8 @@ export function AbccGallonsReport() {
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               <span className="font-medium">Unclassified Items:</span>
               <span>
-                {parseInt(reportData.summary.find(s => s.beverage_type === "unclassified")?.total_units || "0").toLocaleString()} units
-                (${parseFloat(reportData.summary.find(s => s.beverage_type === "unclassified")?.total_sales || "0").toLocaleString()} in sales)
+                {parseInt(reportData.summary.find(s => s.beverage_type === "unclassified")?.total_units || "0").toLocaleString('en-US')} units
+                (${parseFloat(reportData.summary.find(s => s.beverage_type === "unclassified")?.total_sales || "0").toLocaleString('en-US')} in sales)
               </span>
               <span className="text-muted-foreground">- These items need beverage type and serving size classification</span>
             </div>
@@ -705,7 +705,7 @@ function UnclassifiedRow({ item, onClassify }: { item: any; onClassify: (item: a
     <tr className="border-b last:border-0" data-testid={`row-unclassified-${item.item_name}`}>
       <td className="py-1.5 pr-3 font-medium">{item.item_name}</td>
       <td className="py-1.5 px-3 text-muted-foreground text-xs">{item.sales_category_name || "-"}</td>
-      <td className="py-1.5 px-3 text-right tabular-nums">{parseInt(item.total_qty).toLocaleString()}</td>
+      <td className="py-1.5 px-3 text-right tabular-nums">{parseInt(item.total_qty).toLocaleString('en-US')}</td>
       <td className="py-1.5 px-3 text-right tabular-nums">${parseFloat(item.total_sales).toFixed(2)}</td>
       <td className="py-1.5 px-3 text-right">{item.days_sold}</td>
       <td className="py-1.5 pl-3">

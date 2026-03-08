@@ -483,7 +483,7 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {event.estimatedRevenue != null && (
-                        <span className="text-xs text-muted-foreground">${event.estimatedRevenue.toLocaleString()}</span>
+                        <span className="text-xs text-muted-foreground">${event.estimatedRevenue.toLocaleString('en-US')}</span>
                       )}
                       <Badge variant={
                         event.status === 'confirmed' ? 'default' :
@@ -539,13 +539,13 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
                             {event.estimatedRevenue !== null && (
                               <span className="flex items-center gap-1">
                                 <DollarSign className="h-3 w-3" />
-                                Est: ${event.estimatedRevenue?.toLocaleString()}
+                                Est: ${event.estimatedRevenue?.toLocaleString('en-US')}
                               </span>
                             )}
                             {event.actualRevenue !== null && (
                               <span className="flex items-center gap-1">
                                 <DollarSign className="h-3 w-3" />
-                                Actual: ${event.actualRevenue?.toLocaleString()}
+                                Actual: ${event.actualRevenue?.toLocaleString('en-US')}
                               </span>
                             )}
                           </div>

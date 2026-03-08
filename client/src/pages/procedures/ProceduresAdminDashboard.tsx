@@ -578,7 +578,7 @@ export default function ProceduresAdminDashboard() {
                         {staff.isActive ? "Active" : "Inactive"}
                       </Badge>
                       {staff.lastUsedAt && (
-                        <span className="ml-2">Last used: {new Date(staff.lastUsedAt).toLocaleDateString()}</span>
+                        <span className="ml-2">Last used: {new Date(staff.lastUsedAt).toLocaleDateString('en-US')}</span>
                       )}
                     </div>
                   </CardContent>

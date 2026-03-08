@@ -261,12 +261,12 @@ export function CampaignBuilder() {
                   {campaign.estimatedReach && (
                     <span className="flex items-center gap-1" data-testid={`text-reach-${campaign.id}`}>
                       <Eye className="h-3 w-3" />
-                      ~{campaign.estimatedReach.toLocaleString()} reach
+                      ~{campaign.estimatedReach.toLocaleString('en-US')} reach
                     </span>
                   )}
                   <span className="flex items-center gap-1" data-testid={`text-date-${campaign.id}`}>
                     <Calendar className="h-3 w-3" />
-                    {new Date(campaign.createdAt).toLocaleDateString()}
+                    {new Date(campaign.createdAt).toLocaleDateString('en-US')}
                   </span>
                 </CardDescription>
               </div>

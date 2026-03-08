@@ -195,7 +195,7 @@ async function sendComplianceReminders() {
             from: fromEmail,
             subject,
             html,
-            text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate.toLocaleDateString() || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}\n\nMark as Complete: ${completionUrl}`
+            text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate.toLocaleDateString('en-US') || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}\n\nMark as Complete: ${completionUrl}`
           };
           
           await sgMail.send(msg);
@@ -245,7 +245,7 @@ function scheduleNextRun() {
   const msUntilNextRun = nextRun.getTime() - now.getTime();
   const minutesUntilNextRun = Math.round(msUntilNextRun / 60000);
   
-  console.log(`[Compliance Reminders] Next reminder run scheduled for ${nextRun.toLocaleString()} (in ${minutesUntilNextRun} minutes)`);
+  console.log(`[Compliance Reminders] Next reminder run scheduled for ${nextRun.toLocaleString('en-US')} (in ${minutesUntilNextRun} minutes)`);
   
   setTimeout(async () => {
     try {

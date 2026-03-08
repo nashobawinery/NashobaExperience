@@ -378,7 +378,7 @@ export default function SupportAnalytics() {
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.articleStats.totalViews.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{analytics.articleStats.totalViews.toLocaleString('en-US')}</div>
             <p className="text-xs text-muted-foreground">
               Across {analytics.articleStats.published} published articles
             </p>

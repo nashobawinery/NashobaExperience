@@ -578,7 +578,7 @@ Dear ${customerName},
 
 ${introText}
 
-Your ${tierName} tier commitment period ends in ${daysUntilRenewal} days on ${commitmentEndDate.toLocaleDateString()}.
+Your ${tierName} tier commitment period ends in ${daysUntilRenewal} days on ${commitmentEndDate.toLocaleDateString('en-US')}.
 
 Commitment Summary:
 - Tier: ${tierName}
@@ -587,7 +587,7 @@ Commitment Summary:
 - Cases Remaining: ${casesRemaining} cases
 
 ${casesRemaining > 0 
-  ? `To maintain your ${tierName} pricing, please order ${casesRemaining} more case${casesRemaining > 1 ? 's' : ''} before ${commitmentEndDate.toLocaleDateString()}.` 
+  ? `To maintain your ${tierName} pricing, please order ${casesRemaining} more case${casesRemaining > 1 ? 's' : ''} before ${commitmentEndDate.toLocaleDateString('en-US')}.` 
   : 'Congratulations! You have met your commitment requirement for this period.'}
 
 Your commitment will automatically renew for another year, and we look forward to continuing to serve you.
@@ -651,7 +651,7 @@ Questions? Contact us at support@nashobawinery.com or (978) 779-5521
       
       <p>${introText}</p>
       
-      <p>Your <strong>${tierName}</strong> tier commitment period ends on <strong>${commitmentEndDate.toLocaleDateString()}</strong>.</p>
+      <p>Your <strong>${tierName}</strong> tier commitment period ends on <strong>${commitmentEndDate.toLocaleDateString('en-US')}</strong>.</p>
       
       <div class="commitment-box">
         <h3 style="margin-top: 0; color: #5C2535;">Your Progress</h3>
@@ -688,7 +688,7 @@ Questions? Contact us at support@nashobawinery.com or (978) 779-5521
       
       <div class="${casesRemaining > 0 ? 'warning-box' : 'success-box'}">
         ${casesRemaining > 0 
-          ? `<strong>Next Steps:</strong> To keep your ${tierName} pricing benefits, please order <strong>${casesRemaining} more case${casesRemaining > 1 ? 's' : ''}</strong> before ${commitmentEndDate.toLocaleDateString()}. We're happy to help with your order!`
+          ? `<strong>Next Steps:</strong> To keep your ${tierName} pricing benefits, please order <strong>${casesRemaining} more case${casesRemaining > 1 ? 's' : ''}</strong> before ${commitmentEndDate.toLocaleDateString('en-US')}. We're happy to help with your order!`
           : '<strong>Great news!</strong> You\'ve met your commitment for this period. Thank you for your loyalty!'}
       </div>
       
@@ -744,7 +744,7 @@ export function generateWholesaleApplicationEmail(data: WholesaleApplicationData
   const text = `
 New Wholesale Account Application
 
-Application submitted: ${data.submittedAt.toLocaleString()}
+Application submitted: ${data.submittedAt.toLocaleString('en-US')}
 Customer Number: ${data.customerNumber}
 
 BUSINESS INFORMATION
@@ -811,7 +811,7 @@ Please review this application in the B2B Admin Dashboard.
     </div>
     
     <p style="text-align: center; color: #666; margin-bottom: 20px;">
-      Submitted on ${data.submittedAt.toLocaleDateString()} at ${data.submittedAt.toLocaleTimeString()}<br>
+      Submitted on ${data.submittedAt.toLocaleDateString('en-US')} at ${data.submittedAt.toLocaleTimeString('en-US')}<br>
       <strong>Customer #:</strong> ${data.customerNumber}
     </p>
     

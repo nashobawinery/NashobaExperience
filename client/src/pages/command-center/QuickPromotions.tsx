@@ -306,7 +306,7 @@ export function QuickPromotions() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground" data-testid={`text-promo-date-${promo.id}`}>
-                            {new Date(promo.createdAt).toLocaleString()}
+                            {new Date(promo.createdAt).toLocaleString('en-US')}
                           </p>
                           {promo.generatedContent && (
                             <p className="text-sm text-muted-foreground mt-1 line-clamp-2" data-testid={`text-promo-preview-${promo.id}`}>

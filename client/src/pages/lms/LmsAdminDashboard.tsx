@@ -906,7 +906,7 @@ export default function LmsAdminDashboard() {
                           <div className="text-right">
                             <p className="font-medium">{enrollment.course_title}</p>
                             <p className="text-sm text-muted-foreground">
-                              Enrolled {new Date(enrollment.enrolled_at).toLocaleDateString()}
+                              Enrolled {new Date(enrollment.enrolled_at).toLocaleDateString('en-US')}
                             </p>
                           </div>
                           <div className="w-32">

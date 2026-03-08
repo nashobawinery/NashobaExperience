@@ -162,12 +162,12 @@ export function SegmentOverview() {
           <div className="flex flex-wrap items-center gap-4 justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Customers</p>
-              <p className="text-2xl font-bold" data-testid="text-total-customers">{data?.totalCustomers?.toLocaleString()}</p>
+              <p className="text-2xl font-bold" data-testid="text-total-customers">{data?.totalCustomers?.toLocaleString('en-US')}</p>
             </div>
             <Separator orientation="vertical" className="h-10 hidden sm:block" />
             <div>
               <p className="text-sm text-muted-foreground">Reactivation Targets</p>
-              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400" data-testid="text-reactivation-targets">{reactivatableCount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400" data-testid="text-reactivation-targets">{reactivatableCount.toLocaleString('en-US')}</p>
             </div>
             <Separator orientation="vertical" className="h-10 hidden sm:block" />
             <div>
@@ -181,19 +181,19 @@ export function SegmentOverview() {
                   {data.sourceCounts.toast != null && (
                     <div className="text-center">
                       <p className="text-xs text-muted-foreground">Toast</p>
-                      <p className="text-lg font-bold text-orange-600 dark:text-orange-400" data-testid="text-toast-count">{data.sourceCounts.toast.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-orange-600 dark:text-orange-400" data-testid="text-toast-count">{data.sourceCounts.toast.toLocaleString('en-US')}</p>
                     </div>
                   )}
                   {data.sourceCounts.shopify != null && (
                     <div className="text-center">
                       <p className="text-xs text-muted-foreground">Shopify</p>
-                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-shopify-count">{data.sourceCounts.shopify.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-shopify-count">{data.sourceCounts.shopify.toLocaleString('en-US')}</p>
                     </div>
                   )}
                   {(data.mergedCount ?? 0) > 0 && (
                     <div className="text-center">
                       <p className="text-xs text-muted-foreground">Merged</p>
-                      <p className="text-lg font-bold" data-testid="text-merged-count">{data.mergedCount?.toLocaleString()}</p>
+                      <p className="text-lg font-bold" data-testid="text-merged-count">{data.mergedCount?.toLocaleString('en-US')}</p>
                     </div>
                   )}
                 </div>
@@ -216,7 +216,7 @@ export function SegmentOverview() {
                     <Icon className="w-4 h-4" />
                     <span className="font-semibold text-sm">{config.label}</span>
                   </div>
-                  <span className="text-lg font-bold">{seg.customerCount.toLocaleString()}</span>
+                  <span className="text-lg font-bold">{seg.customerCount.toLocaleString('en-US')}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">{config.description}</p>
                 <Separator />
@@ -294,7 +294,7 @@ function RfmSegmentDialog({ segment, onClose }: { segment: string; onClose: () =
           <DialogTitle className="flex items-center gap-2">
             <Icon className="w-5 h-5" />
             {config.label} Customers
-            {data && <Badge className={config.color}>{data.total.toLocaleString()}</Badge>}
+            {data && <Badge className={config.color}>{data.total.toLocaleString('en-US')}</Badge>}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">{config.description}</p>
         </DialogHeader>
@@ -375,7 +375,7 @@ function RfmSegmentDialog({ segment, onClose }: { segment: string; onClose: () =
         {data && data.totalPages > 1 && (
           <div className="flex items-center justify-between pt-2 border-t">
             <p className="text-xs text-muted-foreground">
-              Page {data.page} of {data.totalPages} ({data.total.toLocaleString()} customers)
+              Page {data.page} of {data.totalPages} ({data.total.toLocaleString('en-US')} customers)
             </p>
             <div className="flex items-center gap-1">
               <Button
@@ -457,7 +457,7 @@ export function RfmTab() {
               <div className="flex flex-wrap items-center gap-6">
                 <div>
                   <p className="text-sm text-muted-foreground">Customers Scored</p>
-                  <p className="text-2xl font-bold" data-testid="text-rfm-total">{data.totalScored.toLocaleString()}</p>
+                  <p className="text-2xl font-bold" data-testid="text-rfm-total">{data.totalScored.toLocaleString('en-US')}</p>
                 </div>
                 <Separator orientation="vertical" className="h-10 hidden sm:block" />
                 <div>
@@ -485,7 +485,7 @@ export function RfmTab() {
                         <Icon className="w-4 h-4" />
                         <span className="font-semibold text-sm">{config.label}</span>
                       </div>
-                      <Badge className={config.color}>{seg.customerCount.toLocaleString()}</Badge>
+                      <Badge className={config.color}>{seg.customerCount.toLocaleString('en-US')}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">{config.description}</p>
                     <Separator />
@@ -602,25 +602,25 @@ export function LoyaltyTab() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Total Members</p>
-            <p className="text-2xl font-bold" data-testid="text-loyalty-members">{stats?.totalMembers?.toLocaleString() || 0}</p>
+            <p className="text-2xl font-bold" data-testid="text-loyalty-members">{stats?.totalMembers?.toLocaleString('en-US') || 0}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Outstanding Points</p>
-            <p className="text-2xl font-bold">{stats?.outstandingPoints?.toLocaleString() || 0}</p>
+            <p className="text-2xl font-bold">{stats?.outstandingPoints?.toLocaleString('en-US') || 0}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Lifetime Points Issued</p>
-            <p className="text-2xl font-bold">{stats?.lifetimePointsIssued?.toLocaleString() || 0}</p>
+            <p className="text-2xl font-bold">{stats?.lifetimePointsIssued?.toLocaleString('en-US') || 0}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">30-Day Transactions</p>
-            <p className="text-2xl font-bold">{stats?.recentTransactions?.toLocaleString() || 0}</p>
+            <p className="text-2xl font-bold">{stats?.recentTransactions?.toLocaleString('en-US') || 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -638,7 +638,7 @@ export function LoyaltyTab() {
                   </div>
                   <div>
                     <p className="font-semibold text-sm">{tier.name}</p>
-                    <p className="text-xs text-muted-foreground">{tier.min_points.toLocaleString()}+ points</p>
+                    <p className="text-xs text-muted-foreground">{tier.min_points.toLocaleString('en-US')}+ points</p>
                   </div>
                 </div>
                 <div className="text-xs space-y-1">
@@ -922,7 +922,7 @@ export function AutomationsTab() {
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: `${data.eligibleCustomers.toLocaleString()} eligible customers`, description: `Rule: ${data.ruleName}` });
+      toast({ title: `${data.eligibleCustomers.toLocaleString('en-US')} eligible customers`, description: `Rule: ${data.ruleName}` });
     },
   });
 
@@ -1281,7 +1281,7 @@ export function AnalyticsTab() {
                   <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
                     <div className="h-full bg-primary/70 rounded" style={{ width: `${(d.count / maxSpend) * 100}%` }} />
                   </div>
-                  <span className="text-xs w-14 text-muted-foreground">{d.count.toLocaleString()}</span>
+                  <span className="text-xs w-14 text-muted-foreground">{d.count.toLocaleString('en-US')}</span>
                 </div>
               ))}
             </div>
@@ -1300,7 +1300,7 @@ export function AnalyticsTab() {
                   <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
                     <div className="h-full bg-primary/70 rounded" style={{ width: `${(d.count / maxVisit) * 100}%` }} />
                   </div>
-                  <span className="text-xs w-14 text-muted-foreground">{d.count.toLocaleString()}</span>
+                  <span className="text-xs w-14 text-muted-foreground">{d.count.toLocaleString('en-US')}</span>
                 </div>
               ))}
             </div>
@@ -1317,27 +1317,27 @@ export function AnalyticsTab() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
               <div>
                 <p className="text-xs text-muted-foreground">Email Opt-In</p>
-                <p className="text-lg font-bold text-green-600 dark:text-green-400">{reachability.emailOptIn.toLocaleString()}</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">{reachability.emailOptIn.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">{Math.round(reachability.emailOptIn / reachability.total * 100)}%</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Email Opt-Out</p>
-                <p className="text-lg font-bold text-red-600 dark:text-red-400">{reachability.emailOptOut.toLocaleString()}</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{reachability.emailOptOut.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">{Math.round(reachability.emailOptOut / reachability.total * 100)}%</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Email Unknown</p>
-                <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{reachability.emailUnknown.toLocaleString()}</p>
+                <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{reachability.emailUnknown.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">{Math.round(reachability.emailUnknown / reachability.total * 100)}%</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">No Email</p>
-                <p className="text-lg font-bold text-muted-foreground">{reachability.noEmail.toLocaleString()}</p>
+                <p className="text-lg font-bold text-muted-foreground">{reachability.noEmail.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">{Math.round(reachability.noEmail / reachability.total * 100)}%</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Has Phone</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{reachability.hasPhone.toLocaleString()}</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{reachability.hasPhone.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">{Math.round(reachability.hasPhone / reachability.total * 100)}%</p>
               </div>
             </div>
@@ -1358,7 +1358,7 @@ export function AnalyticsTab() {
                   <div key={r.segment} className="text-center">
                     <Badge className={config?.color || "bg-muted"}>{config?.label || r.segment}</Badge>
                     <p className="text-xl font-bold mt-1">{formatCurrency(r.totalRevenue)}</p>
-                    <p className="text-xs text-muted-foreground">{r.count.toLocaleString()} customers</p>
+                    <p className="text-xs text-muted-foreground">{r.count.toLocaleString('en-US')} customers</p>
                   </div>
                 );
               })}
@@ -1492,9 +1492,9 @@ export function CustomerBrowser() {
           <SelectTrigger className="w-[170px]" data-testid="select-source-filter"><SelectValue placeholder="All sources" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sources</SelectItem>
-            <SelectItem value="toast">Toast {sourceCounts?.toast ? `(${sourceCounts.toast.toLocaleString()})` : ""}</SelectItem>
-            <SelectItem value="shopify">Shopify {sourceCounts?.shopify ? `(${sourceCounts.shopify.toLocaleString()})` : "(0)"}</SelectItem>
-            <SelectItem value="merged">Merged {sourceCounts?.merged ? `(${sourceCounts.merged.toLocaleString()})` : "(0)"}</SelectItem>
+            <SelectItem value="toast">Toast {sourceCounts?.toast ? `(${sourceCounts.toast.toLocaleString('en-US')})` : ""}</SelectItem>
+            <SelectItem value="shopify">Shopify {sourceCounts?.shopify ? `(${sourceCounts.shopify.toLocaleString('en-US')})` : "(0)"}</SelectItem>
+            <SelectItem value="merged">Merged {sourceCounts?.merged ? `(${sourceCounts.merged.toLocaleString('en-US')})` : "(0)"}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={setSortBy}>
@@ -1545,7 +1545,7 @@ export function CustomerBrowser() {
       ) : (
         <>
           <div className="text-xs text-muted-foreground">
-            Showing {((pagination?.page || 1) - 1) * (pagination?.limit || 25) + 1}-{Math.min((pagination?.page || 1) * (pagination?.limit || 25), pagination?.total || 0)} of {pagination?.total?.toLocaleString()} customers
+            Showing {((pagination?.page || 1) - 1) * (pagination?.limit || 25) + 1}-{Math.min((pagination?.page || 1) * (pagination?.limit || 25), pagination?.total || 0)} of {pagination?.total?.toLocaleString('en-US')} customers
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm" data-testid="table-customers">
@@ -1960,10 +1960,10 @@ export function ToastIntegrationTab() {
           </CardHeader>
           <CardContent>
             <div className="text-lg font-bold" data-testid="text-toast-total-guests">
-              {(status?.stats?.totalGuests || 0).toLocaleString()}
+              {(status?.stats?.totalGuests || 0).toLocaleString('en-US')}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(status?.stats?.withEmail || 0).toLocaleString()} with email
+              {(status?.stats?.withEmail || 0).toLocaleString('en-US')} with email
             </p>
           </CardContent>
         </Card>
@@ -1975,10 +1975,10 @@ export function ToastIntegrationTab() {
           </CardHeader>
           <CardContent>
             <div className="text-lg font-bold" data-testid="text-toast-api-synced">
-              {(status?.stats?.apiSynced || 0).toLocaleString()}
+              {(status?.stats?.apiSynced || 0).toLocaleString('en-US')}
             </div>
             <p className="text-xs text-muted-foreground">
-              {status?.lastSync ? `Last: ${new Date(status.lastSync).toLocaleDateString()}` : "No syncs yet"}
+              {status?.lastSync ? `Last: ${new Date(status.lastSync).toLocaleDateString('en-US')}` : "No syncs yet"}
             </p>
           </CardContent>
         </Card>
@@ -2275,12 +2275,12 @@ export function NewCustomers() {
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">New Customers</div>
-            <div className="text-2xl font-bold" data-testid="text-new-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalNew.toLocaleString()}</div>
+            <div className="text-2xl font-bold" data-testid="text-new-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalNew.toLocaleString('en-US')}</div>
             {data?.sourceSummary && data.sourceSummary.length > 0 && (
               <div className="flex gap-1.5 mt-1 flex-wrap">
                 {data.sourceSummary.map(s => (
                   <Badge key={s.source} variant="secondary" className={`text-xs ${sourceColor(s.source)}`} data-testid={`badge-source-${s.source}`}>
-                    {sourceLabel(s.source)}: {s.count.toLocaleString()}
+                    {sourceLabel(s.source)}: {s.count.toLocaleString('en-US')}
                   </Badge>
                 ))}
               </div>
@@ -2290,21 +2290,21 @@ export function NewCustomers() {
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">With Email</div>
-            <div className="text-2xl font-bold" data-testid="text-email-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalWithEmail.toLocaleString()}</div>
+            <div className="text-2xl font-bold" data-testid="text-email-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalWithEmail.toLocaleString('en-US')}</div>
             <p className="text-xs text-muted-foreground">{totalNew > 0 ? Math.round(totalWithEmail / totalNew * 100) : 0}% of new</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">With Phone</div>
-            <div className="text-2xl font-bold" data-testid="text-phone-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalWithPhone.toLocaleString()}</div>
+            <div className="text-2xl font-bold" data-testid="text-phone-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalWithPhone.toLocaleString('en-US')}</div>
             <p className="text-xs text-muted-foreground">{totalNew > 0 ? Math.round(totalWithPhone / totalNew * 100) : 0}% of new</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">Email Opt-In</div>
-            <div className="text-2xl font-bold" data-testid="text-optin-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalOptIn.toLocaleString()}</div>
+            <div className="text-2xl font-bold" data-testid="text-optin-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalOptIn.toLocaleString('en-US')}</div>
             <p className="text-xs text-muted-foreground">Ready for welcome message</p>
           </CardContent>
         </Card>
@@ -2395,7 +2395,7 @@ export function NewCustomers() {
             {data.totalPages > 1 && (
               <div className="flex items-center justify-between p-3 border-t">
                 <span className="text-sm text-muted-foreground">
-                  Page {data.page} of {data.totalPages} ({data.totalRecords.toLocaleString()} customers)
+                  Page {data.page} of {data.totalPages} ({data.totalRecords.toLocaleString('en-US')} customers)
                 </span>
                 <div className="flex gap-1">
                   <Button

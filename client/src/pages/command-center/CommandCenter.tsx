@@ -510,13 +510,13 @@ function CombinedDashboard({
           />
           <StatCard
             label="Total Customers"
-            value={totalCustomers.toLocaleString()}
+            value={totalCustomers.toLocaleString('en-US')}
             icon={<Users className="h-4 w-4" />}
             active={totalCustomers > 0}
           />
           <StatCard
             label="Reactivation Targets"
-            value={reactivationTargets.toLocaleString()}
+            value={reactivationTargets.toLocaleString('en-US')}
             icon={<TrendingUp className="h-4 w-4" />}
             active={reactivationTargets > 0}
           />
@@ -560,7 +560,7 @@ function CombinedDashboard({
               {segmentData?.segments?.map(seg => (
                 <div key={seg.segment} className="flex items-center justify-between">
                   <span className="text-muted-foreground capitalize">{seg.segment.replace("_", " ")}</span>
-                  <span className="font-medium">{seg.customerCount.toLocaleString()}</span>
+                  <span className="font-medium">{seg.customerCount.toLocaleString('en-US')}</span>
                 </div>
               ))}
               {segmentData?.sourceCounts && Object.keys(segmentData.sourceCounts).length > 1 && (
@@ -568,7 +568,7 @@ function CombinedDashboard({
                   <Separator />
                   <div className="flex items-center gap-2 flex-wrap">
                     {Object.entries(segmentData.sourceCounts).map(([src, cnt]) => (
-                      <Badge key={src} variant="outline" className="text-xs">{src}: {(cnt as number).toLocaleString()}</Badge>
+                      <Badge key={src} variant="outline" className="text-xs">{src}: {(cnt as number).toLocaleString('en-US')}</Badge>
                     ))}
                     {(segmentData.mergedCount ?? 0) > 0 && (
                       <Badge variant="outline" className="text-xs">merged: {segmentData.mergedCount}</Badge>

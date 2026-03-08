@@ -153,7 +153,7 @@ export default function OrderDeliveryDatePage() {
                 Order {data.order.orderNumber}
               </CardTitle>
               <Badge variant="outline">
-                {new Date(data.order.orderDate).toLocaleDateString()}
+                {new Date(data.order.orderDate).toLocaleDateString('en-US')}
               </Badge>
             </div>
             {data.customer && (

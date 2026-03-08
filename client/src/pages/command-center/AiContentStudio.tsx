@@ -355,7 +355,7 @@ export function AiContentStudio() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs text-muted-foreground" data-testid={`text-history-date-${item.id}`}>
-                        {new Date(item.createdAt).toLocaleDateString()}
+                        {new Date(item.createdAt).toLocaleDateString('en-US')}
                       </span>
                       {deleteConfirmId === item.id ? (
                         <div className="flex items-center gap-1">

@@ -408,7 +408,7 @@ function WebSourcesTab() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support/web-sources"] });
       setFetchingId(null);
-      toast({ title: "Content fetched", description: `Retrieved ${data.contentLength?.toLocaleString() || 0} characters` });
+      toast({ title: "Content fetched", description: `Retrieved ${data.contentLength?.toLocaleString('en-US') || 0} characters` });
     },
     onError: (error: any) => {
       setFetchingId(null);

@@ -92,8 +92,8 @@ function formatCurrency(value: string | null | undefined): string {
 
 function formatVolume(min: string | null, max: string | null): string {
   if (!min && !max) return "All Barrels";
-  const minN = min ? parseInt(min).toLocaleString() : "0";
-  const maxN = max ? parseInt(max).toLocaleString() : "No limit";
+  const minN = min ? parseInt(min).toLocaleString('en-US') : "0";
+  const maxN = max ? parseInt(max).toLocaleString('en-US') : "No limit";
   if (minN === "0") return `First ${maxN}`;
   return `Over ${minN} up to ${maxN}`;
 }

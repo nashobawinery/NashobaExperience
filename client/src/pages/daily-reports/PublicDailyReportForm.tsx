@@ -632,7 +632,7 @@ export default function PublicDailyReportForm() {
                           {request.departmentLabel}
                         </Badge>
                         <p className="text-xs text-muted-foreground">
-                          Report from {new Date(request.reportDate).toLocaleDateString()}
+                          Report from {new Date(request.reportDate).toLocaleDateString('en-US')}
                         </p>
                       </div>
                       <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">

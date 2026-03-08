@@ -8196,7 +8196,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         from: process.env.SENDGRID_FROM_EMAIL || 'support@nashobawinery.com',
         subject,
         html,
-        text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate?.toLocaleDateString() || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}\n\nMark as Complete: ${completionUrl}`
+        text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate?.toLocaleDateString('en-US') || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}\n\nMark as Complete: ${completionUrl}`
       };
 
       await sgMail.send(msg);
@@ -9159,7 +9159,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         return res.status(500).json({ message: 'Email service not configured' });
       }
       
-      const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date set';
+      const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('en-US') : 'No due date set';
       const daysUntilDue = task.due_date ? Math.ceil((new Date(task.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
       const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
       
@@ -12299,18 +12299,18 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       if (testEmail) {
         try {
           const { sendEmail } = await import("./email");
-          const testSubject = `Email Test - Nashoba Operations Platform (${new Date().toLocaleString()})`;
+          const testSubject = `Email Test - Nashoba Operations Platform (${new Date().toLocaleString('en-US')})`;
           const testHtml = `
             <div style="font-family: Arial, sans-serif; padding: 20px;">
               <h2 style="color: #5C2535;">Email Test Successful!</h2>
               <p>This is a test email from the Nashoba Valley Operations Platform.</p>
-              <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
+              <p><strong>Sent at:</strong> ${new Date().toLocaleString('en-US')}</p>
               <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'unknown'}</p>
               <p><strong>Requested by:</strong> ${req.user?.claims?.email || 'Unknown'}</p>
               <p>If you received this email, the SendGrid configuration is working correctly.</p>
             </div>
           `;
-          const testText = `Email Test Successful!\n\nThis is a test email from the Nashoba Valley Operations Platform.\nSent at: ${new Date().toLocaleString()}\nEnvironment: ${process.env.NODE_ENV || 'unknown'}\nRequested by: ${req.user?.claims?.email || 'Unknown'}`;
+          const testText = `Email Test Successful!\n\nThis is a test email from the Nashoba Valley Operations Platform.\nSent at: ${new Date().toLocaleString('en-US')}\nEnvironment: ${process.env.NODE_ENV || 'unknown'}\nRequested by: ${req.user?.claims?.email || 'Unknown'}`;
           
           await sendEmail(testEmail, testSubject, testHtml, testText);
           diagnostics.test.result = 'success';

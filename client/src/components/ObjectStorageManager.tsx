@@ -329,7 +329,7 @@ export default function ObjectStorageManager() {
                             <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                               <span>{formatBytes(file.size)}</span>
                               <span>•</span>
-                              <span>{new Date(file.updated).toLocaleDateString()}</span>
+                              <span>{new Date(file.updated).toLocaleDateString('en-US')}</span>
                               {file.contentType.startsWith("image/") && (
                                 <>
                                   <span>•</span>
@@ -455,7 +455,7 @@ export default function ObjectStorageManager() {
             <div className="py-4">
               <div className="text-sm font-medium">{extractFileName(selectedForDelete.name)}</div>
               <div className="text-sm text-muted-foreground">
-                {formatBytes(selectedForDelete.size)} • {new Date(selectedForDelete.updated).toLocaleDateString()}
+                {formatBytes(selectedForDelete.size)} • {new Date(selectedForDelete.updated).toLocaleDateString('en-US')}
               </div>
             </div>
           )}

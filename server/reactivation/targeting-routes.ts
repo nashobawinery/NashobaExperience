@@ -165,7 +165,7 @@ router.post("/generate", isAuthenticated, async (req, res) => {
     const VALID_CHANNELS = ["email", "sms"];
 
     const { 
-      name = `Weekly Targets - ${new Date().toLocaleDateString()}`,
+      name = `Weekly Targets - ${new Date().toLocaleDateString('en-US')}`,
       targetCount: rawTargetCount = 500, 
       segments: rawSegments = ["at_risk", "lapsed", "dormant"], 
       channel: rawChannel = "email",

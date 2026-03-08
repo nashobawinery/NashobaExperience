@@ -596,7 +596,7 @@ export default function StaffProceduresForm() {
                             {(() => {
                               try {
                                 const date = new Date(answers[item.id].completedAt!);
-                                return isNaN(date.getTime()) ? '' : date.toLocaleTimeString();
+                                return isNaN(date.getTime()) ? '' : date.toLocaleTimeString('en-US');
                               } catch {
                                 return '';
                               }

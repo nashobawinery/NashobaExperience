@@ -5392,7 +5392,7 @@ export default function AdminDashboard() {
                         >
                           {mp.product?.name || 'Unknown Product'}
                           <span className="text-muted-foreground ml-1">
-                            (exp: {new Date(mp.expiresAt).toLocaleDateString()})
+                            (exp: {new Date(mp.expiresAt).toLocaleDateString('en-US')})
                           </span>
                           <Button
                             type="button"

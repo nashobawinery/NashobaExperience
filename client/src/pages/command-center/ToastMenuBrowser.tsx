@@ -2543,7 +2543,7 @@ export function ToastMenuBrowser() {
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
                         {config.menuGuids.split(",").filter(Boolean).length} menu{config.menuGuids.split(",").filter(Boolean).length !== 1 ? "s" : ""}
-                        {" · "}Updated {new Date(config.updatedAt).toLocaleDateString()}
+                        {" · "}Updated {new Date(config.updatedAt).toLocaleDateString('en-US')}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">

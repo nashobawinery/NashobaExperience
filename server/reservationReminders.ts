@@ -117,7 +117,7 @@ function scheduleReminders() {
     
     const msUntil8AM = target.getTime() - now.getTime();
     
-    console.log(`[Reservation Reminders] Next reminder run scheduled for ${target.toLocaleString()} (in ${Math.round(msUntil8AM / 60000)} minutes)`);
+    console.log(`[Reservation Reminders] Next reminder run scheduled for ${target.toLocaleString('en-US')} (in ${Math.round(msUntil8AM / 60000)} minutes)`);
     
     setTimeout(() => {
       sendDailyReminders()

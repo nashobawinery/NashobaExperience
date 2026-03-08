@@ -247,7 +247,7 @@ export function SmsCampaignsTab() {
                           {c.total_failed} failed
                         </span>
                       )}
-                      <span>{new Date(c.created_at).toLocaleDateString()}</span>
+                      <span>{new Date(c.created_at).toLocaleDateString('en-US')}</span>
                     </div>
                   </div>
                 </div>

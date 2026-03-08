@@ -310,7 +310,7 @@ function scheduleNextRun() {
   const msUntilNextRun = nextRun.getTime() - now.getTime();
   const minutesUntilNextRun = Math.round(msUntilNextRun / 60000);
   
-  console.log(`[Dept Calendar Reminders] Next reminder run scheduled for ${nextRun.toLocaleString()} (in ${minutesUntilNextRun} minutes)`);
+  console.log(`[Dept Calendar Reminders] Next reminder run scheduled for ${nextRun.toLocaleString('en-US')} (in ${minutesUntilNextRun} minutes)`);
   
   setTimeout(async () => {
     try {

@@ -211,7 +211,7 @@ export default function RccDashboard() {
             />
             <StatCard 
               label="Revenue" 
-              value={dailyGrandTotal > 0 ? `$${dailyGrandTotal.toLocaleString()}` : 'Not entered'} 
+              value={dailyGrandTotal > 0 ? `$${dailyGrandTotal.toLocaleString('en-US')}` : 'Not entered'} 
               icon={<DollarSign className="h-4 w-4" />}
               active={dailyGrandTotal > 0}
             />
@@ -1209,7 +1209,7 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: "Toast revenue synced", description: `$${parseFloat(data?.netSales || 0).toLocaleString()} from ${data?.orderCount || 0} orders` });
+      toast({ title: "Toast revenue synced", description: `$${parseFloat(data?.netSales || 0).toLocaleString('en-US')} from ${data?.orderCount || 0} orders` });
       queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
     },
     onError: (error: any) => {
@@ -1243,7 +1243,7 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: "Shopify revenue synced", description: `$${parseFloat(data?.netSales || 0).toLocaleString()} from ${data?.orderCount || 0} orders` });
+      toast({ title: "Shopify revenue synced", description: `$${parseFloat(data?.netSales || 0).toLocaleString('en-US')} from ${data?.orderCount || 0} orders` });
       queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
     },
     onError: (error: any) => {
@@ -1262,7 +1262,7 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: "Wholesale revenue synced", description: `$${parseFloat(data?.wholesaleRevenue || 0).toLocaleString()} from B2B orders` });
+      toast({ title: "Wholesale revenue synced", description: `$${parseFloat(data?.wholesaleRevenue || 0).toLocaleString('en-US')} from B2B orders` });
       queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
     },
     onError: () => toast({ title: "Error syncing wholesale", description: "Failed to sync B2B wholesale revenue", variant: "destructive" }),
@@ -1455,7 +1455,7 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
           </Button>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Weekly Total</p>
-            <p className="text-2xl font-bold text-green-600">${grandTotal.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-green-600">${grandTotal.toLocaleString('en-US')}</p>
           </div>
           {historicalData && historicalData.priorYearTotal > 0 && (
             <div className="text-right">
@@ -1468,7 +1468,7 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
                     <p className={`text-lg font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
                       {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
                     </p>
-                    <p className="text-xs text-muted-foreground">PY: ${historicalData.priorYearTotal.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">PY: ${historicalData.priorYearTotal.toLocaleString('en-US')}</p>
                   </>
                 );
               })()}
@@ -1483,7 +1483,7 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Wk Discounts:</span>
               <span className={weeklyDiscountPct > 10 ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
-                ${weeklyDiscountVoidSummary.discounts.toLocaleString()} ({weeklyDiscountPct.toFixed(1)}%)
+                ${weeklyDiscountVoidSummary.discounts.toLocaleString('en-US')} ({weeklyDiscountPct.toFixed(1)}%)
               </span>
             </div>
           )}
@@ -1491,14 +1491,14 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Wk Voids:</span>
               <span className={weeklyDiscountVoidSummary.voids > 200 ? 'text-orange-600 dark:text-orange-400 font-medium' : ''}>
-                ${weeklyDiscountVoidSummary.voids.toLocaleString()} ({weeklyDiscountVoidSummary.voidCount})
+                ${weeklyDiscountVoidSummary.voids.toLocaleString('en-US')} ({weeklyDiscountVoidSummary.voidCount})
               </span>
             </div>
           )}
           {weeklyDiscountVoidSummary.serviceCharges > 0 && (
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Svc Charges:</span>
-              <span>${weeklyDiscountVoidSummary.serviceCharges.toLocaleString()}</span>
+              <span>${weeklyDiscountVoidSummary.serviceCharges.toLocaleString('en-US')}</span>
             </div>
           )}
           {weeklyDiscountVoidSummary.flaggedDays > 0 && (
@@ -1764,7 +1764,7 @@ function DailyRevenueRow({
                   data-testid={`btn-detail-toast-${day.date}`}
                 >
                   <p className="text-xs text-muted-foreground">Toast</p>
-                  <p className="font-medium">${parseFloat(toastRev || '0').toLocaleString()}</p>
+                  <p className="font-medium">${parseFloat(toastRev || '0').toLocaleString('en-US')}</p>
                 </div>
                 {(() => {
                   const discPct = parseFloat(entry?.toastDiscountPct || '0');
@@ -1784,7 +1784,7 @@ function DailyRevenueRow({
                       {hasVoidFlag && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-orange-400 text-orange-600 dark:text-orange-400" data-testid={`flag-void-${day.date}`}>
                           <AlertCircle className="h-3 w-3 mr-0.5" />
-                          ${voidAmt.toLocaleString()} void ({voidCount})
+                          ${voidAmt.toLocaleString('en-US')} void ({voidCount})
                         </Badge>
                       )}
                     </div>
@@ -1797,7 +1797,7 @@ function DailyRevenueRow({
                   data-testid={`btn-detail-total-${day.date}`}
                 >
                   <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="font-bold text-green-600">${dayTotal.toLocaleString()}</p>
+                  <p className="font-bold text-green-600">${dayTotal.toLocaleString('en-US')}</p>
                 </div>
               </>
             )}
@@ -1847,14 +1847,14 @@ function DailyRevenueRow({
                 {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
                   <div className="pt-1">
                     <p className="text-xs text-muted-foreground">PY Toast{priorYearDate ? ` (${priorYearDate})` : ''}</p>
-                    <p className="text-xs font-medium">${priorYearRevenue.toast.toLocaleString()}</p>
+                    <p className="text-xs font-medium">${priorYearRevenue.toast.toLocaleString('en-US')}</p>
                   </div>
                 )}
                 {(parseFloat(entry?.toastDiscountPct || '0') > 0 || (entry?.toastVoidCount || 0) > 0) && (
                   <div className="pt-1 space-y-0.5" data-testid={`detail-flags-${day.date}`}>
                     {parseFloat(entry?.toastGrossSales || '0') > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        Gross: ${parseFloat(entry?.toastGrossSales || '0').toLocaleString()}
+                        Gross: ${parseFloat(entry?.toastGrossSales || '0').toLocaleString('en-US')}
                       </p>
                     )}
                     {parseFloat(entry?.toastDiscountAmount || '0') > 0 && (
@@ -1864,7 +1864,7 @@ function DailyRevenueRow({
                         data-testid={`link-discount-detail-${day.date}`}
                       >
                         <Tag className="h-3 w-3" />
-                        Discounts: ${parseFloat(entry?.toastDiscountAmount || '0').toLocaleString()} ({parseFloat(entry?.toastDiscountPct || '0').toFixed(1)}%)
+                        Discounts: ${parseFloat(entry?.toastDiscountAmount || '0').toLocaleString('en-US')} ({parseFloat(entry?.toastDiscountPct || '0').toFixed(1)}%)
                         {expandedDiscounts ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                       </button>
                     )}
@@ -1908,7 +1908,7 @@ function DailyRevenueRow({
                     )}
                     {parseFloat(entry?.toastServiceCharges || '0') > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        Svc Charges: ${parseFloat(entry?.toastServiceCharges || '0').toLocaleString()}
+                        Svc Charges: ${parseFloat(entry?.toastServiceCharges || '0').toLocaleString('en-US')}
                       </p>
                     )}
                     {(entry?.toastVoidCount || 0) > 0 && (
@@ -1918,7 +1918,7 @@ function DailyRevenueRow({
                         data-testid={`link-void-detail-${day.date}`}
                       >
                         <Ban className="h-3 w-3" />
-                        Voids: ${parseFloat(entry?.toastVoidAmount || '0').toLocaleString()} ({entry?.toastVoidCount} items)
+                        Voids: ${parseFloat(entry?.toastVoidAmount || '0').toLocaleString('en-US')} ({entry?.toastVoidCount} items)
                         {expandedVoids ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                       </button>
                     )}
@@ -1998,7 +1998,7 @@ function DailyRevenueRow({
                 {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
                   <div className="pt-1">
                     <p className="text-xs text-muted-foreground">PY Shopify</p>
-                    <p className="text-xs font-medium">${priorYearRevenue.shopify.toLocaleString()}</p>
+                    <p className="text-xs font-medium">${priorYearRevenue.shopify.toLocaleString('en-US')}</p>
                   </div>
                 )}
               </div>
@@ -2030,7 +2030,7 @@ function DailyRevenueRow({
                 {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
                   <div className="pt-1">
                     <p className="text-xs text-muted-foreground">PY Wholesale</p>
-                    <p className="text-xs font-medium">${(priorYearRevenue.wholesale || 0).toLocaleString()}</p>
+                    <p className="text-xs font-medium">${(priorYearRevenue.wholesale || 0).toLocaleString('en-US')}</p>
                   </div>
                 )}
               </div>
@@ -2056,14 +2056,14 @@ function DailyRevenueRow({
                 {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
                   <div className="pt-1">
                     <p className="text-xs text-muted-foreground">PY Other</p>
-                    <p className="text-xs font-medium">${(priorYearRevenue.other || 0).toLocaleString()}</p>
+                    <p className="text-xs font-medium">${(priorYearRevenue.other || 0).toLocaleString('en-US')}</p>
                   </div>
                 )}
               </div>
             </div>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="text-sm font-medium">
-                Day Total for {day.displayDate}: <span className="text-green-600">${dayTotal.toLocaleString()}</span>
+                Day Total for {day.displayDate}: <span className="text-green-600">${dayTotal.toLocaleString('en-US')}</span>
               </div>
             </div>
             <div>

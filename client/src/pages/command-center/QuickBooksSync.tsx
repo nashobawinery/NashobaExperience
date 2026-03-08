@@ -584,11 +584,11 @@ export default function QuickBooksSync() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Connected</span>
-                      <span>{status.connectedAt ? new Date(status.connectedAt).toLocaleDateString() : "N/A"}</span>
+                      <span>{status.connectedAt ? new Date(status.connectedAt).toLocaleDateString('en-US') : "N/A"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Last Sync</span>
-                      <span>{status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString() : "Never"}</span>
+                      <span>{status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('en-US') : "Never"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Token Expires</span>
@@ -1288,7 +1288,7 @@ export default function QuickBooksSync() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium capitalize">{log.syncType}</span>
-                          <span className="text-muted-foreground">{new Date(log.startedAt).toLocaleString()}</span>
+                          <span className="text-muted-foreground">{new Date(log.startedAt).toLocaleString('en-US')}</span>
                         </div>
                         {(log.syncType === "invoices" || log.syncType === "payments") && (
                           <div className="flex gap-4 mt-1 text-xs text-muted-foreground">

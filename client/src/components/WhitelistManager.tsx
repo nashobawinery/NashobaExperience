@@ -198,7 +198,7 @@ export default function WhitelistManager() {
                   {getRoleBadge(item.role)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Added {new Date(item.createdAt).toLocaleDateString()}
+                  Added {new Date(item.createdAt).toLocaleDateString('en-US')}
                 </p>
               </div>
               <Button

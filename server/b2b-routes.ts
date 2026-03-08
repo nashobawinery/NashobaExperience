@@ -2758,7 +2758,7 @@ router.post('/api/b2b/order-workflow/delivery-date/:token', async (req: Request,
           admin.email,
           `Approval Required: Order ${order.orderNumber}`,
           approvalEmailHtml,
-          `Order ${order.orderNumber} from ${customer.accountName} is ready for approval. Delivery: ${parsedDate.toLocaleDateString()}. Total: $${order.total}. Review: ${approvalUrl}`
+          `Order ${order.orderNumber} from ${customer.accountName} is ready for approval. Delivery: ${parsedDate.toLocaleDateString('en-US')}. Total: $${order.total}. Review: ${approvalUrl}`
         );
       }
     }
@@ -2926,7 +2926,7 @@ router.post('/api/b2b/order-workflow/approval/:token', async (req: Request, res:
                   <div style="text-align: right;">
                     <p style="margin: 0;"><strong>Invoice #:</strong> ${invoiceNumber}</p>
                     <p style="margin: 0;"><strong>Order #:</strong> ${order.orderNumber}</p>
-                    <p style="margin: 0;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                    <p style="margin: 0;"><strong>Date:</strong> ${new Date().toLocaleDateString('en-US')}</p>
                   </div>
                 </div>
                 
@@ -4188,7 +4188,7 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
       const sentAt = activePendingAgreement.sentAt ? new Date(activePendingAgreement.sentAt) : null;
       return res.status(409).json({ 
         error: 'A pending contract already exists for this customer.',
-        message: `A contract was sent${sentAt ? ` on ${sentAt.toLocaleDateString()}` : ''} and expires on ${expiresAt.toLocaleDateString()}. Please cancel the existing contract before sending a new one.`,
+        message: `A contract was sent${sentAt ? ` on ${sentAt.toLocaleDateString('en-US')}` : ''} and expires on ${expiresAt.toLocaleDateString('en-US')}. Please cancel the existing contract before sending a new one.`,
         existingAgreementId: activePendingAgreement.id,
         sentAt: activePendingAgreement.sentAt,
         expiresAt: activePendingAgreement.tokenExpiresAt,
@@ -4745,8 +4745,8 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/renew', requireB2bAdmin
             </div>
             
             <p><strong>New Agreement Period:</strong></p>
-            <p>From: ${newFiscalYearStart.toLocaleDateString()}<br>
-            To: ${newFiscalYearEnd.toLocaleDateString()}</p>
+            <p>From: ${newFiscalYearStart.toLocaleDateString('en-US')}<br>
+            To: ${newFiscalYearEnd.toLocaleDateString('en-US')}</p>
             
             <p>Your ${tierName} pricing benefits will continue during this period. Thank you for your continued partnership!</p>
             
@@ -4838,7 +4838,7 @@ router.post('/api/b2b/admin/tier-agreements/check-expired', requireB2bAdmin, asy
       if (!process.env.SENDGRID_API_KEY || !process.env.RESEND_FROM_EMAIL) continue;
       
       const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL;
-      const expiredDate = new Date(agreement.fiscalYearEnd).toLocaleDateString();
+      const expiredDate = new Date(agreement.fiscalYearEnd).toLocaleDateString('en-US');
       
       const emailHtml = `
         <!DOCTYPE html>
@@ -5119,7 +5119,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
               
               <h4>2. Term and Renewal</h4>
               <p>This Agreement begins on the date signed and continues for 12 consecutive months which will be the fiscal year for this agreement. The Agreement will automatically renew at the end of each fiscal year unless terminated by either party.</p>
-              <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString()} to ${fiscalYearEnd.toLocaleDateString()}</p>
+              <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString('en-US')} to ${fiscalYearEnd.toLocaleDateString('en-US')}</p>
               
               <h4>3. Failure to Meet Minimum Case Commitment</h4>
               <p>If Customer does not meet the minimum case requirement by the end of the fiscal year—or by the termination date if Customer ends the Agreement early—Customer agrees to pay the difference between the Tier discount received and the price Customer would have paid under Tier 1 or Tier 2, depending on eligibility. Nashoba will calculate the shortfall and issue an invoice for the difference. Customer agrees to pay this invoice in full within 30 days.</p>
@@ -5135,7 +5135,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
               
               <div class="signature-block">
                 <p><strong>Signature:</strong> ${signatureName}</p>
-                <p><strong>Date Signed:</strong> ${now.toLocaleDateString()}</p>
+                <p><strong>Date Signed:</strong> ${now.toLocaleDateString('en-US')}</p>
               </div>
             </div>
             
@@ -5197,8 +5197,8 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
                 <p><strong>Selected Tier:</strong> ${selectedTier.tierName}</p>
                 <p><strong>Discount:</strong> ${selectedTier.discountPercentage}%</p>
                 <p><strong>Case Commitment:</strong> ${minCasesAdmin} cases minimum annually</p>
-                <p><strong>Date Signed:</strong> ${now.toLocaleDateString()} at ${now.toLocaleTimeString()}</p>
-                <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString()} to ${fiscalYearEnd.toLocaleDateString()}</p>
+                <p><strong>Date Signed:</strong> ${now.toLocaleDateString('en-US')} at ${now.toLocaleTimeString('en-US')}</p>
+                <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString('en-US')} to ${fiscalYearEnd.toLocaleDateString('en-US')}</p>
               </div>
               
               <p>Please log into the B2B Admin Dashboard to view the full agreement details.</p>
@@ -5256,8 +5256,8 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
                   <p><strong>Selected Tier:</strong> ${selectedTier.tierName}</p>
                   <p><strong>Discount:</strong> ${selectedTier.discountPercentage}%</p>
                   <p><strong>Case Commitment:</strong> ${minCasesSalesRep} cases minimum annually</p>
-                  <p><strong>Date Signed:</strong> ${now.toLocaleDateString()} at ${now.toLocaleTimeString()}</p>
-                  <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString()} to ${fiscalYearEnd.toLocaleDateString()}</p>
+                  <p><strong>Date Signed:</strong> ${now.toLocaleDateString('en-US')} at ${now.toLocaleTimeString('en-US')}</p>
+                  <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString('en-US')} to ${fiscalYearEnd.toLocaleDateString('en-US')}</p>
                 </div>
                 
                 <p>The customer's account has been automatically upgraded to ${selectedTier.tierName} pricing.</p>
@@ -6978,7 +6978,7 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
     <p>Thank you for your order! We have received your order and it is now being processed.</p>
     <div class="info-box">
       <p><strong>Order #B2B-123456</strong></p>
-      <p>Order Date: ${new Date().toLocaleDateString()}</p>
+      <p>Order Date: ${new Date().toLocaleDateString('en-US')}</p>
     </div>
     <h3 style="color: #5C2535;">Order Items</h3>
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -7023,7 +7023,7 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
     <div class="info-box">
       <p><strong>Invoice #INV-123456</strong></p>
       <p>Order #B2B-123456</p>
-      <p>Scheduled Delivery: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}</p>
+      <p>Scheduled Delivery: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US')}</p>
     </div>
     <h3 style="color: #5C2535;">Invoice Items</h3>
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -7071,7 +7071,7 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
     <div class="info-box">
       <p><strong>Order #B2B-123456</strong></p>
       <p>Invoice #INV-123456</p>
-      <p>Delivered: ${new Date().toLocaleDateString()}</p>
+      <p>Delivered: ${new Date().toLocaleDateString('en-US')}</p>
     </div>
     <h3 style="color: #5C2535;">Delivered Items</h3>
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">

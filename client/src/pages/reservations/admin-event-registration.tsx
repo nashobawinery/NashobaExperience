@@ -574,8 +574,8 @@ function EventsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loca
                   </div>
                   {(event.estimatedRevenue != null || event.actualRevenue != null) && (
                     <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
-                      {event.estimatedRevenue != null && <span>Est: ${event.estimatedRevenue.toLocaleString()}</span>}
-                      {event.actualRevenue != null && <span>Actual: ${event.actualRevenue.toLocaleString()}</span>}
+                      {event.estimatedRevenue != null && <span>Est: ${event.estimatedRevenue.toLocaleString('en-US')}</span>}
+                      {event.actualRevenue != null && <span>Actual: ${event.actualRevenue.toLocaleString('en-US')}</span>}
                     </div>
                   )}
                   {event.customerEmail && (
@@ -866,8 +866,8 @@ function ReportsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loc
         <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.status}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.customerEmail || '-'}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.customerPhone || '-'}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;">${e.estimatedRevenue != null ? '$' + e.estimatedRevenue.toLocaleString() : '-'}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;">${e.actualRevenue != null ? '$' + e.actualRevenue.toLocaleString() : '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;">${e.estimatedRevenue != null ? '$' + e.estimatedRevenue.toLocaleString('en-US') : '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;">${e.actualRevenue != null ? '$' + e.actualRevenue.toLocaleString('en-US') : '-'}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.bookedByStaffName || '-'}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.notes || '-'}</td>
       </tr>
@@ -916,9 +916,9 @@ function ReportsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loc
         </table>
         <div class="totals">
           <span><strong>Total Events:</strong> ${sorted.length}</span>
-          <span><strong>Total Guests:</strong> ${totalGuests.toLocaleString()}</span>
-          <span><strong>Est. Revenue:</strong> $${totalEstimated.toLocaleString()}</span>
-          <span><strong>Actual Revenue:</strong> $${totalActual.toLocaleString()}</span>
+          <span><strong>Total Guests:</strong> ${totalGuests.toLocaleString('en-US')}</span>
+          <span><strong>Est. Revenue:</strong> $${totalEstimated.toLocaleString('en-US')}</span>
+          <span><strong>Actual Revenue:</strong> $${totalActual.toLocaleString('en-US')}</span>
         </div>
       </body>
       </html>
@@ -1023,10 +1023,10 @@ function ReportsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loc
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
-                        {event.estimatedRevenue != null ? `$${event.estimatedRevenue.toLocaleString()}` : '-'}
+                        {event.estimatedRevenue != null ? `$${event.estimatedRevenue.toLocaleString('en-US')}` : '-'}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
-                        {event.actualRevenue != null ? `$${event.actualRevenue.toLocaleString()}` : '-'}
+                        {event.actualRevenue != null ? `$${event.actualRevenue.toLocaleString('en-US')}` : '-'}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{event.bookedByStaffName || '-'}</TableCell>
                       <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{event.notes || '-'}</TableCell>
@@ -1037,9 +1037,9 @@ function ReportsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loc
             </div>
             <div className="mt-4 flex items-center gap-6 text-sm font-medium flex-wrap">
               <span data-testid="text-total-events">Total Events: {sorted.length}</span>
-              <span data-testid="text-total-guests">Total Guests: {totalGuests.toLocaleString()}</span>
-              <span data-testid="text-total-est-revenue">Est. Revenue: ${totalEstimated.toLocaleString()}</span>
-              <span data-testid="text-total-actual-revenue">Actual Revenue: ${totalActual.toLocaleString()}</span>
+              <span data-testid="text-total-guests">Total Guests: {totalGuests.toLocaleString('en-US')}</span>
+              <span data-testid="text-total-est-revenue">Est. Revenue: ${totalEstimated.toLocaleString('en-US')}</span>
+              <span data-testid="text-total-actual-revenue">Actual Revenue: ${totalActual.toLocaleString('en-US')}</span>
             </div>
           </>
         )}

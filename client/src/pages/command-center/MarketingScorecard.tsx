@@ -134,7 +134,7 @@ export function MarketingScorecard() {
               onClick={() => setSelectedId(sc.id)}
               data-testid={`badge-scorecard-${sc.id}`}
             >
-              {sc.periodLabel} — {new Date(sc.createdAt).toLocaleDateString()}
+              {sc.periodLabel} — {new Date(sc.createdAt).toLocaleDateString('en-US')}
             </Badge>
           ))}
         </div>

@@ -333,7 +333,7 @@ export default function ComplianceAdminDashboard() {
       if (data.nextCycle) {
         toast({ 
           title: "Task Completed", 
-          description: `Moved to next cycle. New due date: ${new Date(data.nextDueDate).toLocaleDateString()}` 
+          description: `Moved to next cycle. New due date: ${new Date(data.nextDueDate).toLocaleDateString('en-US')}` 
         });
       } else {
         toast({ title: "Task Completed", description: "One-time task marked as complete" });

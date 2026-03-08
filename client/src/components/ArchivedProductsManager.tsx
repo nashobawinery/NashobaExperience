@@ -248,7 +248,7 @@ export default function ArchivedProductsManager() {
                         <TableCell className="text-muted-foreground">${Number(product.price).toFixed(2)}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {product.archivedAt 
-                            ? new Date(product.archivedAt).toLocaleDateString()
+                            ? new Date(product.archivedAt).toLocaleDateString('en-US')
                             : 'Unknown'}
                         </TableCell>
                         <TableCell className="text-right">

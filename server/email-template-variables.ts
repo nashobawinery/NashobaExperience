@@ -130,14 +130,14 @@ export async function substituteVariables(template: string, data: EmailTemplateD
     casesRemaining: commitment.casesRemaining.toString(),
     commitmentAmount: commitment.commitmentAmount.toString(),
     daysUntilRenewal: commitment.daysUntilRenewal.toString(),
-    renewalDate: commitment.renewalDate ? commitment.renewalDate.toLocaleDateString() : '',
+    renewalDate: commitment.renewalDate ? commitment.renewalDate.toLocaleDateString('en-US') : '',
     
     orderNumber: order?.orderNumber || '',
     orderTotal: order ? `$${Number(order.total).toFixed(2)}` : '',
-    orderDate: order ? new Date(order.orderDate).toLocaleDateString() : '',
+    orderDate: order ? new Date(order.orderDate).toLocaleDateString('en-US') : '',
     orderStatus: order?.status || '',
     
-    todayDate: new Date().toLocaleDateString(),
+    todayDate: new Date().toLocaleDateString('en-US'),
     currentYear: new Date().getFullYear().toString(),
     ...customData,
   };
