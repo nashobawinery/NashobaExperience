@@ -667,6 +667,9 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
   const [goal, setGoal] = useState(week.weeklyGoal || "");
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<AiFocusSuggestions | null>(null);
+  const [stagedFocus, setStagedFocus] = useState<string | null>(null);
+  const [stagedHook, setStagedHook] = useState<string | null>(null);
+  const [stagedGoal, setStagedGoal] = useState<string | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<RccWeek>) => {
@@ -702,6 +705,9 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
     },
     onSuccess: (data) => {
       setAiSuggestions(data);
+      setStagedFocus(null);
+      setStagedHook(null);
+      setStagedGoal(null);
       setShowAiDialog(true);
     },
     onError: (error: any) => {
@@ -717,13 +723,16 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
     });
   };
 
-  const adoptSuggestion = (field: "focus" | "hook" | "goal", value: string) => {
-    if (field === "focus") setFocus(value);
-    if (field === "hook") setHook(value);
-    if (field === "goal") setGoal(value);
+  const applyAiSelections = () => {
+    if (stagedFocus) setFocus(stagedFocus);
+    if (stagedHook) setHook(stagedHook);
+    if (stagedGoal) setGoal(stagedGoal);
     setEditing(true);
-    toast({ title: "Suggestion applied", description: "Review and save when ready." });
+    setShowAiDialog(false);
+    toast({ title: "AI suggestions applied", description: "Review and save when ready." });
   };
+
+  const stagedCount = [stagedFocus, stagedHook, stagedGoal].filter(Boolean).length;
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -844,72 +853,119 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
                 </div>
               )}
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <p className="font-semibold text-sm flex items-center gap-2">
-                  <Target className="h-4 w-4 text-primary" /> Focus Statement Options
+                  <Target className="h-4 w-4 text-primary" /> Focus Statement
+                  {stagedFocus && <Badge variant="secondary" className="ml-auto text-xs">Selected</Badge>}
                 </p>
-                {(aiSuggestions.focusOptions || []).map((opt, i) => (
-                  <div key={i} className="rounded-md border p-3 space-y-2">
-                    <p className="text-sm leading-relaxed">{opt}</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => { adoptSuggestion("focus", opt); setShowAiDialog(false); }}
-                      data-testid={`btn-adopt-focus-${i}`}
+                {(aiSuggestions.focusOptions || []).map((opt, i) => {
+                  const isSelected = stagedFocus === opt;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setStagedFocus(isSelected ? null : opt)}
+                      data-testid={`btn-select-focus-${i}`}
+                      className={`w-full text-left rounded-md border p-3 text-sm leading-relaxed transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border hover-elevate"
+                      }`}
                     >
-                      <Check className="h-3 w-3 mr-1" /> Use this
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-start gap-2">
+                        <div className={`mt-0.5 flex-shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                          {isSelected && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                        </div>
+                        <span>{opt}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <p className="font-semibold text-sm flex items-center gap-2">
-                  <Megaphone className="h-4 w-4 text-primary" /> Hook / Angle Options
+                  <Megaphone className="h-4 w-4 text-primary" /> Hook / Angle
+                  {stagedHook && <Badge variant="secondary" className="ml-auto text-xs">Selected</Badge>}
                 </p>
-                {(aiSuggestions.hookOptions || []).map((opt, i) => (
-                  <div key={i} className="rounded-md border p-3 space-y-2">
-                    <p className="text-sm leading-relaxed">{opt}</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => { adoptSuggestion("hook", opt); setShowAiDialog(false); }}
-                      data-testid={`btn-adopt-hook-${i}`}
+                {(aiSuggestions.hookOptions || []).map((opt, i) => {
+                  const isSelected = stagedHook === opt;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setStagedHook(isSelected ? null : opt)}
+                      data-testid={`btn-select-hook-${i}`}
+                      className={`w-full text-left rounded-md border p-3 text-sm leading-relaxed transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border hover-elevate"
+                      }`}
                     >
-                      <Check className="h-3 w-3 mr-1" /> Use this
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-start gap-2">
+                        <div className={`mt-0.5 flex-shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                          {isSelected && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                        </div>
+                        <span>{opt}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <p className="font-semibold text-sm flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-primary" /> Weekly Goal
+                  {stagedGoal && <Badge variant="secondary" className="ml-auto text-xs">Selected</Badge>}
                 </p>
-                <div className="rounded-md border p-3 space-y-2">
-                  <p className="text-sm leading-relaxed">{aiSuggestions.goalSuggestion}</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => { adoptSuggestion("goal", aiSuggestions.goalSuggestion); setShowAiDialog(false); }}
-                    data-testid="btn-adopt-goal"
-                  >
-                    <Check className="h-3 w-3 mr-1" /> Use this
-                  </Button>
-                </div>
+                {[aiSuggestions.goalSuggestion].filter(Boolean).map((opt, i) => {
+                  const isSelected = stagedGoal === opt;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setStagedGoal(isSelected ? null : opt)}
+                      data-testid="btn-select-goal"
+                      className={`w-full text-left rounded-md border p-3 text-sm leading-relaxed transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border hover-elevate"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className={`mt-0.5 flex-shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                          {isSelected && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                        </div>
+                        <span>{opt}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAiDialog(false)}>Close</Button>
+          <DialogFooter className="flex-wrap gap-2 sm:justify-between">
             <Button
-              onClick={() => { setShowAiDialog(false); aiMutation.mutate(); }}
+              variant="outline"
+              onClick={() => { setStagedFocus(null); setStagedHook(null); setStagedGoal(null); aiMutation.mutate(); }}
               disabled={aiMutation.isPending}
+              data-testid="btn-regenerate"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
-              Regenerate
+              {aiMutation.isPending ? "Thinking..." : "Regenerate"}
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAiDialog(false)}>Cancel</Button>
+              <Button
+                onClick={applyAiSelections}
+                disabled={stagedCount === 0}
+                data-testid="btn-apply-selections"
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Apply {stagedCount > 0 ? `${stagedCount} Selection${stagedCount > 1 ? "s" : ""}` : "Selections"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
