@@ -18873,7 +18873,18 @@ Generate a professional response:`;
         }
       }
 
-      const missingToastDays = dailyRevenue.filter(d => !d.toastRevenue);
+      const syncNow = new Date();
+      const syncTodayStr = `${syncNow.getFullYear()}-${String(syncNow.getMonth() + 1).padStart(2, '0')}-${String(syncNow.getDate()).padStart(2, '0')}`;
+      const syncThreeDaysAgo = new Date(syncNow);
+      syncThreeDaysAgo.setDate(syncNow.getDate() - 3);
+      const syncThreeDaysAgoStr = `${syncThreeDaysAgo.getFullYear()}-${String(syncThreeDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(syncThreeDaysAgo.getDate()).padStart(2, '0')}`;
+      const missingToastDays = dailyRevenue.filter(d => {
+        if (d.date > syncTodayStr) return false;
+        if (!d.toastRevenue) return true;
+        // Re-sync recent $0 days in case sales came in after the last background check
+        if ((d.toastRevenue === '0' || d.toastRevenue === '0.00') && d.date >= syncThreeDaysAgoStr) return true;
+        return false;
+      });
       if (missingToastDays.length > 0) {
         const todayForSync = new Date();
         (async () => {

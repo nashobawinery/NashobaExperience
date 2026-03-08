@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1135,10 +1135,12 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
   const [weekNotes, setWeekNotes] = useState(revenue?.notes || "");
 
   // Fetch daily revenue entries for the week
-  const { data: dailyRevenue, isLoading: dailyLoading } = useQuery<RccDailyRevenue[]>({
+  const { data: dailyRevenue, isLoading: dailyLoading, dataUpdatedAt } = useQuery<RccDailyRevenue[]>({
     queryKey: ["/api/rcc/daily-revenue", weekId],
     queryFn: () => fetch(`/api/rcc/daily-revenue/${weekId}`).then(r => r.json()),
     enabled: !!weekId,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const { data: historicalData } = useQuery<ToastHistoricalData>({
@@ -1266,6 +1268,56 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
     onError: () => toast({ title: "Error syncing wholesale", description: "Failed to sync B2B wholesale revenue", variant: "destructive" }),
   });
 
+  // Auto-refetch if stale days are detected (background server sync may still be running)
+  const autoRefetchCountRef = useRef(0);
+  const autoRefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    autoRefetchCountRef.current = 0;
+    if (autoRefetchTimerRef.current) {
+      clearTimeout(autoRefetchTimerRef.current);
+      autoRefetchTimerRef.current = null;
+    }
+  }, [weekId]);
+
+  useEffect(() => {
+    if (!dailyRevenue || autoRefetchCountRef.current >= 3) return;
+    const today = new Date().toISOString().split('T')[0];
+    const hasStaleDays = dailyRevenue.some(d =>
+      d.date <= today && (!d.toastRevenue || d.toastRevenue === '0' || d.toastRevenue === '0.00')
+    );
+    if (!hasStaleDays) return;
+    if (autoRefetchTimerRef.current) return;
+    autoRefetchTimerRef.current = setTimeout(() => {
+      autoRefetchTimerRef.current = null;
+      autoRefetchCountRef.current += 1;
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+    }, 10000);
+    return () => {
+      if (autoRefetchTimerRef.current) {
+        clearTimeout(autoRefetchTimerRef.current);
+        autoRefetchTimerRef.current = null;
+      }
+    };
+  }, [dataUpdatedAt, weekId]);
+
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const handleSyncAll = async () => {
+    setIsSyncingAll(true);
+    try {
+      await syncToastWeekMutation.mutateAsync({ weekId });
+      await syncShopifyWeekMutation.mutateAsync({ weekId });
+    } catch {
+      // individual mutations already show error toasts
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
+  const lastUpdatedLabel = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : null;
+
   // Guard against missing week data (after all hooks)
   if (!week?.weekStart) {
     return (
@@ -1341,6 +1393,12 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
     });
   }
 
+  const today = new Date().toISOString().split('T')[0];
+  const hasStaleDays = dailyRevenue?.some(d =>
+    d.date <= today && (!d.toastRevenue || d.toastRevenue === '0' || d.toastRevenue === '0.00')
+  ) ?? false;
+  const isAutoRefetchPending = hasStaleDays && autoRefetchCountRef.current < 3;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -1349,28 +1407,51 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
             <DollarSign className="h-5 w-5 text-green-500" />
             Daily Revenue Tracking
           </h3>
-          <p className="text-sm text-muted-foreground">Track revenue and weather for each day of the week</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm text-muted-foreground">Track revenue and weather for each day of the week</p>
+            {isAutoRefetchPending && (
+              <Badge variant="outline" className="text-[10px] gap-1" data-testid="badge-syncing-background">
+                <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                Syncing...
+              </Badge>
+            )}
+            {lastUpdatedLabel && !isAutoRefetchPending && (
+              <span className="text-xs text-muted-foreground" data-testid="text-last-synced">
+                Updated {lastUpdatedLabel}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleSyncAll}
+            disabled={isSyncingAll || syncToastWeekMutation.isPending || syncShopifyWeekMutation.isPending}
+            data-testid="btn-sync-all-week"
+          >
+            {isSyncingAll ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh All
+          </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => syncToastWeekMutation.mutate({ weekId })}
-            disabled={syncToastWeekMutation.isPending}
+            disabled={syncToastWeekMutation.isPending || isSyncingAll}
             data-testid="btn-sync-toast-week"
           >
             {syncToastWeekMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Sync Toast
+            Toast
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => syncShopifyWeekMutation.mutate({ weekId })}
-            disabled={syncShopifyWeekMutation.isPending}
+            disabled={syncShopifyWeekMutation.isPending || isSyncingAll}
             data-testid="btn-sync-shopify-week"
           >
             {syncShopifyWeekMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Sync Shopify
+            Shopify
           </Button>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Weekly Total</p>
