@@ -255,6 +255,7 @@ export default function RccDashboard() {
                 tasks={tasks || []}
                 ideas={ideas || []}
                 teams={teams || []}
+                campaigns={campaigns || []}
               />
             </TabsContent>
 
@@ -262,6 +263,7 @@ export default function RccDashboard() {
               <CampaignsPanel 
                 weekId={activeWeekId!}
                 campaigns={campaigns || []}
+                allTasks={[...(tasks || []), ...(ideas || [])]}
               />
             </TabsContent>
 
@@ -977,16 +979,20 @@ export function TasksPanel({
   weekId, 
   tasks, 
   ideas,
-  teams 
+  teams,
+  campaigns,
 }: { 
   weekId: number;
   tasks: RccTask[];
   ideas: RccTask[];
   teams: RccTeam[];
+  campaigns: RccCampaign[];
 }) {
   const { toast } = useToast();
   const [newIdea, setNewIdea] = useState("");
-  const [showAddTask, setShowAddTask] = useState(false);
+  const [trackingTask, setTrackingTask] = useState<RccTask | null>(null);
+  const [trackChannel, setTrackChannel] = useState("");
+  const [trackMessage, setTrackMessage] = useState("");
 
   const createMutation = useMutation({
     mutationFn: async (data: { title: string; weekId?: number; status: string }) => {
@@ -1016,28 +1022,53 @@ export function TasksPanel({
     },
   });
 
+  const createCampaignMutation = useMutation({
+    mutationFn: async (data: { weekId: number; channel: string; message: string; taskId: number }) => {
+      const resp = await apiRequest("POST", "/api/rcc/campaigns", data);
+      return resp.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Campaign created", description: "This task is now tracked in the Campaign Tracker." });
+      setTrackingTask(null);
+      setTrackChannel("");
+      setTrackMessage("");
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/campaigns"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error creating campaign", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAddIdea = () => {
     if (!newIdea.trim()) return;
     createMutation.mutate({ title: newIdea, status: "idea" });
   };
 
   const handlePromoteIdea = (idea: RccTask) => {
-    updateMutation.mutate({ 
-      id: idea.id, 
-      data: { weekId, status: "open" } 
-    });
+    updateMutation.mutate({ id: idea.id, data: { weekId, status: "open" } });
   };
 
   const handleStatusChange = (task: RccTask, status: string) => {
-    updateMutation.mutate({ 
-      id: task.id, 
-      data: { status: status as any } 
-    });
+    updateMutation.mutate({ id: task.id, data: { status: status as any } });
   };
+
+  const openTrackDialog = (task: RccTask) => {
+    setTrackingTask(task);
+    setTrackMessage(task.title);
+    setTrackChannel("");
+  };
+
+  const handleCreateCampaign = () => {
+    if (!trackingTask || !trackChannel) return;
+    createCampaignMutation.mutate({ weekId, channel: trackChannel, message: trackMessage, taskId: trackingTask.id });
+  };
+
+  const linkedTaskIds = new Set(campaigns.filter(c => c.taskId).map(c => c.taskId!));
 
   const openTasks = tasks.filter(t => t.status === 'open');
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress');
   const doneTasks = tasks.filter(t => t.status === 'done');
+  const channels = ["Email", "Instagram", "Facebook", "SMS", "In-store", "Newsletter", "Other"];
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -1067,16 +1098,31 @@ export function TasksPanel({
               <p className="text-sm text-muted-foreground text-center py-4">No learnings logged yet</p>
             ) : (
               ideas.map(idea => (
-                <div key={idea.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                  <span className="text-sm">{idea.title}</span>
-                  <Button 
-                    size="sm" 
-                    variant="ghost"
-                    onClick={() => handlePromoteIdea(idea)}
-                    data-testid={`btn-promote-idea-${idea.id}`}
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+                <div key={idea.id} className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded-md">
+                  <span className="text-sm flex-1 min-w-0">{idea.title}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {linkedTaskIds.has(idea.id) && (
+                      <Badge variant="secondary" className="text-xs">Campaign</Badge>
+                    )}
+                    <Button 
+                      size="icon"
+                      variant="ghost"
+                      title="Track as Campaign"
+                      onClick={() => openTrackDialog(idea)}
+                      data-testid={`btn-idea-campaign-${idea.id}`}
+                    >
+                      <Megaphone className="h-4 w-4 text-blue-500" />
+                    </Button>
+                    <Button 
+                      size="icon"
+                      variant="ghost"
+                      title="Promote to Task"
+                      onClick={() => handlePromoteIdea(idea)}
+                      data-testid={`btn-promote-idea-${idea.id}`}
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))
             )}
@@ -1101,7 +1147,7 @@ export function TasksPanel({
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2">OPEN</p>
                     {openTasks.map(task => (
-                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} />
+                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} isLinked={linkedTaskIds.has(task.id)} onTrackAsCampaign={openTrackDialog} />
                     ))}
                   </div>
                 )}
@@ -1109,7 +1155,7 @@ export function TasksPanel({
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2">IN PROGRESS</p>
                     {inProgressTasks.map(task => (
-                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} />
+                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} isLinked={linkedTaskIds.has(task.id)} onTrackAsCampaign={openTrackDialog} />
                     ))}
                   </div>
                 )}
@@ -1117,7 +1163,7 @@ export function TasksPanel({
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2">DONE</p>
                     {doneTasks.map(task => (
-                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} />
+                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} isLinked={linkedTaskIds.has(task.id)} onTrackAsCampaign={openTrackDialog} />
                     ))}
                   </div>
                 )}
@@ -1126,21 +1172,86 @@ export function TasksPanel({
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!trackingTask} onOpenChange={(open) => { if (!open) setTrackingTask(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5 text-blue-500" />
+              Track as Campaign
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">From task: </span>{trackingTask?.title}
+            </div>
+            <div>
+              <Label>Channel</Label>
+              <Select value={trackChannel} onValueChange={setTrackChannel}>
+                <SelectTrigger data-testid="select-track-channel" className="mt-1">
+                  <SelectValue placeholder="Select channel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {channels.map(ch => (
+                    <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Message / Description</Label>
+              <Textarea
+                value={trackMessage}
+                onChange={(e) => setTrackMessage(e.target.value)}
+                className="mt-1"
+                data-testid="input-track-message"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTrackingTask(null)}>Cancel</Button>
+            <Button
+              onClick={handleCreateCampaign}
+              disabled={!trackChannel || createCampaignMutation.isPending}
+              data-testid="btn-confirm-track-campaign"
+            >
+              <Megaphone className="h-4 w-4 mr-2" />
+              Add to Campaign Tracker
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function TaskRow({ task, onStatusChange }: { task: RccTask; onStatusChange: (task: RccTask, status: string) => void }) {
+function TaskRow({ task, onStatusChange, isLinked, onTrackAsCampaign }: { 
+  task: RccTask; 
+  onStatusChange: (task: RccTask, status: string) => void;
+  isLinked: boolean;
+  onTrackAsCampaign: (task: RccTask) => void;
+}) {
   return (
-    <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md mb-2">
-      <span className={`text-sm ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-md mb-2">
+      <span className={`text-sm flex-1 min-w-0 ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
         {task.title}
       </span>
+      {isLinked && <Badge variant="secondary" className="text-xs flex-shrink-0">Campaign</Badge>}
+      <Button
+        size="icon"
+        variant="ghost"
+        title="Track as Campaign"
+        onClick={() => onTrackAsCampaign(task)}
+        data-testid={`btn-task-campaign-${task.id}`}
+        className="flex-shrink-0"
+      >
+        <Megaphone className={`h-4 w-4 ${isLinked ? 'text-blue-500' : 'text-muted-foreground'}`} />
+      </Button>
       <Select 
         value={task.status} 
         onValueChange={(value) => onStatusChange(task, value)}
       >
-        <SelectTrigger className="w-32 h-8" data-testid={`select-task-status-${task.id}`}>
+        <SelectTrigger className="w-28 h-8 flex-shrink-0" data-testid={`select-task-status-${task.id}`}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -1154,7 +1265,7 @@ function TaskRow({ task, onStatusChange }: { task: RccTask; onStatusChange: (tas
   );
 }
 
-export function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaigns: RccCampaign[] }) {
+export function CampaignsPanel({ weekId, campaigns, allTasks = [] }: { weekId: number; campaigns: RccCampaign[]; allTasks?: RccTask[] }) {
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [channel, setChannel] = useState("");
@@ -1258,10 +1369,12 @@ export function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaign
           {campaigns.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No campaigns yet</p>
           ) : (
-            campaigns.map(campaign => (
+            campaigns.map(campaign => {
+              const linkedTask = campaign.taskId ? allTasks.find(t => t.id === campaign.taskId) : null;
+              return (
               <div key={campaign.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-md">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline">{campaign.channel}</Badge>
                     <Badge variant={
                       campaign.status === 'completed' ? 'default' : 
@@ -1270,6 +1383,11 @@ export function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaign
                     }>
                       {campaign.status}
                     </Badge>
+                    {linkedTask && (
+                      <Badge variant="secondary" className="text-xs gap-1">
+                        <Tag className="h-3 w-3" /> {linkedTask.title.length > 30 ? linkedTask.title.substring(0, 30) + '…' : linkedTask.title}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm mt-1">{campaign.message?.substring(0, 60)}{campaign.message && campaign.message.length > 60 ? '...' : ''}</p>
                 </div>
@@ -1287,7 +1405,8 @@ export function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaign
                   </SelectContent>
                 </Select>
               </div>
-            ))
+            );
+            })
           )}
         </div>
       </CardContent>

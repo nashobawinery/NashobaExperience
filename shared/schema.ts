@@ -4604,6 +4604,7 @@ export type RccTask = typeof rccTasks.$inferSelect;
 export const rccCampaigns = pgTable("rcc_campaigns", {
   id: serial("id").primaryKey(),
   weekId: integer("week_id").references(() => rccWeeks.id),
+  taskId: integer("task_id").references(() => rccTasks.id),
   channel: varchar("channel", { length: 100 }).notNull(),
   message: text("message"),
   ownerId: varchar("owner_id").references(() => users.id),
