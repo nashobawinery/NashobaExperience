@@ -652,12 +652,21 @@ export function InitializeWeeksCard({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+interface AiFocusSuggestions {
+  focusOptions: string[];
+  hookOptions: string[];
+  goalSuggestion: string;
+  reasoning: string;
+}
+
 export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [focus, setFocus] = useState(week.focusStatement || "");
   const [hook, setHook] = useState(week.hookAngle || "");
   const [goal, setGoal] = useState(week.weeklyGoal || "");
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<AiFocusSuggestions | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<RccWeek>) => {
@@ -686,6 +695,20 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
     },
   });
 
+  const aiMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await apiRequest("POST", `/api/rcc/weeks/${week.id}/ai-focus-suggestions`, {});
+      return resp as AiFocusSuggestions;
+    },
+    onSuccess: (data) => {
+      setAiSuggestions(data);
+      setShowAiDialog(true);
+    },
+    onError: (error: any) => {
+      toast({ title: "AI suggestion failed", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleSave = () => {
     updateMutation.mutate({
       focusStatement: focus,
@@ -694,15 +717,36 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
     });
   };
 
+  const adoptSuggestion = (field: "focus" | "hook" | "goal", value: string) => {
+    if (field === "focus") setFocus(value);
+    if (field === "hook") setHook(value);
+    if (field === "goal") setGoal(value);
+    setEditing(true);
+    toast({ title: "Suggestion applied", description: "Review and save when ready." });
+  };
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <Card className="md:col-span-2 border-primary/50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
-            Weekly Focus
-          </CardTitle>
-          <CardDescription>The heart of the week - what are we focusing on?</CardDescription>
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                Weekly Focus
+              </CardTitle>
+              <CardDescription className="mt-1">The heart of the week - what are we focusing on?</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => aiMutation.mutate()}
+              disabled={aiMutation.isPending}
+              data-testid="btn-ai-focus-suggestions"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {aiMutation.isPending ? "Thinking..." : "AI Suggestions"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {editing ? (
@@ -763,7 +807,7 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
                 <p className="text-sm text-muted-foreground">Weekly Goal</p>
                 <p className="text-lg">{week.weeklyGoal || <span className="text-muted-foreground italic">Not set</span>}</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" onClick={() => setEditing(true)} data-testid="btn-edit-focus">
                   Edit Focus
                 </Button>
@@ -781,6 +825,94 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Weekly Focus Suggestions
+            </DialogTitle>
+          </DialogHeader>
+
+          {aiSuggestions && (
+            <div className="space-y-6">
+              {aiSuggestions.reasoning && (
+                <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">Why these suggestions?</p>
+                  <p>{aiSuggestions.reasoning}</p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <p className="font-semibold text-sm flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" /> Focus Statement Options
+                </p>
+                {(aiSuggestions.focusOptions || []).map((opt, i) => (
+                  <div key={i} className="rounded-md border p-3 space-y-2">
+                    <p className="text-sm leading-relaxed">{opt}</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { adoptSuggestion("focus", opt); setShowAiDialog(false); }}
+                      data-testid={`btn-adopt-focus-${i}`}
+                    >
+                      <Check className="h-3 w-3 mr-1" /> Use this
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                <p className="font-semibold text-sm flex items-center gap-2">
+                  <Megaphone className="h-4 w-4 text-primary" /> Hook / Angle Options
+                </p>
+                {(aiSuggestions.hookOptions || []).map((opt, i) => (
+                  <div key={i} className="rounded-md border p-3 space-y-2">
+                    <p className="text-sm leading-relaxed">{opt}</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { adoptSuggestion("hook", opt); setShowAiDialog(false); }}
+                      data-testid={`btn-adopt-hook-${i}`}
+                    >
+                      <Check className="h-3 w-3 mr-1" /> Use this
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                <p className="font-semibold text-sm flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" /> Weekly Goal
+                </p>
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-sm leading-relaxed">{aiSuggestions.goalSuggestion}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { adoptSuggestion("goal", aiSuggestions.goalSuggestion); setShowAiDialog(false); }}
+                    data-testid="btn-adopt-goal"
+                  >
+                    <Check className="h-3 w-3 mr-1" /> Use this
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAiDialog(false)}>Close</Button>
+            <Button
+              onClick={() => { setShowAiDialog(false); aiMutation.mutate(); }}
+              disabled={aiMutation.isPending}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Regenerate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

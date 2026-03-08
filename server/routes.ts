@@ -18667,6 +18667,82 @@ Generate a professional response:`;
     }
   });
 
+  app.post('/api/rcc/weeks/:id/ai-focus-suggestions', isAuthenticated, async (req, res) => {
+    try {
+      const weekId = parseInt(req.params.id);
+      const week = await storage.getRccWeek(weekId);
+      if (!week) return res.status(404).json({ message: 'Week not found' });
+
+      const allWeeks = await storage.getRccWeeks();
+      const sortedWeeks = allWeeks.sort((a, b) => a.weekStart < b.weekStart ? 1 : -1);
+      const pastWeeks = sortedWeeks.filter(w => w.weekStart < week.weekStart).slice(0, 4);
+
+      const getDailyTotal = (d: any) =>
+        (parseFloat(d.toastRevenue || '0') + parseFloat(d.shopifyRevenue || '0') + parseFloat(d.wholesaleRevenue || '0'));
+
+      const currentDailyRevenue = await storage.getRccDailyRevenueByWeek(weekId);
+      const currentTotal = currentDailyRevenue.reduce((s, d) => s + getDailyTotal(d), 0);
+
+      const pastRevenueRows: { weekStart: string; total: number }[] = [];
+      for (const pw of pastWeeks) {
+        const rows = await storage.getRccDailyRevenueByWeek(pw.id);
+        pastRevenueRows.push({
+          weekStart: pw.weekStart,
+          total: rows.reduce((s, d) => s + getDailyTotal(d), 0),
+        });
+      }
+
+      const weekStartDate = new Date(week.weekStart + 'T12:00:00');
+      const monthName = weekStartDate.toLocaleDateString('en-US', { month: 'long' });
+      const formattedWeekStart = weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const formattedWeekEnd = new Date(week.weekEnd + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const avgPast = pastRevenueRows.length > 0
+        ? pastRevenueRows.reduce((s, r) => s + r.total, 0) / pastRevenueRows.length : 0;
+      const revenueContext = avgPast > 0
+        ? `Current week revenue so far: $${currentTotal.toFixed(0)}. Average of past ${pastRevenueRows.length} weeks: $${avgPast.toFixed(0)}.${currentTotal < avgPast * 0.9 ? ' This week is tracking below average.' : currentTotal > avgPast * 1.1 ? ' This week is tracking above average.' : ''}`
+        : `Revenue data is limited — encourage a revenue goal that is ambitious but achievable for a New England winery.`;
+
+      const prompt = `You are a marketing strategist for Nashoba Valley Winery in Bolton, MA — a winery, distillery, and brewery with a tasting room, restaurant, and event space. Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
+
+The upcoming marketing week runs ${formattedWeekStart}–${formattedWeekEnd} (${monthName}).
+
+REVENUE CONTEXT:
+${revenueContext}
+
+YOUR TASK: Generate creative, specific, and actionable marketing suggestions for this week. Research what other wineries, breweries, and farm-to-table restaurants in New England typically do in ${monthName} for promotions, events, and marketing campaigns. Use that inspiration to create tailored suggestions.
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+  "focusOptions": [
+    "Option A: a concrete, specific focus statement (1-2 sentences) tailored to ${monthName} and Nashoba Valley's brand",
+    "Option B: an alternative focus statement with a different angle"
+  ],
+  "hookOptions": [
+    "Option A: a compelling marketing hook or angle for this week (1-2 sentences) — the emotional or narrative thread",
+    "Option B: an alternative hook with a different tone or target audience"
+  ],
+  "goalSuggestion": "A specific, measurable weekly revenue or traffic goal (1-2 sentences) grounded in the revenue context above",
+  "reasoning": "A brief 2-3 sentence explanation of why these suggestions fit this time of year and what trends inspired them"
+}`;
+
+      const { default: OpenAI } = await import('openai');
+      const openai = new OpenAI();
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.8,
+      });
+
+      const raw = completion.choices[0].message.content || '{}';
+      const suggestions = JSON.parse(raw);
+      res.json(suggestions);
+    } catch (error: any) {
+      console.error('Error generating AI focus suggestions:', error);
+      res.status(500).json({ message: error.message || 'Failed to generate suggestions' });
+    }
+  });
+
   app.post('/api/rcc/weeks/:id/approve', isAdmin, async (req: any, res) => {
     try {
       const userId = req.user?.id;
