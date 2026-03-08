@@ -698,7 +698,7 @@ export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
   const aiMutation = useMutation({
     mutationFn: async () => {
       const resp = await apiRequest("POST", `/api/rcc/weeks/${week.id}/ai-focus-suggestions`, {});
-      return resp as AiFocusSuggestions;
+      return resp.json() as Promise<AiFocusSuggestions>;
     },
     onSuccess: (data) => {
       setAiSuggestions(data);
