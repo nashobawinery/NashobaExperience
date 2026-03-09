@@ -8722,6 +8722,136 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // ============================================
+  // TASK-LEVEL DOCUMENT ATTACHMENT ROUTES
+  // ============================================
+
+  // List attachments for a task
+  app.get('/api/compliance/tasks/:taskId/attachments', isAdmin, async (req, res) => {
+    try {
+      const { taskId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM compliance_attachments WHERE task_id = ${taskId} ORDER BY created_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch attachments' });
+    }
+  });
+
+  // Upload a task-level document
+  app.post('/api/compliance/tasks/:taskId/attachments', isAdmin, async (req: any, res) => {
+    try {
+      const multer = (await import("multer")).default;
+      const uploadHandler = multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+      });
+
+      uploadHandler.single('file')(req, res, async (err) => {
+        if (err) return res.status(400).json({ message: 'File upload error' });
+
+        const { taskId } = req.params;
+        const file = req.file;
+        const description = req.body?.description || null;
+        if (!file) return res.status(400).json({ message: 'No file provided' });
+
+        const taskResult = await db.execute(sql`SELECT id FROM compliance_tasks WHERE id = ${taskId}`);
+        if (taskResult.rows.length === 0) return res.status(404).json({ message: 'Task not found' });
+
+        const { randomUUID } = await import('crypto');
+        const attachmentId = randomUUID();
+        const fileExt = file.originalname.split('.').pop() || 'bin';
+        const storageKey = `compliance/tasks/${taskId}/docs/${attachmentId}.${fileExt}`;
+
+        const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+        if (!bucketId) return res.status(500).json({ message: 'Object storage not configured' });
+
+        const { objectStorageClient } = await import('./objectStorage');
+        const bucket = objectStorageClient.bucket(bucketId);
+        await bucket.file(`.private/${storageKey}`).save(file.buffer, {
+          metadata: { contentType: file.mimetype },
+        });
+
+        const user = (req as any).user;
+        await db.execute(sql`
+          INSERT INTO compliance_attachments (id, task_id, file_name, file_url, file_type, file_size, uploaded_by_id, uploaded_by_name, description)
+          VALUES (${attachmentId}, ${taskId}, ${file.originalname}, ${storageKey}, ${file.mimetype}, ${file.size}, ${user?.id || null}, ${user?.firstName || user?.email || null}, ${description})
+        `);
+
+        res.json({ id: attachmentId, fileName: file.originalname, fileType: file.mimetype, fileSize: file.size, storageKey, description });
+      });
+    } catch (error) {
+      console.error('Error uploading task document:', error);
+      res.status(500).json({ message: 'Failed to upload document' });
+    }
+  });
+
+  // Delete a task-level document
+  app.delete('/api/compliance/tasks/:taskId/attachments/:attachmentId', isAdmin, async (req, res) => {
+    try {
+      const { taskId, attachmentId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM compliance_attachments WHERE id = ${attachmentId} AND task_id = ${taskId}
+      `);
+      if (result.rows.length === 0) return res.status(404).json({ message: 'Attachment not found' });
+
+      const attachment = result.rows[0] as any;
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      if (bucketId) {
+        try {
+          const { objectStorageClient } = await import('./objectStorage');
+          await objectStorageClient.bucket(bucketId).file(`.private/${attachment.file_url}`).delete();
+        } catch (storageErr) {
+          console.warn('[Compliance] Could not delete file from storage:', storageErr);
+        }
+      }
+
+      await db.execute(sql`DELETE FROM compliance_attachments WHERE id = ${attachmentId}`);
+      res.json({ message: 'Attachment deleted' });
+    } catch (error) {
+      console.error('Error deleting task document:', error);
+      res.status(500).json({ message: 'Failed to delete document' });
+    }
+  });
+
+  // Serve a task-level document
+  app.get('/api/compliance/tasks/:taskId/attachments/:attachmentId', isAdmin, async (req, res) => {
+    try {
+      const { taskId, attachmentId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM compliance_attachments WHERE id = ${attachmentId} AND task_id = ${taskId}
+      `);
+      if (result.rows.length === 0) return res.status(404).json({ message: 'Attachment not found' });
+
+      const attachment = result.rows[0] as any;
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      if (!bucketId) return res.status(500).json({ message: 'Object storage not configured' });
+
+      const { objectStorageClient } = await import('./objectStorage');
+      const objectFile = objectStorageClient.bucket(bucketId).file(`.private/${attachment.file_url}`);
+
+      const [exists] = await objectFile.exists();
+      if (!exists) return res.status(404).json({ message: 'File not found in storage' });
+
+      const inline = ['application/pdf', 'image/'].some(t => (attachment.file_type || '').startsWith(t));
+      res.set({
+        'Content-Type': attachment.file_type || 'application/octet-stream',
+        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${attachment.file_name}"`,
+        'Cache-Control': 'private, max-age=3600',
+      });
+
+      const stream = objectFile.createReadStream();
+      stream.on('error', (err) => {
+        if (!res.headersSent) res.status(500).json({ message: 'Error streaming file' });
+      });
+      stream.pipe(res);
+    } catch (error) {
+      console.error('Error serving task document:', error);
+      res.status(500).json({ message: 'Failed to get document' });
+    }
+  });
+
+  // ============================================
   // DEPARTMENT CALENDAR MODULE ROUTES
   // ============================================
 

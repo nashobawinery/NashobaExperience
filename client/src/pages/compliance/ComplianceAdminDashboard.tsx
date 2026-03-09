@@ -46,7 +46,9 @@ import {
   Loader2,
   ImageIcon,
   Home,
-  Clipboard
+  Clipboard,
+  Paperclip,
+  Download
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -111,6 +113,18 @@ interface StepAttachment {
   contentType: string;
   size: number;
   uploadedAt: string;
+}
+
+interface ComplianceAttachment {
+  id: string;
+  task_id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string | null;
+  file_size: number | null;
+  uploaded_by_name: string | null;
+  description: string | null;
+  created_at: string;
 }
 
 interface TaskStep {
@@ -232,6 +246,8 @@ export default function ComplianceAdminDashboard() {
   const [viewShowPassword, setViewShowPassword] = useState(false);
   const [uploadingStepId, setUploadingStepId] = useState<string | null>(null);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<ComplianceStats>({
     queryKey: ['/api/compliance/stats'],
@@ -357,6 +373,56 @@ export default function ComplianceAdminDashboard() {
       toast({ title: "Error", description: "Failed to duplicate task", variant: "destructive" });
     },
   });
+
+  const { data: taskDocuments = [], refetch: refetchDocs } = useQuery<ComplianceAttachment[]>({
+    queryKey: ['/api/compliance/tasks', selectedTask?.id, 'attachments'],
+    queryFn: async () => {
+      if (!selectedTask?.id) return [];
+      const res = await fetch(`/api/compliance/tasks/${selectedTask.id}/attachments`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedTask?.id && (taskDialogOpen || viewDialogOpen),
+  });
+
+  const handleUploadDoc = async (file: File) => {
+    if (!selectedTask) return;
+    setUploadingDoc(true);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`/api/compliance/tasks/${selectedTask.id}/attachments`, { method: 'POST', body: fd });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message || 'Upload failed'); }
+      await refetchDocs();
+      toast({ title: "Success", description: "Document uploaded successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to upload", variant: "destructive" });
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleDeleteDoc = async (attachmentId: string) => {
+    if (!selectedTask) return;
+    setDeletingDocId(attachmentId);
+    try {
+      const res = await fetch(`/api/compliance/tasks/${selectedTask.id}/attachments/${attachmentId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      await refetchDocs();
+      toast({ title: "Success", description: "Document deleted" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete document", variant: "destructive" });
+    } finally {
+      setDeletingDocId(null);
+    }
+  };
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleOpenCreateDialog = () => {
     setSelectedTask(null);
@@ -1506,6 +1572,80 @@ export default function ComplianceAdminDashboard() {
                 </div>
               </>
             )}
+
+            {selectedTask && (
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1">
+                    <Paperclip className="w-4 h-4" />
+                    Documents
+                  </Label>
+                  <label htmlFor="doc-upload-input">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingDoc}
+                      asChild
+                    >
+                      <span>
+                        {uploadingDoc
+                          ? <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          : <Upload className="w-3 h-3 mr-1" />}
+                        {uploadingDoc ? 'Uploading...' : 'Upload File'}
+                      </span>
+                    </Button>
+                    <input
+                      id="doc-upload-input"
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadDoc(f); e.target.value = ''; }}
+                      data-testid="input-upload-doc"
+                    />
+                  </label>
+                </div>
+                {taskDocuments.length > 0 ? (
+                  <div className="space-y-2">
+                    {taskDocuments.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-2 border rounded-lg gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{doc.file_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.uploaded_by_name || 'Unknown'}{doc.file_size ? ` · ${formatFileSize(doc.file_size)}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <a href={`/api/compliance/tasks/${selectedTask.id}/attachments/${doc.id}`} target="_blank" rel="noopener noreferrer">
+                            <Button type="button" variant="ghost" size="icon" data-testid={`button-download-doc-${doc.id}`}>
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </a>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={deletingDocId === doc.id}
+                            onClick={() => handleDeleteDoc(doc.id)}
+                            data-testid={`button-delete-doc-${doc.id}`}
+                          >
+                            {deletingDocId === doc.id
+                              ? <Loader2 className="w-4 h-4 animate-spin" />
+                              : <Trash2 className="w-4 h-4 text-muted-foreground" />}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No documents attached. Upload permits, filings, receipts, or any relevant files.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -1596,6 +1736,39 @@ export default function ComplianceAdminDashboard() {
                           )}
                         </div>
                       ))}
+                  </div>
+                </div>
+              )}
+
+              {taskDocuments.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2 flex items-center gap-2">
+                    <Paperclip className="h-4 w-4" />
+                    Documents
+                  </h4>
+                  <div className="space-y-2">
+                    {taskDocuments.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-2 border rounded-lg gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{doc.file_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.uploaded_by_name || 'Unknown'}{doc.file_size ? ` · ${formatFileSize(doc.file_size)}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <a
+                          href={`/api/compliance/tasks/${selectedTask.id}/attachments/${doc.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button type="button" variant="ghost" size="icon" data-testid={`view-button-download-doc-${doc.id}`}>
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </a>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
