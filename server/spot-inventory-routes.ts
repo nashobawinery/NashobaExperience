@@ -227,11 +227,9 @@ router.get("/areas/:id/qr-code", async (req: Request, res: Response) => {
     }
 
     // Generate QR code URL that links to the staff app with this area pre-selected
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-      : (process.env.REPLIT_DOMAINS?.split(",")[0] 
-        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` 
-        : "");
+    const baseUrl = process.env.APP_URL
+      || (process.env.REPLIT_DOMAINS?.split(",")[0] ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : null)
+      || 'https://nashobawinery.org';
     const qrUrl = `${baseUrl}/spot-inventory/staff?areaId=${area.id}`;
     
     // Generate QR code as data URL

@@ -176,11 +176,10 @@ async function sendComplianceReminders() {
             VALUES (${task.id}, ${token}, 'complete', ${task.assigned_to_email}, ${task.assigned_to_name || null}, ${expiresAt})
           `);
           
-          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-            : process.env.REPLIT_DOMAINS?.split(',')[0] 
-              ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-              : 'https://localhost:5000';
+          const baseUrl = process.env.APP_URL
+            || (process.env.REPLIT_DOMAINS?.split(',')[0] ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null)
+            || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+            || 'https://nashobawinery.org';
           const completionUrl = `${baseUrl}/compliance/complete?token=${token}`;
           
           const subject = daysUntilDue <= 0 

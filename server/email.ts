@@ -43,13 +43,10 @@ const BRAND_COLORS = {
  * Gets the base URL for the application
  */
 function getBaseUrl(): string {
-  if (process.env.REPLIT_DOMAINS) {
-    return `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
-  }
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  }
-  return 'http://localhost:5000';
+  if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.REPLIT_DOMAINS) return `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  return 'https://nashobawinery.org';
 }
 
 /**
@@ -1440,12 +1437,7 @@ export function generateReservationReminderEmail(data: ReservationReminderData):
   const formattedTime = formatTo12Hour(reservationTime);
   
   // Generate confirmation/cancel URLs if token is provided
-  // Use production URL first (REPLIT_DOMAINS), then fall back to dev
-  const baseUrl = process.env.REPLIT_DOMAINS 
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : process.env.REPLIT_DEV_DOMAIN
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-      : (process.env.PUBLIC_URL || 'https://nashobawinery.com');
+  const baseUrl = getBaseUrl();
   const confirmUrl = confirmationToken ? `${baseUrl}/reservations/confirm/${confirmationToken}` : null;
   const cancelUrl = confirmationToken ? `${baseUrl}/reservations/cancel/${confirmationToken}` : null;
   const needsConfirmation = status === 'booked' && confirmationToken;
@@ -2131,12 +2123,7 @@ export async function sendForwardedTicketNotification(
       expiresAt
     });
 
-    // Use production URL first (REPLIT_DOMAINS), then fall back to dev
-    const baseUrl = process.env.REPLIT_DOMAINS 
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-      : process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : 'http://localhost:5000';
+    const baseUrl = getBaseUrl();
     
     const replyUrl = `${baseUrl}/support/agent/ticket/${ticket.id}?token=${token}`;
     

@@ -5941,7 +5941,8 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       `);
 
       // Send email with reset link
-      const resetUrl = `${process.env.REPLIT_DEV_DOMAIN ? 'https://' + process.env.REPLIT_DEV_DOMAIN : 'http://localhost:5000'}/reset-password?token=${token}`;
+      const resetBaseUrl = process.env.APP_URL || (process.env.REPLIT_DOMAINS?.split(',')[0] ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null) || 'https://nashobawinery.org';
+      const resetUrl = `${resetBaseUrl}/reset-password?token=${token}`;
       
       if (process.env.SENDGRID_API_KEY) {
         const sgMail = await import('@sendgrid/mail');

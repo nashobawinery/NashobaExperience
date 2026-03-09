@@ -14,11 +14,9 @@ export function generateUnsubscribeToken(customerId: number, type: "sms" | "emai
 
 export function generateUnsubscribeUrl(customerId: number, type: "sms" | "email"): string {
   const token = generateUnsubscribeToken(customerId, type);
-  const baseUrl = process.env.REPLIT_DOMAINS
-    ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
-    : process.env.REPLIT_DEV_DOMAIN
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : (process.env.PUBLIC_URL || "https://nashobawinery.com");
+  const baseUrl = process.env.APP_URL
+    || (process.env.REPLIT_DOMAINS?.split(",")[0] ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : null)
+    || 'https://nashobawinery.org';
   return `${baseUrl}/unsubscribe?id=${customerId}&type=${type}&token=${token}`;
 }
 

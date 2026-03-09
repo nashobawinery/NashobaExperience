@@ -95,11 +95,9 @@ async function sendContractExpirationEmail(
   const categoryLabel = contract.category.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   const amountStr = contract.amount ? `$${parseFloat(contract.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "Not specified";
 
-  const appUrl = process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : process.env.REPL_SLUG
-      ? `https://${process.env.REPL_SLUG}.replit.app`
-      : "https://nashoba-valley.replit.app";
+  const appUrl = process.env.APP_URL
+    || (process.env.REPLIT_DOMAINS?.split(',')[0] ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null)
+    || 'https://nashobawinery.org';
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
