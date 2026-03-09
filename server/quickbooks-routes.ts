@@ -423,7 +423,7 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
     ];
     const isPackagingItem = (name: string): boolean => {
       const trimmed = name.trim();
-      if (/\s*-\s*packaged$/i.test(trimmed)) return false;
+      if (/\s*-\s*packaged$/i.test(trimmed)) return true;
       if (/\bpackage[d]?$/i.test(trimmed)) return true;
       return packagingPatterns.some(p => p.test(trimmed));
     };
