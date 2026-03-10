@@ -46,6 +46,7 @@ import { fetchDailyRevenue, syncToastRevenueDetailToDb } from "./reactivation/to
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { initComplianceReminders, sendComplianceReminders } from "./complianceReminders";
+import { initFoodTruckPermitReminders } from "./foodTruckPermitReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
 import { initContractReminders } from "./contractReminders";
@@ -19884,6 +19885,8 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   initContractReminders();
 
   initComplianceReminders();
+
+  initFoodTruckPermitReminders();
 
   const httpServer = createServer(app);
   return httpServer;

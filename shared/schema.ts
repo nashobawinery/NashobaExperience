@@ -6186,6 +6186,7 @@ export const mediaFoodTruckEvents = pgTable("media_food_truck_events", {
   imageUrl: text("image_url"),
   isActive: boolean("is_active").notNull().default(true),
   isFeatured: boolean("is_featured").notNull().default(false),
+  permitReminderSentAt: timestamp("permit_reminder_sent_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
