@@ -12,6 +12,7 @@ router.get("/api/media/flyer/embed", async (req, res) => {
       template = "classic",
       scale = "100",
       days = "60",
+      specificdate,
       title,
       footer,
       hidedesc,
@@ -30,31 +31,60 @@ router.get("/api/media/flyer/embed", async (req, res) => {
     let events: any[] = [];
 
     if (mode === "music") {
-      const result = await db.execute(sql`
-        SELECT 
-          me.id, me.title, me.event_date, me.start_time, me.end_time,
-          me.location, me.description, me.image_url, me.is_featured,
-          m.name as musician_name, m.genre as musician_genre,
-          m.image_url as musician_image_url, m.website_url as musician_website_url
-        FROM media_music_events me
-        LEFT JOIN media_musicians m ON me.musician_id = m.id
-        WHERE me.is_active = true
-          AND me.event_date::date >= CURRENT_DATE
-          AND me.event_date::date <= CURRENT_DATE + ${daysAhead}
-        ORDER BY me.event_date ASC
-      `);
+      let result;
+      if (specificdate) {
+        result = await db.execute(sql`
+          SELECT 
+            me.id, me.title, me.event_date, me.start_time, me.end_time,
+            me.location, me.description, me.image_url, me.is_featured,
+            m.name as musician_name, m.genre as musician_genre,
+            m.image_url as musician_image_url, m.website_url as musician_website_url
+          FROM media_music_events me
+          LEFT JOIN media_musicians m ON me.musician_id = m.id
+          WHERE me.is_active = true
+            AND me.event_date::date = ${specificdate}::date
+          ORDER BY me.event_date ASC
+        `);
+      } else {
+        result = await db.execute(sql`
+          SELECT 
+            me.id, me.title, me.event_date, me.start_time, me.end_time,
+            me.location, me.description, me.image_url, me.is_featured,
+            m.name as musician_name, m.genre as musician_genre,
+            m.image_url as musician_image_url, m.website_url as musician_website_url
+          FROM media_music_events me
+          LEFT JOIN media_musicians m ON me.musician_id = m.id
+          WHERE me.is_active = true
+            AND me.event_date::date >= CURRENT_DATE
+            AND me.event_date::date <= CURRENT_DATE + (${daysAhead})::int
+          ORDER BY me.event_date ASC
+        `);
+      }
       events = result.rows as any[];
     } else {
-      const result = await db.execute(sql`
-        SELECT 
-          id, title, description, event_date, start_time, end_time,
-          location, image_url, price, shopify_url, category, is_featured
-        FROM media_special_events
-        WHERE is_active = true
-          AND event_date::date >= CURRENT_DATE
-          AND event_date::date <= CURRENT_DATE + ${daysAhead}
-        ORDER BY event_date ASC
-      `);
+      let result;
+      if (specificdate) {
+        result = await db.execute(sql`
+          SELECT 
+            id, title, description, event_date, start_time, end_time,
+            location, image_url, price, shopify_url, category, is_featured
+          FROM media_special_events
+          WHERE is_active = true
+            AND event_date::date = ${specificdate}::date
+          ORDER BY event_date ASC
+        `);
+      } else {
+        result = await db.execute(sql`
+          SELECT 
+            id, title, description, event_date, start_time, end_time,
+            location, image_url, price, shopify_url, category, is_featured
+          FROM media_special_events
+          WHERE is_active = true
+            AND event_date::date >= CURRENT_DATE
+            AND event_date::date <= CURRENT_DATE + (${daysAhead})::int
+          ORDER BY event_date ASC
+        `);
+      }
       events = result.rows as any[];
     }
 

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Printer, Loader2, Music, CalendarDays } from "lucide-react";
+import { Printer, Loader2, CalendarDays, Calendar } from "lucide-react";
 
 interface FlyerPrinterProps {
   mode: "music" | "events";
@@ -21,7 +21,9 @@ interface FlyerPrinterProps {
 export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
   const [template, setTemplate] = useState("classic");
   const [scale, setScale] = useState(100);
+  const [filterMode, setFilterMode] = useState<"range" | "date">("range");
   const [daysAhead, setDaysAhead] = useState(60);
+  const [specificDate, setSpecificDate] = useState("");
   const [customTitle, setCustomTitle] = useState("");
   const [customFooter, setCustomFooter] = useState("");
   const [hideDescriptions, setHideDescriptions] = useState(false);
@@ -50,7 +52,11 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
     params.set("template", tmpl);
     params.set("mode", mode);
     if (scale !== 100) params.set("scale", String(scale));
-    if (daysAhead !== 60) params.set("days", String(daysAhead));
+    if (filterMode === "date" && specificDate) {
+      params.set("specificdate", specificDate);
+    } else if (daysAhead !== 60) {
+      params.set("days", String(daysAhead));
+    }
     if (customTitle.trim()) params.set("title", customTitle.trim());
     if (customFooter.trim()) params.set("footer", customFooter.trim());
     if (hideDescriptions) params.set("hidedesc", "1");
@@ -110,20 +116,51 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Show Next</Label>
-          <Select value={String(daysAhead)} onValueChange={(v) => setDaysAhead(Number(v))}>
-            <SelectTrigger data-testid="select-flyer-days">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="14">2 Weeks</SelectItem>
-              <SelectItem value="30">1 Month</SelectItem>
-              <SelectItem value="60">2 Months</SelectItem>
-              <SelectItem value="90">3 Months</SelectItem>
-              <SelectItem value="180">6 Months</SelectItem>
-              <SelectItem value="365">1 Year</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label className="text-sm font-medium">Events to Include</Label>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={filterMode === "range" ? "default" : "outline"}
+              onClick={() => setFilterMode("range")}
+              data-testid="button-filter-range"
+              className="flex-1"
+            >
+              <CalendarDays className="w-3.5 h-3.5 mr-1" />
+              Next Period
+            </Button>
+            <Button
+              size="sm"
+              variant={filterMode === "date" ? "default" : "outline"}
+              onClick={() => setFilterMode("date")}
+              data-testid="button-filter-date"
+              className="flex-1"
+            >
+              <Calendar className="w-3.5 h-3.5 mr-1" />
+              Specific Day
+            </Button>
+          </div>
+          {filterMode === "range" ? (
+            <Select value={String(daysAhead)} onValueChange={(v) => setDaysAhead(Number(v))}>
+              <SelectTrigger data-testid="select-flyer-days">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="14">Next 2 Weeks</SelectItem>
+                <SelectItem value="30">Next 1 Month</SelectItem>
+                <SelectItem value="60">Next 2 Months</SelectItem>
+                <SelectItem value="90">Next 3 Months</SelectItem>
+                <SelectItem value="180">Next 6 Months</SelectItem>
+                <SelectItem value="365">Next 1 Year</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              type="date"
+              value={specificDate}
+              onChange={(e) => setSpecificDate(e.target.value)}
+              data-testid="input-flyer-specific-date"
+            />
+          )}
         </div>
       </div>
 
@@ -337,11 +374,23 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
         </Card>
       </div>
 
-      {eventCount > 0 && (
+      {filterMode === "date" && !specificDate ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <Calendar className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Select a date above to preview and print a single-day flyer.</p>
+          </CardContent>
+        </Card>
+      ) : (filterMode === "range" ? eventCount > 0 : !!specificDate) && (
         <Card>
           <CardContent className="p-0 overflow-hidden rounded-md">
             <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b flex items-center justify-between gap-2 flex-wrap">
-              <span>Print Preview ({eventCount} event{eventCount !== 1 ? "s" : ""})</span>
+              <span>
+                {filterMode === "date" && specificDate
+                  ? `Print Preview — ${new Date(specificDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`
+                  : `Print Preview (${eventCount} event${eventCount !== 1 ? "s" : ""})`
+                }
+              </span>
               <Button
                 size="sm"
                 variant="outline"
@@ -353,6 +402,7 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
               </Button>
             </div>
             <iframe
+              key={previewUrl}
               src={previewUrl}
               className="w-full border-0"
               style={{ height: "700px" }}

@@ -32,6 +32,7 @@ import {
   Link,
   Copy,
   Printer,
+  ArrowRight,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Musician, MusicEvent, MusicianSubmission } from "@shared/schema";
@@ -51,6 +52,36 @@ export default function MusicManager() {
 
   return (
     <div className="space-y-6">
+      <Card className="bg-muted/40">
+        <CardContent className="py-4 px-5">
+          <p className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <Music className="w-4 h-4 text-primary" />
+            How this page works
+          </p>
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5" />
+              Musicians apply through the public submission form
+            </span>
+            <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span className="flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" />
+              Approve in <button className="underline underline-offset-2 hover:text-foreground transition-colors" onClick={() => setActiveTab("submissions")}>Submissions</button> — added to Musicians automatically
+            </span>
+            <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" />
+              Book dates in <button className="underline underline-offset-2 hover:text-foreground transition-colors" onClick={() => setActiveTab("schedule")}>Schedule</button>
+            </span>
+            <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span className="flex items-center gap-1">
+              <Printer className="w-3.5 h-3.5" />
+              Print flyers from <button className="underline underline-offset-2 hover:text-foreground transition-colors" onClick={() => setActiveTab("flyer")}>Flyer Printer</button>
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-5 w-full max-w-3xl">
           <TabsTrigger value="musicians" className="flex items-center gap-2" data-testid="tab-musicians">
