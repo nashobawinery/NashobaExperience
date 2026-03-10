@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import NashobatvAdmin from "@/components/NashobatvAdmin";
 import { ToastMenuBrowser } from "@/pages/command-center/ToastMenuBrowser";
 import MusicManager from "@/components/MusicManager";
+import FoodTruckManager from "@/components/FoodTruckManager";
 import SpecialEventsManager from "@/components/SpecialEventsManager";
 import ShelfTalkerPrinter from "@/components/ShelfTalkerPrinter";
 import FlightCardPrinter from "@/components/FlightCardPrinter";
@@ -36,6 +37,7 @@ import {
   Music,
   Tag,
   ArrowLeft,
+  UtensilsCrossed,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -59,7 +61,7 @@ const CHANNEL_TYPES: Record<string, string> = {
 
 export default function MediaCenter() {
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events" | "shelf-talkers" | "flight-cards">("nashobatv");
+  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "food-trucks" | "special-events" | "shelf-talkers" | "flight-cards">("nashobatv");
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -269,6 +271,15 @@ export default function MediaCenter() {
           Live Music
         </Button>
         <Button
+          variant={activeSection === "food-trucks" ? "default" : "ghost"}
+          onClick={() => setActiveSection("food-trucks")}
+          className="flex items-center gap-2"
+          data-testid="button-section-food-trucks"
+        >
+          <UtensilsCrossed className="w-4 h-4" />
+          Food Trucks
+        </Button>
+        <Button
           variant={activeSection === "special-events" ? "default" : "ghost"}
           onClick={() => setActiveSection("special-events")}
           className="flex items-center gap-2"
@@ -299,6 +310,10 @@ export default function MediaCenter() {
 
       {activeSection === "live-music" && (
         <MusicManager />
+      )}
+
+      {activeSection === "food-trucks" && (
+        <FoodTruckManager />
       )}
 
       {activeSection === "menu-printer" && (

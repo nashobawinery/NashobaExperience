@@ -109,6 +109,7 @@ const MediaCenter = lazy(() => import("@/pages/MediaCenter"));
 
 // Lazy load Music Calendar public page
 const MusicCalendar = lazy(() => import("@/pages/MusicCalendar"));
+const FoodTruckCalendar = lazy(() => import("@/pages/FoodTruckCalendar"));
 
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
@@ -609,6 +610,10 @@ function MediaCenterRoute() {
 
 function MusicCalendarRoute() {
   return <Suspense fallback={<PageLoader />}><MusicCalendar /></Suspense>;
+}
+
+function FoodTruckCalendarRoute() {
+  return <Suspense fallback={<PageLoader />}><FoodTruckCalendar /></Suspense>;
 }
 
 function SpecialEventsPublicRoute() {
@@ -1263,6 +1268,7 @@ function Router() {
         <Route path="/command-center" component={CommandCenterRoute} />
         <Route path="/cellartraks" component={CellarTraksRoute} />
         <Route path="/music" component={MusicCalendarRoute} />
+        <Route path="/food-trucks" component={FoodTruckCalendarRoute} />
         <Route path="/media-center" component={MediaCenterRoute} />
         <Route path="/events" component={SpecialEventsPublicRoute} />
         <Route path="/toast-connect" component={ToastConnectRoute} />

@@ -6155,6 +6155,70 @@ export const insertSpecialEventSchema = createInsertSchema(mediaSpecialEvents).o
 export type InsertSpecialEvent = z.infer<typeof insertSpecialEventSchema>;
 export type SpecialEvent = typeof mediaSpecialEvents.$inferSelect;
 
+// ─── Food Trucks ────────────────────────────────────────────────────────────
+
+export const mediaFoodTrucks = pgTable("media_food_trucks", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  cuisineType: varchar("cuisine_type", { length: 100 }),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  websiteUrl: text("website_url"),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  isApproved: boolean("is_approved").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const mediaFoodTruckEvents = pgTable("media_food_truck_events", {
+  id: serial("id").primaryKey(),
+  foodTruckId: integer("food_truck_id").references(() => mediaFoodTrucks.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  eventDate: varchar("event_date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 10 }).notNull(),
+  endTime: varchar("end_time", { length: 10 }),
+  location: varchar("location", { length: 255 }),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const mediaFoodTruckSubmissionStatusEnum = pgEnum("media_food_truck_submission_status", [
+  "pending", "approved", "declined"
+]);
+
+export const mediaFoodTruckSubmissions = pgTable("media_food_truck_submissions", {
+  id: serial("id").primaryKey(),
+  truckName: varchar("truck_name", { length: 255 }).notNull(),
+  cuisineType: varchar("cuisine_type", { length: 100 }),
+  description: text("description"),
+  websiteUrl: text("website_url"),
+  contactEmail: varchar("contact_email", { length: 255 }).notNull(),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  message: text("message"),
+  menuDescription: text("menu_description").notNull(),
+  healthLicenseAcknowledged: boolean("health_license_acknowledged").notNull().default(false),
+  status: mediaFoodTruckSubmissionStatusEnum("status").notNull().default("pending"),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
+export const insertFoodTruckSchema = createInsertSchema(mediaFoodTrucks).omit({ id: true, createdAt: true });
+export type InsertFoodTruck = z.infer<typeof insertFoodTruckSchema>;
+export type FoodTruck = typeof mediaFoodTrucks.$inferSelect;
+
+export const insertFoodTruckEventSchema = createInsertSchema(mediaFoodTruckEvents).omit({ id: true, createdAt: true });
+export type InsertFoodTruckEvent = z.infer<typeof insertFoodTruckEventSchema>;
+export type FoodTruckEvent = typeof mediaFoodTruckEvents.$inferSelect;
+
+export const insertFoodTruckSubmissionSchema = createInsertSchema(mediaFoodTruckSubmissions).omit({ id: true, createdAt: true, reviewedAt: true });
+export type InsertFoodTruckSubmission = z.infer<typeof insertFoodTruckSubmissionSchema>;
+export type FoodTruckSubmission = typeof mediaFoodTruckSubmissions.$inferSelect;
+
 export const staffPrintMenus = pgTable("staff_print_menus", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 200 }).notNull(),

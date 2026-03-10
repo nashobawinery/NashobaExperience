@@ -38,6 +38,7 @@ import revenueDetailRouter from "./revenue-detail-routes";
 import abccRouter from "./abcc-routes";
 import nashobatvRouter from "./nashobatv-routes";
 import mediaMusicRouter from "./media-music-routes";
+import mediaFoodTruckRouter from "./media-food-truck-routes";
 import mediaEventsRouter from "./media-events-routes";
 import quickbooksRouter from "./quickbooks-routes";
 import mediaFlyerRouter from "./media-flyer-routes";
@@ -149,6 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cellartraksRouter);
   app.use(nashobatvRouter);
   app.use(mediaMusicRouter);
+  app.use(mediaFoodTruckRouter);
   app.use(mediaEventsRouter);
   app.use(mediaFlyerRouter);
   app.use(quickbooksRouter);
