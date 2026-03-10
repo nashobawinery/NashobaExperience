@@ -6168,6 +6168,9 @@ export const mediaFoodTrucks = pgTable("media_food_trucks", {
   contactPhone: varchar("contact_phone", { length: 50 }),
   isApproved: boolean("is_approved").notNull().default(true),
   isActive: boolean("is_active").notNull().default(true),
+  permitNumber: varchar("permit_number", { length: 100 }),
+  permitExpiry: varchar("permit_expiry", { length: 10 }),
+  permitImageUrl: text("permit_image_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
