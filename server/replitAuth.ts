@@ -11,16 +11,22 @@ import { databaseUrl } from "./db";
 
 const getOidcConfig = memoize(
   async () => {
-    return await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
-    );
+    const issuerUrl = process.env.ISSUER_URL ?? "https://replit.com/oidc";
+    const replId = process.env.REPL_ID;
+    if (!replId) {
+      throw new Error("REPL_ID environment variable is required for authentication.");
+    }
+    return await client.discovery(new URL(issuerUrl), replId);
   },
   { maxAge: 3600 * 1000 }
 );
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    throw new Error("SESSION_SECRET environment variable is required. Please set it in your environment.");
+  }
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: databaseUrl,
@@ -35,14 +41,14 @@ export function getSession() {
     },
   });
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: sessionSecret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Only require HTTPS in production
-      sameSite: "lax", // Prevent cross-site cookie sharing
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: sessionTtl,
     },
   });

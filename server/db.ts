@@ -11,6 +11,12 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const databaseUrl = process.env.DATABASE_URL;
+// Normalize connection string: both postgres:// and postgresql:// are valid,
+// but some tools (Render, certain pg drivers) require postgres:// specifically.
+const rawUrl = process.env.DATABASE_URL;
+export const databaseUrl = rawUrl.startsWith("postgresql://")
+  ? rawUrl.replace("postgresql://", "postgres://")
+  : rawUrl;
+
 export const pool = new Pool({ connectionString: databaseUrl });
 export const db = drizzle({ client: pool, schema });

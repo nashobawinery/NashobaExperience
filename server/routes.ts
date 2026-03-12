@@ -122,7 +122,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup authentication (provides /api/login, /api/logout, /api/callback routes)
   // This applies session middleware to all routes that follow
-  await setupAuth(app);
+  try {
+    await setupAuth(app);
+  } catch (err: any) {
+    console.error("[Auth] Failed to initialize authentication:", err.message);
+    console.error("[Auth] Ensure SESSION_SECRET and REPL_ID are set in your environment variables.");
+    process.exit(1);
+  }
   
   // Mount Reservation (resy) routes AFTER setupAuth so session middleware is applied
   app.use(resyRouter);
