@@ -35,7 +35,12 @@ import {
   FileImage,
   FileText,
   File,
-  Download
+  Download,
+  AlertTriangle,
+  RotateCcw,
+  MailCheck,
+  MailX,
+  Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,9 +54,41 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent, SupportAttachment } from "@shared/schema";
+import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent, SupportAttachment, EmailDeliveryLog } from "@shared/schema";
 
 type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] };
+
+function EmailDeliveryBadge({ log, onResend }: { log: EmailDeliveryLog; onResend: () => void }) {
+  const { status } = log;
+  const statusConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+    sent:       { icon: <Mail className="h-3 w-3" />,      label: "Sent",      color: "text-muted-foreground" },
+    delivered:  { icon: <MailCheck className="h-3 w-3" />, label: "Delivered", color: "text-green-600 dark:text-green-400" },
+    opened:     { icon: <Eye className="h-3 w-3" />,       label: "Opened",    color: "text-blue-600 dark:text-blue-400" },
+    failed:     { icon: <MailX className="h-3 w-3" />,     label: "Failed",    color: "text-red-500" },
+    bounced:    { icon: <AlertTriangle className="h-3 w-3" />, label: "Bounced", color: "text-orange-500" },
+    deferred:   { icon: <Clock className="h-3 w-3" />,     label: "Deferred",  color: "text-yellow-500" },
+    spam_report:{ icon: <AlertTriangle className="h-3 w-3" />, label: "Spam",  color: "text-red-600" },
+  };
+  const cfg = statusConfig[status || "sent"] || statusConfig["sent"];
+  const canResend = status === "failed" || status === "bounced" || status === "spam_report";
+
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs ${cfg.color}`} title={log.statusDetail || cfg.label}>
+      {cfg.icon}
+      <span>{cfg.label}</span>
+      {canResend && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onResend(); }}
+          className="ml-1 opacity-70 hover:opacity-100"
+          title="Resend email"
+          data-testid={`button-resend-email-${log.id}`}
+        >
+          <RotateCcw className="h-3 w-3" />
+        </button>
+      )}
+    </span>
+  );
+}
 
 // Helper to get icon for attachment type
 function getAttachmentIcon(mimeType: string) {
@@ -384,6 +421,39 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     acc[att.messageId].push(att);
     return acc;
   }, {} as Record<string, SupportAttachment[]>);
+
+  // Fetch email delivery logs for this ticket
+  const { data: emailLogs = [] } = useQuery<EmailDeliveryLog[]>({
+    queryKey: ["/api/support/tickets", requestId, "email-logs"],
+    queryFn: () => fetch(`/api/support/tickets/${requestId}/email-logs`).then(r => r.json()),
+    enabled: !!requestId,
+    refetchInterval: 30000,
+  });
+
+  // Build a lookup from messageId to most-recent delivery log for that message
+  const emailLogByMessageId = emailLogs.reduce((acc, log) => {
+    if (log.messageId) {
+      const existing = acc[log.messageId];
+      if (!existing || new Date(log.sentAt!) > new Date(existing.sentAt!)) {
+        acc[log.messageId] = log;
+      }
+    }
+    return acc;
+  }, {} as Record<string, EmailDeliveryLog>);
+
+  const resendEmailMutation = useMutation({
+    mutationFn: async (logId: string) => {
+      const res = await apiRequest("POST", `/api/support/tickets/${requestId}/email-logs/${logId}/resend`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/support/tickets", requestId, "email-logs"] });
+      toast({ title: "Email resent", description: "The email has been resent to the customer." });
+    },
+    onError: () => {
+      toast({ title: "Failed to resend email", variant: "destructive" });
+    },
+  });
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<(SupportAgent & { displayName?: string })[]>({
     queryKey: ["/api/admin/support/agents"],
@@ -878,6 +948,16 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                 </div>
                 <p className="text-sm whitespace-pre-wrap"><LinkifiedText text={message.content} /></p>
                 
+                {/* Email delivery status for agent messages */}
+                {message.senderType === "agent" && emailLogByMessageId[message.id] && (
+                  <div className="mt-2 pt-1 border-t border-white/20">
+                    <EmailDeliveryBadge
+                      log={emailLogByMessageId[message.id]}
+                      onResend={() => resendEmailMutation.mutate(emailLogByMessageId[message.id].id)}
+                    />
+                  </div>
+                )}
+
                 {/* Save to Knowledge Base button for bot/agent responses */}
                 {(message.senderType === "bot" || message.senderType === "agent") && (
                   <Button

@@ -6295,3 +6295,28 @@ export const flightCardConfigs = pgTable("flight_card_configs", {
 export const insertFlightCardConfigSchema = createInsertSchema(flightCardConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertFlightCardConfig = z.infer<typeof insertFlightCardConfigSchema>;
 export type FlightCardConfig = typeof flightCardConfigs.$inferSelect;
+
+// ─── Email Delivery Logs ─────────────────────────────────────────────────────
+// Tracks outbound support emails and their SendGrid delivery events
+export const emailDeliveryLogs = pgTable("email_delivery_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull().references(() => supportRequests.id, { onDelete: 'cascade' }),
+  messageId: varchar("message_id").references(() => supportMessages.id, { onDelete: 'set null' }),
+  recipientEmail: varchar("recipient_email").notNull(),
+  subject: text("subject"),
+  sendgridMessageId: varchar("sendgrid_message_id"),
+  status: varchar("status").notNull().default("sent"),
+  statusDetail: text("status_detail"),
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  deliveredAt: timestamp("delivered_at"),
+  openedAt: timestamp("opened_at"),
+  lastEventAt: timestamp("last_event_at"),
+}, (table) => [
+  index("idx_email_log_ticket").on(table.ticketId),
+  index("idx_email_log_sendgrid").on(table.sendgridMessageId),
+  index("idx_email_log_status").on(table.status),
+]);
+
+export const insertEmailDeliveryLogSchema = createInsertSchema(emailDeliveryLogs).omit({ id: true, sentAt: true });
+export type InsertEmailDeliveryLog = z.infer<typeof insertEmailDeliveryLogSchema>;
+export type EmailDeliveryLog = typeof emailDeliveryLogs.$inferSelect;

@@ -51,6 +51,7 @@ import { scheduleTicketReminders, sendManualAgentNotification } from "./supportT
 import { initMaintenanceReminders } from "./maintenanceReminders";
 import { initContractReminders } from "./contractReminders";
 import { scheduleNightlySync } from "./nightlySync";
+import emailDeliveryRouter from "./email-delivery-routes";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import OpenAI from "openai";
@@ -161,6 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(mediaEventsRouter);
   app.use(mediaFlyerRouter);
   app.use(quickbooksRouter);
+  app.use(emailDeliveryRouter);
 
   // AI-powered feature search endpoint
   app.post("/api/platform/feature-search", async (req, res) => {
@@ -15316,17 +15318,22 @@ ${webSourcesContext}`
         
         // Send email to customer if we have their email
         if (ticket.customerEmail) {
+          // Get the message we just created for logging
+          const allMessages = await storage.getSupportRequestWithMessages(requestId);
+          const newMessage = allMessages?.messages?.slice(-1)[0];
+          const emailSubject = `Re: ${ticket.subject} [Ticket #${ticket.id.slice(0, 8)}]`;
+
           try {
             const sgMail = (await import('@sendgrid/mail')).default;
             sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
             
-            const emailContent = {
+            const emailContent: any = {
               to: ticket.customerEmail,
               from: {
                 email: 'support@nashobawinery.com',
                 name: 'Nashoba Valley Support'
               },
-              subject: `Re: ${ticket.subject} [Ticket #${ticket.id.slice(0, 8)}]`,
+              subject: emailSubject,
               text: `Hello ${ticket.customerName || 'Valued Customer'},\n\n${replyContent}\n\n---\nNashoba Valley Support\nReference: #${ticket.id.slice(0, 8)}`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -15338,14 +15345,39 @@ ${webSourcesContext}`
                     Reference: #${ticket.id.slice(0, 8)}
                   </p>
                 </div>
-              `
+              `,
+              customArgs: {
+                ticket_id: requestId,
+                message_id: newMessage?.id || '',
+              },
+              trackingSettings: {
+                clickTracking: { enable: false },
+                openTracking: { enable: true },
+              },
             };
             
-            await sgMail.send(emailContent);
-            console.log(`[Support] Reply email sent to ${ticket.customerEmail} for ticket ${requestId}`);
-          } catch (emailError) {
+            const [sendgridResponse] = await sgMail.send(emailContent);
+            const sendgridMessageId = sendgridResponse?.headers?.['x-message-id'] as string | undefined;
+            
+            await storage.createEmailDeliveryLog({
+              ticketId: requestId,
+              messageId: newMessage?.id,
+              recipientEmail: ticket.customerEmail,
+              subject: emailSubject,
+              sendgridMessageId,
+              status: 'sent',
+            });
+            console.log(`[Support] Reply email sent to ${ticket.customerEmail} for ticket ${requestId}, msgId=${sendgridMessageId}`);
+          } catch (emailError: any) {
             console.error('[Support] Failed to send reply email:', emailError);
-            // Continue - the message is saved, just email failed
+            await storage.createEmailDeliveryLog({
+              ticketId: requestId,
+              messageId: newMessage?.id,
+              recipientEmail: ticket.customerEmail,
+              subject: emailSubject,
+              status: 'failed',
+              statusDetail: emailError?.message || 'Unknown error',
+            });
           }
         }
         

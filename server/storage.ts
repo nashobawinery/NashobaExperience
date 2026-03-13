@@ -235,6 +235,8 @@ import {
   supportAttachments,
   type InsertSupportAttachment,
   type SupportAttachment,
+  emailDeliveryLogs,
+  type EmailDeliveryLog,
   // Support Agents
   supportAgents,
   supportAgentCategories,
@@ -5976,6 +5978,55 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSupportAttachment(id: string): Promise<void> {
     await db.delete(supportAttachments).where(eq(supportAttachments.id, id));
+  }
+
+  // ============ Email Delivery Logs ============
+  async createEmailDeliveryLog(data: {
+    ticketId: string;
+    messageId?: string;
+    recipientEmail: string;
+    subject?: string;
+    sendgridMessageId?: string;
+    status?: string;
+  }): Promise<void> {
+    await db.insert(emailDeliveryLogs).values({
+      ticketId: data.ticketId,
+      messageId: data.messageId,
+      recipientEmail: data.recipientEmail,
+      subject: data.subject,
+      sendgridMessageId: data.sendgridMessageId,
+      status: data.status || 'sent',
+    });
+  }
+
+  async getEmailDeliveryLogsForTicket(ticketId: string): Promise<EmailDeliveryLog[]> {
+    return db.select()
+      .from(emailDeliveryLogs)
+      .where(eq(emailDeliveryLogs.ticketId, ticketId))
+      .orderBy(emailDeliveryLogs.sentAt);
+  }
+
+  async updateEmailDeliveryLogBySendgridId(sendgridMessageId: string, updates: {
+    status: string;
+    statusDetail?: string;
+    deliveredAt?: Date;
+    openedAt?: Date;
+    lastEventAt?: Date;
+  }): Promise<void> {
+    await db.update(emailDeliveryLogs)
+      .set({
+        status: updates.status,
+        statusDetail: updates.statusDetail,
+        deliveredAt: updates.deliveredAt,
+        openedAt: updates.openedAt,
+        lastEventAt: updates.lastEventAt || new Date(),
+      })
+      .where(eq(emailDeliveryLogs.sendgridMessageId, sendgridMessageId));
+  }
+
+  async resendEmailDeliveryLog(logId: string): Promise<EmailDeliveryLog | undefined> {
+    const [log] = await db.select().from(emailDeliveryLogs).where(eq(emailDeliveryLogs.id, logId));
+    return log;
   }
 
   // ============ Social Review Monitoring ============
