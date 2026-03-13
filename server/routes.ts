@@ -15368,7 +15368,7 @@ ${webSourcesContext}`
               status: 'sent',
             });
             console.log(`[Support] Reply email sent to ${ticket.customerEmail} for ticket ${requestId}, msgId=${sendgridMessageId}`);
-          } catch (emailError: any) {
+          } catch (emailError: unknown) {
             console.error('[Support] Failed to send reply email:', emailError);
             await storage.createEmailDeliveryLog({
               ticketId: requestId,
@@ -15376,7 +15376,7 @@ ${webSourcesContext}`
               recipientEmail: ticket.customerEmail,
               subject: emailSubject,
               status: 'failed',
-              statusDetail: emailError?.message || 'Unknown error',
+              statusDetail: emailError instanceof Error ? emailError.message : 'Unknown error',
             });
           }
         }

@@ -119,9 +119,10 @@ router.post("/api/support/tickets/:ticketId/email-logs/:logId/resend", isAuthent
     });
 
     res.json({ success: true, message: "Email resent successfully" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Email Delivery] Resend error:", err);
-    res.status(500).json({ message: err?.message || "Failed to resend email" });
+    const message = err instanceof Error ? err.message : "Failed to resend email";
+    res.status(500).json({ message });
   }
 });
 
