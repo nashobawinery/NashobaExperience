@@ -382,6 +382,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   const [saveToKbContent, setSaveToKbContent] = useState("");
   const [saveToKbTitle, setSaveToKbTitle] = useState("");
   const [saveToKbKeywords, setSaveToKbKeywords] = useState("");
+  const [draftSaved, setDraftSaved] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -403,6 +404,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     setHasLoadedDraft(false);
     setAiDraftContent("");
     setAiDraftOpen(false);
+    setDraftSaved(false);
   }, [requestId]);
 
   const { data: cannedResponses = [] } = useQuery<SupportCannedResponse[]>({
@@ -510,6 +512,22 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     },
   });
 
+  const saveDraftMutation = useMutation({
+    mutationFn: async (content: string) => {
+      const res = await apiRequest("PATCH", `/api/admin/support/requests/${requestId}`, { aiDraft: content });
+      return res.json();
+    },
+    onSuccess: () => {
+      setDraftSaved(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
+      toast({ title: "Draft saved", description: "You can return to review and send it later." });
+    },
+    onError: () => {
+      toast({ title: "Failed to save draft", variant: "destructive" });
+    },
+  });
+
   const sendAiResponseMutation = useMutation({
     mutationFn: async (content: string) => {
       return apiRequest("POST", `/api/support/requests/${requestId}/ai-response`, { content });
@@ -517,6 +535,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     onSuccess: () => {
       setAiDraftOpen(false);
       setAiDraftContent("");
+      setDraftSaved(false);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
       toast({ title: "Response sent from Nashoba Team" });
@@ -827,37 +846,61 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
           </DialogContent>
         </Dialog>
 
-        <Dialog open={aiDraftOpen} onOpenChange={setAiDraftOpen}>
+        <Dialog open={aiDraftOpen} onOpenChange={(open) => { setAiDraftOpen(open); if (!open) setDraftSaved(false); }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Pencil className="h-4 w-4" />
-                Edit Response Before Sending
+                Review &amp; Edit AI Draft
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                This response will be sent from the Nashoba Team. Edit the message below before sending.
+                Edit the response below. You can save the draft to send later, or send it now.
               </p>
               <Textarea
                 value={aiDraftContent}
-                onChange={(e) => setAiDraftContent(e.target.value)}
-                rows={10}
-                className="resize-none"
+                onChange={(e) => { setAiDraftContent(e.target.value); setDraftSaved(false); }}
+                rows={12}
+                className="resize-y"
+                placeholder="Write your response here..."
                 data-testid="textarea-ai-draft"
               />
+              {draftSaved && (
+                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1" data-testid="text-draft-saved">
+                  <CheckCircle className="h-3 w-3" />
+                  Draft saved — you can close this and send it later from the banner above.
+                </p>
+              )}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAiDraftOpen(false)} data-testid="button-cancel-ai">
-                Cancel
+            <DialogFooter className="flex-wrap gap-2">
+              <Button variant="outline" onClick={() => { setAiDraftOpen(false); setDraftSaved(false); }} data-testid="button-cancel-ai">
+                Close
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => saveDraftMutation.mutate(aiDraftContent)}
+                disabled={saveDraftMutation.isPending || !aiDraftContent.trim()}
+                data-testid="button-save-draft"
+              >
+                {saveDraftMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <BookOpen className="h-4 w-4 mr-2" />
+                )}
+                {saveDraftMutation.isPending ? "Saving..." : "Save Draft"}
               </Button>
               <Button 
                 onClick={() => sendAiResponseMutation.mutate(aiDraftContent)}
                 disabled={sendAiResponseMutation.isPending || !aiDraftContent.trim()}
                 data-testid="button-send-ai"
               >
-                <Send className="h-4 w-4 mr-2" />
-                {sendAiResponseMutation.isPending ? "Sending..." : "Send from Nashoba Team"}
+                {sendAiResponseMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                {sendAiResponseMutation.isPending ? "Sending..." : "Send Now"}
               </Button>
             </DialogFooter>
           </DialogContent>
