@@ -40,7 +40,8 @@ import {
   RotateCcw,
   MailCheck,
   MailX,
-  Eye
+  Eye,
+  FileClock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1052,6 +1053,46 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
               </div>
             </div>
           ))}
+
+          {/* Saved draft entry in the message log */}
+          {request.aiDraft && (
+            <div className="flex justify-end" data-testid="draft-message-entry">
+              <div className="max-w-[80%] rounded-lg p-3 border-2 border-dashed border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/40">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-2">
+                  <FileClock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300" data-testid="text-draft-label">
+                    Draft Response — Not Sent
+                  </span>
+                  {request.aiDraftGeneratedAt && (
+                    <span className="text-xs text-amber-600/70 dark:text-amber-400/70 ml-auto">
+                      {format(new Date(request.aiDraftGeneratedAt), "h:mm a")}
+                    </span>
+                  )}
+                </div>
+                {/* Draft content */}
+                <p className="text-sm whitespace-pre-wrap text-foreground" data-testid="text-draft-content">
+                  {request.aiDraft}
+                </p>
+                {/* Action button */}
+                <div className="mt-3 pt-2 border-t border-amber-300 dark:border-amber-700">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => {
+                      setAiDraftContent(request.aiDraft || "");
+                      setAiDraftOpen(true);
+                    }}
+                    data-testid="button-edit-draft-from-log"
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    Edit &amp; Send
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
