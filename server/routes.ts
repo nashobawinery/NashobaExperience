@@ -14093,7 +14093,7 @@ ${webSourcesContext}`
   // Send AI response (saves edited content from Nashoba Team)
   app.post('/api/support/requests/:id/ai-response', isAdmin, async (req, res) => {
     try {
-      const { content } = req.body;
+      const { content, cc = [], bcc = [] } = req.body;
       
       if (!content) {
         return res.status(400).json({ message: 'Response content is required' });
@@ -14147,6 +14147,9 @@ ${webSourcesContext}`
             customArgs: { ticket_id: ticket.id, message_id: message.id },
             trackingSettings: { clickTracking: { enable: false }, openTracking: { enable: true } },
           };
+
+          if (Array.isArray(cc) && cc.length > 0) emailContent.cc = cc;
+          if (Array.isArray(bcc) && bcc.length > 0) emailContent.bcc = bcc;
 
           const [sendgridResponse] = await sgMail.send(emailContent);
           const sendgridMessageId = sendgridResponse?.headers?.['x-message-id'] as string | undefined;
@@ -14335,27 +14338,85 @@ ${webSourcesContext}`
   // Admin: Send a message as an agent
   app.post('/api/admin/support/requests/:id/messages', isAdmin, async (req, res) => {
     try {
-      const { content } = req.body;
+      const { content, cc = [], bcc = [] } = req.body;
       const user = req.user as any;
       
       if (!content) {
         return res.status(400).json({ message: 'Message content is required' });
       }
 
-      const request = await storage.getSupportRequest(req.params.id);
-      if (!request) {
+      const ticket = await storage.getSupportRequest(req.params.id);
+      if (!ticket) {
         return res.status(404).json({ message: 'Support request not found' });
       }
+
+      const agentName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Support Agent';
 
       const message = await storage.createSupportMessage({
         requestId: req.params.id,
         content,
         senderType: 'agent',
-        senderName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Support Agent',
+        senderName: agentName,
         senderId: user?.id
       });
 
+      await storage.updateSupportRequest(req.params.id, { status: 'pending' });
+
       res.json(message);
+
+      // Send email to customer (after responding to HTTP request)
+      if (ticket.customerEmail) {
+        const emailSubject = `Re: ${ticket.subject} [Ticket #${ticket.id.slice(0, 8)}]`;
+        try {
+          const sgMail = (await import('@sendgrid/mail')).default;
+          sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+
+          const emailContent: any = {
+            to: ticket.customerEmail,
+            from: { email: 'support@nashobawinery.com', name: 'Nashoba Valley Support' },
+            subject: emailSubject,
+            text: `Hello ${ticket.customerName || 'Valued Customer'},\n\n${content}\n\n---\n${agentName}\nNashoba Valley Support\nReference: #${ticket.id.slice(0, 8)}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <p>Hello ${ticket.customerName || 'Valued Customer'},</p>
+                <div style="white-space: pre-wrap; margin: 20px 0;">${content.replace(/\n/g, '<br>')}</div>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                <p style="color: #666; font-size: 12px;">
+                  ${agentName}<br>Nashoba Valley Support<br>Reference: #${ticket.id.slice(0, 8)}
+                </p>
+              </div>
+            `,
+            customArgs: { ticket_id: ticket.id, message_id: message.id },
+            trackingSettings: { clickTracking: { enable: false }, openTracking: { enable: true } },
+          };
+
+          if (Array.isArray(cc) && cc.length > 0) emailContent.cc = cc;
+          if (Array.isArray(bcc) && bcc.length > 0) emailContent.bcc = bcc;
+
+          const [sendgridResponse] = await sgMail.send(emailContent);
+          const sendgridMessageId = sendgridResponse?.headers?.['x-message-id'] as string | undefined;
+
+          await storage.createEmailDeliveryLog({
+            ticketId: ticket.id,
+            messageId: message.id,
+            recipientEmail: ticket.customerEmail,
+            subject: emailSubject,
+            sendgridMessageId,
+            status: 'sent',
+          });
+          console.log(`[Support] Agent reply email sent to ${ticket.customerEmail} for ticket ${ticket.id}`);
+        } catch (emailError: unknown) {
+          console.error('[Support] Failed to send agent reply email:', emailError);
+          await storage.createEmailDeliveryLog({
+            ticketId: ticket.id,
+            messageId: message.id,
+            recipientEmail: ticket.customerEmail,
+            subject: emailSubject,
+            status: 'failed',
+            statusDetail: emailError instanceof Error ? emailError.message : 'Unknown error',
+          });
+        }
+      }
     } catch (error) {
       console.error('Error adding agent message:', error);
       res.status(500).json({ message: 'Failed to add message' });

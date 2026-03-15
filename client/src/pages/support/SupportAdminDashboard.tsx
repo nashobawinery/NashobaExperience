@@ -384,6 +384,9 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   const [saveToKbTitle, setSaveToKbTitle] = useState("");
   const [saveToKbKeywords, setSaveToKbKeywords] = useState("");
   const [draftSaved, setDraftSaved] = useState(false);
+  const [ccEmails, setCcEmails] = useState("");
+  const [bccEmails, setBccEmails] = useState("");
+  const [showCcBcc, setShowCcBcc] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -482,9 +485,16 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     },
   });
 
+  const parseEmailList = (raw: string): string[] =>
+    raw.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
-      return apiRequest("POST", `/api/admin/support/requests/${requestId}/messages`, { content });
+      return apiRequest("POST", `/api/admin/support/requests/${requestId}/messages`, {
+        content,
+        cc: parseEmailList(ccEmails),
+        bcc: parseEmailList(bccEmails),
+      });
     },
     onSuccess: () => {
       setNewMessage("");
@@ -531,7 +541,11 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
 
   const sendAiResponseMutation = useMutation({
     mutationFn: async (content: string) => {
-      return apiRequest("POST", `/api/support/requests/${requestId}/ai-response`, { content });
+      return apiRequest("POST", `/api/support/requests/${requestId}/ai-response`, {
+        content,
+        cc: parseEmailList(ccEmails),
+        bcc: parseEmailList(bccEmails),
+      });
     },
     onSuccess: () => {
       setAiDraftOpen(false);
@@ -862,11 +876,45 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
               <Textarea
                 value={aiDraftContent}
                 onChange={(e) => { setAiDraftContent(e.target.value); setDraftSaved(false); }}
-                rows={12}
+                rows={10}
                 className="resize-y"
                 placeholder="Write your response here..."
                 data-testid="textarea-ai-draft"
               />
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowCcBcc(!showCcBcc)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid="button-toggle-ccbcc-dialog"
+                >
+                  {showCcBcc ? "Hide CC / BCC" : "CC / BCC"}
+                </button>
+                {showCcBcc && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">CC</label>
+                      <Input
+                        value={ccEmails}
+                        onChange={(e) => setCcEmails(e.target.value)}
+                        placeholder="email1@example.com, email2@example.com"
+                        className="text-sm"
+                        data-testid="input-cc-dialog"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">BCC</label>
+                      <Input
+                        value={bccEmails}
+                        onChange={(e) => setBccEmails(e.target.value)}
+                        placeholder="email@example.com"
+                        className="text-sm"
+                        data-testid="input-bcc-dialog"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
               {draftSaved && (
                 <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1" data-testid="text-draft-saved">
                   <CheckCircle className="h-3 w-3" />
@@ -1097,21 +1145,57 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
       </ScrollArea>
 
       {request.status !== "closed" && (
-        <form onSubmit={handleSendMessage} className="p-4 border-t">
-          <div className="flex gap-2">
-            <Textarea
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type your message..."
-              className="resize-none min-h-[80px]"
-              data-testid="input-message"
-            />
+        <form onSubmit={handleSendMessage} className="p-4 border-t space-y-2">
+          <Textarea
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type your message..."
+            className="resize-none min-h-[80px]"
+            data-testid="input-message"
+          />
+          {showCcBcc && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">CC</label>
+                <Input
+                  value={ccEmails}
+                  onChange={(e) => setCcEmails(e.target.value)}
+                  placeholder="email1@example.com, email2@example.com"
+                  className="text-sm"
+                  data-testid="input-cc"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">BCC</label>
+                <Input
+                  value={bccEmails}
+                  onChange={(e) => setBccEmails(e.target.value)}
+                  placeholder="email@example.com"
+                  className="text-sm"
+                  data-testid="input-bcc"
+                />
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowCcBcc(!showCcBcc)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-toggle-ccbcc"
+            >
+              {showCcBcc ? "Hide CC / BCC" : "CC / BCC"}
+            </button>
             <Button
               type="submit"
               disabled={!newMessage.trim() || sendMessageMutation.isPending}
               data-testid="button-send-message"
             >
-              <Send className="h-4 w-4" />
+              {sendMessageMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </form>
