@@ -14099,8 +14099,8 @@ ${webSourcesContext}`
         return res.status(400).json({ message: 'Response content is required' });
       }
 
-      const request = await storage.getSupportRequest(req.params.id);
-      if (!request) {
+      const ticket = await storage.getSupportRequest(req.params.id);
+      if (!ticket) {
         return res.status(404).json({ message: 'Support request not found' });
       }
 
@@ -14114,12 +14114,64 @@ ${webSourcesContext}`
 
       // Update request status and clear the AI draft since it was sent
       await storage.updateSupportRequest(req.params.id, { 
-        status: 'bot_responded',
+        status: 'pending',
         aiDraft: null,
         aiDraftGeneratedAt: null
       });
 
       res.json({ message });
+
+      // Send email to customer (after responding to the HTTP request for speed)
+      if (ticket.customerEmail) {
+        const emailSubject = `Re: ${ticket.subject} [Ticket #${ticket.id.slice(0, 8)}]`;
+        try {
+          const sgMail = (await import('@sendgrid/mail')).default;
+          sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+
+          const emailContent: any = {
+            to: ticket.customerEmail,
+            from: { email: 'support@nashobawinery.com', name: 'Nashoba Valley Support' },
+            subject: emailSubject,
+            text: `Hello ${ticket.customerName || 'Valued Customer'},\n\n${content}\n\n---\nNashoba Valley Support\nReference: #${ticket.id.slice(0, 8)}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <p>Hello ${ticket.customerName || 'Valued Customer'},</p>
+                <div style="white-space: pre-wrap; margin: 20px 0;">${content.replace(/\n/g, '<br>')}</div>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                <p style="color: #666; font-size: 12px;">
+                  Nashoba Valley Support<br>
+                  Reference: #${ticket.id.slice(0, 8)}
+                </p>
+              </div>
+            `,
+            customArgs: { ticket_id: ticket.id, message_id: message.id },
+            trackingSettings: { clickTracking: { enable: false }, openTracking: { enable: true } },
+          };
+
+          const [sendgridResponse] = await sgMail.send(emailContent);
+          const sendgridMessageId = sendgridResponse?.headers?.['x-message-id'] as string | undefined;
+
+          await storage.createEmailDeliveryLog({
+            ticketId: ticket.id,
+            messageId: message.id,
+            recipientEmail: ticket.customerEmail,
+            subject: emailSubject,
+            sendgridMessageId,
+            status: 'sent',
+          });
+          console.log(`[Support] AI response email sent to ${ticket.customerEmail} for ticket ${ticket.id}, msgId=${sendgridMessageId}`);
+        } catch (emailError: unknown) {
+          console.error('[Support] Failed to send AI response email:', emailError);
+          await storage.createEmailDeliveryLog({
+            ticketId: ticket.id,
+            messageId: message.id,
+            recipientEmail: ticket.customerEmail,
+            subject: emailSubject,
+            status: 'failed',
+            statusDetail: emailError instanceof Error ? emailError.message : 'Unknown error',
+          });
+        }
+      }
     } catch (error) {
       console.error('Error sending AI response:', error);
       res.status(500).json({ message: 'Failed to send response' });
@@ -15938,31 +15990,40 @@ Generate a professional response:`;
       const textBody = emailData.text || '';
       const htmlBody = emailData.html || '';
       
-      // Parse headers - SendGrid sends them as a JSON string in the 'headers' field
+      // Parse headers - SendGrid sends them as raw RFC 2822 text (not JSON)
+      // e.g. "ARC-Authentication-Results: ...\r\nMessage-ID: <abc@xyz>\r\n..."
       let parsedHeaders: Record<string, string> = {};
-      try {
-        if (emailData.headers) {
-          // Headers might be a JSON string or already parsed
-          const headersData = typeof emailData.headers === 'string' 
-            ? JSON.parse(emailData.headers) 
-            : emailData.headers;
-          
-          // If it's an array of name/value objects
+      if (emailData.headers) {
+        const raw = emailData.headers;
+        // First try JSON (some integrations do send JSON)
+        try {
+          const headersData = JSON.parse(raw);
           if (Array.isArray(headersData)) {
             headersData.forEach((h: { name?: string; value?: string }) => {
-              if (h.name && h.value) {
-                parsedHeaders[h.name.toLowerCase()] = h.value;
-              }
+              if (h.name && h.value) parsedHeaders[h.name.toLowerCase()] = h.value;
             });
           } else if (typeof headersData === 'object') {
-            // If it's already an object
-            Object.entries(headersData).forEach(([key, value]) => {
-              parsedHeaders[key.toLowerCase()] = String(value);
+            Object.entries(headersData).forEach(([k, v]) => {
+              parsedHeaders[k.toLowerCase()] = String(v);
             });
           }
+        } catch {
+          // Fall back to raw RFC 2822 header parsing (most common from SendGrid)
+          const lines = raw.split(/\r?\n/);
+          let currentKey = '';
+          for (const line of lines) {
+            if (/^\s/.test(line) && currentKey) {
+              // Continuation line
+              parsedHeaders[currentKey] += ' ' + line.trim();
+            } else {
+              const colon = line.indexOf(':');
+              if (colon > 0) {
+                currentKey = line.slice(0, colon).trim().toLowerCase();
+                parsedHeaders[currentKey] = line.slice(colon + 1).trim();
+              }
+            }
+          }
         }
-      } catch (e) {
-        console.log('[Email Inbound] Could not parse headers:', e);
       }
       
       // Try multiple sources for Message-ID (SendGrid uses various formats)
@@ -15992,20 +16053,28 @@ Generate a professional response:`;
       }
 
       // ============================================
-      // SKIP OUR OWN AUTO-GENERATED EMAILS
-      // Prevent mail loops from confirmation emails being re-ingested
+      // SKIP OUR OWN EMAILS TO PREVENT MAIL LOOPS
       // ============================================
+      const ourSupportAddresses = ['support@nashobawinery.com'];
       const ourDomains = ['nashobawinery.com', 'nashobawinery.shop'];
-      const isFromOurDomain = ourDomains.some(d => fromEmail.toLowerCase().includes(d));
+      const fromEmailLower = fromEmail.toLowerCase();
+
+      // Always skip anything sent FROM our own support address (outgoing replies, confirmations, etc.)
+      if (ourSupportAddresses.some(addr => fromEmailLower === addr)) {
+        console.log('[Email Inbound] Skipping email from our own support address:', fromEmail, '|', subject);
+        return res.status(200).json({ message: 'Email from own support address, skipped' });
+      }
+
+      const isFromOurDomain = ourDomains.some(d => fromEmailLower.includes(d));
       const isAutoReply = 
         subject.toLowerCase().includes("we've received your request") ||
         subject.toLowerCase().includes("new support ticket:") ||
         subject.toLowerCase().includes("support request received") ||
         parsedHeaders['auto-submitted'] ||
         parsedHeaders['x-auto-response-suppress'] ||
-        fromEmail.toLowerCase().includes('noreply') ||
-        fromEmail.toLowerCase().includes('no-reply') ||
-        fromEmail.toLowerCase().includes('mailer-daemon');
+        fromEmailLower.includes('noreply') ||
+        fromEmailLower.includes('no-reply') ||
+        fromEmailLower.includes('mailer-daemon');
       
       if (isFromOurDomain && isAutoReply) {
         console.log('[Email Inbound] Skipping auto-generated email from our domain:', subject);
@@ -16024,7 +16093,6 @@ Generate a professional response:`;
       ];
 
       const subjectLower = subject.toLowerCase();
-      const fromEmailLower = fromEmail.toLowerCase();
 
       let detectedPlatform: string | null = null;
       for (const pattern of reviewPlatformPatterns) {
