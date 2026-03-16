@@ -67,9 +67,12 @@ export function isToastStandardMode(): boolean {
 
 // Synthetic req.user injected in toast_standard mode so downstream handlers
 // (which read req.user?.claims?.name etc.) don't crash.
+// sub is set to 'admin123' — the existing admin record in both users and
+// platform_users tables — so storage.getUser() and getUserPermissions()
+// resolve correctly without any phantom/synthetic DB entries.
 const toastStandardUser = () => ({
   claims: {
-    sub: "render-admin",
+    sub: "admin123",
     email: process.env.ADMIN_EMAIL ?? "admin@nashobawinery.com",
     name: "Admin",
     first_name: "Admin",
