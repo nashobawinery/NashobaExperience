@@ -12086,6 +12086,112 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
+  // Resend notification emails for a daily report (admin only)
+  app.post('/api/daily-reports/:id/resend-notification', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const report = await storage.getDailyReport(id);
+      if (!report) {
+        return res.status(404).json({ message: 'Report not found' });
+      }
+
+      const { generateDailyReportEmail, generateFieldSpecificEmail, sendEmail } = await import("./email");
+
+      const template = await storage.getDailyReportTemplateByDepartment(report.department);
+      if (!template) {
+        return res.status(400).json({ message: `No template found for department: ${report.department}` });
+      }
+
+      const notificationEmails = (template.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
+      console.log(`[Daily Reports Resend] Report ${id} (${report.department}): ${notificationEmails.length} recipients`);
+
+      if (notificationEmails.length === 0) {
+        return res.status(400).json({ message: 'No notification emails configured for this department template' });
+      }
+
+      const incidents = await storage.getDailyReportIncidents(report.id);
+      const fieldAssignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id);
+      const enabledFields = fieldAssignments
+        .filter(fa => fa.isEnabled && fa.fieldDefinition)
+        .map(fa => ({ key: fa.fieldDefinition!.key, label: fa.fieldDefinition!.label, unit: undefined }));
+
+      const allMetrics = (report.metricsData as Record<string, any>) || {};
+      const enabledKeys = new Set(enabledFields.map(f => f.key));
+      const filteredMetrics = Object.fromEntries(Object.entries(allMetrics).filter(([k]) => enabledKeys.has(k)));
+
+      const submitterName = report.submittedByName || 'Staff';
+      const emailData = generateDailyReportEmail({
+        department: report.department,
+        departmentLabel: template.departmentLabel || report.department,
+        reportDate: new Date(report.reportDate).toLocaleDateString('en-US', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }),
+        submitterName,
+        performanceSummary: report.performanceSummary || undefined,
+        overallRating: report.overallRating || undefined,
+        hasCustomerConcerns: report.hasCustomerConcerns || false,
+        customerConcernsSummary: report.customerConcernsSummary || undefined,
+        metricsData: Object.keys(filteredMetrics).length > 0 ? filteredMetrics : undefined,
+        metricsConfig: enabledFields.length > 0 ? enabledFields : undefined,
+        incidentCount: incidents.length,
+        proceduresCompletedCount: report.proceduresCompletedCount || 0,
+        proceduresTotalCount: report.proceduresTotalCount || 0
+      });
+
+      const results: { email: string; success: boolean; error?: string }[] = [];
+      for (const recipient of notificationEmails) {
+        try {
+          await sendEmail(recipient.email, emailData.subject, emailData.html, emailData.text);
+          console.log(`[Daily Reports Resend] Sent to ${recipient.email}`);
+          results.push({ email: recipient.email, success: true });
+        } catch (emailError) {
+          const msg = emailError instanceof Error ? emailError.message : 'Unknown error';
+          console.error(`[Daily Reports Resend] Failed to send to ${recipient.email}:`, msg);
+          results.push({ email: recipient.email, success: false, error: msg });
+        }
+      }
+
+      // Also resend field-specific emails
+      const enabledFieldDefs = fieldAssignments.filter(fa => fa.isEnabled && fa.fieldDefinition).map(fa => fa.fieldDefinition!);
+      for (const field of enabledFieldDefs) {
+        const fieldEmails = (field.notificationEmails as Array<{ email: string; name?: string }>) || [];
+        if (fieldEmails.length === 0) continue;
+        const fieldValue = allMetrics[field.key];
+        if (fieldValue === undefined || fieldValue === null) continue;
+        const fieldEmailData = generateFieldSpecificEmail({
+          department: report.department,
+          departmentLabel: template.departmentLabel || report.department,
+          reportDate: new Date(report.reportDate).toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+          }),
+          submitterName,
+          fieldLabel: field.label,
+          fieldValue,
+          fieldUnit: undefined,
+          fieldDescription: field.description || undefined
+        });
+        for (const recipient of fieldEmails) {
+          try {
+            await sendEmail(recipient.email, fieldEmailData.subject, fieldEmailData.html, fieldEmailData.text);
+            console.log(`[Daily Reports Resend] Field '${field.label}' sent to ${recipient.email}`);
+            results.push({ email: recipient.email, success: true });
+          } catch (fieldEmailError) {
+            const msg = fieldEmailError instanceof Error ? fieldEmailError.message : 'Unknown error';
+            console.error(`[Daily Reports Resend] Field '${field.label}' failed for ${recipient.email}:`, msg);
+            results.push({ email: recipient.email, success: false, error: msg });
+          }
+        }
+      }
+
+      const sent = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      res.json({ message: `Resent ${sent} email(s)${failed > 0 ? `, ${failed} failed` : ''}`, results });
+    } catch (error) {
+      console.error('[Daily Reports Resend] Error:', error);
+      res.status(500).json({ message: 'Failed to resend notification', error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
   // Review a daily report (admin only)
   app.post('/api/daily-reports/:id/review', isAdmin, async (req: any, res) => {
     try {
@@ -13115,7 +13221,11 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         
         // Get notification emails from template (department level)
         const notificationEmails = (template?.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
-        console.log(`[Daily Reports Public] Notification emails:`, JSON.stringify(notificationEmails));
+        console.log(`[Daily Reports Public] Notification emails (${notificationEmails.length}):`, JSON.stringify(notificationEmails));
+
+        if (notificationEmails.length === 0) {
+          console.log(`[Daily Reports Public] WARNING: No notification emails configured for department '${accessCode.department}' - no email will be sent`);
+        }
 
         if (notificationEmails.length > 0) {
           const reportIncidents = await storage.getDailyReportIncidents(report.id);

@@ -1464,6 +1464,19 @@ export default function DailyReportsAdminDashboard() {
     }
   });
 
+  const resendNotificationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest('POST', `/api/daily-reports/${id}/resend-notification`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Notification resent", description: data.message || "Email notification sent successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to resend notification", description: error.message, variant: "destructive" });
+    }
+  });
+
   const reviewReportMutation = useMutation({
     mutationFn: async ({ id, approved = true, reviewNotes }: { id: string; approved?: boolean; reviewNotes?: string }) => {
       return await apiRequest('POST', `/api/daily-reports/${id}/review`, { approved, reviewNotes });
@@ -2711,6 +2724,18 @@ export default function DailyReportsAdminDashboard() {
                                       </DropdownMenuItem>
                                     )}
                                     
+                                    {/* Resend notification email for submitted/reviewed reports */}
+                                    {(report.status === "submitted" || report.status === "reviewed") && (
+                                      <DropdownMenuItem
+                                        onClick={() => resendNotificationMutation.mutate(report.id)}
+                                        disabled={resendNotificationMutation.isPending}
+                                        data-testid={`button-resend-notification-${report.id}`}
+                                      >
+                                        <Mail className="h-4 w-4 mr-2" />
+                                        Resend Notification Email
+                                      </DropdownMenuItem>
+                                    )}
+
                                     {/* Reopen reviewed reports */}
                                     {report.status === "reviewed" && (
                                       <DropdownMenuItem onClick={() => {
@@ -3640,6 +3665,20 @@ export default function DailyReportsAdminDashboard() {
                     </Button>
                   )}
                   
+                  {/* Resend notification for submitted/reviewed */}
+                  {(selectedReport.status === "submitted" || selectedReport.status === "reviewed") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => resendNotificationMutation.mutate(selectedReport.id)}
+                      disabled={resendNotificationMutation.isPending}
+                      data-testid="button-resend-notification-detail"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Resend Notification
+                    </Button>
+                  )}
+
                   {/* Reopen for reviewed */}
                   {selectedReport.status === "reviewed" && (
                     <Button size="sm" variant="outline" onClick={() => {

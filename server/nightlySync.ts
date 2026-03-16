@@ -136,8 +136,8 @@ async function runShopifyCustomerSync(): Promise<{ imported: number; updated: nu
               phone1 = COALESCE(NULLIF(${phone || ""}, ''), phone1),
               first_name = COALESCE(NULLIF(${firstName || ""}, ''), first_name),
               last_name = COALESCE(NULLIF(${lastName || ""}, ''), last_name),
-              total_visits = ${ordersCount}, lifetime_spend = ${totalSpent.toFixed(2)},
-              average_spend = ${avgSpend.toFixed(2)}, days_since_last_visit = ${daysSince},
+              total_visits = ${ordersCount}, lifetime_spend = ${parseFloat(totalSpent.toFixed(2))},
+              average_spend = ${parseFloat(avgSpend.toFixed(2))}, days_since_last_visit = ${daysSince},
               reactivation_segment = ${segment}, activity_categories = ${finalCats},
               source = 'shopify', updated_at = NOW()
             WHERE guest_guid = ${guestGuid}
@@ -155,12 +155,12 @@ async function runShopifyCustomerSync(): Promise<{ imported: number; updated: nu
               ${firstName || null}, ${lastName || null},
               ${customer.created_at ? new Date(customer.created_at) : new Date()},
               ${lastOrderDate || new Date()}, ${ordersCount},
-              ${avgSpend.toFixed(2)}, ${totalSpent.toFixed(2)},
+              ${parseFloat(avgSpend.toFixed(2))}, ${parseFloat(totalSpent.toFixed(2))},
               ${daysSince}, ${segment}, ${categoriesStr}, 'shopify', NOW(), NOW()
             )
             ON CONFLICT (guest_guid) DO UPDATE SET
-              total_visits = ${ordersCount}, lifetime_spend = ${totalSpent.toFixed(2)},
-              average_spend = ${avgSpend.toFixed(2)},
+              total_visits = ${ordersCount}, lifetime_spend = ${parseFloat(totalSpent.toFixed(2))},
+              average_spend = ${parseFloat(avgSpend.toFixed(2))},
               activity_categories = COALESCE(${categoriesStr}, toast_guests.activity_categories),
               source = 'shopify', updated_at = NOW()
             RETURNING id
