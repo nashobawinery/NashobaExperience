@@ -768,8 +768,9 @@ export function ToastMenuBrowser() {
             Add a code in parentheses to an item's name in Toast POS and it will automatically display as a styled badge on the menu.
             Supported codes:{" "}
             <span className="font-medium text-foreground">(GF)</span> Gluten Free &nbsp;&middot;&nbsp;
-            <span className="font-medium text-foreground">(V)</span> Vegetarian &nbsp;&middot;&nbsp;
-            <span className="font-medium text-foreground">(VG)</span> Vegan &nbsp;&middot;&nbsp;
+            <span className="font-medium text-foreground">(GFO)</span> Gluten-Free Option &nbsp;&middot;&nbsp;
+            <span className="font-medium text-foreground">(V)</span> Vegan &nbsp;&middot;&nbsp;
+            <span className="font-medium text-foreground">(VG)</span> Vegetarian &nbsp;&middot;&nbsp;
             <span className="font-medium text-foreground">(DF)</span> Dairy Free &nbsp;&middot;&nbsp;
             <span className="font-medium text-foreground">(NF)</span> Nut Free.
             The code is removed from the displayed item name automatically.
@@ -1582,7 +1583,7 @@ export function ToastMenuBrowser() {
                                 );
                               }}
                             />
-                            <span className="text-sm truncate flex-1">{item.name.replace(/\s*\((GF|V|VG|DF|NF)\)\s*/gi, " ").trim()}</span>
+                            <span className="text-sm truncate flex-1">{item.name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim()}</span>
                             {printPageBreaks.includes(item.itemGuid) && (
                               <span className="text-xs text-primary shrink-0">break after</span>
                             )}

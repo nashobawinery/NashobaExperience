@@ -1107,13 +1107,15 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       const tags: string[] = [];
       const patterns = [
         { regex: /\(GF\)/i, label: "GF" },
+        { regex: /\(GFO\)/i, label: "GFO" },
         { regex: /\(V\)/i, label: "V" },
         { regex: /\(VG\)/i, label: "VG" },
         { regex: /\(DF\)/i, label: "DF" },
         { regex: /\(NF\)/i, label: "NF" },
+        { regex: /gluten[- ]?free option/i, label: "GFO" },
         { regex: /gluten[- ]?free/i, label: "GF" },
-        { regex: /vegan/i, label: "VG" },
-        { regex: /vegetarian/i, label: "V" },
+        { regex: /vegan/i, label: "V" },
+        { regex: /vegetarian/i, label: "VG" },
       ];
       for (const p of patterns) {
         if (p.regex.test(name)) tags.push(p.label);
@@ -1130,7 +1132,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     };
 
     const cleanItemName = (name: string): string => {
-      return name.replace(/\s*\((GF|V|VG|DF|NF)\)\s*/gi, " ").trim();
+      return name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim();
     };
 
     let groupsHtml = "";
@@ -1507,13 +1509,15 @@ router.get("/public/menus/embed", async (req, res) => {
       const tags: string[] = [];
       const patterns = [
         { regex: /\(GF\)/i, label: "GF" },
+        { regex: /\(GFO\)/i, label: "GFO" },
         { regex: /\(V\)/i, label: "V" },
         { regex: /\(VG\)/i, label: "VG" },
         { regex: /\(DF\)/i, label: "DF" },
         { regex: /\(NF\)/i, label: "NF" },
+        { regex: /gluten[- ]?free option/i, label: "GFO" },
         { regex: /gluten[- ]?free/i, label: "GF" },
-        { regex: /vegan/i, label: "VG" },
-        { regex: /vegetarian/i, label: "V" },
+        { regex: /vegan/i, label: "V" },
+        { regex: /vegetarian/i, label: "VG" },
       ];
       for (const p of patterns) {
         if (p.regex.test(name)) tags.push(p.label);
@@ -1523,7 +1527,7 @@ router.get("/public/menus/embed", async (req, res) => {
     };
 
     const cleanItemName = (name: string): string => {
-      return name.replace(/\s*\((GF|V|VG|DF|NF)\)\s*/gi, " ").trim();
+      return name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim();
     };
 
     let groupsHtml = "";
