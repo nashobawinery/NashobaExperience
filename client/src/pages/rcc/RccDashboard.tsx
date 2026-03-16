@@ -1575,6 +1575,22 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
     onError: () => toast({ title: "Error syncing wholesale", description: "Failed to sync B2B wholesale revenue", variant: "destructive" }),
   });
 
+  // Auto-sync Toast revenue on page open when stale data is detected (once per weekId)
+  const hasAutoSyncedRef = useRef(false);
+  useEffect(() => { hasAutoSyncedRef.current = false; }, [weekId]);
+  useEffect(() => {
+    if (hasAutoSyncedRef.current) return;
+    if (!dailyRevenue || dailyRevenue.length === 0) return;
+    const today = new Date().toISOString().split('T')[0];
+    const hasStaleDays = dailyRevenue.some(d =>
+      d.date <= today && (!d.toastRevenue || d.toastRevenue === '0' || d.toastRevenue === '0.00')
+    );
+    if (!hasStaleDays) return;
+    hasAutoSyncedRef.current = true;
+    syncToastWeekMutation.mutate({ weekId });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dailyRevenue, weekId]);
+
   // Auto-refetch if stale days are detected (background server sync may still be running)
   const autoRefetchCountRef = useRef(0);
   const autoRefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

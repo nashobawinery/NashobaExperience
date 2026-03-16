@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, Component, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -9,8 +9,47 @@ import GuestApp from "@/pages/GuestApp";
 import Landing from "@/pages/Landing";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { ReservationCartProvider } from "@/contexts/reservation-cart-context";
+
+class ModuleErrorBoundary extends Component<
+  { children: ReactNode; moduleName?: string },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode; moduleName?: string }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[${this.props.moduleName || "Module"}] Render error:`, error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-4 p-8 text-center">
+          <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
+          <div>
+            <p className="font-semibold text-lg">Something went wrong</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              {this.state.error?.message || "An unexpected error occurred in this module."}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => this.setState({ hasError: false, error: null })}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Lazy load heavy admin/module pages for better initial load performance
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
@@ -591,7 +630,11 @@ function CommandCenterRoute() {
   const { isLoading, isAdmin } = useAuth();
   if (isLoading) return <PageLoader />;
   if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><CommandCenter /></Suspense>;
+  return (
+    <ModuleErrorBoundary moduleName="Command Center">
+      <Suspense fallback={<PageLoader />}><CommandCenter /></Suspense>
+    </ModuleErrorBoundary>
+  );
 }
 
 function CellarTraksRoute() {
