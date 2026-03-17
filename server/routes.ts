@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import crypto, { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
-import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
+import { setupAuth, isAuthenticated, isAdmin, isToastStandardMode } from "./replitAuth";
+import { setupPlatformAuthSystem, isPlatformAuthenticated, isPlatformAuthMode, requirePlatformRole } from "./platformAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import * as XLSX from "xlsx";
@@ -124,10 +125,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication (provides /api/login, /api/logout, /api/callback routes)
   // This applies session middleware to all routes that follow
   try {
-    await setupAuth(app);
+    if (isPlatformAuthMode()) {
+      console.log("[Auth] Using platform authentication mode");
+      await setupPlatformAuthSystem(app);
+    } else {
+      console.log("[Auth] Using Replit/Toast authentication mode");
+      await setupAuth(app);
+    }
   } catch (err: any) {
     console.error("[Auth] Failed to initialize authentication:", err.message);
-    console.error("[Auth] Ensure SESSION_SECRET and REPL_ID are set in your environment variables.");
+    console.error("[Auth] Ensure SESSION_SECRET is set in your environment variables.");
+    if (!isPlatformAuthMode()) {
+      console.error("[Auth] For Replit mode, also ensure REPL_ID is set.");
+    }
     process.exit(1);
   }
   
