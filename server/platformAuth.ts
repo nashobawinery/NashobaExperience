@@ -5,7 +5,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
-import { databaseUrl } from "./db";
+import { databaseUrl, db } from "./db";
 import { platformUsers, globalRoleEnum } from "@shared/schema";
 
 export function getPlatformSession() {
@@ -86,7 +86,27 @@ async function setupPlatformAuth(app: Express) {
       <input type="email" id="email" name="email" placeholder="your.email@nashobawinery.com" required />
       
       <label for="password">Password</label>
-      <input type="password" id="password" name="password" placeholder="Your password" required />
+      <div style="position: relative;">
+        <input type="password" id="password" name="password" placeholder="Your password" required style="width: 100%; padding-right: 3rem;" />
+        <button type="button" onclick="togglePassword()" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #64748b; cursor: pointer; padding: 0.25rem;" title="Toggle password visibility">
+          <span id="eyeIcon">👁️</span>
+        </button>
+      </div>
+      
+      <script>
+        function togglePassword() {
+          const passwordInput = document.getElementById('password');
+          const eyeIcon = document.getElementById('eyeIcon');
+          
+          if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            eyeIcon.textContent = '🙈';
+          } else {
+            passwordInput.type = 'password';
+            eyeIcon.textContent = '👁️';
+          }
+        }
+      </script>
       
       <button type="submit">Sign In</button>
       ${showError}
@@ -107,7 +127,7 @@ async function setupPlatformAuth(app: Express) {
       }
 
       // Find user in platformUsers table
-      const [user] = await storage.db
+      const [user] = await db
         .select()
         .from(platformUsers)
         .where(eq(platformUsers.email, email.toLowerCase()));
@@ -214,7 +234,7 @@ export async function createPlatformUser(userData: {
 }) {
   const passwordHash = await bcrypt.hash(userData.password, 10);
   
-  const [user] = await storage.db
+  const [user] = await db
     .insert(platformUsers)
     .values({
       ...userData,
