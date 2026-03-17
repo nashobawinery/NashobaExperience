@@ -289,6 +289,9 @@ export async function setupAuth(app: Express) {
   if (isToastStandardMode()) {
     return setupToastStandardAuth(app);
   }
+  if (isPlatformAuthMode()) {
+    return setupPlatformAuthSystem(app);
+  }
   return setupReplitAuth(app);
 }
 
