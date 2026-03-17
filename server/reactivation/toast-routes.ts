@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { sql, eq, and, inArray, or } from "drizzle-orm";
-import { isAuthenticated, isAdmin } from "../replitAuth";
+import { isPlatformAuthenticated, requirePlatformRole } from "../platformAuth";
 import { toastMenus, toastMenuGroups, toastMenuItems, staffPrintMenus, toastMenuEmbedConfigs, toastProductMap, products } from "@shared/schema";
 import {
   toastApiRequest,
@@ -16,6 +16,8 @@ import {
 } from "./toast-api";
 
 const router = Router();
+const isAuthenticated = isPlatformAuthenticated;
+const isAdmin = requirePlatformRole(['super_admin']);
 
 router.get("/status", isAuthenticated, async (_req, res) => {
   try {

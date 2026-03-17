@@ -4,9 +4,10 @@ import { meetingNotes } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import OpenAI, { toFile } from "openai";
 import multer from "multer";
-import { isAdmin } from "./replitAuth";
+import { requirePlatformRole } from "./platformAuth";
 
 const router = Router();
+const isAdmin = requirePlatformRole(['super_admin']);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 router.get("/api/meeting-notes", isAdmin, async (_req: Request, res: Response) => {

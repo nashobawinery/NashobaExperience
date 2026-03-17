@@ -1,8 +1,9 @@
 import express from "express";
 import { storage } from "./storage";
-import { isAuthenticated } from "./replitAuth";
+import { isPlatformAuthenticated } from "./platformAuth";
 
 const router = express.Router();
+const isAuthenticated = isPlatformAuthenticated;
 
 // ── SendGrid Event Webhook ─────────────────────────────────────────────────
 // Configure this URL in SendGrid: Settings > Mail Settings > Event Webhook

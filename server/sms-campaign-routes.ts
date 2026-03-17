@@ -3,10 +3,11 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { smsCampaigns, smsMessages } from "@shared/schema";
 import { sendSMS, isSmsConfigured } from "./sms";
-import { isAuthenticated } from "./replitAuth";
+import { isPlatformAuthenticated } from "./platformAuth";
 import { generateUnsubscribeUrl } from "./unsubscribe-routes";
 
 const router = Router();
+const isAuthenticated = isPlatformAuthenticated;
 
 router.get("/status", isAuthenticated, async (_req, res) => {
   res.json({ configured: isSmsConfigured() });

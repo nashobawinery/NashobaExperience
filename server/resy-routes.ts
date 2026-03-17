@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray, notInArray, not } from "drizzle-orm";
-import { isAuthenticated } from "./replitAuth";
+import { isPlatformAuthenticated } from "./platformAuth";
 import { requireModuleAccess } from "./rbac";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateReservationConfirmationEmail, sendEmail, generateBrandedEmailHeader, generateBrandedEmailFooter, getBrandedEmailStyles } from "./email";
@@ -11,6 +11,7 @@ import * as XLSX from "xlsx";
 import multer from "multer";
 
 const requireResyAdmin = requireModuleAccess('reservations');
+const isAuthenticated = isPlatformAuthenticated;
 
 // Multer configuration for file uploads
 const tableUpload = multer({ storage: multer.memoryStorage() });
