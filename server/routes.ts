@@ -349,8 +349,17 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   const syncValidation = validateSyncRegistry(schemaTables);
   logSyncRegistryStatus(syncValidation);
 
-  // Authentication routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  // Unified authentication middleware that works for both modes
+const unifiedIsAuthenticated: RequestHandler = async (req, res, next) => {
+  if (isPlatformAuthMode()) {
+    return isPlatformAuthenticated(req, res, next);
+  } else {
+    return isAuthenticated(req, res, next);
+  }
+};
+
+// Authentication routes
+  app.get('/api/auth/user', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -375,7 +384,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Bridge login for base app admins - auto-login to B2B without password
-  app.post('/api/b2b/bridge-login', isAuthenticated, async (req: any, res) => {
+  app.post('/api/b2b/bridge-login', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       // Get email from authenticated base app session
       const userEmail = req.user?.claims?.email;
@@ -6109,7 +6118,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get current user's permissions (for frontend to check access)
-  app.get('/api/rbac/my-permissions', isAuthenticated, async (req: any, res) => {
+  app.get('/api/rbac/my-permissions', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       const permissions = await rbac.getUserPermissions(req);
       res.json(permissions || { groups: [], moduleAccess: {}, featurePermissions: {} });
