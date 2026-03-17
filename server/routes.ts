@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import crypto, { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
-import { setupAuth, isAuthenticated, isAdmin, isToastStandardMode } from "./replitAuth";
+import { platformUsers } from "@shared/schema";
 import { setupPlatformAuthSystem, isPlatformAuthenticated, isPlatformAuthMode, requirePlatformRole } from "./platformAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
@@ -127,23 +127,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   try {
     console.log(`[Auth] AUTH_STRATEGY environment variable: ${process.env.AUTH_STRATEGY}`);
     console.log(`[Auth] isPlatformAuthMode: ${isPlatformAuthMode()}`);
-    console.log(`[Auth] isToastStandardMode: ${isToastStandardMode()}`);
     
     if (isPlatformAuthMode()) {
       console.log("[Auth] Setting up platform authentication");
       await setupPlatformAuthSystem(app);
     } else {
-      console.log("[Auth] Setting up Replit/Toast authentication");
-      await setupAuth(app);
+      throw new Error("Platform authentication mode is required. Set AUTH_STRATEGY=platform");
     }
   } catch (err) {
     console.error("[Auth] Failed to initialize authentication:", err.message);
-    console.error("[Auth] Ensure SESSION_SECRET is set in your environment variables.");
-    if (!isPlatformAuthMode()) {
-      console.error("[Auth] For Replit mode, also ensure REPL_ID is set.");
-    }
     process.exit(1);
   }
+
   
   // Mount Reservation (resy) routes AFTER setupAuth so session middleware is applied
   app.use(resyRouter);
@@ -349,77 +344,56 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   const syncValidation = validateSyncRegistry(schemaTables);
   logSyncRegistryStatus(syncValidation);
 
-  // Unified authentication middleware that works for both modes
-const unifiedIsAuthenticated: RequestHandler = async (req, res, next) => {
-  if (isPlatformAuthMode()) {
-    return isPlatformAuthenticated(req, res, next);
-  } else {
-    return isAuthenticated(req, res, next);
-  }
-};
+  // Platform authentication middleware only
+const unifiedIsAuthenticated = isPlatformAuthenticated;
+
+// Platform admin middleware (super_admin role)
+const isAdmin = requirePlatformRole(['super_admin']);
 
 // Authentication routes
   app.get('/api/auth/user', unifiedIsAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const sess = req.session as any;
+      const userId = sess.platformAuth?.userId;
       
-      // For platform users, get user info from platform_users table
-      let user;
-      if (isPlatformAuthMode()) {
-        const [platformUser] = await db.execute(sql`
-          SELECT id, email, first_name, last_name, global_role, department, job_title
-          FROM platform_users WHERE id = ${userId}
-        `);
-        
-        if (platformUser && platformUser.length > 0) {
-          const pu = platformUser[0] as any;
-          user = {
-            id: pu.id,
-            email: pu.email,
-            firstName: pu.first_name,
-            lastName: pu.last_name,
-            name: `${pu.first_name} ${pu.last_name}`,
-            role: pu.global_role === 'super_admin' ? 'admin' : 'viewer', // Legacy role mapping
-            profileImageUrl: null,
-            globalRole: pu.global_role,
-            department: pu.department,
-            jobTitle: pu.job_title
-          };
-        } else {
-          return res.status(404).json({ message: "User not found" });
-        }
-      } else {
-        // Legacy user lookup for Replit/Toast mode
-        user = await storage.getUser(userId);
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
       }
-      
-      // Get RBAC permissions for the user
-      const permissions = await getUserPermissions(req);
-      
-      // Return user with RBAC permissions
+
+      // Get user info from platform_users table
+      const [user] = await db
+        .select()
+        .from(platformUsers)
+        .where(eq(platformUsers.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
       res.json({
-        ...user,
-        rbac: permissions ? {
-          groups: permissions.groups,
-          moduleAccess: permissions.moduleAccess,
-          featurePermissions: permissions.featurePermissions,
-          isGlobalAdmin: isGlobalAdmin(permissions)
-        } : null
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        globalRole: user.globalRole,
+        permissions: await getUserPermissions(userId)
       });
     } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      console.error("[Auth] Error getting user info:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 
   // Bridge login for base app admins - auto-login to B2B without password
   app.post('/api/b2b/bridge-login', unifiedIsAuthenticated, async (req: any, res) => {
     try {
-      // Get email from authenticated base app session
-      const userEmail = req.user?.claims?.email;
+      // Get email from authenticated platform session
+      const sess = req.session as any;
+      const userEmail = sess.platformAuth?.email;
       
       if (!userEmail) {
-        return res.status(401).json({ error: 'Not authenticated in base app' });
+        return res.status(401).json({ error: 'Not authenticated' });
       }
 
       // Look up B2B admin by email
