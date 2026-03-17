@@ -45,8 +45,6 @@ export function isPlatformAuthMode(): boolean {
   return process.env.AUTH_STRATEGY === "platform";
 }
 
-export { isPlatformAuthMode };
-
 async function setupPlatformAuth(app: Express) {
   console.log("[Auth] Starting in platform mode (individual email/password login)");
   app.set("trust proxy", 1);
