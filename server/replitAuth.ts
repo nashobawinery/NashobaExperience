@@ -62,7 +62,9 @@ export function getSession() {
 // ---------------------------------------------------------------------------
 
 export function isToastStandardMode(): boolean {
-  return process.env.AUTH_STRATEGY === "toast_standard";
+  const authStrategy = process.env.AUTH_STRATEGY;
+  console.log(`[Auth Debug] isToastStandardMode check: ${authStrategy === "toast_standard"}`);
+  return authStrategy === "toast_standard";
 }
 
 // Synthetic req.user injected in toast_standard mode so downstream handlers

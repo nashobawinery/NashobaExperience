@@ -42,7 +42,10 @@ export function getPlatformSession() {
 }
 
 export function isPlatformAuthMode(): boolean {
-  return process.env.AUTH_STRATEGY === "platform";
+  const authStrategy = process.env.AUTH_STRATEGY;
+  console.log(`[Auth Debug] AUTH_STRATEGY environment variable: "${authStrategy}"`);
+  console.log(`[Auth Debug] isPlatformAuthMode check: ${authStrategy === "platform"}`);
+  return authStrategy === "platform";
 }
 
 async function setupPlatformAuth(app: Express) {
