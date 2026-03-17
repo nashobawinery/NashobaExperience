@@ -184,13 +184,27 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
-async function upsertUser(claims: any): Promise<boolean> {
+async function upsertUser(claims: any): Promise<string | false> {
   const email = claims["email"];
   const whitelisted = await storage.getWhitelistedEmail(email);
   if (!whitelisted) {
     console.log(`Login attempt from non-whitelisted email: ${email}`);
     return false;
   }
+
+  // Look up an existing platform_users record by email so we reuse the same
+  // UUID-based ID that was created on Render, rather than inserting a duplicate
+  // record keyed to the Replit numeric sub.
+  const existingPlatformUser = await storage.getPlatformUserByEmail(email);
+  const effectivePlatformUserId: string = existingPlatformUser?.id ?? claims["sub"];
+
+  if (existingPlatformUser) {
+    console.log(`[Auth] Replit login mapped to existing platform_users record: ${effectivePlatformUserId} (${email})`);
+  } else {
+    console.log(`[Auth] No existing platform_users record for ${email}; using Replit sub ${claims["sub"]}`);
+  }
+
+  // Always keep the users table in sync with the latest Replit profile data.
   await storage.upsertUser({
     id: claims["sub"],
     email,
@@ -199,7 +213,8 @@ async function upsertUser(claims: any): Promise<boolean> {
     profileImageUrl: claims["profile_image_url"],
     role: whitelisted.role,
   });
-  return true;
+
+  return effectivePlatformUserId;
 }
 
 async function setupReplitAuth(app: Express) {
@@ -214,12 +229,15 @@ async function setupReplitAuth(app: Express) {
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
-    const isWhitelisted = await upsertUser(tokens.claims());
-    if (!isWhitelisted) {
+    const platformUserId = await upsertUser(tokens.claims());
+    if (!platformUserId) {
       return verified(new Error("Access denied. Your email is not authorized to access this application."), false);
     }
-    const user = {};
+    const user: any = {};
     updateUserSession(user, tokens);
+    // Store the platform_users.id so RBAC permission lookups use the correct
+    // UUID-based record shared across all deployments (Replit + Render).
+    user.platformUserId = platformUserId;
     verified(null, user);
   };
 

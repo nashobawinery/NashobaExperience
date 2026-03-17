@@ -332,6 +332,7 @@ import {
   type RccToastHistoricalRevenue,
   type InsertRccDailyRevenue,
   type RccDailyRevenue,
+  platformUsers,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -353,6 +354,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   updateUserRole(id: string, role: "viewer" | "admin"): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  getPlatformUserByEmail(email: string): Promise<{ id: string; email: string; globalRole: string } | undefined>;
   
   // Whitelisted Emails
   getAllWhitelistedEmails(): Promise<WhitelistedEmail[]>;
@@ -756,6 +758,14 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getPlatformUserByEmail(email: string): Promise<{ id: string; email: string; globalRole: string } | undefined> {
+    const [user] = await db
+      .select({ id: platformUsers.id, email: platformUsers.email, globalRole: platformUsers.globalRole })
+      .from(platformUsers)
+      .where(eq(platformUsers.email, email));
     return user;
   }
 

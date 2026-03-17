@@ -126,7 +126,10 @@ export async function getUserPermissions(req: any): Promise<UserPermissions | nu
     return null;
   }
 
-  const userId = user.claims.sub;
+  // Use the platform_users UUID when available (set during Replit OAuth callback
+  // so that group_memberships lookups match the shared UUID-based records).
+  // Falls back to claims.sub for toast_standard mode or new accounts not yet in platform_users.
+  const userId = user.platformUserId ?? user.claims.sub;
 
   // Check if we have cached permissions in session
   if (req.session?.permissions?.userId === userId) {
