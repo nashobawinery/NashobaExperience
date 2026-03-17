@@ -362,7 +362,36 @@ const unifiedIsAuthenticated: RequestHandler = async (req, res, next) => {
   app.get('/api/auth/user', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      
+      // For platform users, get user info from platform_users table
+      let user;
+      if (isPlatformAuthMode()) {
+        const [platformUser] = await db.execute(sql`
+          SELECT id, email, first_name, last_name, global_role, department, job_title
+          FROM platform_users WHERE id = ${userId}
+        `);
+        
+        if (platformUser && platformUser.length > 0) {
+          const pu = platformUser[0] as any;
+          user = {
+            id: pu.id,
+            email: pu.email,
+            firstName: pu.first_name,
+            lastName: pu.last_name,
+            name: `${pu.first_name} ${pu.last_name}`,
+            role: pu.global_role === 'super_admin' ? 'admin' : 'viewer', // Legacy role mapping
+            profileImageUrl: null,
+            globalRole: pu.global_role,
+            department: pu.department,
+            jobTitle: pu.job_title
+          };
+        } else {
+          return res.status(404).json({ message: "User not found" });
+        }
+      } else {
+        // Legacy user lookup for Replit/Toast mode
+        user = await storage.getUser(userId);
+      }
       
       // Get RBAC permissions for the user
       const permissions = await getUserPermissions(req);
