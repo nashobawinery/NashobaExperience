@@ -252,7 +252,7 @@ function AdminHubRoute() {
               onClick={() => window.location.href = '/api/login?returnTo=/'}
               data-testid="button-login"
             >
-              Sign in with Replit
+              Sign in with Platform Account
             </Button>
             <p className="text-xs text-center text-muted-foreground">
               You must have an authorized platform account to access the Hub.

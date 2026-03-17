@@ -168,7 +168,7 @@ async function setupPlatformAuth(app: Express) {
         lastName: user.lastName,
       };
 
-      const returnTo = (req.session as any).returnTo || "/";
+      const returnTo = (req.session as any).returnTo || "/admin";
       delete (req.session as any).returnTo;
       
       console.log(`[Auth] Successful login: ${email} (${user.globalRole})`);
