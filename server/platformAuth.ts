@@ -161,7 +161,7 @@ async function setupPlatformAuth(app: Express) {
 
       // Create session
       (req.session as any).platformAuth = {
-        userId: user.id,
+        platformUserId: user.id,
         email: user.email,
         globalRole: user.globalRole,
         firstName: user.firstName,

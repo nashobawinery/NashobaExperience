@@ -186,13 +186,42 @@ export async function computeUserPermissions(userId: string): Promise<UserPermis
 }
 
 export async function getUserPermissions(req: any): Promise<UserPermissions | null> {
+  // Check platform auth session first (email/password login)
+  const platformSession = req.session as any;
+  if (platformSession?.platformAuth?.platformUserId) {
+    const userId = platformSession.platformAuth.platformUserId;
+    
+    // Check if we have cached permissions in session
+    if (req.session?.permissions?.userId === userId) {
+      const cached = req.session.permissions as UserPermissions;
+      if (Date.now() - cached.computedAt < PERMISSION_CACHE_TTL) {
+        return cached;
+      }
+    }
+
+    // Compute fresh permissions
+    const permissions = await computeUserPermissions(userId);
+    
+    // Cache in session
+    if (req.session) {
+      req.session.permissions = {
+        ...permissions,
+        userId,
+        computedAt: Date.now(),
+      };
+    }
+    
+    return permissions;
+  }
+
+  // Fallback to Replit OAuth claims (for backward compatibility)
   const user = req.user as any;
   
   if (!user?.claims?.sub) {
     return null;
   }
 
-  const userId = user.claims.sub;
+  const userId = user.platformUserId ?? user.claims.sub;
 
   // Check if we have cached permissions in session
   if (req.session?.permissions?.userId === userId) {
@@ -207,9 +236,13 @@ export async function getUserPermissions(req: any): Promise<UserPermissions | nu
   
   // Cache in session
   if (req.session) {
-    req.session.permissions = permissions;
+    req.session.permissions = {
+      ...permissions,
+      userId,
+      computedAt: Date.now(),
+    };
   }
-
+  
   return permissions;
 }
 
@@ -248,24 +281,19 @@ export function hasFeaturePermission(
 // Check if user is in Global Admin group
 export function isGlobalAdmin(permissions: UserPermissions | null): boolean {
   if (!permissions) return false;
-  return permissions.groups.includes('Global Admin');
+  return permissions.groups.includes('Global Admin') || permissions.groups.includes('Super Admins');
 }
 
 // Middleware: require module access
 export const requireModuleAccess = (moduleKey: string): RequestHandler => {
   return async (req: any, res, next) => {
     try {
-      // Check if user is authenticated
-      if (!req.isAuthenticated() || !req.user?.claims?.sub) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      // First check old-style admin role for backward compatibility
-      const { storage } = await import('./storage');
-      const dbUser = await storage.getUser(req.user.claims.sub);
+      // Check if user is authenticated (platform auth or Replit OAuth)
+      const platformSession = req.session as any;
+      const isAuthenticated = platformSession?.platformAuth?.platformUserId || req.isAuthenticated?.();
       
-      if (dbUser?.role === 'admin') {
-        return next(); // Admins bypass RBAC for now
+      if (!isAuthenticated) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
 
       const permissions = await getUserPermissions(req);
@@ -296,17 +324,12 @@ export const requireFeaturePermission = (
 ): RequestHandler => {
   return async (req: any, res, next) => {
     try {
-      // Check if user is authenticated
-      if (!req.isAuthenticated() || !req.user?.claims?.sub) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      // First check old-style admin role for backward compatibility
-      const { storage } = await import('./storage');
-      const dbUser = await storage.getUser(req.user.claims.sub);
+      // Check if user is authenticated (platform auth or Replit OAuth)
+      const platformSession = req.session as any;
+      const isAuthenticated = platformSession?.platformAuth?.platformUserId || req.isAuthenticated?.();
       
-      if (dbUser?.role === 'admin') {
-        return next(); // Admins bypass RBAC for now
+      if (!isAuthenticated) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
 
       const permissions = await getUserPermissions(req);
