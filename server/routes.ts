@@ -125,14 +125,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication (provides /api/login, /api/logout, /api/callback routes)
   // This applies session middleware to all routes that follow
   try {
+    console.log(`[Auth] AUTH_STRATEGY environment variable: ${process.env.AUTH_STRATEGY}`);
+    console.log(`[Auth] isPlatformAuthMode: ${isPlatformAuthMode()}`);
+    console.log(`[Auth] isToastStandardMode: ${isToastStandardMode()}`);
+    
     if (isPlatformAuthMode()) {
-      console.log("[Auth] Using platform authentication mode");
+      console.log("[Auth] Setting up platform authentication");
       await setupPlatformAuthSystem(app);
     } else {
-      console.log("[Auth] Using Replit/Toast authentication mode");
+      console.log("[Auth] Setting up Replit/Toast authentication");
       await setupAuth(app);
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error("[Auth] Failed to initialize authentication:", err.message);
     console.error("[Auth] Ensure SESSION_SECRET is set in your environment variables.");
     if (!isPlatformAuthMode()) {
