@@ -35,7 +35,73 @@ export async function computeUserPermissions(userId: string): Promise<UserPermis
   };
 
   try {
-    // Get user's group memberships
+    // First check if user is a platform user with global role
+    const [platformUser] = await db.execute(sql`
+      SELECT global_role FROM platform_users WHERE id = ${userId}
+    `);
+
+    if (platformUser && platformUser.length > 0) {
+      const globalRole = (platformUser[0] as any).global_role;
+      
+      // Grant permissions based on global role
+      if (globalRole === 'super_admin') {
+        // Super admins get access to everything
+        const allModules = await db.execute(sql`SELECT module_key FROM platform_modules WHERE active = true`);
+        for (const module of allModules.rows) {
+          permissions.moduleAccess[(module as any).module_key] = true;
+        }
+        permissions.groups = ['Super Admins'];
+        permissions.featurePermissions = { '*': 'admin' };
+      } else if (globalRole === 'admin') {
+        // Admins get most access
+        const adminModules = await db.execute(sql`
+          SELECT module_key FROM platform_modules WHERE active = true 
+          AND module_key NOT IN ('admin-settings', 'module-management')
+        `);
+        for (const module of adminModules.rows) {
+          permissions.moduleAccess[(module as any).module_key] = true;
+        }
+        permissions.groups = ['Admins'];
+        permissions.featurePermissions = { '*': 'edit' };
+      } else if (globalRole === 'manager') {
+        // Managers get standard module access
+        const managerModules = await db.execute(sql`
+          SELECT module_key FROM platform_modules WHERE active = true 
+          AND module_key NOT IN ('admin-settings', 'module-management')
+        `);
+        for (const module of managerModules.rows) {
+          permissions.moduleAccess[(module as any).module_key] = true;
+        }
+        permissions.groups = ['Managers'];
+        permissions.featurePermissions = { '*': 'view' };
+      } else if (globalRole === 'staff') {
+        // Staff get basic access
+        const staffModules = await db.execute(sql`
+          SELECT module_key FROM platform_modules WHERE active = true 
+          AND module_key IN ('staff-dashboard', 'daily-reports', 'procedures', 'maintenance', 'reservations')
+        `);
+        for (const module of staffModules.rows) {
+          permissions.moduleAccess[(module as any).module_key] = true;
+        }
+        permissions.groups = ['Staff'];
+        permissions.featurePermissions = { '*': 'view' };
+      } else {
+        // Viewers get read-only access
+        const viewerModules = await db.execute(sql`
+          SELECT module_key FROM platform_modules WHERE active = true 
+          AND module_key IN ('staff-dashboard', 'daily-reports', 'procedures', 'reservations')
+        `);
+        for (const module of viewerModules.rows) {
+          permissions.moduleAccess[(module as any).module_key] = true;
+        }
+        permissions.groups = ['Viewers'];
+        permissions.featurePermissions = { '*': 'view' };
+      }
+      
+      return permissions;
+    }
+
+    // Get user's group memberships (fallback to legacy system)
     const groupsResult = await db.execute(sql`
       SELECT ug.id, ug.name
       FROM user_groups ug
