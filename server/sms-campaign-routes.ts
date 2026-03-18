@@ -52,7 +52,13 @@ router.post("/campaigns", isAuthenticated, async (req, res) => {
     const segArray = segments && segments.length > 0 
       ? `{${segments.map((s: string) => `"${s}"`).join(',')}}` 
       : null;
-    const user = (req as any).user;
+    const sess = req.session as any;
+    const user = sess.platformAuth?.userId ? {
+      id: sess.platformAuth.userId,
+      email: sess.platformAuth.email,
+      firstName: sess.platformAuth.firstName,
+      lastName: sess.platformAuth.lastName
+    } : null;
 
     const result = await db.execute(sql`
       INSERT INTO sms_campaigns (name, message, segments, status, created_by, scheduled_at)

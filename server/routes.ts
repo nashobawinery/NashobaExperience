@@ -5094,7 +5094,7 @@ const isAdmin = requirePlatformRole(['super_admin']);
         pageReference,
         appType,
         priority: priority || 'medium',
-        createdBy: (req as any).user?.claims?.sub || 'unknown',
+        createdBy: (req.session as any).platformAuth?.email || 'unknown',
       });
       
       res.json(note);
@@ -8824,7 +8824,13 @@ const isAdmin = requirePlatformRole(['super_admin']);
           metadata: { contentType: file.mimetype },
         });
 
-        const user = (req as any).user;
+        const sess = req.session as any;
+        const user = sess.platformAuth?.userId ? {
+          id: sess.platformAuth.userId,
+          email: sess.platformAuth.email,
+          firstName: sess.platformAuth.firstName,
+          lastName: sess.platformAuth.lastName
+        } : null;
         await db.execute(sql`
           INSERT INTO compliance_attachments (id, task_id, file_name, file_url, file_type, file_size, uploaded_by_id, uploaded_by_name, description)
           VALUES (${attachmentId}, ${taskId}, ${file.originalname}, ${storageKey}, ${file.mimetype}, ${file.size}, ${user?.id || null}, ${user?.firstName || user?.email || null}, ${description})

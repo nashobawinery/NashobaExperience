@@ -32,10 +32,16 @@ router.get("/api/meeting-notes/:id", isAdmin, async (req: Request, res: Response
 
 router.post("/api/meeting-notes", isAdmin, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const sess = req.session as any;
+    const user = sess.platformAuth?.userId ? {
+      id: sess.platformAuth.userId,
+      email: sess.platformAuth.email,
+      firstName: sess.platformAuth.firstName,
+      lastName: sess.platformAuth.lastName
+    } : null;
     const [note] = await db.insert(meetingNotes).values({
       ...req.body,
-      createdBy: user?.claims?.sub || null,
+      createdBy: user?.id || null,
     }).returning();
     res.json(note);
   } catch (error) {
