@@ -320,7 +320,7 @@ async function setupPlatformAuth(app: Express) {
 // Middleware for authentication
 export const isPlatformAuthenticated: RequestHandler = async (req, res, next) => {
   const sess = req.session as any;
-  if (!sess.platformAuth?.userId) {
+  if (!sess.platformAuth?.platformUserId) {
     return res.status(401).json({ message: "Unauthorized" });
   }
   return next();
@@ -330,7 +330,7 @@ export const isPlatformAuthenticated: RequestHandler = async (req, res, next) =>
 export const requirePlatformRole = (roles: string[]): RequestHandler => {
   return async (req, res, next) => {
     const sess = req.session as any;
-    if (!sess.platformAuth?.userId) {
+    if (!sess.platformAuth?.platformUserId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
