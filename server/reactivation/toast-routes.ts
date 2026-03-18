@@ -1232,39 +1232,39 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     `;
     if (template === "fine-dining") {
       css = `
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Allura&family=Jost:wght@300;400;500&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'EB Garamond', 'Georgia', serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 18px; }
+        body { font-family: 'Jost', 'Century Gothic', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
-        .menu-title { font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; font-weight: 700; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
-        .menu-subtitle { text-align: center; font-size: 1.1rem; letter-spacing: 0.3em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
+        .menu-title { font-family: 'Cinzel', serif; font-size: 2.5rem; font-weight: 600; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
+        .menu-subtitle { font-family: 'Cinzel', serif; text-align: center; font-size: 1.625rem; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
         .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
         .menu-group { margin-bottom: 40px; }
-        .group-name { font-family: 'Cormorant Garamond', serif; font-size: 1.7rem; font-weight: 600; text-align: center; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b896; margin-bottom: 4px; }
+        .group-name { font-family: 'Allura', cursive; font-size: 3rem; font-weight: 400; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 20px; }
-        .item-name { font-family: 'Cormorant Garamond', serif; font-size: ${(1.3 * itemFontSize).toFixed(2)}rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
-        .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
-        .item-sizes { font-size: 0.85em; color: #c4a880; margin-top: 3px; display: block; }
+        .item-name { font-family: 'Cinzel', serif; font-size: ${(1.4 * itemFontSize).toFixed(2)}rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
+        .item-price { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; font-weight: 400; color: #d4b896; margin-left: 10px; }
+        .item-sizes { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; color: #c4a880; margin-top: 3px; display: block; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: 'EB Garamond', serif; font-size: ${(1.1 * descFontSize).toFixed(2)}rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
-        .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
+        .item-description { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: ${(1.15 * descFontSize).toFixed(2)}rem; font-weight: 300; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: 'Allura', cursive; font-size: 1.3rem; color: #a08c6e; margin-top: 6px; }
+        .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
-        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
-        .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
-        .custom-footer { margin-top: 12px; font-size: ${footerFontSize}rem; color: #a08c6e; font-style: italic; }
+        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: 'Jost', sans-serif; }
+        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
+        .footer { text-align: center; margin-top: 48px; font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.625rem; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
+        .custom-footer { margin-top: 12px; font-family: 'Allura', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: 2rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { margin-bottom: 16px; } .group-name { font-size: 1.3rem; color: #1a1a18; } .item-name { font-size: ${(1.1 * itemFontSize).toFixed(2)}rem; color: #1a1a18; } .item-description { color: #555; font-size: ${(0.95 * descFontSize).toFixed(2)}rem; } .item-price, .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #666; font-size: 0.95rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: 1.875rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: 1.25rem; color: #444; margin-bottom: 16px; } .group-name { font-size: 2.25rem; color: #1a1a18; } .item-name { font-size: ${(1.1 * itemFontSize).toFixed(2)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(0.9 * descFontSize).toFixed(2)}rem; } .item-price { color: #222; font-size: 0.8125rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: 1rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; color: #555; font-size: 0.625rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 2.2rem; } }`;
     } else if (template === "beverage") {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -1625,39 +1625,39 @@ router.get("/public/menus/embed", async (req, res) => {
     let css = "";
     if (template === "fine-dining") {
       css = `
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Allura&family=Jost:wght@300;400;500&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'EB Garamond', 'Georgia', serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 18px; }
+        body { font-family: 'Jost', 'Century Gothic', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
-        .menu-title { font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; font-weight: 700; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
-        .menu-subtitle { text-align: center; font-size: 1.1rem; letter-spacing: 0.3em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
+        .menu-title { font-family: 'Cinzel', serif; font-size: 2.5rem; font-weight: 600; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
+        .menu-subtitle { font-family: 'Cinzel', serif; text-align: center; font-size: 1.625rem; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
         .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
         .menu-group { margin-bottom: 40px; }
-        .group-name { font-family: 'Cormorant Garamond', serif; font-size: 1.7rem; font-weight: 600; text-align: center; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b896; margin-bottom: 4px; }
+        .group-name { font-family: 'Allura', cursive; font-size: 3rem; font-weight: 400; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 20px; }
-        .item-name { font-family: 'Cormorant Garamond', serif; font-size: ${(1.3 * itemFontSize).toFixed(2)}rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
-        .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
-        .item-sizes { font-size: 0.85em; color: #c4a880; margin-top: 3px; display: block; }
+        .item-name { font-family: 'Cinzel', serif; font-size: ${(1.4 * itemFontSize).toFixed(2)}rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
+        .item-price { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; font-weight: 400; color: #d4b896; margin-left: 10px; }
+        .item-sizes { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; color: #c4a880; margin-top: 3px; display: block; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: 'EB Garamond', serif; font-size: ${(1.1 * descFontSize).toFixed(2)}rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
-        .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
+        .item-description { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: ${(1.15 * descFontSize).toFixed(2)}rem; font-weight: 300; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: 'Allura', cursive; font-size: 1.3rem; color: #a08c6e; margin-top: 6px; }
+        .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
-        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
-        .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
-        .custom-footer { margin-top: 12px; font-size: ${footerFontSize}rem; color: #a08c6e; font-style: italic; }
+        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: 'Jost', sans-serif; }
+        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
+        .footer { text-align: center; margin-top: 48px; font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.625rem; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
+        .custom-footer { margin-top: 12px; font-family: 'Allura', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: 2rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { margin-bottom: 16px; } .group-name { font-size: 1.3rem; color: #1a1a18; } .item-name { font-size: ${(1.1 * itemFontSize).toFixed(2)}rem; color: #1a1a18; } .item-description { color: #555; font-size: ${(0.95 * descFontSize).toFixed(2)}rem; } .item-price, .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #666; font-size: 0.95rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: 1.875rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: 1.25rem; color: #444; margin-bottom: 16px; } .group-name { font-size: 2.25rem; color: #1a1a18; } .item-name { font-size: ${(1.1 * itemFontSize).toFixed(2)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(0.9 * descFontSize).toFixed(2)}rem; } .item-price { color: #222; font-size: 0.8125rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: 1rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; color: #555; font-size: 0.625rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 2.2rem; } }`;
     } else if (template === "beverage") {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
