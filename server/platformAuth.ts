@@ -183,6 +183,8 @@ async function setupPlatformAuth(app: Express) {
       delete (req.session as any).returnTo;
       
       console.log(`[Auth] Successful login: ${email} (${user.globalRole})`);
+      console.log(`[Auth] Session created:`, JSON.stringify((req.session as any).platformAuth, null, 2));
+      console.log(`[Auth] Redirecting to: ${returnTo}`);
       return res.redirect(returnTo);
 
     } catch (error) {

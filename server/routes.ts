@@ -356,7 +356,13 @@ const isAdmin = requirePlatformRole(['super_admin']);
       const sess = req.session as any;
       const userId = sess.platformAuth?.platformUserId;
       
+      console.log(`[Auth] /api/auth/user called`);
+      console.log(`[Auth] Session data:`, JSON.stringify(sess, null, 2));
+      console.log(`[Auth] PlatformAuth:`, sess.platformAuth);
+      console.log(`[Auth] User ID from session:`, userId);
+      
       if (!userId) {
+        console.log(`[Auth] No userId found in session`);
         return res.status(401).json({ message: "Not authenticated" });
       }
 
@@ -367,18 +373,27 @@ const isAdmin = requirePlatformRole(['super_admin']);
         .where(eq(platformUsers.id, userId))
         .limit(1);
 
+      console.log(`[Auth] User from database:`, user ? `ID: ${user.id}, Email: ${user.email}, Role: ${user.globalRole}` : 'Not found');
+
       if (!user) {
+        console.log(`[Auth] User not found in database`);
         return res.status(401).json({ message: "User not found" });
       }
 
-      res.json({
+      const permissions = await getUserPermissions(userId);
+      console.log(`[Auth] User permissions:`, permissions);
+
+      const response = {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         globalRole: user.globalRole,
-        permissions: await getUserPermissions(userId)
-      });
+        permissions: permissions
+      };
+      
+      console.log(`[Auth] Response data:`, response);
+      res.json(response);
     } catch (error) {
       console.error("[Auth] Error getting user info:", error);
       res.status(500).json({ message: "Internal server error" });
