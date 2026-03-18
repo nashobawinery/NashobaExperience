@@ -13,6 +13,7 @@ export interface RbacPermissions {
 
 export interface UserWithRbac extends User {
   rbac: RbacPermissions | null;
+  globalRole?: string;
 }
 
 const permissionLevelOrder: Record<PermissionLevel, number> = {
@@ -36,8 +37,8 @@ export function useAuth() {
   const rbac = user?.rbac;
 
   const hasModuleAccess = (moduleKey: string): boolean => {
-    if (!rbac) return user?.role === 'admin';
-    if (rbac.isGlobalAdmin || user?.role === 'admin') return true;
+    if (!rbac) return user?.globalRole === 'super_admin';
+    if (rbac.isGlobalAdmin || user?.globalRole === 'super_admin') return true;
     return rbac.moduleAccess[moduleKey] === true;
   };
 
@@ -46,8 +47,8 @@ export function useAuth() {
     featureKey: string, 
     requiredLevel: PermissionLevel = 'view'
   ): boolean => {
-    if (!rbac) return user?.role === 'admin';
-    if (rbac.isGlobalAdmin || user?.role === 'admin') return true;
+    if (!rbac) return user?.globalRole === 'super_admin';
+    if (rbac.isGlobalAdmin || user?.globalRole === 'super_admin') return true;
     
     if (!hasModuleAccess(moduleKey)) return false;
     
@@ -73,7 +74,7 @@ export function useAuth() {
     user,
     isLoading,
     isAuthenticated: !!user,
-    isAdmin: user?.role === "admin" || rbac?.isGlobalAdmin === true,
+    isAdmin: user?.globalRole === "super_admin" || rbac?.isGlobalAdmin === true,
     rbac,
     hasModuleAccess,
     hasFeaturePermission,

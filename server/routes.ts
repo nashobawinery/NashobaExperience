@@ -354,7 +354,7 @@ const isAdmin = requirePlatformRole(['super_admin']);
   app.get('/api/auth/user', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       const sess = req.session as any;
-      const userId = sess.platformAuth?.userId;
+      const userId = sess.platformAuth?.platformUserId;
       
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
