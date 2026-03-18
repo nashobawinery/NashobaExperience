@@ -147,13 +147,24 @@ async function setupPlatformAuth(app: Express) {
         .from(platformUsers)
         .where(eq(platformUsers.email, email.toLowerCase()));
 
+      console.log(`[Auth] Login attempt for email: ${email.toLowerCase()}`);
+      console.log(`[Auth] User found: ${!!user}`);
+      if (user) {
+        console.log(`[Auth] User ID: ${user.id}`);
+        console.log(`[Auth] Has passwordHash: ${!!user.passwordHash}`);
+        console.log(`[Auth] PasswordHash length: ${user.passwordHash?.length || 0}`);
+      }
+
       if (!user || !user.passwordHash) {
         console.warn(`[Auth] Login attempt for non-existent user: ${email}`);
         return res.redirect("/api/login?error=1");
       }
 
       // Verify password
+      console.log(`[Auth] Comparing password for user: ${email}`);
       const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+      console.log(`[Auth] Password valid: ${isValidPassword}`);
+      
       if (!isValidPassword) {
         console.warn(`[Auth] Invalid password for user: ${email}`);
         return res.redirect("/api/login?error=1");
