@@ -154,7 +154,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
   const [printMenuTitle, setPrintMenuTitle] = useState("");
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [printTypo, setPrintTypo] = useState<TypoSettings>(DEFAULT_TYPO);
-  const [showTypo, setShowTypo] = useState(false);
+  const [showTypo, setShowTypo] = useState(true);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
     configured: boolean;
