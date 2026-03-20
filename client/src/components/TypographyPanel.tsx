@@ -47,7 +47,7 @@ export interface TypographyPanelProps {
 }
 
 export function TypographyPanel({ idPrefix, title = "Typography", rows, values, onChange, onReset }: TypographyPanelProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   return (
     <div className="space-y-2">
