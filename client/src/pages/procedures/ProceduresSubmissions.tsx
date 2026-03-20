@@ -28,16 +28,26 @@ export default function ProceduresSubmissions() {
     queryKey: ["/api/procedures/departments"],
   });
 
+  const { data: allTemplates } = useQuery<ProceduresTemplate[]>({
+    queryKey: ["/api/procedures/templates"],
+  });
+
   const { data: viewingTemplate } = useQuery<{ items: ProceduresItem[] }>({
     queryKey: ["/api/procedures/templates", viewingSubmission?.templateId],
     enabled: !!viewingSubmission?.templateId,
   });
 
+  const templateNameMap = allTemplates?.reduce((acc, t) => {
+    acc[t.id] = t.procedureName;
+    return acc;
+  }, {} as Record<string, string>) ?? {};
+
   const filteredSubmissions = submissions?.filter((s) => {
     if (selectedDepartment !== "__all__" && s.department !== selectedDepartment) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!s.submittedByName.toLowerCase().includes(query) && !s.procedureCode.toLowerCase().includes(query)) {
+      const name = (templateNameMap[s.templateId] ?? s.procedureCode).toLowerCase();
+      if (!s.submittedByName.toLowerCase().includes(query) && !name.includes(query) && !s.procedureCode.toLowerCase().includes(query)) {
         return false;
       }
     }
@@ -155,7 +165,12 @@ export default function ProceduresSubmissions() {
                     filteredSubmissions.map((submission) => (
                       <TableRow key={submission.id} className={submission.status === "no_report" ? "bg-red-50 dark:bg-red-900/10" : ""}>
                         <TableCell>
-                          <Badge variant="outline">{submission.procedureCode}</Badge>
+                          <div className="space-y-0.5">
+                            <p className="font-medium text-sm leading-tight">
+                              {templateNameMap[submission.templateId] ?? submission.procedureCode}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{submission.procedureCode}</p>
+                          </div>
                         </TableCell>
                         <TableCell>
                           {departments?.find(d => d.department === submission.department)?.departmentLabel || submission.department}
@@ -207,7 +222,8 @@ export default function ProceduresSubmissions() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Procedure:</span>
-                  <p className="font-medium">{viewingSubmission.procedureCode}</p>
+                  <p className="font-medium">{templateNameMap[viewingSubmission.templateId] ?? viewingSubmission.procedureCode}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{viewingSubmission.procedureCode}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Department:</span>

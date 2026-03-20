@@ -92,16 +92,22 @@ async function checkMissedMandatoryProcedures(): Promise<void> {
     // At 11:30 PM Eastern, UTC may already be the next day
     const todayEastern = getEasternDateToday();
     const todayDayKey = getEasternDayKey();
+
+    // Get today's Eastern date as a string (YYYY-MM-DD) for reliable comparison.
+    // We compare submission dates in Eastern timezone to avoid false misses for
+    // submissions made after 8 PM Eastern (which cross into UTC-next-day).
+    const todayEasternStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date()).replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
+
+    const toEasternDateStr = (date: Date): string =>
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(date).replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
     
-    // Create date range for today in Eastern time
-    // We'll compare just the date portion (year-month-day)
-    const todayStart = new Date(todayEastern);
-    todayStart.setUTCHours(0, 0, 0, 0);
-    
-    const todayEnd = new Date(todayEastern);
-    todayEnd.setUTCHours(23, 59, 59, 999);
-    
-    console.log(`[Mandatory Procedures] Checking for Eastern date: ${todayEastern.toISOString().split('T')[0]}, day: ${todayDayKey}`);
+    console.log(`[Mandatory Procedures] Checking for Eastern date: ${todayEasternStr}, day: ${todayDayKey}`);
     
     const submissions = await storage.getProceduresSubmissions();
     
@@ -121,15 +127,13 @@ async function checkMissedMandatoryProcedures(): Promise<void> {
       }
       
       const todaySubmissions = submissions.filter((s: any) => {
-        const submissionDate = new Date(s.submissionDate);
-        return s.templateId === template.id && 
-               submissionDate >= todayStart && 
-               submissionDate <= todayEnd &&
+        return s.templateId === template.id &&
+               toEasternDateStr(new Date(s.submissionDate)) === todayEasternStr &&
                s.status !== "no_report";
       });
       
       if (todaySubmissions.length > 0) {
-        console.log(`[Mandatory Procedures] ${template.procedureCode} already has ${todaySubmissions.length} submission(s) today`);
+        console.log(`[Mandatory Procedures] ${template.procedureCode} already has ${todaySubmissions.length} submission(s) today (Eastern date ${todayEasternStr})`);
         continue;
       }
       
