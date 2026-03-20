@@ -1,3 +1,5 @@
+process.env.TZ = 'America/New_York';
+
 import reactivationRoutes from "./reactivation/routes";
 import meetingNotesRoutes from "./meeting-notes-routes";
 import express, { type Request, Response, NextFunction } from "express";
