@@ -1023,6 +1023,24 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const hideWinePairing = req.query.hidepairing === "1";
     const showImages = req.query.showimages === "1";
 
+    const _sf = (v: string | undefined, d: string) => { if (!v) return d; const s = v.replace(/[^a-zA-Z0-9 ]/g, "").trim(); return s.slice(0, 60) || d; };
+    const _sp = (v: string | undefined, d: number) => { const n = parseFloat(v || ""); return isNaN(n) ? d : Math.min(144, Math.max(6, n)); };
+    const typo = {
+      title:    { font: _sf(req.query.titleFont as string,   "Cinzel"), size: _sp(req.query.titleSz as string,   30), bold: req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
+      subtitle: { font: _sf(req.query.subFont as string,     "Cinzel"), size: _sp(req.query.subSz as string,     26), bold: req.query.subBold === "1",     italic: req.query.subItalic === "1" },
+      group:    { font: _sf(req.query.groupFont as string,   "Allura"), size: _sp(req.query.groupSz as string,   36), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
+      item:     { font: _sf(req.query.itemFont as string,    "Cinzel"), size: _sp(req.query.itemSz as string,    17), bold: req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
+      price:    { font: _sf(req.query.priceFont as string,   "Jost"),   size: _sp(req.query.priceSz as string,   13), bold: req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
+      desc:     { font: _sf(req.query.descFont as string,    "Jost"),   size: _sp(req.query.descSz as string,    14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
+      pairing:  { font: _sf(req.query.pairFont as string,    "Allura"), size: _sp(req.query.pairSz as string,    16), bold: req.query.pairBold === "1",    italic: req.query.pairItalic === "1" },
+      allergy:  { font: _sf(req.query.allergyFont as string, "Jost"),   size: _sp(req.query.allergySz as string, 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
+    };
+    const ptRem = (pt: number) => (pt / 12).toFixed(3);
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font])];
+    const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
+    const fw = (b: boolean) => b ? "700" : "400";
+    const fst = (i: boolean) => i ? "italic" : "normal";
+
     const menu = await db.select().from(toastMenus).where(or(eq(toastMenus.menuGuid, menuGuid), eq(toastMenus.name, menuGuid))).limit(1);
     if (menu.length === 0) {
       return res.status(404).send("<html><body><p>Menu not found</p></body></html>");
@@ -1232,39 +1250,39 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     `;
     if (template === "fine-dining") {
       css = `
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Allura&family=Jost:wght@300;400;500&display=swap');
+        @import url('${gFontsUrl}');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Jost', 'Century Gothic', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
+        body { font-family: '${typo.desc.font}', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
-        .menu-title { font-family: 'Cinzel', serif; font-size: 2.5rem; font-weight: 600; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
-        .menu-subtitle { font-family: 'Cinzel', serif; text-align: center; font-size: 1.625rem; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
+        .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
         .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
         .menu-group { margin-bottom: 40px; }
-        .group-name { font-family: 'Allura', cursive; font-size: 3rem; font-weight: 400; text-align: center; color: #d4b896; margin-bottom: 4px; }
+        .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 20px; }
-        .item-name { font-family: 'Cinzel', serif; font-size: ${(1.4 * itemFontSize).toFixed(2)}rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
-        .item-price { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; font-weight: 400; color: #d4b896; margin-left: 10px; }
-        .item-sizes { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; color: #c4a880; margin-top: 3px; display: block; }
+        .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
+        .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #d4b896; margin-left: 10px; }
+        .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #c4a880; margin-top: 3px; display: block; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: ${(1.15 * descFontSize).toFixed(2)}rem; font-weight: 300; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: 'Allura', cursive; font-size: 1.3rem; color: #a08c6e; margin-top: 6px; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #a08c6e; margin-top: 6px; }
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
-        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: 'Jost', sans-serif; }
+        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
-        .footer { text-align: center; margin-top: 48px; font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.625rem; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
-        .custom-footer { margin-top: 12px; font-family: 'Allura', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
+        .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
+        .custom-footer { margin-top: 12px; font-family: '${typo.pairing.font}', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: 1.875rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: 1.25rem; color: #444; margin-bottom: 16px; } .group-name { font-size: 2.25rem; color: #1a1a18; } .item-name { font-size: ${(1.1 * itemFontSize).toFixed(2)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(0.9 * descFontSize).toFixed(2)}rem; } .item-price { color: #222; font-size: 0.8125rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: 1rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; color: #555; font-size: 0.625rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 2.2rem; } }`;
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -1440,6 +1458,24 @@ router.get("/public/menus/embed", async (req, res) => {
     const customTitle = (req.query.title as string) || "";
     const groupGuidParam = req.query.groupGuid as string | undefined;
     const filterGroupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
+
+    const _sf = (v: string | undefined, d: string) => { if (!v) return d; const s = v.replace(/[^a-zA-Z0-9 ]/g, "").trim(); return s.slice(0, 60) || d; };
+    const _sp = (v: string | undefined, d: number) => { const n = parseFloat(v || ""); return isNaN(n) ? d : Math.min(144, Math.max(6, n)); };
+    const typo = {
+      title:    { font: _sf(req.query.titleFont as string,   "Cinzel"), size: _sp(req.query.titleSz as string,   30), bold: req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
+      subtitle: { font: _sf(req.query.subFont as string,     "Cinzel"), size: _sp(req.query.subSz as string,     26), bold: req.query.subBold === "1",     italic: req.query.subItalic === "1" },
+      group:    { font: _sf(req.query.groupFont as string,   "Allura"), size: _sp(req.query.groupSz as string,   36), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
+      item:     { font: _sf(req.query.itemFont as string,    "Cinzel"), size: _sp(req.query.itemSz as string,    17), bold: req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
+      price:    { font: _sf(req.query.priceFont as string,   "Jost"),   size: _sp(req.query.priceSz as string,   13), bold: req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
+      desc:     { font: _sf(req.query.descFont as string,    "Jost"),   size: _sp(req.query.descSz as string,    14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
+      pairing:  { font: _sf(req.query.pairFont as string,    "Allura"), size: _sp(req.query.pairSz as string,    16), bold: req.query.pairBold === "1",    italic: req.query.pairItalic === "1" },
+      allergy:  { font: _sf(req.query.allergyFont as string, "Jost"),   size: _sp(req.query.allergySz as string, 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
+    };
+    const ptRem = (pt: number) => (pt / 12).toFixed(3);
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font])];
+    const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
+    const fw = (b: boolean) => b ? "700" : "400";
+    const fst = (i: boolean) => i ? "italic" : "normal";
 
     const allGroups: { group: any; items: any[]; menuName: string }[] = [];
     const menuNames: string[] = [];
@@ -1625,39 +1661,39 @@ router.get("/public/menus/embed", async (req, res) => {
     let css = "";
     if (template === "fine-dining") {
       css = `
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Allura&family=Jost:wght@300;400;500&display=swap');
+        @import url('${gFontsUrl}');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Jost', 'Century Gothic', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
+        body { font-family: '${typo.desc.font}', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
-        .menu-title { font-family: 'Cinzel', serif; font-size: 2.5rem; font-weight: 600; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
-        .menu-subtitle { font-family: 'Cinzel', serif; text-align: center; font-size: 1.625rem; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
+        .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
         .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
         .menu-group { margin-bottom: 40px; }
-        .group-name { font-family: 'Allura', cursive; font-size: 3rem; font-weight: 400; text-align: center; color: #d4b896; margin-bottom: 4px; }
+        .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 20px; }
-        .item-name { font-family: 'Cinzel', serif; font-size: ${(1.4 * itemFontSize).toFixed(2)}rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
-        .item-price { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; font-weight: 400; color: #d4b896; margin-left: 10px; }
-        .item-sizes { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.8125rem; color: #c4a880; margin-top: 3px; display: block; }
+        .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
+        .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #d4b896; margin-left: 10px; }
+        .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #c4a880; margin-top: 3px; display: block; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: 'Jost', 'Century Gothic', sans-serif; font-size: ${(1.15 * descFontSize).toFixed(2)}rem; font-weight: 300; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: 'Allura', cursive; font-size: 1.3rem; color: #a08c6e; margin-top: 6px; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #a08c6e; margin-top: 6px; }
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
-        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: 'Jost', sans-serif; }
+        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
-        .footer { text-align: center; margin-top: 48px; font-family: 'Jost', 'Century Gothic', sans-serif; font-size: 0.625rem; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
-        .custom-footer { margin-top: 12px; font-family: 'Allura', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
+        .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
+        .custom-footer { margin-top: 12px; font-family: '${typo.pairing.font}', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: 1.875rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: 1.25rem; color: #444; margin-bottom: 16px; } .group-name { font-size: 2.25rem; color: #1a1a18; } .item-name { font-size: ${(1.1 * itemFontSize).toFixed(2)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(0.9 * descFontSize).toFixed(2)}rem; } .item-price { color: #222; font-size: 0.8125rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: 1rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; color: #555; font-size: 0.625rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 2.2rem; } }`;
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');

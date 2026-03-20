@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Printer, ListFilter, Scissors,
+  Printer, ListFilter, Scissors, Type,
   ChevronUp, ChevronDown, GripVertical, RefreshCw, Loader2, Check
 } from "lucide-react";
 import { ToastSyncDialog } from "@/components/ToastSyncDialog";
@@ -74,6 +74,63 @@ interface ToastMenuPrinterProps {
   testIdPrefix?: string;
 }
 
+interface ElemTypo { font: string; size: number; bold: boolean; italic: boolean; }
+interface TypoSettings {
+  title: ElemTypo; subtitle: ElemTypo; group: ElemTypo; item: ElemTypo;
+  price: ElemTypo; desc: ElemTypo; pairing: ElemTypo; allergy: ElemTypo;
+}
+
+const DEFAULT_TYPO: TypoSettings = {
+  title:    { font: "Cinzel",   size: 30, bold: false, italic: false },
+  subtitle: { font: "Cinzel",   size: 26, bold: false, italic: false },
+  group:    { font: "Allura",   size: 36, bold: false, italic: false },
+  item:     { font: "Cinzel",   size: 17, bold: false, italic: false },
+  price:    { font: "Jost",     size: 13, bold: false, italic: false },
+  desc:     { font: "Jost",     size: 14, bold: false, italic: false },
+  pairing:  { font: "Allura",   size: 16, bold: false, italic: false },
+  allergy:  { font: "Jost",     size: 10, bold: false, italic: false },
+};
+
+const TYPO_ROWS: { key: keyof TypoSettings; label: string }[] = [
+  { key: "title",    label: "Header" },
+  { key: "subtitle", label: "Sub-header" },
+  { key: "group",    label: "Section header" },
+  { key: "item",     label: "Item name" },
+  { key: "price",    label: "Price" },
+  { key: "desc",     label: "Description" },
+  { key: "pairing",  label: "Pairings" },
+  { key: "allergy",  label: "Allergy text" },
+];
+
+const FONT_GROUPS = [
+  { label: "Serif", fonts: [
+    { value: "Cinzel", label: "Cinzel" },
+    { value: "Cinzel Decorative", label: "Cinzel Decorative" },
+    { value: "Cormorant Garamond", label: "Cormorant Garamond" },
+    { value: "EB Garamond", label: "EB Garamond" },
+    { value: "Lora", label: "Lora" },
+    { value: "Libre Baskerville", label: "Libre Baskerville" },
+    { value: "Playfair Display", label: "Playfair Display" },
+    { value: "Spectral", label: "Spectral" },
+  ]},
+  { label: "Sans-Serif", fonts: [
+    { value: "DM Sans", label: "DM Sans" },
+    { value: "Jost", label: "Jost" },
+    { value: "Lato", label: "Lato" },
+    { value: "Montserrat", label: "Montserrat" },
+    { value: "Nunito", label: "Nunito" },
+    { value: "Open Sans", label: "Open Sans" },
+    { value: "Raleway", label: "Raleway" },
+  ]},
+  { label: "Script", fonts: [
+    { value: "Allura", label: "Allura" },
+    { value: "Dancing Script", label: "Dancing Script" },
+    { value: "Great Vibes", label: "Great Vibes" },
+    { value: "Pacifico", label: "Pacifico" },
+    { value: "Sacramento", label: "Sacramento" },
+  ]},
+];
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString("en-US", {
     month: "short",
@@ -96,6 +153,8 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
   const [selectedPrintMenus, setSelectedPrintMenus] = useState<string[]>([]);
   const [printMenuTitle, setPrintMenuTitle] = useState("");
   const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [printTypo, setPrintTypo] = useState<TypoSettings>(DEFAULT_TYPO);
+  const [showTypo, setShowTypo] = useState(false);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
     configured: boolean;
@@ -163,6 +222,31 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     return groups;
   }, [printMenusDetail]);
 
+  const updateTypo = (key: keyof TypoSettings, field: keyof ElemTypo, value: string | number | boolean) => {
+    setPrintTypo(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  };
+
+  const buildTypoParams = (t: TypoSettings) => {
+    const p: string[] = [];
+    p.push(`titleFont=${encodeURIComponent(t.title.font)}&titleSz=${t.title.size}`);
+    if (t.title.bold) p.push("titleBold=1"); if (t.title.italic) p.push("titleItalic=1");
+    p.push(`subFont=${encodeURIComponent(t.subtitle.font)}&subSz=${t.subtitle.size}`);
+    if (t.subtitle.bold) p.push("subBold=1"); if (t.subtitle.italic) p.push("subItalic=1");
+    p.push(`groupFont=${encodeURIComponent(t.group.font)}&groupSz=${t.group.size}`);
+    if (t.group.bold) p.push("groupBold=1"); if (t.group.italic) p.push("groupItalic=1");
+    p.push(`itemFont=${encodeURIComponent(t.item.font)}&itemSz=${t.item.size}`);
+    if (t.item.bold) p.push("itemBold=1"); if (t.item.italic) p.push("itemItalic=1");
+    p.push(`priceFont=${encodeURIComponent(t.price.font)}&priceSz=${t.price.size}`);
+    if (t.price.bold) p.push("priceBold=1"); if (t.price.italic) p.push("priceItalic=1");
+    p.push(`descFont=${encodeURIComponent(t.desc.font)}&descSz=${t.desc.size}`);
+    if (t.desc.bold) p.push("descBold=1"); if (t.desc.italic) p.push("descItalic=1");
+    p.push(`pairFont=${encodeURIComponent(t.pairing.font)}&pairSz=${t.pairing.size}`);
+    if (t.pairing.bold) p.push("pairBold=1"); if (t.pairing.italic) p.push("pairItalic=1");
+    p.push(`allergyFont=${encodeURIComponent(t.allergy.font)}&allergySz=${t.allergy.size}`);
+    if (t.allergy.bold) p.push("allergyBold=1"); if (t.allergy.italic) p.push("allergyItalic=1");
+    return p.join("&");
+  };
+
   const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
@@ -172,6 +256,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
+    if (template === "fine-dining") url += `&${buildTypoParams(printTypo)}`;
     return url;
   };
 
@@ -184,6 +269,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
     if (title && title.trim()) url += `&title=${encodeURIComponent(title.trim())}`;
+    if (template === "fine-dining") url += `&${buildTypoParams(printTypo)}`;
     return url;
   };
 
@@ -547,6 +633,106 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
           <span className="text-muted-foreground">- Show only item names and prices (ideal for wine lists or beverage menus)</span>
         </label>
       </div>
+
+      {printTemplate === "fine-dining" && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Type className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Fine Dining Typography</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowTypo(prev => !prev)}
+              data-testid={`${testIdPrefix}-button-toggle-typo`}
+            >
+              {showTypo ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
+              {showTypo ? "Hide" : "Customize Fonts"}
+            </Button>
+          </div>
+          {showTypo && (
+            <div className="border rounded-md p-4 space-y-3">
+              <p className="text-xs text-muted-foreground">Per-element font, size (pt), bold, and italic for the Fine Dining print template. Changes reflect instantly in the preview below.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground">
+                      <th className="text-left font-medium pb-2 pr-3 w-28">Element</th>
+                      <th className="text-left font-medium pb-2 pr-3">Font</th>
+                      <th className="text-left font-medium pb-2 pr-3 w-16">Size (pt)</th>
+                      <th className="text-left font-medium pb-2 w-16">Style</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {TYPO_ROWS.map(({ key, label }) => {
+                      const el = printTypo[key];
+                      return (
+                        <tr key={key}>
+                          <td className="py-1.5 pr-3 text-foreground font-medium whitespace-nowrap">{label}</td>
+                          <td className="py-1.5 pr-3">
+                            <select
+                              value={el.font}
+                              onChange={(e) => updateTypo(key, "font", e.target.value)}
+                              className="h-8 w-full min-w-[160px] text-xs rounded-md border border-input bg-background px-2 text-foreground"
+                              data-testid={`${testIdPrefix}-select-typo-${key}-font`}
+                            >
+                              {FONT_GROUPS.map(group => (
+                                <optgroup key={group.label} label={group.label}>
+                                  {group.fonts.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-1.5 pr-3">
+                            <input
+                              type="number"
+                              min={6}
+                              max={120}
+                              value={el.size}
+                              onChange={(e) => updateTypo(key, "size", Math.max(6, Math.min(120, Number(e.target.value))))}
+                              className="h-8 w-14 text-xs rounded-md border border-input bg-background px-2 text-foreground"
+                              data-testid={`${testIdPrefix}-input-typo-${key}-size`}
+                            />
+                          </td>
+                          <td className="py-1.5">
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => updateTypo(key, "bold", !el.bold)}
+                                className={`h-8 w-8 rounded-md text-sm font-bold border transition-colors ${el.bold ? "bg-primary text-primary-foreground border-primary" : "bg-background border-input text-muted-foreground"}`}
+                                data-testid={`${testIdPrefix}-toggle-typo-${key}-bold`}
+                                title="Bold"
+                              >B</button>
+                              <button
+                                type="button"
+                                onClick={() => updateTypo(key, "italic", !el.italic)}
+                                className={`h-8 w-8 rounded-md text-sm italic border transition-colors ${el.italic ? "bg-primary text-primary-foreground border-primary" : "bg-background border-input text-muted-foreground"}`}
+                                data-testid={`${testIdPrefix}-toggle-typo-${key}-italic`}
+                                title="Italic"
+                              >I</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPrintTypo(DEFAULT_TYPO)}
+                data-testid={`${testIdPrefix}-button-reset-typo`}
+              >
+                Reset to defaults
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {hasSelection && allPrintGroups.length > 1 && (
         <div className="space-y-2">
