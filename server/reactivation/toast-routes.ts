@@ -1012,10 +1012,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const pages = Math.min(10, Math.max(0, rawPages));
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
-    const headerFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.headerSize as string) || 1));
-    const footerFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.footerSize as string) || 1));
-    const itemFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.itemSize as string) || 1));
-    const descFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.descSize as string) || 1));
+
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const hideDescriptions = req.query.hidedesc === "1";
@@ -1035,8 +1032,10 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       pairing:  { font: _sf(req.query.pairFont as string,    "Allura"), size: _sp(req.query.pairSz as string,    16), bold: req.query.pairBold === "1",    italic: req.query.pairItalic === "1" },
       allergy:  { font: _sf(req.query.allergyFont as string, "Jost"),   size: _sp(req.query.allergySz as string, 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
     };
+    const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
+    const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -1273,9 +1272,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
-        .custom-footer { margin-top: 12px; font-family: '${typo.pairing.font}', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
+        .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
@@ -1302,8 +1301,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         ${dietaryTagsCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
-        .custom-footer { margin-top: 8px; font-size: ${footerFontSize}rem; color: #78716c; font-style: italic; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #78716c; font-style: italic; margin-bottom: 20px; line-height: 1.5; }
+        .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 20px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -1337,8 +1336,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         ${dietaryTagsCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
-        .custom-footer { margin-top: 12px; font-size: ${footerFontSize}rem; color: #78716c; font-style: italic; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #78716c; font-style: italic; margin-bottom: 24px; line-height: 1.5; }
+        .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 24px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -1445,10 +1444,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const pages = Math.min(10, Math.max(0, rawPages));
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
-    const headerFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.headerSize as string) || 1));
-    const footerFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.footerSize as string) || 1));
-    const itemFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.itemSize as string) || 1));
-    const descFontSize = Math.min(3, Math.max(0.5, parseFloat(req.query.descSize as string) || 1));
+
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const hideDescriptions = req.query.hidedesc === "1";
@@ -1471,8 +1467,10 @@ router.get("/public/menus/embed", async (req, res) => {
       pairing:  { font: _sf(req.query.pairFont as string,    "Allura"), size: _sp(req.query.pairSz as string,    16), bold: req.query.pairBold === "1",    italic: req.query.pairItalic === "1" },
       allergy:  { font: _sf(req.query.allergyFont as string, "Jost"),   size: _sp(req.query.allergySz as string, 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
     };
+    const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
+    const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -1684,9 +1682,9 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
-        .custom-footer { margin-top: 12px; font-family: '${typo.pairing.font}', cursive; font-size: ${footerFontSize}rem; color: #a08c6e; }
+        .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
@@ -1713,8 +1711,8 @@ router.get("/public/menus/embed", async (req, res) => {
         ${dietaryTagsCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
-        .custom-footer { margin-top: 8px; font-size: ${footerFontSize}rem; color: #78716c; font-style: italic; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #78716c; font-style: italic; margin-bottom: 20px; line-height: 1.5; }
+        .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 20px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -1748,8 +1746,8 @@ router.get("/public/menus/embed", async (req, res) => {
         ${dietaryTagsCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
-        .custom-footer { margin-top: 12px; font-size: ${footerFontSize}rem; color: #78716c; font-style: italic; }
-        .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #78716c; font-style: italic; margin-bottom: 24px; line-height: 1.5; }
+        .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 24px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -1924,10 +1922,6 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.header) url += `&header=${encodeURIComponent(config.header)}`;
     if (config.hidePricing) url += `&hideprice=1`;
     if (config.hideWinePairing) url += `&hidepairing=1`;
-    if (config.headerFontSize && config.headerFontSize !== 1) url += `&headerSize=${config.headerFontSize.toFixed(1)}`;
-    if (config.footerFontSize && config.footerFontSize !== 1) url += `&footerSize=${config.footerFontSize.toFixed(1)}`;
-    if (config.itemFontSize && config.itemFontSize !== 1) url += `&itemSize=${config.itemFontSize.toFixed(1)}`;
-    if (config.descFontSize && config.descFontSize !== 1) url += `&descSize=${config.descFontSize.toFixed(1)}`;
     if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
     if (config.showImages) url += `&showimages=1`;
 
