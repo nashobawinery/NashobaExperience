@@ -13,9 +13,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Printer, Loader2, CalendarDays, Calendar } from "lucide-react";
+import { TypographyPanel, type TypoElem } from "@/components/TypographyPanel";
+
+const FLYER_TYPO_ROWS = [
+  { key: "title",  label: "Flyer Title" },
+  { key: "name",   label: "Event Name" },
+  { key: "detail", label: "Date / Time / Location" },
+  { key: "desc",   label: "Description" },
+];
+
+const DEFAULT_FLYER_TYPO: Record<string, TypoElem> = {
+  title:  { font: "Playfair Display", size: 28, bold: true,  italic: false },
+  name:   { font: "Playfair Display", size: 13, bold: true,  italic: false },
+  detail: { font: "Playfair Display", size: 9,  bold: false, italic: false },
+  desc:   { font: "Playfair Display", size: 8,  bold: false, italic: false },
+};
 
 interface FlyerPrinterProps {
-  mode: "music" | "events";
+  mode: "music" | "events" | "food-trucks";
 }
 
 export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
@@ -30,6 +45,11 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
   const [hideImages, setHideImages] = useState(false);
   const [hidePrices, setHidePrices] = useState(false);
   const [showVenue, setShowVenue] = useState(true);
+  const [flyerTypo, setFlyerTypo] = useState<Record<string, TypoElem>>(DEFAULT_FLYER_TYPO);
+
+  const handleTypoChange = (key: string, field: keyof TypoElem, value: string | number | boolean) => {
+    setFlyerTypo(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  };
 
   const { data: musicEvents, isLoading: musicLoading } = useQuery({
     queryKey: ["/api/public/music-calendar"],
@@ -41,10 +61,12 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
     enabled: mode === "events",
   });
 
-  const isLoading = mode === "music" ? musicLoading : eventsLoading;
+  const isLoading = mode === "music" ? musicLoading : mode === "events" ? eventsLoading : false;
   const eventCount = mode === "music"
     ? (musicEvents as any[])?.length || 0
-    : (specialEvents as any[])?.length || 0;
+    : mode === "events"
+      ? (specialEvents as any[])?.length || 0
+      : 0;
 
   const getFlyerUrl = (tmpl: string) => {
     const base = window.location.origin;
@@ -63,6 +85,12 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
     if (hideImages) params.set("hideimg", "1");
     if (hidePrices) params.set("hideprice", "1");
     if (!showVenue) params.set("hidevenue", "1");
+    Object.entries(flyerTypo).forEach(([k, el]) => {
+      params.set(`${k}Font`, el.font);
+      params.set(`${k}Sz`, String(el.size));
+      if (el.bold) params.set(`${k}Bold`, "1");
+      if (el.italic) params.set(`${k}Italic`, "1");
+    });
     return `${base}/api/media/flyer/embed?${params.toString()}`;
   };
 
@@ -91,12 +119,14 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold" data-testid="text-flyer-printer-title">
-          {mode === "music" ? "Music Lineup Flyer" : "Events Flyer"}
+          {mode === "music" ? "Music Lineup Flyer" : mode === "food-trucks" ? "Food Truck Flyer" : "Events Flyer"}
         </h2>
         <span className="text-sm text-muted-foreground block">
           {mode === "music"
             ? `Print a flyer showing upcoming live music performances. ${eventCount} upcoming event${eventCount !== 1 ? "s" : ""} found.`
-            : `Print a flyer showing upcoming special events and workshops. ${eventCount} upcoming event${eventCount !== 1 ? "s" : ""} found.`
+            : mode === "food-trucks"
+              ? "Print a flyer showing upcoming food truck events."
+              : `Print a flyer showing upcoming special events and workshops. ${eventCount} upcoming event${eventCount !== 1 ? "s" : ""} found.`
           }
         </span>
       </div>
@@ -241,6 +271,15 @@ export default function EventFlyerPrinter({ mode }: FlyerPrinterProps) {
           </label>
         </div>
       </div>
+
+      <TypographyPanel
+        idPrefix="flyer"
+        title="Typography"
+        rows={FLYER_TYPO_ROWS}
+        values={flyerTypo}
+        onChange={handleTypoChange}
+        onReset={() => setFlyerTypo(DEFAULT_FLYER_TYPO)}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="overflow-hidden">

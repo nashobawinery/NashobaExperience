@@ -34,6 +34,21 @@ import {
   X,
 } from "lucide-react";
 import type { FlightCardConfig } from "@shared/schema";
+import { TypographyPanel, type TypoElem } from "@/components/TypographyPanel";
+
+const FC_TYPO_ROWS = [
+  { key: "header", label: "Header / Title" },
+  { key: "name",   label: "Wine Name" },
+  { key: "desc",   label: "Description" },
+  { key: "meta",   label: "Varietal / Meta" },
+];
+
+const DEFAULT_FC_TYPO: Record<string, TypoElem> = {
+  header: { font: "Playfair Display", size: 15,  bold: true,  italic: false },
+  name:   { font: "Playfair Display", size: 9.5, bold: true,  italic: false },
+  desc:   { font: "Playfair Display", size: 7.5, bold: false, italic: false },
+  meta:   { font: "Playfair Display", size: 7.5, bold: false, italic: false },
+};
 
 interface Product {
   id: string;
@@ -350,6 +365,11 @@ export default function FlightCardPrinter() {
   const [showTastingLines, setShowTastingLines] = useState(false);
   const [saveOpen, setSaveOpen]           = useState(false);
   const [editingConfig, setEditingConfig] = useState<FlightCardConfig | null>(null);
+  const [fcTypo, setFcTypo]               = useState<Record<string, TypoElem>>(DEFAULT_FC_TYPO);
+
+  const handleFcTypoChange = (key: string, field: keyof TypoElem, value: string | number | boolean) => {
+    setFcTypo(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  };
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -456,8 +476,14 @@ export default function FlightCardPrinter() {
     if (!showVarietal) p.set("showvarietal", "0");
     if (showAlcohol) p.set("showalcohol", "1");
     if (showTastingLines) p.set("showtasting", "1");
+    Object.entries(fcTypo).forEach(([k, el]) => {
+      p.set(`${k}Font`, el.font);
+      p.set(`${k}Sz`, String(el.size));
+      if (el.bold) p.set(`${k}Bold`, "1");
+      if (el.italic) p.set(`${k}Italic`, "1");
+    });
     return `${base}/api/media/flight-cards/print?${p.toString()}`;
-  }, [selectedIds, template, paperSize, fontScale, header, footer, showPrice, showDescription, showVintage, showVarietal, showAlcohol, showTastingLines]);
+  }, [selectedIds, template, paperSize, fontScale, header, footer, showPrice, showDescription, showVintage, showVarietal, showAlcohol, showTastingLines, fcTypo]);
 
   const handlePrint = (tmpl: string) => {
     const url = buildPrintUrl(tmpl);
@@ -809,6 +835,15 @@ export default function FlightCardPrinter() {
               ))}
             </div>
           </div>
+
+          <TypographyPanel
+            idPrefix="flight"
+            title="Typography"
+            rows={FC_TYPO_ROWS}
+            values={fcTypo}
+            onChange={handleFcTypoChange}
+            onReset={() => setFcTypo(DEFAULT_FC_TYPO)}
+          />
 
           <div className="space-y-2">
             <Label className="text-sm font-medium">Template</Label>

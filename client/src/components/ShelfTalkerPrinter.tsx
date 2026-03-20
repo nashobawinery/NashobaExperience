@@ -19,6 +19,21 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Printer, Loader2, ListFilter, Search } from "lucide-react";
+import { TypographyPanel, type TypoElem } from "@/components/TypographyPanel";
+
+const ST_TYPO_ROWS = [
+  { key: "name",  label: "Wine Name" },
+  { key: "desc",  label: "Description" },
+  { key: "price", label: "Price" },
+  { key: "meta",  label: "Meta / Footer" },
+];
+
+const DEFAULT_ST_TYPO: Record<string, TypoElem> = {
+  name:  { font: "Playfair Display", size: 14, bold: true,  italic: false },
+  desc:  { font: "Playfair Display", size: 7,  bold: false, italic: false },
+  price: { font: "Playfair Display", size: 20, bold: true,  italic: false },
+  meta:  { font: "Playfair Display", size: 6,  bold: false, italic: false },
+};
 
 interface Product {
   id: string;
@@ -85,6 +100,11 @@ export default function ShelfTalkerPrinter() {
     FIELD_OPTIONS.forEach(f => { defaults[f.key] = f.default; });
     return defaults;
   });
+  const [stTypo, setStTypo] = useState<Record<string, TypoElem>>(DEFAULT_ST_TYPO);
+
+  const handleStTypoChange = (key: string, field: keyof TypoElem, value: string | number | boolean) => {
+    setStTypo(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  };
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -150,6 +170,13 @@ export default function ShelfTalkerPrinter() {
 
     Object.entries(fields).forEach(([key, val]) => {
       if (!val) params.set(key, "0");
+    });
+
+    Object.entries(stTypo).forEach(([k, el]) => {
+      params.set(`${k}Font`, el.font);
+      params.set(`${k}Sz`, String(el.size));
+      if (el.bold) params.set(`${k}Bold`, "1");
+      if (el.italic) params.set(`${k}Italic`, "1");
     });
 
     return `${base}/api/media/shelf-talker/embed?${params.toString()}`;
@@ -327,6 +354,15 @@ export default function ShelfTalkerPrinter() {
           ))}
         </div>
       </div>
+
+      <TypographyPanel
+        idPrefix="shelf"
+        title="Typography"
+        rows={ST_TYPO_ROWS}
+        values={stTypo}
+        onChange={handleStTypoChange}
+        onReset={() => setStTypo(DEFAULT_ST_TYPO)}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="overflow-hidden">

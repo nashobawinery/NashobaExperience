@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { FoodTruck, FoodTruckEvent, FoodTruckSubmission } from "@shared/schema";
+import EventFlyerPrinter from "@/components/EventFlyerPrinter";
 
 function formatTime12(time24: string | null | undefined): string {
   if (!time24) return "";
@@ -83,7 +84,7 @@ export default function FoodTruckManager() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="trucks" className="flex items-center gap-2" data-testid="tab-food-trucks">
             <Users className="h-4 w-4" /> Food Trucks
           </TabsTrigger>
@@ -95,6 +96,9 @@ export default function FoodTruckManager() {
           </TabsTrigger>
           <TabsTrigger value="links" className="flex items-center gap-2" data-testid="tab-food-truck-links">
             <Link className="h-4 w-4" /> Links
+          </TabsTrigger>
+          <TabsTrigger value="print" className="flex items-center gap-2" data-testid="tab-food-truck-print">
+            <Printer className="h-4 w-4" /> Print
           </TabsTrigger>
         </TabsList>
 
@@ -112,6 +116,10 @@ export default function FoodTruckManager() {
 
         <TabsContent value="links" className="mt-6">
           <LinksPanel />
+        </TabsContent>
+
+        <TabsContent value="print" className="mt-6">
+          <EventFlyerPrinter mode="food-trucks" />
         </TabsContent>
       </Tabs>
     </div>

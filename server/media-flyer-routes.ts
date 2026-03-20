@@ -5,6 +5,30 @@ import { flightCardConfigs } from "@shared/schema";
 
 const router = Router();
 
+// ─── Shared Typography Helpers ─────────────────────────────────────────────────
+interface TypoEl { font: string; sz: number; bold: boolean; italic: boolean; }
+
+function pTypo(q: Record<string, string>, key: string, defFont: string, defSz: number): TypoEl {
+  return {
+    font: q[`${key}Font`] || defFont,
+    sz: q[`${key}Sz`] ? parseFloat(q[`${key}Sz`]) : defSz,
+    bold: q[`${key}Bold`] === "1",
+    italic: q[`${key}Italic`] === "1",
+  };
+}
+
+function tStyle(el: TypoEl): string {
+  return `font-family:'${el.font}',sans-serif;font-size:${el.sz}pt;font-weight:${el.bold ? "700" : "400"};font-style:${el.italic ? "italic" : "normal"};`;
+}
+
+function buildFontsLink(els: TypoEl[]): string {
+  const base = ["Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900", "Inter:wght@300;400;500;600;700", "Oswald:wght@400;500;600;700"];
+  const custom = [...new Set(els.map(e => e.font))].filter(f => !["Playfair Display", "Inter", "Oswald"].includes(f));
+  const customParts = custom.map(f => `${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`);
+  const all = [...base, ...customParts];
+  return `https://fonts.googleapis.com/css2?${all.map(p => `family=${p}`).join("&")}&display=swap`;
+}
+
 router.get("/api/media/flyer/embed", async (req, res) => {
   try {
     const {
@@ -28,9 +52,50 @@ router.get("/api/media/flyer/embed", async (req, res) => {
     const hidePrices = hideprice === "1";
     const hideVenue = hidevenue === "1";
 
+    const q = req.query as Record<string, string>;
+    const flyerTypo = {
+      title:  pTypo(q, "title",  "Playfair Display", 28),
+      name:   pTypo(q, "name",   "Playfair Display", 13),
+      detail: pTypo(q, "detail", "Playfair Display",  9),
+      desc:   pTypo(q, "desc",   "Playfair Display",  8),
+    };
+
     let events: any[] = [];
 
-    if (mode === "music") {
+    if (mode === "food-trucks") {
+      let result;
+      if (specificdate) {
+        result = await db.execute(sql`
+          SELECT
+            fte.id, ft.name as musician_name, ft.cuisine_type as musician_genre,
+            COALESCE(fte.image_url, ft.image_url) as image_url,
+            fte.description, fte.event_date, fte.start_time, fte.end_time,
+            fte.location, fte.is_featured, ft.website_url as musician_website_url
+          FROM media_food_truck_events fte
+          JOIN media_food_trucks ft ON fte.food_truck_id = ft.id
+          WHERE fte.is_active = true
+            AND ft.is_active = true
+            AND fte.event_date = ${specificdate}
+          ORDER BY fte.event_date ASC, fte.start_time ASC
+        `);
+      } else {
+        result = await db.execute(sql`
+          SELECT
+            fte.id, ft.name as musician_name, ft.cuisine_type as musician_genre,
+            COALESCE(fte.image_url, ft.image_url) as image_url,
+            fte.description, fte.event_date, fte.start_time, fte.end_time,
+            fte.location, fte.is_featured, ft.website_url as musician_website_url
+          FROM media_food_truck_events fte
+          JOIN media_food_trucks ft ON fte.food_truck_id = ft.id
+          WHERE fte.is_active = true
+            AND ft.is_active = true
+            AND fte.event_date::date >= CURRENT_DATE
+            AND fte.event_date::date <= CURRENT_DATE + (${daysAhead})::int
+          ORDER BY fte.event_date ASC, fte.start_time ASC
+        `);
+      }
+      events = result.rows as any[];
+    } else if (mode === "music") {
       let result;
       if (specificdate) {
         result = await db.execute(sql`
@@ -65,7 +130,7 @@ router.get("/api/media/flyer/embed", async (req, res) => {
       let result;
       if (specificdate) {
         result = await db.execute(sql`
-          SELECT 
+          SELECT
             id, title, description, event_date, start_time, end_time,
             location, image_url, price, shopify_url, category, is_featured
           FROM media_special_events
@@ -88,7 +153,7 @@ router.get("/api/media/flyer/embed", async (req, res) => {
       events = result.rows as any[];
     }
 
-    const defaultTitle = mode === "music" ? "Live Music" : "Upcoming Events";
+    const defaultTitle = mode === "music" ? "Live Music" : mode === "food-trucks" ? "Food Trucks" : "Upcoming Events";
     const flyerTitle = title || defaultTitle;
 
     const html = renderFlyerHtml(events, {
@@ -101,6 +166,7 @@ router.get("/api/media/flyer/embed", async (req, res) => {
       hideImages,
       hidePrices,
       hideVenue,
+      typo: flyerTypo,
     });
 
     res.setHeader("Content-Type", "text/html");
@@ -153,10 +219,11 @@ interface FlyerOptions {
   hideImages: boolean;
   hidePrices: boolean;
   hideVenue: boolean;
+  typo?: { title: TypoEl; name: TypoEl; detail: TypoEl; desc: TypoEl; };
 }
 
 function renderFlyerHtml(events: any[], opts: FlyerOptions): string {
-  const { mode, template, fontScale, flyerTitle, footer, hideDescriptions, hideImages, hidePrices, hideVenue } = opts;
+  const { mode, template, fontScale, flyerTitle, footer, hideDescriptions, hideImages, hidePrices, hideVenue, typo } = opts;
 
   const templateColors = {
     classic: { bg: "#faf8f5", text: "#2c1810", accent: "#8b6914", secondary: "#666", border: "#e8dcc8", fontFamily: "'Playfair Display', Georgia, serif" },
@@ -165,9 +232,16 @@ function renderFlyerHtml(events: any[], opts: FlyerOptions): string {
   };
   const c = templateColors[template as keyof typeof templateColors] || templateColors.classic;
 
+  const tyTitle  = typo?.title  ?? { font: "Playfair Display", sz: 28, bold: true,  italic: template === "classic" };
+  const tyName   = typo?.name   ?? { font: "Playfair Display", sz: 13, bold: true,  italic: false };
+  const tyDetail = typo?.detail ?? { font: "Playfair Display", sz: 9,  bold: false, italic: false };
+  const tyDesc   = typo?.desc   ?? { font: "Playfair Display", sz: 8,  bold: false, italic: false };
+
+  const fontsLink = buildFontsLink([tyTitle, tyName, tyDetail, tyDesc]);
+
   const eventRows = events.map((ev) => {
-    const name = mode === "music" ? (ev.musician_name || ev.title) : ev.title;
-    const genre = mode === "music" ? ev.musician_genre : ev.category;
+    const name = (mode === "music" || mode === "food-trucks") ? (ev.musician_name || ev.title) : ev.title;
+    const genre = (mode === "music" || mode === "food-trucks") ? ev.musician_genre : ev.category;
     const imgUrl = ev.image_url || ev.musician_image_url;
     const desc = ev.description;
     const date = formatDate(ev.event_date);
@@ -183,11 +257,11 @@ function renderFlyerHtml(events: any[], opts: FlyerOptions): string {
       : "";
 
     const genreHtml = genre
-      ? `<span style="font-size:8pt;color:${c.accent};text-transform:uppercase;letter-spacing:1px;${template === "bold" ? "font-family:'Inter',sans-serif;" : ""}">${escapeHtml(genre === "cooking-demo" ? "Cooking Demo" : genre)}</span>`
+      ? `<span style="${tStyle(tyDetail)}color:${c.accent};text-transform:uppercase;letter-spacing:1px;">${escapeHtml(genre === "cooking-demo" ? "Cooking Demo" : genre)}</span>`
       : "";
 
     const descHtml = !hideDescriptions && desc
-      ? `<div style="font-size:8pt;color:${c.secondary};line-height:1.4;margin-top:2px;${template === "bold" ? "font-family:'Inter',sans-serif;" : ""}">${escapeHtml(desc)}</div>`
+      ? `<div style="${tStyle(tyDesc)}color:${c.secondary};line-height:1.4;margin-top:2px;">${escapeHtml(desc)}</div>`
       : "";
 
     const priceHtml = !hidePrices && price
@@ -195,19 +269,19 @@ function renderFlyerHtml(events: any[], opts: FlyerOptions): string {
       : "";
 
     const featuredBadge = featured
-      ? `<span style="font-size:7pt;background:${c.accent};color:${template === "bold" ? "#fff" : "#fff"};padding:1px 6px;border-radius:3px;margin-left:6px;font-weight:600;">Featured</span>`
+      ? `<span style="font-size:7pt;background:${c.accent};color:#fff;padding:1px 6px;border-radius:3px;margin-left:6px;font-weight:600;">Featured</span>`
       : "";
 
     return `
       <div style="display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid ${c.border};">
         ${imgHtml}
         <div style="flex:1;min-width:0;">
-          <div style="font-size:9pt;font-weight:600;color:${c.accent};">${escapeHtml(date)}</div>
-          <div style="font-size:13pt;font-weight:${template === "bold" ? "600" : "700"};color:${c.text};${template === "bold" ? "text-transform:uppercase;" : ""}line-height:1.2;">
+          <div style="${tStyle(tyDetail)}color:${c.accent};">${escapeHtml(date)}</div>
+          <div style="${tStyle(tyName)}color:${c.text};${template === "bold" ? "text-transform:uppercase;" : ""}line-height:1.2;">
             ${escapeHtml(name)}${featuredBadge}
           </div>
           ${genreHtml}
-          <div style="font-size:8pt;color:${c.secondary};margin-top:2px;${template === "bold" ? "font-family:'Inter',sans-serif;" : ""}">
+          <div style="${tStyle(tyDetail)}color:${c.secondary};margin-top:2px;">
             ${escapeHtml(time)}${location ? ` | ${escapeHtml(location)}` : ""}${priceHtml}
           </div>
           ${descHtml}
@@ -218,13 +292,13 @@ function renderFlyerHtml(events: any[], opts: FlyerOptions): string {
 
   const venueHtml = !hideVenue ? `
     <div style="text-align:center;padding:16px 0 8px;border-top:1px solid ${c.border};margin-top:auto;">
-      <div style="font-size:8pt;color:${c.secondary};${template === "bold" ? "font-family:'Inter',sans-serif;" : ""}">100 Wattaquadock Hill Road, Bolton, MA</div>
-      <div style="font-size:9pt;font-weight:600;color:${c.accent};">nashobawinery.com</div>
+      <div style="${tStyle(tyDetail)}color:${c.secondary};">100 Wattaquadock Hill Road, Bolton, MA</div>
+      <div style="${tStyle(tyDetail)}font-weight:600;color:${c.accent};">nashobawinery.com</div>
     </div>
   ` : "";
 
   const footerHtml = footer ? `
-    <div style="text-align:center;padding:8px 0;font-size:9pt;color:${c.secondary};${template === "bold" ? "font-family:'Inter',sans-serif;" : ""}">${escapeHtml(footer)}</div>
+    <div style="text-align:center;padding:8px 0;${tStyle(tyDetail)}color:${c.secondary};">${escapeHtml(footer)}</div>
   ` : "";
 
   const venuePresentHtml = !hideVenue ? `
@@ -234,11 +308,7 @@ function renderFlyerHtml(events: any[], opts: FlyerOptions): string {
     ${template === "classic" ? '<div style="font-size:9pt;font-style:italic;color:' + c.secondary + ';margin-top:2px;">presents</div>' : ""}
   ` : "";
 
-  const titleStyle = template === "bold"
-    ? `font-size:28pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;`
-    : template === "classic"
-      ? `font-size:28pt;font-weight:900;font-style:italic;`
-      : `font-size:26pt;font-weight:700;`;
+  const titleStyle = `${tStyle(tyTitle)}${template === "bold" ? "text-transform:uppercase;letter-spacing:2px;" : ""}`;
 
   const dividerHtml = `<div style="width:60px;height:2px;background:${c.accent};margin:4px auto;"></div>`;
 
@@ -252,7 +322,7 @@ function renderFlyerHtml(events: any[], opts: FlyerOptions): string {
   <meta charset="utf-8" />
   <title>${escapeHtml(flyerTitle)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Inter:wght@300;400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="${fontsLink}" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { font-size: ${fontScale}%; }
@@ -352,11 +422,20 @@ router.get("/api/media/shelf-talker/embed", async (req, res) => {
       products = result.rows as any[];
     }
 
+    const sq = req.query as Record<string, string>;
+    const stTypo = {
+      name:  pTypo(sq, "name",  "Playfair Display", 14),
+      desc:  pTypo(sq, "desc",  "Playfair Display",  7),
+      price: pTypo(sq, "price", "Playfair Display", 20),
+      meta:  pTypo(sq, "meta",  "Playfair Display",  6),
+    };
+
     const html = renderShelfTalkerHtml(products, {
       template,
       fontScale,
       cardSize: size,
       show,
+      typo: stTypo,
     });
 
     res.setHeader("Content-Type", "text/html");
@@ -372,6 +451,7 @@ interface ShelfTalkerOptions {
   fontScale: number;
   cardSize: string;
   show: Record<string, boolean>;
+  typo?: { name: TypoEl; desc: TypoEl; price: TypoEl; meta: TypoEl; };
 }
 
 const CARD_SIZES: Record<string, { width: string; height: string; label: string }> = {
@@ -383,8 +463,14 @@ const CARD_SIZES: Record<string, { width: string; height: string; label: string 
 };
 
 function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): string {
-  const { template, fontScale, cardSize, show } = opts;
+  const { template, fontScale, cardSize, show, typo } = opts;
   const sz = CARD_SIZES[cardSize] || CARD_SIZES["4x6"];
+
+  const tyName  = typo?.name  ?? { font: "Playfair Display", sz: 14, bold: true,  italic: false };
+  const tyDesc  = typo?.desc  ?? { font: "Playfair Display", sz: 7,  bold: false, italic: false };
+  const tyPrice = typo?.price ?? { font: "Playfair Display", sz: 20, bold: true,  italic: false };
+  const tyMeta  = typo?.meta  ?? { font: "Playfair Display", sz: 6,  bold: false, italic: false };
+  const stFontsLink = buildFontsLink([tyName, tyDesc, tyPrice, tyMeta]);
 
   const templateStyles = {
     classic: {
@@ -433,35 +519,35 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
       : "";
 
     const priceHtml = show.price
-      ? `<div style="font-size:14pt;font-weight:700;color:${s.text};margin-top:3px;">$${Number(p.price).toFixed(2)}</div>`
+      ? `<div style="${tStyle(tyPrice)}color:${s.text};margin-top:3px;">$${Number(p.price).toFixed(2)}</div>`
       : "";
 
     const descHtml = show.description && p.description
-      ? `<div style="font-size:9pt;color:${s.secondary};line-height:1.35;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;">${escapeHtml(p.description)}</div>`
+      ? `<div style="${tStyle(tyDesc)}color:${s.secondary};line-height:1.35;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;">${escapeHtml(p.description)}</div>`
       : "";
 
     const tastingHtml = show.tastingNotes && p.tasting_notes
-      ? `<div style="font-size:9pt;color:${s.secondary};line-height:1.35;margin-top:2px;font-style:italic;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escapeHtml(p.tasting_notes)}</div>`
+      ? `<div style="${tStyle(tyDesc)}color:${s.secondary};line-height:1.35;margin-top:2px;font-style:italic;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escapeHtml(p.tasting_notes)}</div>`
       : "";
 
     const pairingsHtml = show.pairings && p.food_pairings
-      ? `<div style="font-size:8pt;color:${s.secondary};margin-top:2px;"><strong>Pairs with:</strong> ${escapeHtml(p.food_pairings)}</div>`
+      ? `<div style="${tStyle(tyMeta)}color:${s.secondary};margin-top:2px;"><strong>Pairs with:</strong> ${escapeHtml(p.food_pairings)}</div>`
       : "";
 
     const awardsHtml = show.awards && p.awards
-      ? `<div style="font-size:8pt;color:${s.accent};margin-top:2px;font-weight:600;">${escapeHtml(p.awards)}</div>`
+      ? `<div style="${tStyle(tyMeta)}color:${s.accent};margin-top:2px;font-weight:600;">${escapeHtml(p.awards)}</div>`
       : "";
 
     const alcoholHtml = show.alcohol && p.alcohol_content
-      ? `<span style="font-size:8pt;color:${s.secondary};">${escapeHtml(p.alcohol_content)} ABV</span>`
+      ? `<span style="${tStyle(tyMeta)}color:${s.secondary};">${escapeHtml(p.alcohol_content)} ABV</span>`
       : "";
 
     const bodyHtml = show.body && p.body && p.body !== "N/A"
-      ? `<span style="font-size:8pt;color:${s.secondary};">${escapeHtml(p.body)}</span>`
+      ? `<span style="${tStyle(tyMeta)}color:${s.secondary};">${escapeHtml(p.body)}</span>`
       : "";
 
     const sweetnessHtml = show.sweetness && p.sweetness && p.sweetness !== "N/A"
-      ? `<span style="font-size:8pt;color:${s.secondary};">${escapeHtml(p.sweetness)}</span>`
+      ? `<span style="${tStyle(tyMeta)}color:${s.secondary};">${escapeHtml(p.sweetness)}</span>`
       : "";
 
     const detailParts = [bodyHtml, sweetnessHtml, alcoholHtml].filter(Boolean);
@@ -478,7 +564,7 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
         ${imgHtml}
         <div style="flex:1;padding:8px 10px;display:flex;flex-direction:column;">
           ${vintageHtml}
-          <div style="font-size:13pt;font-weight:700;color:${s.text};${s.headingStyle}line-height:1.15;">${escapeHtml(p.name)}</div>
+          <div style="${tStyle(tyName)}color:${s.text};${s.headingStyle}line-height:1.15;">${escapeHtml(p.name)}</div>
           ${varietalHtml}
           ${regionHtml}
           ${ratingHtml}
@@ -488,7 +574,7 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
           ${pairingsHtml}
           ${awardsHtml}
           ${detailLine}
-          <div style="margin-top:auto;padding-top:4px;border-top:1px solid ${s.border};font-size:7pt;color:${s.secondary};text-align:center;text-transform:uppercase;letter-spacing:1px;">
+          <div style="margin-top:auto;padding-top:4px;border-top:1px solid ${s.border};${tStyle(tyMeta)}color:${s.secondary};text-align:center;text-transform:uppercase;letter-spacing:1px;">
             ${escapeHtml(categoryLabel)} · Nashoba Valley
           </div>
         </div>
@@ -502,7 +588,7 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
   <meta charset="utf-8" />
   <title>Shelf Talkers - Nashoba Valley</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="${stFontsLink}" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { font-size: ${fontScale}%; }
@@ -651,7 +737,15 @@ router.get("/api/media/flight-cards/print", async (req, res) => {
       products = idList.map(id => rows.find((r: any) => r.id === id)).filter(Boolean);
     }
 
-    const html = renderFlightCardHtml(products, { template, fontScale, paperSize: size, header: header || "", footer: footer || "", show });
+    const fq = req.query as Record<string, string>;
+    const fcTypo = {
+      name:   pTypo(fq, "name",   "Playfair Display", 9.5),
+      desc:   pTypo(fq, "desc",   "Playfair Display", 7.5),
+      meta:   pTypo(fq, "meta",   "Playfair Display", 7.5),
+      header: pTypo(fq, "header", "Playfair Display", 15),
+    };
+
+    const html = renderFlightCardHtml(products, { template, fontScale, paperSize: size, header: header || "", footer: footer || "", show, typo: fcTypo });
     res.setHeader("Content-Type", "text/html");
     res.send(html);
   } catch (err: any) {
@@ -674,6 +768,7 @@ interface FlightCardOptions {
     alcohol: boolean;
     tastingLines: boolean;
   };
+  typo?: { name: TypoEl; desc: TypoEl; meta: TypoEl; header: TypoEl; };
 }
 
 const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label: string }> = {
@@ -685,7 +780,7 @@ const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label:
 };
 
 function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string {
-  const { template, fontScale, paperSize, header, footer, show } = opts;
+  const { template, fontScale, paperSize, header, footer, show, typo } = opts;
   const sz = FLIGHT_PAPER_SIZES[paperSize] || FLIGHT_PAPER_SIZES["a6"];
 
   const themes = {
@@ -739,18 +834,24 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
   const t = themes[template as keyof typeof themes] || themes.classic;
   const esc = (s: string) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+  const tyHdr  = typo?.header ?? { font: "Playfair Display", sz: 15,  bold: true,  italic: false };
+  const tyName = typo?.name   ?? { font: "Playfair Display", sz: 9.5, bold: true,  italic: false };
+  const tyDesc = typo?.desc   ?? { font: "Playfair Display", sz: 7.5, bold: false, italic: false };
+  const tyMeta = typo?.meta   ?? { font: "Playfair Display", sz: 7.5, bold: false, italic: false };
+  const fcFontsLink = buildFontsLink([tyHdr, tyName, tyDesc, tyMeta]);
+
   const headerHtml = header
     ? `<div style="text-align:center;margin-bottom:10px;">
-        <div style="font-size:15pt;font-weight:700;color:${t.accent};font-family:${t.headerFont};letter-spacing:0.5px;line-height:1.2;">${esc(header)}</div>
+        <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:0.5px;line-height:1.2;">${esc(header)}</div>
         <div style="width:50px;height:2px;background:${t.divider};margin:5px auto 0;"></div>
        </div>`
     : `<div style="text-align:center;margin-bottom:10px;">
-        <div style="font-size:13pt;font-weight:700;color:${t.accent};font-family:${t.headerFont};letter-spacing:1px;text-transform:uppercase;">Tasting Flight</div>
+        <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:1px;text-transform:uppercase;">Tasting Flight</div>
         <div style="width:50px;height:2px;background:${t.divider};margin:5px auto 0;"></div>
        </div>`;
 
   const footerHtml = footer
-    ? `<div style="text-align:center;font-size:7.5pt;color:${t.muted};font-family:${t.bodyFont};margin-top:auto;padding-top:8px;border-top:1px solid ${t.divider};font-style:italic;">${esc(footer)}</div>`
+    ? `<div style="text-align:center;${tStyle(tyMeta)}color:${t.muted};margin-top:auto;padding-top:8px;border-top:1px solid ${t.divider};font-style:italic;">${esc(footer)}</div>`
     : "";
 
   const emptyHtml = `<div style="text-align:center;color:${t.muted};font-size:10pt;padding:20px 0;">No products selected.</div>`;
@@ -763,12 +864,12 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
     const alcohol = show.alcohol && p.alcohol_content ? esc(p.alcohol_content) + " ABV" : "";
     const price = show.price && p.price ? `$${Number(p.price).toFixed(2)}` : "";
     const desc = show.description && p.description
-      ? `<div style="font-size:7.5pt;color:${t.secondary};line-height:1.4;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${esc(p.description)}</div>`
+      ? `<div style="${tStyle(tyDesc)}color:${t.secondary};line-height:1.4;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${esc(p.description)}</div>`
       : "";
 
     const metaParts = [varietal, alcohol].filter(Boolean);
     const meta = metaParts.length
-      ? `<div style="font-size:7.5pt;color:${t.muted};margin-top:1px;">${metaParts.join(" · ")}</div>`
+      ? `<div style="${tStyle(tyMeta)}color:${t.muted};margin-top:1px;">${metaParts.join(" · ")}</div>`
       : "";
 
     const tastingLines = show.tastingLines
@@ -786,8 +887,8 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
         <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:${t.numberBg};color:${t.numberFg};font-size:9pt;font-weight:700;font-family:${t.bodyFont};display:flex;align-items:center;justify-content:center;margin-top:1px;">${num}</div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:4px;">
-            <div style="font-size:9.5pt;font-weight:700;color:${t.text};font-family:${t.headerFont};line-height:1.2;">${vintage ? `${name} <span style="font-weight:400;font-size:8pt;color:${t.muted};">${vintage}</span>` : name}</div>
-            ${price ? `<div style="font-size:9pt;font-weight:700;color:${t.accent};white-space:nowrap;flex-shrink:0;">${price}</div>` : ""}
+            <div style="${tStyle(tyName)}color:${t.text};line-height:1.2;">${vintage ? `${name} <span style="font-weight:400;font-size:8pt;color:${t.muted};">${vintage}</span>` : name}</div>
+            ${price ? `<div style="${tStyle(tyName)}color:${t.accent};white-space:nowrap;flex-shrink:0;">${price}</div>` : ""}
           </div>
           ${meta}
           ${desc}
@@ -802,7 +903,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
   <meta charset="utf-8" />
   <title>Flight Card - Nashoba Valley</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="${fcFontsLink}" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { font-size: ${fontScale}%; }

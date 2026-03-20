@@ -256,7 +256,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
-    if (template === "fine-dining") url += `&${buildTypoParams(printTypo)}`;
+    url += `&${buildTypoParams(printTypo)}`;
     return url;
   };
 
@@ -269,7 +269,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
     if (title && title.trim()) url += `&title=${encodeURIComponent(title.trim())}`;
-    if (template === "fine-dining") url += `&${buildTypoParams(printTypo)}`;
+    url += `&${buildTypoParams(printTypo)}`;
     return url;
   };
 
@@ -634,12 +634,11 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
         </label>
       </div>
 
-      {printTemplate === "fine-dining" && (
-        <div className="space-y-2">
+      <div className="space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Type className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Fine Dining Typography</span>
+              <span className="text-sm font-medium">Typography</span>
             </div>
             <Button
               variant="ghost"
@@ -732,7 +731,6 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
             </div>
           )}
         </div>
-      )}
 
       {hasSelection && allPrintGroups.length > 1 && (
         <div className="space-y-2">
