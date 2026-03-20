@@ -35,6 +35,48 @@ import {
   BookMarked, Trash2, Pencil, Save, Plus, DollarSign, Sparkles,
   BookOpen, HelpCircle, AlertCircle, Lightbulb, Share2, Monitor
 } from "lucide-react";
+import { TypographyPanel, type TypoElem } from "@/components/TypographyPanel";
+
+interface BrowserTypoSettings {
+  title: TypoElem; subtitle: TypoElem; group: TypoElem; item: TypoElem;
+  price: TypoElem; desc: TypoElem; pairing: TypoElem; allergy: TypoElem;
+}
+
+const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
+  title:    { font: "Cinzel",   size: 30, bold: false, italic: false },
+  subtitle: { font: "Cinzel",   size: 26, bold: false, italic: false },
+  group:    { font: "Allura",   size: 36, bold: false, italic: false },
+  item:     { font: "Cinzel",   size: 17, bold: false, italic: false },
+  price:    { font: "Jost",     size: 13, bold: false, italic: false },
+  desc:     { font: "Jost",     size: 14, bold: false, italic: false },
+  pairing:  { font: "Allura",   size: 16, bold: false, italic: false },
+  allergy:  { font: "Jost",     size: 10, bold: false, italic: false },
+};
+
+const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
+  { key: "title",    label: "Header" },
+  { key: "subtitle", label: "Sub-header" },
+  { key: "group",    label: "Section header" },
+  { key: "item",     label: "Item name" },
+  { key: "price",    label: "Price" },
+  { key: "desc",     label: "Description" },
+  { key: "pairing",  label: "Pairings" },
+  { key: "allergy",  label: "Allergy text" },
+];
+
+function buildTypoParams(t: BrowserTypoSettings): string {
+  const e = encodeURIComponent;
+  return [
+    `titleFont=${e(t.title.font)}`,    `titleSz=${t.title.size}`,    t.title.bold    ? "titleBold=1"    : "", t.title.italic    ? "titleItalic=1"    : "",
+    `subFont=${e(t.subtitle.font)}`,   `subSz=${t.subtitle.size}`,   t.subtitle.bold ? "subBold=1"      : "", t.subtitle.italic ? "subItalic=1"      : "",
+    `groupFont=${e(t.group.font)}`,    `groupSz=${t.group.size}`,    t.group.bold    ? "groupBold=1"    : "", t.group.italic    ? "groupItalic=1"    : "",
+    `itemFont=${e(t.item.font)}`,      `itemSz=${t.item.size}`,      t.item.bold     ? "itemBold=1"     : "", t.item.italic     ? "itemItalic=1"     : "",
+    `priceFont=${e(t.price.font)}`,    `priceSz=${t.price.size}`,    t.price.bold    ? "priceBold=1"    : "", t.price.italic    ? "priceItalic=1"    : "",
+    `descFont=${e(t.desc.font)}`,      `descSz=${t.desc.size}`,      t.desc.bold     ? "descBold=1"     : "", t.desc.italic     ? "descItalic=1"     : "",
+    `pairFont=${e(t.pairing.font)}`,   `pairSz=${t.pairing.size}`,   t.pairing.bold  ? "pairBold=1"     : "", t.pairing.italic  ? "pairItalic=1"     : "",
+    `allergyFont=${e(t.allergy.font)}`,`allergySz=${t.allergy.size}`,t.allergy.bold  ? "allergyBold=1"  : "", t.allergy.italic  ? "allergyItalic=1"  : "",
+  ].filter(Boolean).join("&");
+}
 
 
 interface ToastRestaurant {
@@ -168,6 +210,7 @@ export function ToastMenuBrowser() {
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
   const [printShowImages, setPrintShowImages] = useState(false);
+  const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
   const FOOTER_PRESETS_KEY = "toast-menu-footer-presets";
@@ -584,10 +627,14 @@ export function ToastMenuBrowser() {
 
   const buildPrintUrl = (template: string) => {
     const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+    const typoStr = buildTypoParams(printTypo);
+    let url: string;
     if (additionalMenuGuids.length > 0 && selectedMenu) {
-      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
+      url = getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
+    } else {
+      url = getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
     }
-    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
+    return typoStr ? `${url}&${typoStr}` : url;
   };
 
   const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[], footer?: string, hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean) => {
@@ -911,7 +958,7 @@ export function ToastMenuBrowser() {
 
     // Web share URL — no page breaks, no columns
     const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
-    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
+    const sharedUrl = (() => { const u = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages); const tp = buildTypoParams(printTypo); return tp ? `${u}&${tp}` : u; })();
     const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
 
     // Merge menus helpers for Print tab
@@ -1257,6 +1304,19 @@ export function ToastMenuBrowser() {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <TypographyPanel
+              idPrefix="browser"
+              title="Typography"
+              rows={BROWSER_TYPO_ROWS}
+              values={printTypo as Record<string, TypoElem>}
+              onChange={(key, field, value) => setPrintTypo(prev => ({ ...prev, [key]: { ...prev[key as keyof BrowserTypoSettings], [field]: value } }))}
+              onReset={() => setPrintTypo(DEFAULT_BROWSER_TYPO)}
+            />
           </CardContent>
         </Card>
 
@@ -1740,7 +1800,7 @@ export function ToastMenuBrowser() {
   const renderEmbedView = () => {
     if (!selectedMenu) return null;
     const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
-    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
+    const sharedUrl = (() => { const u = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages); const tp = buildTypoParams(printTypo); return tp ? `${u}&${tp}` : u; })();
     const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
 
     return (
@@ -2075,6 +2135,19 @@ export function ToastMenuBrowser() {
             </Select>
           </div>
         </div>
+
+        <Card>
+          <CardContent className="p-4">
+            <TypographyPanel
+              idPrefix="browser-print"
+              title="Typography"
+              rows={BROWSER_TYPO_ROWS}
+              values={printTypo as Record<string, TypoElem>}
+              onChange={(key, field, value) => setPrintTypo(prev => ({ ...prev, [key]: { ...prev[key as keyof BrowserTypoSettings], [field]: value } }))}
+              onReset={() => setPrintTypo(DEFAULT_BROWSER_TYPO)}
+            />
+          </CardContent>
+        </Card>
 
         {allPrintGroups.length > 1 && (
           <div className="space-y-2">
