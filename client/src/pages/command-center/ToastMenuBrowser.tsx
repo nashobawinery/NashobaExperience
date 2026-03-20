@@ -205,8 +205,6 @@ export function ToastMenuBrowser() {
   const [printHeader, setPrintHeader] = useState("");
   const [printHeaderFontSize, setPrintHeaderFontSize] = useState(1.0);
   const [printFooterFontSize, setPrintFooterFontSize] = useState(1.0);
-  const [printItemFontSize, setPrintItemFontSize] = useState(1.0);
-  const [printDescFontSize, setPrintDescFontSize] = useState(1.0);
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
   const [printShowImages, setPrintShowImages] = useState(false);
@@ -315,8 +313,6 @@ export function ToastMenuBrowser() {
     footer: string | null;
     headerFontSize: number | null;
     footerFontSize: number | null;
-    itemFontSize: number | null;
-    descFontSize: number | null;
     scale: number | null;
     groupGuids: string | null;
     hideDescriptions: boolean | null;
@@ -368,8 +364,6 @@ export function ToastMenuBrowser() {
     footer: printFooter || null,
     headerFontSize: printHeaderFontSize,
     footerFontSize: printFooterFontSize,
-    itemFontSize: printItemFontSize,
-    descFontSize: printDescFontSize,
     scale: printScale,
     groupGuids: selectedPrintGroups.length > 0 ? selectedPrintGroups.join(",") : null,
     hideDescriptions: printHideDescriptions,
@@ -630,9 +624,9 @@ export function ToastMenuBrowser() {
     const typoStr = buildTypoParams(printTypo);
     let url: string;
     if (additionalMenuGuids.length > 0 && selectedMenu) {
-      url = getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
+      url = getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
     } else {
-      url = getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
+      url = getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
     }
     return typoStr ? `${url}&${typoStr}` : url;
   };
@@ -687,8 +681,6 @@ export function ToastMenuBrowser() {
       setPrintFooter(params.get("footer") || "");
       setPrintHeaderFontSize(parseFloat(params.get("headerSize") || "1") || 1.0);
       setPrintFooterFontSize(parseFloat(params.get("footerSize") || "1") || 1.0);
-      setPrintItemFontSize(parseFloat(params.get("itemSize") || "1") || 1.0);
-      setPrintDescFontSize(parseFloat(params.get("descSize") || "1") || 1.0);
       setPrintScale(parseFloat(params.get("scale") || "100") || 100);
       setPrintHideDescriptions(params.get("hidedesc") === "1");
       setPrintHidePricing(params.get("hideprice") === "1");
@@ -719,8 +711,6 @@ export function ToastMenuBrowser() {
     setPrintFooter(config.footer || "");
     setPrintHeaderFontSize(config.headerFontSize || 1.0);
     setPrintFooterFontSize(config.footerFontSize || 1.0);
-    setPrintItemFontSize(config.itemFontSize || 1.0);
-    setPrintDescFontSize(config.descFontSize || 1.0);
     setPrintScale(config.scale || 100);
     setPrintHideDescriptions(config.hideDescriptions || false);
     setPrintHidePricing(config.hidePricing || false);
@@ -1276,33 +1266,6 @@ export function ToastMenuBrowser() {
                 />
                 <span className="font-medium">Show Images</span>
               </label>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <div>
-              <p className="text-sm font-semibold">Font Size</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Adjust the size of menu item names and description text on the printed or embedded menu.</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Menu Item</label>
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintItemFontSize(f => Math.max(0.5, parseFloat((f - 0.1).toFixed(1))))} disabled={printItemFontSize <= 0.5} title="Decrease item font size" data-testid="button-item-font-decrease">A−</Button>
-                  <span className="text-xs text-muted-foreground shrink-0 w-8 text-center">{printItemFontSize.toFixed(1)}×</span>
-                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintItemFontSize(f => Math.min(3, parseFloat((f + 0.1).toFixed(1))))} disabled={printItemFontSize >= 3} title="Increase item font size" data-testid="button-item-font-increase">A+</Button>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Description</label>
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintDescFontSize(f => Math.max(0.5, parseFloat((f - 0.1).toFixed(1))))} disabled={printDescFontSize <= 0.5} title="Decrease description font size" data-testid="button-desc-font-decrease">A−</Button>
-                  <span className="text-xs text-muted-foreground shrink-0 w-8 text-center">{printDescFontSize.toFixed(1)}×</span>
-                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintDescFontSize(f => Math.min(3, parseFloat((f + 0.1).toFixed(1))))} disabled={printDescFontSize >= 3} title="Increase description font size" data-testid="button-desc-font-increase">A+</Button>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -1915,8 +1878,6 @@ export function ToastMenuBrowser() {
                               setPrintFooter(cfg.footer || "");
                               setPrintHeaderFontSize(cfg.headerFontSize ?? 1.0);
                               setPrintFooterFontSize(cfg.footerFontSize ?? 1.0);
-                              setPrintItemFontSize(cfg.itemFontSize ?? 1.0);
-                              setPrintDescFontSize(cfg.descFontSize ?? 1.0);
                               setPrintScale(cfg.scale ?? 100);
                               setPrintHideDescriptions(cfg.hideDescriptions ?? false);
                               setPrintHidePricing(cfg.hidePricing ?? false);
