@@ -53,6 +53,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent, SupportAttachment, EmailDeliveryLog } from "@shared/schema";
@@ -741,86 +743,66 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
           )}
         </div>
 
-        {/* Agent Assignment Section */}
+        {/* Compact agent assignment + AI draft actions inline */}
         {request.status !== "closed" && (
-          <div className="mt-3 p-3 bg-muted/50 border rounded-lg">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <UserPlus className="h-4 w-4" />
-                <span>Assign & Notify Agent:</span>
-              </div>
-              {agentsLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading agents...
-                </div>
-              ) : activeAgents.length === 0 ? (
-                <span className="text-sm text-muted-foreground">No active agents available</span>
-              ) : (
-                <>
-                  <Select
-                    value={selectedAgentId}
-                    onValueChange={setSelectedAgentId}
-                  >
-                    <SelectTrigger className="w-[200px]" data-testid="select-agent">
-                      <SelectValue placeholder="Select an agent..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {activeAgents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.id} data-testid={`agent-option-${agent.id}`}>
-                          {agent.displayName || agent.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      if (selectedAgentId) {
-                        assignAgentMutation.mutate(selectedAgentId);
-                      }
-                    }}
-                    disabled={!selectedAgentId || assignAgentMutation.isPending}
-                    data-testid="button-send-notification"
-                  >
-                    <Mail className="h-4 w-4 mr-2" />
-                    {assignAgentMutation.isPending ? "Sending..." : "Send Notification"}
-                  </Button>
-                </>
-              )}
-              {request.assignedAgentId && (
-                <Badge variant="outline" className="text-xs">
-                  Currently assigned: {agents.find(a => a.id === request.assignedAgentId)?.displayName || agents.find(a => a.id === request.assignedAgentId)?.email || "Unknown"}
-                </Badge>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* AI Draft Ready Banner */}
-        {request.aiDraft && request.status !== "closed" && (
-          <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
-              <Bot className="h-4 w-4" />
-              <span className="text-sm font-medium">AI Draft Ready for Review</span>
-              {request.aiDraftGeneratedAt && (
-                <span className="text-xs text-green-600 dark:text-green-400">
-                  (Generated {formatDistanceToNow(new Date(request.aiDraftGeneratedAt), { addSuffix: true })})
-                </span>
-              )}
-            </div>
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => {
-                setAiDraftContent(request.aiDraft || "");
-                setAiDraftOpen(true);
-              }}
-              data-testid="button-review-ai-draft"
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              Review & Edit
-            </Button>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="sm" variant="outline" data-testid="button-assign-agent">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {request.assignedAgentId
+                    ? (agents.find(a => a.id === request.assignedAgentId)?.displayName || agents.find(a => a.id === request.assignedAgentId)?.email || "Assigned")
+                    : "Assign Agent"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-3" align="start">
+                <p className="text-sm font-medium mb-2">Assign &amp; Notify Agent</p>
+                {agentsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading agents...
+                  </div>
+                ) : activeAgents.length === 0 ? (
+                  <span className="text-sm text-muted-foreground">No active agents available</span>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+                      <SelectTrigger data-testid="select-agent">
+                        <SelectValue placeholder="Select an agent..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeAgents.map((agent) => (
+                          <SelectItem key={agent.id} value={agent.id} data-testid={`agent-option-${agent.id}`}>
+                            {agent.displayName || agent.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={() => { if (selectedAgentId) assignAgentMutation.mutate(selectedAgentId); }}
+                      disabled={!selectedAgentId || assignAgentMutation.isPending}
+                      data-testid="button-send-notification"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      {assignAgentMutation.isPending ? "Sending..." : "Send Notification"}
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+            {request.aiDraft && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-green-700 border-green-300 dark:text-green-400 dark:border-green-700"
+                onClick={() => { setAiDraftContent(request.aiDraft || ""); setAiDraftOpen(true); }}
+                data-testid="button-review-ai-draft"
+              >
+                <Bot className="h-4 w-4 mr-2" />
+                Review AI Draft
+              </Button>
+            )}
           </div>
         )}
 
@@ -1385,7 +1367,7 @@ export default function SupportAdminDashboard() {
 
   return (
     <div className="h-screen flex flex-col">
-      <header className="border-b p-4">
+      <header className="border-b px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/admin-hub">
@@ -1398,55 +1380,55 @@ export default function SupportAdminDashboard() {
               <p className="text-sm text-muted-foreground">Manage customer inquiries and conversations</p>
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              onClick={() => setDocsOpen(true)}
-              data-testid="button-documentation"
-            >
-              <HelpCircle className="h-4 w-4 mr-2" />
-              Documentation
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/support/knowledge-base")}
-              data-testid="button-knowledge-base"
-            >
-              <BookOpen className="h-4 w-4 mr-2" />
-              Knowledge Base
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/admin/support/social-reviews")}
-              data-testid="button-social-reviews"
-            >
-              <Star className="h-4 w-4 mr-2" />
-              Social Reviews
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/admin/support/analytics")}
-              data-testid="button-analytics"
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Analytics
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/admin/support/agents")}
-              data-testid="button-agents"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Agents
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/admin/support/categories")}
-              data-testid="button-categories"
-            >
-              <FolderOpen className="h-4 w-4 mr-2" />
-              Categories
-            </Button>
+          <div className="flex gap-1 shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="outline" onClick={() => setDocsOpen(true)} data-testid="button-documentation">
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Documentation</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="outline" onClick={() => setLocation("/support/knowledge-base")} data-testid="button-knowledge-base">
+                  <BookOpen className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Knowledge Base</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="outline" onClick={() => setLocation("/admin/support/social-reviews")} data-testid="button-social-reviews">
+                  <Star className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Social Reviews</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="outline" onClick={() => setLocation("/admin/support/analytics")} data-testid="button-analytics">
+                  <BarChart3 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Analytics</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="outline" onClick={() => setLocation("/admin/support/agents")} data-testid="button-agents">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Agents</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="outline" onClick={() => setLocation("/admin/support/categories")} data-testid="button-categories">
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Categories</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
