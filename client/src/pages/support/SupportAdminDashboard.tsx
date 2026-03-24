@@ -376,8 +376,8 @@ function RequestList({
 
 function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void }) {
   const [newMessage, setNewMessage] = useState("");
-  const [aiDraftOpen, setAiDraftOpen] = useState(false);
   const [aiDraftContent, setAiDraftContent] = useState("");
+  const [draftEditMode, setDraftEditMode] = useState(false);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [aiGuidanceOpen, setAiGuidanceOpen] = useState(false);
   const [aiGuidance, setAiGuidance] = useState("");
@@ -385,7 +385,6 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   const [saveToKbContent, setSaveToKbContent] = useState("");
   const [saveToKbTitle, setSaveToKbTitle] = useState("");
   const [saveToKbKeywords, setSaveToKbKeywords] = useState("");
-  const [draftSaved, setDraftSaved] = useState(false);
   const [ccEmails, setCcEmails] = useState("");
   const [bccEmails, setBccEmails] = useState("");
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -409,8 +408,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   useEffect(() => {
     setHasLoadedDraft(false);
     setAiDraftContent("");
-    setAiDraftOpen(false);
-    setDraftSaved(false);
+    setDraftEditMode(false);
   }, [requestId]);
 
   const { data: cannedResponses = [] } = useQuery<SupportCannedResponse[]>({
@@ -516,7 +514,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     },
     onSuccess: (data: { draft: string }) => {
       setAiDraftContent(data.draft);
-      setAiDraftOpen(true);
+      setDraftEditMode(true);
       setAiGuidanceOpen(false);
       setAiGuidance("");
     },
@@ -531,7 +529,6 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
       return res.json();
     },
     onSuccess: () => {
-      setDraftSaved(true);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
       toast({ title: "Draft saved", description: "You can return to review and send it later." });
@@ -550,9 +547,8 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
       });
     },
     onSuccess: () => {
-      setAiDraftOpen(false);
+      setDraftEditMode(false);
       setAiDraftContent("");
-      setDraftSaved(false);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
       toast({ title: "Response sent from Nashoba Team" });
@@ -717,7 +713,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                   key={response.id}
                   onClick={() => {
                     setAiDraftContent(response.answer);
-                    setAiDraftOpen(true);
+                    setDraftEditMode(true);
                   }}
                   data-testid={`canned-response-item-${response.id}`}
                 >
@@ -791,18 +787,6 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                 )}
               </PopoverContent>
             </Popover>
-            {request.aiDraft && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-green-700 border-green-300 dark:text-green-400 dark:border-green-700"
-                onClick={() => { setAiDraftContent(request.aiDraft || ""); setAiDraftOpen(true); }}
-                data-testid="button-review-ai-draft"
-              >
-                <Bot className="h-4 w-4 mr-2" />
-                Review AI Draft
-              </Button>
-            )}
           </div>
         )}
 
@@ -838,100 +822,6 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
               >
                 <Bot className="h-4 w-4 mr-2" />
                 {generateAiDraftMutation.isPending ? "Generating..." : "Generate Response"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={aiDraftOpen} onOpenChange={(open) => { setAiDraftOpen(open); if (!open) setDraftSaved(false); }}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Pencil className="h-4 w-4" />
-                Review &amp; Edit AI Draft
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Edit the response below. You can save the draft to send later, or send it now.
-              </p>
-              <Textarea
-                value={aiDraftContent}
-                onChange={(e) => { setAiDraftContent(e.target.value); setDraftSaved(false); }}
-                rows={10}
-                className="resize-y"
-                placeholder="Write your response here..."
-                data-testid="textarea-ai-draft"
-              />
-              <div className="space-y-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowCcBcc(!showCcBcc)}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="button-toggle-ccbcc-dialog"
-                >
-                  {showCcBcc ? "Hide CC / BCC" : "CC / BCC"}
-                </button>
-                {showCcBcc && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">CC</label>
-                      <Input
-                        value={ccEmails}
-                        onChange={(e) => setCcEmails(e.target.value)}
-                        placeholder="email1@example.com, email2@example.com"
-                        className="text-sm"
-                        data-testid="input-cc-dialog"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">BCC</label>
-                      <Input
-                        value={bccEmails}
-                        onChange={(e) => setBccEmails(e.target.value)}
-                        placeholder="email@example.com"
-                        className="text-sm"
-                        data-testid="input-bcc-dialog"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              {draftSaved && (
-                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1" data-testid="text-draft-saved">
-                  <CheckCircle className="h-3 w-3" />
-                  Draft saved — you can close this and send it later from the banner above.
-                </p>
-              )}
-            </div>
-            <DialogFooter className="flex-wrap gap-2">
-              <Button variant="outline" onClick={() => { setAiDraftOpen(false); setDraftSaved(false); }} data-testid="button-cancel-ai">
-                Close
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => saveDraftMutation.mutate(aiDraftContent)}
-                disabled={saveDraftMutation.isPending || !aiDraftContent.trim()}
-                data-testid="button-save-draft"
-              >
-                {saveDraftMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <BookOpen className="h-4 w-4 mr-2" />
-                )}
-                {saveDraftMutation.isPending ? "Saving..." : "Save Draft"}
-              </Button>
-              <Button 
-                onClick={() => sendAiResponseMutation.mutate(aiDraftContent)}
-                disabled={sendAiResponseMutation.isPending || !aiDraftContent.trim()}
-                data-testid="button-send-ai"
-              >
-                {sendAiResponseMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                {sendAiResponseMutation.isPending ? "Sending..." : "Send Now"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1084,42 +974,142 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             </div>
           ))}
 
-          {/* Saved draft entry in the message log */}
-          {request.aiDraft && (
+          {/* AI draft inline block */}
+          {(request.aiDraft || draftEditMode) && (
             <div className="flex justify-end" data-testid="draft-message-entry">
-              <div className="max-w-[80%] rounded-lg p-3 border-2 border-dashed border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/40">
-                {/* Header */}
-                <div className="flex items-center gap-2 mb-2">
+              <div className="w-[90%] rounded-lg p-3 border-2 border-dashed border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/40 space-y-3">
+
+                {/* Header row */}
+                <div className="flex items-center gap-2">
                   <FileClock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300" data-testid="text-draft-label">
-                    Draft Response — Not Sent
+                    {draftEditMode ? "Edit Response" : "AI Draft — Not Sent"}
                   </span>
-                  {request.aiDraftGeneratedAt && (
+                  {!draftEditMode && request.aiDraftGeneratedAt && (
                     <span className="text-xs text-amber-600/70 dark:text-amber-400/70 ml-auto">
                       {format(new Date(request.aiDraftGeneratedAt), "h:mm a")}
                     </span>
                   )}
                 </div>
-                {/* Draft content */}
-                <p className="text-sm whitespace-pre-wrap text-foreground" data-testid="text-draft-content">
-                  {request.aiDraft}
-                </p>
-                {/* Action button */}
-                <div className="mt-3 pt-2 border-t border-amber-300 dark:border-amber-700">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-7"
-                    onClick={() => {
-                      setAiDraftContent(request.aiDraft || "");
-                      setAiDraftOpen(true);
-                    }}
-                    data-testid="button-edit-draft-from-log"
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Edit &amp; Send
-                  </Button>
-                </div>
+
+                {draftEditMode ? (
+                  /* ── Edit mode ── */
+                  <>
+                    <Textarea
+                      value={aiDraftContent}
+                      onChange={(e) => setAiDraftContent(e.target.value)}
+                      className="resize-y min-h-[120px]"
+                      placeholder="Write your response here..."
+                      data-testid="textarea-ai-draft"
+                    />
+
+                    {/* CC / BCC toggle */}
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCcBcc(!showCcBcc)}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        data-testid="button-toggle-ccbcc-draft"
+                      >
+                        {showCcBcc ? "Hide CC / BCC" : "CC / BCC"}
+                      </button>
+                      {showCcBcc && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground">CC</label>
+                            <Input
+                              value={ccEmails}
+                              onChange={(e) => setCcEmails(e.target.value)}
+                              placeholder="email1@example.com, email2@example.com"
+                              className="text-sm"
+                              data-testid="input-cc-draft"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground">BCC</label>
+                            <Input
+                              value={bccEmails}
+                              onChange={(e) => setBccEmails(e.target.value)}
+                              placeholder="email@example.com"
+                              className="text-sm"
+                              data-testid="input-bcc-draft"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Edit mode actions */}
+                    <div className="flex items-center gap-2 pt-1 border-t border-amber-300 dark:border-amber-700 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAiDraftContent("")}
+                        data-testid="button-clear-ai-draft"
+                        className="text-muted-foreground"
+                      >
+                        Clear All
+                      </Button>
+                      <div className="ml-auto flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDraftEditMode(false)}
+                          data-testid="button-cancel-edit-draft"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => sendAiResponseMutation.mutate(aiDraftContent)}
+                          disabled={sendAiResponseMutation.isPending || !aiDraftContent.trim()}
+                          data-testid="button-send-ai"
+                        >
+                          {sendAiResponseMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <Send className="h-3 w-3 mr-1" />
+                          )}
+                          {sendAiResponseMutation.isPending ? "Sending..." : "Send"}
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* ── Display mode ── */
+                  <>
+                    <p className="text-sm whitespace-pre-wrap text-foreground" data-testid="text-draft-content">
+                      {request.aiDraft}
+                    </p>
+                    <div className="flex gap-2 pt-2 border-t border-amber-300 dark:border-amber-700 flex-wrap">
+                      <Button
+                        size="sm"
+                        onClick={() => sendAiResponseMutation.mutate(request.aiDraft || "")}
+                        disabled={sendAiResponseMutation.isPending}
+                        data-testid="button-send-ai-now"
+                      >
+                        {sendAiResponseMutation.isPending ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Send className="h-3 w-3 mr-1" />
+                        )}
+                        {sendAiResponseMutation.isPending ? "Sending..." : "Send Now"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setAiDraftContent(request.aiDraft || "");
+                          setDraftEditMode(true);
+                        }}
+                        data-testid="button-edit-ai-draft"
+                      >
+                        <Pencil className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
