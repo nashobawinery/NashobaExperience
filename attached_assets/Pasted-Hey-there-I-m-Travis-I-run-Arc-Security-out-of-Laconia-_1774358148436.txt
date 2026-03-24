@@ -1,0 +1,465 @@
+Hey there, I'm Travis, I run Arc Security out of Laconia, NH. We help small businesses lock down their WordPress sites. I don't normally cold-email people, but I ran across https://urldefense.proofpoint.com/v2/url?u=http-3A__nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=F6I4wykvoz8_5ygs2G4Co1rVsRmd4Rx8vIVMAPR2HvA&e=
+ 
+ 
+ NkdkJdXPPEBannerStart
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Be Careful With This Message 
+ 
+ 
+ 
+ 
+ From (Arc Security <arc@arcself.com>) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Learn More 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Newly Registered Domain 
+ 
+ 
+ 
+ 
+ The message was sent from a domain that has been recently registered and could be for the purpose of sending spam or malware. 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ NkdkJdXPPEBannerEnd
+
+
+ 
+ 
+ 
+ 
+ 
+ /* Normalise */
+ body { margin: 0!important; padding: 16px!important; -webkit-text-size-adjust:100%; }
+ .ExternalClass { width:100%; }
+ .ExternalClass,
+ .ExternalClass p,
+ .ExternalClass span,
+ .ExternalClass font,
+ .ExternalClass td,
+ .ExternalClass div { line-height: 100%; }
+ #outlook a { padding:0; }
+ table { mso-table-lspace:0pt; mso-table-rspace:0pt; }
+ table, td { border-collapse:collapse; }
+ /* Mobile */
+ @media screen and (max-width: 630px){
+ * {-webkit-text-size-adjust: none}
+ a[href^="x-apple-data-detectors:"] { color: inherit; text-decoration: none; }
+ .pfptTitleE687AE { font-family:'Arial',sans-serif!important; font-size:15px !important; line-height: 20px !important; margin-bottom: 0px!important; color:#000000 !important; }
+ .pfptSubtitleE687AE, .pfptSubtitleE687AE a { font-family:'Arial',sans-serif!important; text-decoration:none !important; font-size:12px !important; line-height:20px !important; margin-bottom: 0px!important; color:#000000 !important; }
+
+ .pfptMainWrapperE687AE { font-family:'Arial',sans-serif!important; margin-top: 0 !important; margin-right: 0 !important; margin-left: 0 !important; }
+ th[class="pfptTableColumnLeftE687AE"] {width:100% !important; height:auto !important; display:block !important; text-align: center !important; }
+ th[class="pfptTableColumnRightE687AE"] {width:100% !important; height:auto !important; display:block !important; text-align: center !important; }
+
+ .pfptButtonE687AE { font-family:'Arial',sans-serif!important; font-size:12px !important; line-height:20px !important; width: 50% !important; display:block !important; text-align: left !important; }
+ .pfptButtonE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; text-decoration: underline !important; color:#0277BD !important; }
+ .pfptButtonE687AE span { font-family:'Arial',sans-serif!important; font-size: 12px !important; }
+
+ .pfptTagTitleE687AE { margin-top:8px !important; }
+ }
+ /* Tablet, Laptop, Desktop */
+ @media screen and (min-width: 631px){
+ th[class="pfptTableColumnLeftE687AE"] { width: 70% !important; height:auto !important; }
+ th[class="pfptTableColumnRightE687AE"] { width: 30% !important; height:auto !important; text-align: right !important; }
+ .pfptTitleE687AE { font-family:'Arial',sans-serif!important; font-size: 15px !important; line-height: 20px !important; color:#000000 !important; }
+ .pfptSubtitleE687AE, .pfptSubtitleE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; color:#000000 !important; }
+ .pfptButtonE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; text-decoration: underline !important; color:#0277BD !important; }
+ }
+ .pfptPreheaderE687AE { display:none !important; visibility:hidden; mso-hide:all; font-size:1px; line-height:1px; max-height:0px; max-width:0px; opacity:0; overflow:hidden; }
+ .pfptFooterE687AE { margin-bottom: 50px!important; }
+ 
+ 
+
+ 
+
+ 
+ 
+ Hey there,
+
+I'm Travis, I run Arc Security out of Laconia, NH. We help small businesses lock down their WordPress sites.
+
+I don't normally cold-email people, but I ran across https://urldefense.proofpoint.com/v2/url?u=http-3A__nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=F6I4wykvoz8_5ygs2G4Co1rVsRmd4Rx8vIVMAPR2HvA&e= and something jumped out that I'd want someone to tell me about if it were my site. Nothing catastrophic — but it's the kind of thing that gets worse if it sits.
+
+Have you had your site looked at recently from a security standpoint? A lot of business owners set it and forget it, and that's totally normal.
+
+I built a free tool that takes 60 seconds and shows you exactly where things stand:
+
+https://urldefense.proofpoint.com/v2/url?u=https-3A__arcsecurity.ai_arc_nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=9tZzo37Knkw0xneVXwDAtyuEcUzZJlFxkle7pES0L1Q&e=
+
+No pitch, no follow-up unless you want one. Just figured I'd say something.
+
+- Travis
+Arc Security | https://urldefense.proofpoint.com/v2/url?u=http-3A__arcsecurity.ai&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=rCr_VLRVoclqnLrGf8srP8w1aAWxOxbidAeKwj-SxkQ&e=
+travis@arcsecurity.ai | (802) 341-9274
+
+Unsubscribe: https://urldefense.proofpoint.com/v2/url?u=https-3A__arcsecurity.ai_unsubscribe-3Femail-3Dsupport-2540nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=0BxAqA15yiBHf-Vtcqn1qeimjAYd-jyYWozFhXNZBXc&e=
+
+Arc Security
+Mar 24, 9:00 AM
+Hey there, I'm Travis, I run Arc Security out of Laconia, NH. We help small businesses lock down their WordPress sites. I don't normally cold-email people, but I ran across https://urldefense.proofpoint.com/v2/url?u=http-3A__nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=F6I4wykvoz8_5ygs2G4Co1rVsRmd4Rx8vIVMAPR2HvA&e=
+ 
+ 
+ NkdkJdXPPEBannerStart
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Be Careful With This Message 
+ 
+ 
+ 
+ 
+ From (Arc Security <arc@arcself.com>) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Learn More 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Newly Registered Domain 
+ 
+ 
+ 
+ 
+ The message was sent from a domain that has been recently registered and could be for the purpose of sending spam or malware. 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ NkdkJdXPPEBannerEnd
+
+
+ 
+ 
+ 
+ 
+ 
+ /* Normalise */
+ body { margin: 0!important; padding: 16px!important; -webkit-text-size-adjust:100%; }
+ .ExternalClass { width:100%; }
+ .ExternalClass,
+ .ExternalClass p,
+ .ExternalClass span,
+ .ExternalClass font,
+ .ExternalClass td,
+ .ExternalClass div { line-height: 100%; }
+ #outlook a { padding:0; }
+ table { mso-table-lspace:0pt; mso-table-rspace:0pt; }
+ table, td { border-collapse:collapse; }
+ /* Mobile */
+ @media screen and (max-width: 630px){
+ * {-webkit-text-size-adjust: none}
+ a[href^="x-apple-data-detectors:"] { color: inherit; text-decoration: none; }
+ .pfptTitleE687AE { font-family:'Arial',sans-serif!important; font-size:15px !important; line-height: 20px !important; margin-bottom: 0px!important; color:#000000 !important; }
+ .pfptSubtitleE687AE, .pfptSubtitleE687AE a { font-family:'Arial',sans-serif!important; text-decoration:none !important; font-size:12px !important; line-height:20px !important; margin-bottom: 0px!important; color:#000000 !important; }
+
+ .pfptMainWrapperE687AE { font-family:'Arial',sans-serif!important; margin-top: 0 !important; margin-right: 0 !important; margin-left: 0 !important; }
+ th[class="pfptTableColumnLeftE687AE"] {width:100% !important; height:auto !important; display:block !important; text-align: center !important; }
+ th[class="pfptTableColumnRightE687AE"] {width:100% !important; height:auto !important; display:block !important; text-align: center !important; }
+
+ .pfptButtonE687AE { font-family:'Arial',sans-serif!important; font-size:12px !important; line-height:20px !important; width: 50% !important; display:block !important; text-align: left !important; }
+ .pfptButtonE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; text-decoration: underline !important; color:#0277BD !important; }
+ .pfptButtonE687AE span { font-family:'Arial',sans-serif!important; font-size: 12px !important; }
+
+ .pfptTagTitleE687AE { margin-top:8px !important; }
+ }
+ /* Tablet, Laptop, Desktop */
+ @media screen and (min-width: 631px){
+ th[class="pfptTableColumnLeftE687AE"] { width: 70% !important; height:auto !important; }
+ th[class="pfptTableColumnRightE687AE"] { width: 30% !important; height:auto !important; text-align: right !important; }
+ .pfptTitleE687AE { font-family:'Arial',sans-serif!important; font-size: 15px !important; line-height: 20px !important; color:#000000 !important; }
+ .pfptSubtitleE687AE, .pfptSubtitleE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; color:#000000 !important; }
+ .pfptButtonE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; text-decoration: underline !important; color:#0277BD !important; }
+ }
+ .pfptPreheaderE687AE { display:none !important; visibility:hidden; mso-hide:all; font-size:1px; line-height:1px; max-height:0px; max-width:0px; opacity:0; overflow:hidden; }
+ .pfptFooterE687AE { margin-bottom: 50px!important; }
+ 
+ 
+
+ 
+
+ 
+ 
+ Hey there,
+
+I'm Travis, I run Arc Security out of Laconia, NH. We help small businesses lock down their WordPress sites.
+
+I don't normally cold-email people, but I ran across https://urldefense.proofpoint.com/v2/url?u=http-3A__nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=F6I4wykvoz8_5ygs2G4Co1rVsRmd4Rx8vIVMAPR2HvA&e= and something jumped out that I'd want someone to tell me about if it were my site. Nothing catastrophic — but it's the kind of thing that gets worse if it sits.
+
+Have you had your site looked at recently from a security standpoint? A lot of business owners set it and forget it, and that's totally normal.
+
+I built a free tool that takes 60 seconds and shows you exactly where things stand:
+
+https://urldefense.proofpoint.com/v2/url?u=https-3A__arcsecurity.ai_arc_nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=9tZzo37Knkw0xneVXwDAtyuEcUzZJlFxkle7pES0L1Q&e=
+
+No pitch, no follow-up unless you want one. Just figured I'd say something.
+
+- Travis
+Arc Security | https://urldefense.proofpoint.com/v2/url?u=http-3A__arcsecurity.ai&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=rCr_VLRVoclqnLrGf8srP8w1aAWxOxbidAeKwj-SxkQ&e=
+travis@arcsecurity.ai | (802) 341-9274
+
+Unsubscribe: https://urldefense.proofpoint.com/v2/url?u=https-3A__arcsecurity.ai_unsubscribe-3Femail-3Dsupport-2540nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=0BxAqA15yiBHf-Vtcqn1qeimjAYd-jyYWozFhXNZBXc&e=
+
+Arc Security
+Mar 24, 9:00 AM
+Hey there, I'm Travis, I run Arc Security out of Laconia, NH. We help small businesses lock down their WordPress sites. I don't normally cold-email people, but I ran across https://urldefense.proofpoint.com/v2/url?u=http-3A__nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=F6I4wykvoz8_5ygs2G4Co1rVsRmd4Rx8vIVMAPR2HvA&e=
+ 
+ 
+ NkdkJdXPPEBannerStart
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Be Careful With This Message 
+ 
+ 
+ 
+ 
+ From (Arc Security <arc@arcself.com>) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Learn More 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Newly Registered Domain 
+ 
+ 
+ 
+ 
+ The message was sent from a domain that has been recently registered and could be for the purpose of sending spam or malware. 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ NkdkJdXPPEBannerEnd
+
+
+ 
+ 
+ 
+ 
+ 
+ /* Normalise */
+ body { margin: 0!important; padding: 16px!important; -webkit-text-size-adjust:100%; }
+ .ExternalClass { width:100%; }
+ .ExternalClass,
+ .ExternalClass p,
+ .ExternalClass span,
+ .ExternalClass font,
+ .ExternalClass td,
+ .ExternalClass div { line-height: 100%; }
+ #outlook a { padding:0; }
+ table { mso-table-lspace:0pt; mso-table-rspace:0pt; }
+ table, td { border-collapse:collapse; }
+ /* Mobile */
+ @media screen and (max-width: 630px){
+ * {-webkit-text-size-adjust: none}
+ a[href^="x-apple-data-detectors:"] { color: inherit; text-decoration: none; }
+ .pfptTitleE687AE { font-family:'Arial',sans-serif!important; font-size:15px !important; line-height: 20px !important; margin-bottom: 0px!important; color:#000000 !important; }
+ .pfptSubtitleE687AE, .pfptSubtitleE687AE a { font-family:'Arial',sans-serif!important; text-decoration:none !important; font-size:12px !important; line-height:20px !important; margin-bottom: 0px!important; color:#000000 !important; }
+
+ .pfptMainWrapperE687AE { font-family:'Arial',sans-serif!important; margin-top: 0 !important; margin-right: 0 !important; margin-left: 0 !important; }
+ th[class="pfptTableColumnLeftE687AE"] {width:100% !important; height:auto !important; display:block !important; text-align: center !important; }
+ th[class="pfptTableColumnRightE687AE"] {width:100% !important; height:auto !important; display:block !important; text-align: center !important; }
+
+ .pfptButtonE687AE { font-family:'Arial',sans-serif!important; font-size:12px !important; line-height:20px !important; width: 50% !important; display:block !important; text-align: left !important; }
+ .pfptButtonE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; text-decoration: underline !important; color:#0277BD !important; }
+ .pfptButtonE687AE span { font-family:'Arial',sans-serif!important; font-size: 12px !important; }
+
+ .pfptTagTitleE687AE { margin-top:8px !important; }
+ }
+ /* Tablet, Laptop, Desktop */
+ @media screen and (min-width: 631px){
+ th[class="pfptTableColumnLeftE687AE"] { width: 70% !important; height:auto !important; }
+ th[class="pfptTableColumnRightE687AE"] { width: 30% !important; height:auto !important; text-align: right !important; }
+ .pfptTitleE687AE { font-family:'Arial',sans-serif!important; font-size: 15px !important; line-height: 20px !important; color:#000000 !important; }
+ .pfptSubtitleE687AE, .pfptSubtitleE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; color:#000000 !important; }
+ .pfptButtonE687AE a { font-family:'Arial',sans-serif!important; font-size: 12px !important; text-decoration: underline !important; color:#0277BD !important; }
+ }
+ .pfptPreheaderE687AE { display:none !important; visibility:hidden; mso-hide:all; font-size:1px; line-height:1px; max-height:0px; max-width:0px; opacity:0; overflow:hidden; }
+ .pfptFooterE687AE { margin-bottom: 50px!important; }
+ 
+ 
+
+ 
+
+ 
+ 
+ Hey there,
+
+I'm Travis, I run Arc Security out of Laconia, NH. We help small businesses lock down their WordPress sites.
+
+I don't normally cold-email people, but I ran across https://urldefense.proofpoint.com/v2/url?u=http-3A__nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=F6I4wykvoz8_5ygs2G4Co1rVsRmd4Rx8vIVMAPR2HvA&e= and something jumped out that I'd want someone to tell me about if it were my site. Nothing catastrophic — but it's the kind of thing that gets worse if it sits.
+
+Have you had your site looked at recently from a security standpoint? A lot of business owners set it and forget it, and that's totally normal.
+
+I built a free tool that takes 60 seconds and shows you exactly where things stand:
+
+https://urldefense.proofpoint.com/v2/url?u=https-3A__arcsecurity.ai_arc_nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=9tZzo37Knkw0xneVXwDAtyuEcUzZJlFxkle7pES0L1Q&e=
+
+No pitch, no follow-up unless you want one. Just figured I'd say something.
+
+- Travis
+Arc Security | https://urldefense.proofpoint.com/v2/url?u=http-3A__arcsecurity.ai&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=rCr_VLRVoclqnLrGf8srP8w1aAWxOxbidAeKwj-SxkQ&e=
+travis@arcsecurity.ai | (802) 341-9274
+
+Unsubscribe: https://urldefense.proofpoint.com/v2/url?u=https-3A__arcsecurity.ai_unsubscribe-3Femail-3Dsupport-2540nashobawinery.com&d=DwIFaQ&c=euGZstcaTDllvimEN8b7jXrwqOf-v5A_CdpgnVfiiMM&r=Gwryqgq6umm_jXLaqLo0Sh-2XySuhcUxnf7SE1JnnhQ&m=j9V70MAfKbbLnaGCG7fEl-gXl6pegIHxgi3opN20GmqyyhBllagSSRWKQLWJbLOW&s=0BxAqA15yiBHf-Vtcqn1qeimjAYd-jyYWozFhXNZBXc&e=
+
+[DEBUG: fields=10, binaryParts=attachments, attachmentInfo=absent, attachments=1]
+
+Attachments
+attachments.bin
+(1 B)

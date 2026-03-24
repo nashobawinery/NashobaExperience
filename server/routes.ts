@@ -16886,11 +16886,65 @@ Generate a professional response:`;
       console.log('[Email Inbound] Raw HTML body length:', htmlBody?.length || 0);
       console.log('[Email Inbound] Text body preview:', textBody?.slice(0, 500) || 'empty');
       
+      // Helper: strip CSS blocks, security banners, and stray HTML from a plain-text email body
+      function stripEmailJunk(raw: string): string {
+        // 1. Remove security-scanner banner injections (Proofpoint NkdkJdXPP*, etc.)
+        let t = raw.replace(/\w*BannerStart[\s\S]*?\w*BannerEnd/gi, '');
+
+        // 2. Remove CSS comment blocks /* ... */
+        t = t.replace(/\/\*[\s\S]*?\*\//g, '');
+
+        // 3. Remove CSS rule blocks line-by-line (tracks { } depth)
+        if (t.match(/\{[^}]*\}/)) {
+          const lines = t.split('\n');
+          let depth = 0;
+          const kept: string[] = [];
+          for (const line of lines) {
+            const tr = line.trim();
+            const opens = (tr.match(/\{/g) || []).length;
+            const closes = (tr.match(/\}/g) || []).length;
+            if (depth > 0) {
+              depth += opens - closes;
+              depth = Math.max(0, depth);
+              continue; // inside a CSS block — skip
+            }
+            // Detect CSS selector / at-rule lines that open a block
+            if (opens > 0 && tr.match(/^(?:[@.#*]|body\b|table\b|th\b|td\b|html\b|a\[|\.[\w-])/)) {
+              depth += opens - closes;
+              depth = Math.max(0, depth);
+              continue;
+            }
+            depth += opens - closes;
+            depth = Math.max(0, depth);
+            kept.push(line);
+          }
+          t = kept.join('\n');
+        }
+
+        // 4. Strip stray HTML tags from the text body
+        if (t.match(/<\/?[a-zA-Z][a-zA-Z0-9]*/)) {
+          t = t
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n\n')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
+        }
+
+        // 5. Normalise whitespace
+        return t.replace(/[ \t]+/g, ' ').replace(/\n{4,}/g, '\n\n').trim();
+      }
+
       // Prefer text body with newlines preserved; HTML fallback converts tags to appropriate whitespace
-      let cleanBody = textBody || '';
+      let cleanBody = textBody ? stripEmailJunk(textBody) : '';
       if (!cleanBody && htmlBody) {
         // Convert HTML to plain text while preserving line structure
         cleanBody = htmlBody
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // strip style blocks first
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
           .replace(/<br\s*\/?>/gi, '\n')      // br tags to newlines
           .replace(/<\/p>/gi, '\n\n')         // paragraph ends to double newlines
           .replace(/<\/div>/gi, '\n')         // div ends to single newlines
@@ -17096,7 +17150,7 @@ Generate a professional response:`;
           priority: 'normal'
         });
 
-        // Debug info for attachment troubleshooting
+        // Debug info for attachment troubleshooting (log only, not stored in message)
         const debugInfo = `[DEBUG: fields=${Object.keys(emailData).length}, binaryParts=${Object.keys(attachmentBinaryParts).join(',') || 'none'}, attachmentInfo=${emailData['attachment-info'] ? 'present' : 'absent'}, attachments=${attachments.length}]`;
         console.log(`[Email Inbound] ${debugInfo}`);
         
@@ -17105,7 +17159,7 @@ Generate a professional response:`;
           requestId: newRequest.id,
           senderType: 'customer',
           senderName: fromName || fromEmail || 'Customer',
-          content: (cleanBody || 'No content') + '\n\n' + debugInfo,
+          content: cleanBody || 'No content',
           emailMessageId: messageId || undefined,
           isInternal: false
         });
