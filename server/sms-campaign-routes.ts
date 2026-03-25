@@ -3,10 +3,11 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { smsCampaigns, smsMessages } from "@shared/schema";
 import { sendSMS, isSmsConfigured } from "./sms";
-import { isAuthenticated } from "./replitAuth";
+import { isPlatformAuthenticated } from "./platformAuth";
 import { generateUnsubscribeUrl } from "./unsubscribe-routes";
 
 const router = Router();
+const isAuthenticated = isPlatformAuthenticated;
 
 router.get("/status", isAuthenticated, async (_req, res) => {
   res.json({ configured: isSmsConfigured() });
@@ -51,7 +52,13 @@ router.post("/campaigns", isAuthenticated, async (req, res) => {
     const segArray = segments && segments.length > 0 
       ? `{${segments.map((s: string) => `"${s}"`).join(',')}}` 
       : null;
-    const user = (req as any).user;
+    const sess = req.session as any;
+    const user = sess.platformAuth?.userId ? {
+      id: sess.platformAuth.userId,
+      email: sess.platformAuth.email,
+      firstName: sess.platformAuth.firstName,
+      lastName: sess.platformAuth.lastName
+    } : null;
 
     const result = await db.execute(sql`
       INSERT INTO sms_campaigns (name, message, segments, status, created_by, scheduled_at)

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "./db";
 import { contracts, contractDocuments, contractResponsibles, platformUsers } from "@shared/schema";
 import { eq, sql, desc, and, inArray } from "drizzle-orm";
-import { isAuthenticated, isAdmin } from "./replitAuth";
+import { isPlatformAuthenticated, requirePlatformRole } from "./platformAuth";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
@@ -21,6 +21,8 @@ async function pdfParse(buffer: Buffer): Promise<{ text: string }> {
   return { text: typeof result === "string" ? result : result.text || "" };
 }
 const router = Router();
+const isAuthenticated = isPlatformAuthenticated;
+const isAdmin = requirePlatformRole(['super_admin']);
 const objectStorageService = new ObjectStorageService();
 
 router.get("/", isAuthenticated, async (req, res) => {

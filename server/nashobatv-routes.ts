@@ -26,7 +26,8 @@ function photoProxyUrl(photoId: number, imageUrl: string): string {
 }
 
 function requireAuth(req: Request, res: Response, next: Function) {
-  if (!(req as any).user) {
+  const sess = req.session as any;
+  if (!sess.platformAuth?.platformUserId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
   next();

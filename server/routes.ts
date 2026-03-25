@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import crypto, { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
-import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
+import { platformUsers } from "@shared/schema";
+import { setupPlatformAuthSystem, isPlatformAuthenticated, isPlatformAuthMode, requirePlatformRole } from "./platformAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import * as XLSX from "xlsx";
@@ -124,12 +125,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication (provides /api/login, /api/logout, /api/callback routes)
   // This applies session middleware to all routes that follow
   try {
-    await setupAuth(app);
-  } catch (err: any) {
+    console.log(`[Auth] AUTH_STRATEGY environment variable: ${process.env.AUTH_STRATEGY}`);
+    console.log(`[Auth] isPlatformAuthMode: ${isPlatformAuthMode()}`);
+    
+    if (isPlatformAuthMode()) {
+      console.log("[Auth] Setting up platform authentication");
+      await setupPlatformAuthSystem(app);
+    } else {
+      throw new Error("Platform authentication mode is required. Set AUTH_STRATEGY=platform");
+    }
+  } catch (err) {
     console.error("[Auth] Failed to initialize authentication:", err.message);
-    console.error("[Auth] Ensure SESSION_SECRET and REPL_ID are set in your environment variables.");
     process.exit(1);
   }
+
   
   // Mount Reservation (resy) routes AFTER setupAuth so session middleware is applied
   app.use(resyRouter);
@@ -335,39 +344,71 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   const syncValidation = validateSyncRegistry(schemaTables);
   logSyncRegistryStatus(syncValidation);
 
-  // Authentication routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  // Platform authentication middleware only
+const unifiedIsAuthenticated = isPlatformAuthenticated;
+
+// Platform admin middleware (super_admin role)
+const isAdmin = requirePlatformRole(['super_admin']);
+
+// Authentication routes
+  app.get('/api/auth/user', unifiedIsAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const sess = req.session as any;
+      const userId = sess.platformAuth?.platformUserId;
       
-      // Get RBAC permissions for the user
-      const permissions = await getUserPermissions(req);
+      console.log(`[Auth] /api/auth/user called`);
+      console.log(`[Auth] Session data:`, JSON.stringify(sess, null, 2));
+      console.log(`[Auth] PlatformAuth:`, sess.platformAuth);
+      console.log(`[Auth] User ID from session:`, userId);
       
-      // Return user with RBAC permissions
-      res.json({
-        ...user,
-        rbac: permissions ? {
-          groups: permissions.groups,
-          moduleAccess: permissions.moduleAccess,
-          featurePermissions: permissions.featurePermissions,
-          isGlobalAdmin: isGlobalAdmin(permissions)
-        } : null
-      });
+      if (!userId) {
+        console.log(`[Auth] No userId found in session`);
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      // Get user info from platform_users table
+      const [user] = await db
+        .select()
+        .from(platformUsers)
+        .where(eq(platformUsers.id, userId))
+        .limit(1);
+
+      console.log(`[Auth] User from database:`, user ? `ID: ${user.id}, Email: ${user.email}, Role: ${user.globalRole}` : 'Not found');
+
+      if (!user) {
+        console.log(`[Auth] User not found in database`);
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const permissions = await getUserPermissions(userId);
+      console.log(`[Auth] User permissions:`, permissions);
+
+      const response = {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        globalRole: user.globalRole,
+        permissions: permissions
+      };
+      
+      console.log(`[Auth] Response data:`, response);
+      res.json(response);
     } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      console.error("[Auth] Error getting user info:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 
   // Bridge login for base app admins - auto-login to B2B without password
-  app.post('/api/b2b/bridge-login', isAuthenticated, async (req: any, res) => {
+  app.post('/api/b2b/bridge-login', unifiedIsAuthenticated, async (req: any, res) => {
     try {
-      // Get email from authenticated base app session
-      const userEmail = req.user?.claims?.email;
+      // Get email from authenticated platform session
+      const sess = req.session as any;
+      const userEmail = sess.platformAuth?.email;
       
       if (!userEmail) {
-        return res.status(401).json({ error: 'Not authenticated in base app' });
+        return res.status(401).json({ error: 'Not authenticated' });
       }
 
       // Look up B2B admin by email
@@ -5053,7 +5094,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         pageReference,
         appType,
         priority: priority || 'medium',
-        createdBy: (req as any).user?.claims?.sub || 'unknown',
+        createdBy: (req.session as any).platformAuth?.email || 'unknown',
       });
       
       res.json(note);
@@ -5123,7 +5164,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   // =====================================================
 
   // Get all future concepts
-  app.get('/api/platform/future-concepts', isAuthenticated, async (req, res) => {
+  app.get('/api/platform/future-concepts', isPlatformAuthenticated, async (req, res) => {
     try {
       const concepts = await db.execute(sql`
         SELECT 
@@ -6095,7 +6136,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get current user's permissions (for frontend to check access)
-  app.get('/api/rbac/my-permissions', isAuthenticated, async (req: any, res) => {
+  app.get('/api/rbac/my-permissions', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       const permissions = await rbac.getUserPermissions(req);
       res.json(permissions || { groups: [], moduleAccess: {}, featurePermissions: {} });
@@ -6562,7 +6603,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- LMS Enrollments ---
-  app.get('/api/lms/enrollments', isAuthenticated, async (req: any, res) => {
+  app.get('/api/lms/enrollments', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const userEmail = req.user?.claims?.email;
       if (!userEmail) {
@@ -6598,7 +6639,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.post('/api/lms/enroll/:courseId', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/enroll/:courseId', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { courseId } = req.params;
       const userEmail = req.user?.claims?.email;
@@ -6648,7 +6689,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- LMS Progress Tracking ---
-  app.get('/api/lms/enrollments/:enrollmentId/progress', isAuthenticated, async (req: any, res) => {
+  app.get('/api/lms/enrollments/:enrollmentId/progress', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { enrollmentId } = req.params;
       
@@ -6666,7 +6707,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.post('/api/lms/progress', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/progress', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { enrollmentId, lessonId, completed, timeSpentSeconds, videoProgress } = req.body;
       const userEmail = req.user?.claims?.email;
@@ -6732,7 +6773,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- LMS Quiz Attempts ---
-  app.post('/api/lms/quiz/submit', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/quiz/submit', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { enrollmentId, courseId, answers } = req.body;
       const userEmail = req.user?.claims?.email;
@@ -7577,7 +7618,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- LMS User Badges ---
-  app.get('/api/lms/my-badges', isAuthenticated, async (req: any, res) => {
+  app.get('/api/lms/my-badges', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const userEmail = req.user?.claims?.email;
       if (!userEmail) {
@@ -7647,7 +7688,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.post('/api/lms/courses/:courseId/rate', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/courses/:courseId/rate', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { courseId } = req.params;
       const { rating, review } = req.body;
@@ -8783,7 +8824,13 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
           metadata: { contentType: file.mimetype },
         });
 
-        const user = (req as any).user;
+        const sess = req.session as any;
+        const user = sess.platformAuth?.userId ? {
+          id: sess.platformAuth.userId,
+          email: sess.platformAuth.email,
+          firstName: sess.platformAuth.firstName,
+          lastName: sess.platformAuth.lastName
+        } : null;
         await db.execute(sql`
           INSERT INTO compliance_attachments (id, task_id, file_name, file_url, file_type, file_size, uploaded_by_id, uploaded_by_name, description)
           VALUES (${attachmentId}, ${taskId}, ${file.originalname}, ${storageKey}, ${file.mimetype}, ${file.size}, ${user?.id || null}, ${user?.firstName || user?.email || null}, ${description})
@@ -9474,7 +9521,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Request skill verification (learner)
-  app.post('/api/lms/verifications/request', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/verifications/request', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { enrollmentId, courseId, lessonId, skillName, description, evidenceUrl, evidenceType, checklistItems } = req.body;
       const userEmail = req.user?.claims?.email;
@@ -9530,7 +9577,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get user's verification history
-  app.get('/api/lms/verifications/my', isAuthenticated, async (req: any, res) => {
+  app.get('/api/lms/verifications/my', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const userEmail = req.user?.claims?.email;
       if (!userEmail) {
@@ -9565,7 +9612,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   // Platform-wide location management
   // ============================================
 
-  app.get('/api/shared/locations', isAuthenticated, async (req, res) => {
+  app.get('/api/shared/locations', isPlatformAuthenticated, async (req, res) => {
     try {
       const result = await db.execute(sql`
         SELECT l.*, m.first_name as manager_first_name, m.last_name as manager_last_name
@@ -9656,7 +9703,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   };
 
   // --- Asset Categories ---
-  app.get('/api/maintenance/categories', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/categories', isPlatformAuthenticated, async (req, res) => {
     try {
       const result = await db.execute(sql`
         SELECT * FROM maintenance_asset_categories 
@@ -9704,7 +9751,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Assets ---
-  app.get('/api/maintenance/assets', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/assets', isPlatformAuthenticated, async (req, res) => {
     try {
       const { status, categoryId, locationId } = req.query;
       const result = await db.execute(sql`
@@ -9723,7 +9770,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.get('/api/maintenance/assets/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/assets/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await db.execute(sql`
@@ -9870,7 +9917,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Work Orders ---
-  app.get('/api/maintenance/work-orders', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/work-orders', isPlatformAuthenticated, async (req, res) => {
     try {
       const { status, priority, assignedToId, assetId } = req.query;
       const result = await db.execute(sql`
@@ -9900,7 +9947,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.get('/api/maintenance/work-orders/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/work-orders/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await db.execute(sql`
@@ -9948,7 +9995,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.post('/api/maintenance/work-orders', isAuthenticated, async (req: any, res) => {
+  app.post('/api/maintenance/work-orders', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { title, description, assetId, locationId, maintenanceLocationId, workOrderType, priority, assignedToId, maintenanceTechnicianId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, checklistItems, instructions, attachmentUrls, notificationEmail, sendNotification } = req.body;
       
@@ -10154,7 +10201,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.put('/api/maintenance/work-orders/:id', isAuthenticated, async (req: any, res) => {
+  app.put('/api/maintenance/work-orders/:id', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { title, description, assetId, locationId, maintenanceLocationId, maintenanceTechnicianId, workOrderType, priority, status, assignedToId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, actualHours, laborCost, partsCost, externalCost, completionNotes, failureReason, checklistItems, instructions, attachmentUrls } = req.body;
@@ -10263,7 +10310,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Add comment to work order
-  app.post('/api/maintenance/work-orders/:id/comments', isAuthenticated, async (req: any, res) => {
+  app.post('/api/maintenance/work-orders/:id/comments', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { comment, attachmentUrls } = req.body;
@@ -10284,7 +10331,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Work Order Notes (Progress Tracking) ---
-  app.get('/api/maintenance/work-orders/:id/notes', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/work-orders/:id/notes', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await db.execute(sql`
@@ -10304,7 +10351,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.post('/api/maintenance/work-orders/:id/notes', isAuthenticated, async (req: any, res) => {
+  app.post('/api/maintenance/work-orders/:id/notes', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { noteType, title, content, previousStatus, newStatus, hoursWorked, attachmentUrls, technicianId } = req.body;
@@ -10344,7 +10391,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Send work order notification email
-  app.post('/api/maintenance/work-orders/:id/send-notification', isAuthenticated, async (req: any, res) => {
+  app.post('/api/maintenance/work-orders/:id/send-notification', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { email } = req.body;
@@ -10414,7 +10461,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Parts/Inventory ---
-  app.get('/api/maintenance/parts', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/parts', isPlatformAuthenticated, async (req, res) => {
     try {
       // Return empty array - maintenance_parts table not yet created
       res.json([]);
@@ -10468,7 +10515,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Record part usage on work order
-  app.post('/api/maintenance/work-orders/:id/parts', isAuthenticated, async (req: any, res) => {
+  app.post('/api/maintenance/work-orders/:id/parts', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { partId, quantity, notes } = req.body;
@@ -10515,7 +10562,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Preventive Maintenance Schedules ---
-  app.get('/api/maintenance/pm-schedules', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/pm-schedules', isPlatformAuthenticated, async (req, res) => {
     try {
       const { assetId, active } = req.query;
       const result = await db.execute(sql`
@@ -10582,7 +10629,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Maintenance Locations ---
-  app.get('/api/maintenance/locations', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/locations', isPlatformAuthenticated, async (req, res) => {
     try {
       const { activeOnly } = req.query;
       const result = await db.execute(sql`
@@ -10600,7 +10647,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.get('/api/maintenance/locations/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/locations/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await db.execute(sql`
@@ -10669,7 +10716,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Platform Users for Maintenance Module ---
-  app.get('/api/platform-users', isAuthenticated, async (req, res) => {
+  app.get('/api/platform-users', isPlatformAuthenticated, async (req, res) => {
     try {
       const result = await db.execute(sql`
         SELECT id, first_name, last_name, email 
@@ -10691,7 +10738,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Technicians (supports internal employees and external contractors) ---
-  app.get('/api/maintenance/technicians', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/technicians', isPlatformAuthenticated, async (req, res) => {
     try {
       const { activeOnly, externalOnly } = req.query;
       const result = await db.execute(sql`
@@ -10712,7 +10759,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  app.get('/api/maintenance/technicians/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/technicians/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const result = await db.execute(sql`
@@ -10835,7 +10882,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // --- Maintenance Dashboard Stats ---
-  app.get('/api/maintenance/stats', isAuthenticated, async (req, res) => {
+  app.get('/api/maintenance/stats', isPlatformAuthenticated, async (req, res) => {
     try {
       const stats = await db.execute(sql`
         SELECT 
@@ -10871,7 +10918,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   // ============================================
 
   // Get all department templates
-  app.get('/api/daily-reports/templates', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/templates', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const activeOnly = req.query.active === 'true';
       const templates = await storage.getDailyReportTemplates(activeOnly);
@@ -10883,7 +10930,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get a single template by ID or department
-  app.get('/api/daily-reports/templates/:identifier', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/templates/:identifier', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { identifier } = req.params;
       // Check if it's a department name or an ID
@@ -11033,7 +11080,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   // ============================================
   
   // Get all field definitions
-  app.get('/api/daily-reports/field-definitions', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/field-definitions', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { active } = req.query;
       const fields = await storage.getDailyReportFieldDefinitions(active === 'true');
@@ -11045,7 +11092,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get a single field definition
-  app.get('/api/daily-reports/field-definitions/:id', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/field-definitions/:id', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const field = await storage.getDailyReportFieldDefinition(id);
@@ -11146,7 +11193,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   // ============================================
 
   // Get all field assignments for all templates (for admin dashboard)
-  app.get('/api/daily-reports/field-assignments', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/field-assignments', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const templates = await storage.getDailyReportTemplates();
       const allAssignments: Record<string, any[]> = {};
@@ -11164,7 +11211,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get field assignments for a specific template
-  app.get('/api/daily-reports/templates/:templateId/fields', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/templates/:templateId/fields', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { templateId } = req.params;
       const assignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(templateId);
@@ -11261,7 +11308,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get all procedure templates
-  app.get('/api/daily-reports/procedures', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/procedures', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { department, active } = req.query;
       const procedures = await storage.getDailyProcedureTemplates(
@@ -11332,7 +11379,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   };
 
   // Get daily reports with filters
-  app.get('/api/daily-reports', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { department, startDate, endDate, status, hasCustomerConcerns } = req.query;
       
@@ -11368,7 +11415,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get report stats
-  app.get('/api/daily-reports/stats', isAuthenticated, async (req, res) => {
+  app.get('/api/daily-reports/stats', isPlatformAuthenticated, async (req, res) => {
     try {
       const stats = await storage.getDailyReportsStats();
       res.json(stats);
@@ -11379,7 +11426,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get unresolved incidents
-  app.get('/api/daily-reports/incidents/unresolved', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/incidents/unresolved', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const incidents = await storage.getUnresolvedIncidents(limit);
@@ -11391,7 +11438,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get customer-related incidents
-  app.get('/api/daily-reports/incidents/customer', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/incidents/customer', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const incidents = await storage.getCustomerRelatedIncidents(limit);
@@ -11516,7 +11563,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   // ==========================================
 
   // Get revision requests for a specific report
-  app.get('/api/daily-reports/reports/:reportId/revision-requests', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/reports/:reportId/revision-requests', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { reportId } = req.params;
       const requests = await storage.getDailyReportRevisionRequests(reportId);
@@ -11528,7 +11575,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Create a new revision request for a report
-  app.post('/api/daily-reports/reports/:reportId/revision-requests', isAuthenticated, async (req: any, res) => {
+  app.post('/api/daily-reports/reports/:reportId/revision-requests', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { reportId } = req.params;
       const { requestMessage } = req.body;
@@ -11562,7 +11609,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get all open revision requests for reports submitted by current user
-  app.get('/api/daily-reports/my-revision-requests', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/my-revision-requests', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub;
       if (!userId) {
@@ -11577,7 +11624,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Respond to a revision request
-  app.patch('/api/daily-reports/revision-requests/:id/respond', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/daily-reports/revision-requests/:id/respond', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { responseMessage } = req.body;
@@ -11608,7 +11655,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get a single daily report with all details
-  app.get('/api/daily-reports/:id', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/:id', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const report = await storage.getDailyReportWithDetails(id);
@@ -11628,7 +11675,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get or create today's report for a department
-  app.get('/api/daily-reports/department/:department/today', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/department/:department/today', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { department } = req.params;
       const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -11662,7 +11709,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Create a new daily report (or update existing one for same date/department)
-  app.post('/api/daily-reports', isAuthenticated, async (req: any, res) => {
+  app.post('/api/daily-reports', isPlatformAuthenticated, async (req: any, res) => {
     try {
       // Use staff name from form if provided, otherwise fall back to logged-in user
       const staffNameFromForm = req.body.staffName;
@@ -11861,7 +11908,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Update a daily report
-  app.patch('/api/daily-reports/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/daily-reports/:id', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       
@@ -11917,7 +11964,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Submit a daily report
-  app.post('/api/daily-reports/:id/submit', isAuthenticated, async (req: any, res) => {
+  app.post('/api/daily-reports/:id/submit', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       // Use staff name from form if provided, otherwise fall back to logged-in user
@@ -12248,7 +12295,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get incidents for a specific report
-  app.get('/api/daily-reports/:reportId/incidents', isAuthenticated, async (req: any, res) => {
+  app.get('/api/daily-reports/:reportId/incidents', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { reportId } = req.params;
       const incidents = await storage.getDailyReportIncidents(reportId);
@@ -12260,7 +12307,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Add an incident to a report
-  app.post('/api/daily-reports/:reportId/incidents', isAuthenticated, async (req: any, res) => {
+  app.post('/api/daily-reports/:reportId/incidents', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { reportId } = req.params;
       const data = insertDailyReportIncidentSchema.parse({
@@ -12283,7 +12330,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Update an incident
-  app.patch('/api/daily-reports/incidents/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/daily-reports/incidents/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const data = insertDailyReportIncidentSchema.partial().parse(req.body);
@@ -12299,7 +12346,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Resolve an incident
-  app.post('/api/daily-reports/incidents/:id/resolve', isAuthenticated, async (req, res) => {
+  app.post('/api/daily-reports/incidents/:id/resolve', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const { actionTaken, notes } = req.body;
@@ -12321,7 +12368,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Delete an incident
-  app.delete('/api/daily-reports/incidents/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/daily-reports/incidents/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteDailyReportIncident(id);
@@ -12336,7 +12383,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Get incident notes
-  app.get('/api/daily-reports/incidents/:incidentId/notes', isAuthenticated, async (req, res) => {
+  app.get('/api/daily-reports/incidents/:incidentId/notes', isPlatformAuthenticated, async (req, res) => {
     try {
       const { incidentId } = req.params;
       const notes = await storage.getIncidentNotes(incidentId);
@@ -12348,7 +12395,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Create incident note
-  app.post('/api/daily-reports/incidents/:incidentId/notes', isAuthenticated, async (req: any, res) => {
+  app.post('/api/daily-reports/incidents/:incidentId/notes', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { incidentId } = req.params;
       const userId = req.user?.claims?.sub;
@@ -12368,7 +12415,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Update procedure completion status
-  app.post('/api/daily-reports/:reportId/procedures/:procedureId/complete', isAuthenticated, async (req: any, res) => {
+  app.post('/api/daily-reports/:reportId/procedures/:procedureId/complete', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { reportId, procedureId } = req.params;
       const userId = req.user?.claims?.sub;
@@ -12403,7 +12450,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   });
 
   // Bulk update procedure completions
-  app.post('/api/daily-reports/:reportId/procedures/bulk', isAuthenticated, async (req: any, res) => {
+  app.post('/api/daily-reports/:reportId/procedures/bulk', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { reportId } = req.params;
       const userId = req.user?.claims?.sub;
@@ -17444,7 +17491,7 @@ Generate a professional response:`;
   // =====================
 
   // LMS Admin Stats
-  app.get('/api/lms/admin/stats', isAuthenticated, async (_req, res) => {
+  app.get('/api/lms/admin/stats', isPlatformAuthenticated, async (_req, res) => {
     try {
       const stats = await storage.getLmsDashboardStats();
       res.json(stats);
@@ -17455,7 +17502,7 @@ Generate a professional response:`;
   });
 
   // LMS Admin Categories (alias routes for frontend compatibility)
-  app.get('/api/lms/admin/categories', isAuthenticated, async (_req, res) => {
+  app.get('/api/lms/admin/categories', isPlatformAuthenticated, async (_req, res) => {
     try {
       const categories = await storage.getLmsCategories();
       res.json(categories);
@@ -17465,7 +17512,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/admin/categories', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/admin/categories', isPlatformAuthenticated, async (req, res) => {
     try {
       const category = await storage.createLmsCategory(req.body);
       res.status(201).json(category);
@@ -17475,7 +17522,7 @@ Generate a professional response:`;
     }
   });
 
-  app.put('/api/lms/admin/categories/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/lms/admin/categories/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const category = await storage.updateLmsCategory(req.params.id, req.body);
       if (!category) {
@@ -17488,7 +17535,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/admin/categories/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/admin/categories/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsCategory(req.params.id);
       res.json({ success: true });
@@ -17499,7 +17546,7 @@ Generate a professional response:`;
   });
 
   // LMS Admin Courses (with enrollment counts for admin view)
-  app.get('/api/lms/admin/courses', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/admin/courses', isPlatformAuthenticated, async (req, res) => {
     try {
       const { includeArchived } = req.query;
       const courses = await storage.getLmsCourses(includeArchived === 'true');
@@ -17522,7 +17569,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/admin/courses', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/admin/courses', isPlatformAuthenticated, async (req, res) => {
     try {
       const course = await storage.createLmsCourse(req.body);
       res.status(201).json(course);
@@ -17532,7 +17579,7 @@ Generate a professional response:`;
     }
   });
 
-  app.put('/api/lms/admin/courses/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/lms/admin/courses/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const course = await storage.updateLmsCourse(req.params.id, req.body);
       if (!course) {
@@ -17545,7 +17592,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/admin/courses/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/admin/courses/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsCourse(req.params.id);
       res.json({ success: true });
@@ -17556,7 +17603,7 @@ Generate a professional response:`;
   });
 
   // Get full course with lessons for CourseBuilder
-  app.get('/api/lms/admin/courses/:id/full', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/admin/courses/:id/full', isPlatformAuthenticated, async (req, res) => {
     try {
       const course = await storage.getLmsCourse(req.params.id);
       if (!course) {
@@ -17576,7 +17623,7 @@ Generate a professional response:`;
   });
 
   // Get full lesson with pages and blocks for CourseBuilder
-  app.get('/api/lms/admin/lessons/:id/full', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/admin/lessons/:id/full', isPlatformAuthenticated, async (req, res) => {
     try {
       const lesson = await storage.getLmsLesson(req.params.id);
       if (!lesson) {
@@ -17605,7 +17652,7 @@ Generate a professional response:`;
   });
 
   // LMS Admin Lessons
-  app.post('/api/lms/admin/courses/:courseId/lessons', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/admin/courses/:courseId/lessons', isPlatformAuthenticated, async (req, res) => {
     try {
       const lesson = await storage.createLmsLesson({
         ...req.body,
@@ -17618,7 +17665,7 @@ Generate a professional response:`;
     }
   });
 
-  app.put('/api/lms/admin/lessons/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/lms/admin/lessons/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const lesson = await storage.updateLmsLesson(req.params.id, req.body);
       if (!lesson) {
@@ -17631,7 +17678,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/admin/lessons/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/admin/lessons/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsLesson(req.params.id);
       res.json({ success: true });
@@ -17642,7 +17689,7 @@ Generate a professional response:`;
   });
 
   // LMS Admin Pages (for CourseBuilder)
-  app.post('/api/lms/admin/lessons/:lessonId/pages', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/admin/lessons/:lessonId/pages', isPlatformAuthenticated, async (req, res) => {
     try {
       const page = await storage.createLmsLessonPage({
         ...req.body,
@@ -17655,7 +17702,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/admin/pages/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/admin/pages/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const page = await storage.updateLmsLessonPage(req.params.id, req.body);
       if (!page) {
@@ -17668,7 +17715,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/admin/pages/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/admin/pages/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsLessonPage(req.params.id);
       res.json({ success: true });
@@ -17679,7 +17726,7 @@ Generate a professional response:`;
   });
 
   // LMS Admin Content Blocks (for CourseBuilder)
-  app.post('/api/lms/admin/pages/:pageId/blocks', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/admin/pages/:pageId/blocks', isPlatformAuthenticated, async (req, res) => {
     try {
       const block = await storage.createLmsContentBlock({
         ...req.body,
@@ -17692,7 +17739,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/admin/blocks/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/admin/blocks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const block = await storage.updateLmsContentBlock(req.params.id, req.body);
       if (!block) {
@@ -17705,7 +17752,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/admin/blocks/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/admin/blocks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsContentBlock(req.params.id);
       res.json({ success: true });
@@ -17716,7 +17763,7 @@ Generate a professional response:`;
   });
 
   // LMS Admin Quiz/Questions (for course builder)
-  app.get('/api/lms/courses/:courseId/quiz', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/courses/:courseId/quiz', isPlatformAuthenticated, async (req, res) => {
     try {
       // Get quiz questions by fetching quizzes and their linked questions
       const quizzes = await storage.getLmsQuizzes(req.params.courseId);
@@ -17740,7 +17787,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/admin/courses/:courseId/quiz', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/admin/courses/:courseId/quiz', isPlatformAuthenticated, async (req, res) => {
     try {
       const courseId = req.params.courseId;
       
@@ -17805,7 +17852,7 @@ Generate a professional response:`;
     }
   });
 
-  app.put('/api/lms/admin/quiz/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/lms/admin/quiz/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const question = await storage.updateLmsQuestion(req.params.id, {
         questionText: req.body.question,
@@ -17825,7 +17872,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/admin/quiz/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/admin/quiz/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsQuestion(req.params.id);
       res.json({ success: true });
@@ -17836,7 +17883,7 @@ Generate a professional response:`;
   });
 
   // LMS Admin Enrollments
-  app.get('/api/lms/admin/enrollments', isAuthenticated, async (_req, res) => {
+  app.get('/api/lms/admin/enrollments', isPlatformAuthenticated, async (_req, res) => {
     try {
       const enrollments = await storage.getLmsEnrollments();
       res.json(enrollments);
@@ -17847,7 +17894,7 @@ Generate a professional response:`;
   });
 
   // LMS Categories
-  app.get('/api/lms/categories', isAuthenticated, async (_req, res) => {
+  app.get('/api/lms/categories', isPlatformAuthenticated, async (_req, res) => {
     try {
       const categories = await storage.getLmsCategories();
       res.json(categories);
@@ -17857,7 +17904,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/categories/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/categories/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const category = await storage.getLmsCategory(req.params.id);
       if (!category) {
@@ -17870,7 +17917,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/categories', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/categories', isPlatformAuthenticated, async (req, res) => {
     try {
       const category = await storage.createLmsCategory(req.body);
       res.status(201).json(category);
@@ -17880,7 +17927,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/categories/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/categories/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const category = await storage.updateLmsCategory(req.params.id, req.body);
       if (!category) {
@@ -17893,7 +17940,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/categories/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/categories/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsCategory(req.params.id);
       res.json({ success: true });
@@ -17904,7 +17951,7 @@ Generate a professional response:`;
   });
 
   // LMS Courses
-  app.get('/api/lms/courses', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/courses', isPlatformAuthenticated, async (req, res) => {
     try {
       const { includeArchived } = req.query;
       const courses = await storage.getLmsCourses(includeArchived === 'true');
@@ -17915,7 +17962,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/courses/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/courses/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const course = await storage.getLmsCourse(req.params.id);
       if (!course) {
@@ -17928,7 +17975,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/courses/:id/details', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/courses/:id/details', isPlatformAuthenticated, async (req, res) => {
     try {
       const course = await storage.getLmsCourseWithDetails(req.params.id);
       if (!course) {
@@ -17941,7 +17988,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/courses', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/courses', isPlatformAuthenticated, async (req, res) => {
     try {
       const course = await storage.createLmsCourse(req.body);
       res.status(201).json(course);
@@ -17951,7 +17998,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/courses/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/courses/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const course = await storage.updateLmsCourse(req.params.id, req.body);
       if (!course) {
@@ -17964,7 +18011,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/courses/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/courses/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsCourse(req.params.id);
       res.json({ success: true });
@@ -17975,7 +18022,7 @@ Generate a professional response:`;
   });
 
   // LMS Lessons
-  app.get('/api/lms/courses/:courseId/lessons', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/courses/:courseId/lessons', isPlatformAuthenticated, async (req, res) => {
     try {
       const lessons = await storage.getLmsLessons(req.params.courseId);
       res.json(lessons);
@@ -17985,7 +18032,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/lessons/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/lessons/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const lesson = await storage.getLmsLesson(req.params.id);
       if (!lesson) {
@@ -17998,7 +18045,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/lessons/:id/details', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/lessons/:id/details', isPlatformAuthenticated, async (req, res) => {
     try {
       const lesson = await storage.getLmsLesson(req.params.id);
       if (!lesson) {
@@ -18012,7 +18059,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/courses/:courseId/lessons', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/courses/:courseId/lessons', isPlatformAuthenticated, async (req, res) => {
     try {
       const lesson = await storage.createLmsLesson({
         ...req.body,
@@ -18025,7 +18072,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/lessons/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/lessons/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const lesson = await storage.updateLmsLesson(req.params.id, req.body);
       if (!lesson) {
@@ -18038,7 +18085,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/lessons/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/lessons/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsLesson(req.params.id);
       res.json({ success: true });
@@ -18049,7 +18096,7 @@ Generate a professional response:`;
   });
 
   // LMS Content Blocks
-  app.get('/api/lms/lessons/:lessonId/content-blocks', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/lessons/:lessonId/content-blocks', isPlatformAuthenticated, async (req, res) => {
     try {
       const blocks = await storage.getLmsContentBlocks(req.params.lessonId);
       res.json(blocks);
@@ -18059,7 +18106,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/lessons/:lessonId/content-blocks', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/lessons/:lessonId/content-blocks', isPlatformAuthenticated, async (req, res) => {
     try {
       const block = await storage.createLmsContentBlock({
         ...req.body,
@@ -18072,7 +18119,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/content-blocks/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/content-blocks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const block = await storage.updateLmsContentBlock(req.params.id, req.body);
       if (!block) {
@@ -18085,7 +18132,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/content-blocks/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/content-blocks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsContentBlock(req.params.id);
       res.json({ success: true });
@@ -18096,7 +18143,7 @@ Generate a professional response:`;
   });
 
   // LMS Question Banks
-  app.get('/api/lms/question-banks', isAuthenticated, async (_req, res) => {
+  app.get('/api/lms/question-banks', isPlatformAuthenticated, async (_req, res) => {
     try {
       const banks = await storage.getLmsQuestionBanks();
       res.json(banks);
@@ -18106,7 +18153,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/question-banks/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/question-banks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const bank = await storage.getLmsQuestionBank(req.params.id);
       if (!bank) {
@@ -18119,7 +18166,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/question-banks', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/question-banks', isPlatformAuthenticated, async (req, res) => {
     try {
       const bank = await storage.createLmsQuestionBank(req.body);
       res.status(201).json(bank);
@@ -18129,7 +18176,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/question-banks/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/question-banks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const bank = await storage.updateLmsQuestionBank(req.params.id, req.body);
       if (!bank) {
@@ -18142,7 +18189,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/question-banks/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/question-banks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsQuestionBank(req.params.id);
       res.json({ success: true });
@@ -18153,7 +18200,7 @@ Generate a professional response:`;
   });
 
   // LMS Questions
-  app.get('/api/lms/question-banks/:bankId/questions', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/question-banks/:bankId/questions', isPlatformAuthenticated, async (req, res) => {
     try {
       const questions = await storage.getLmsQuestions(req.params.bankId);
       res.json(questions);
@@ -18163,7 +18210,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/question-banks/:bankId/questions', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/question-banks/:bankId/questions', isPlatformAuthenticated, async (req, res) => {
     try {
       const question = await storage.createLmsQuestion({
         ...req.body,
@@ -18176,7 +18223,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/questions/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/questions/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const question = await storage.updateLmsQuestion(req.params.id, req.body);
       if (!question) {
@@ -18189,7 +18236,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/questions/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/questions/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsQuestion(req.params.id);
       res.json({ success: true });
@@ -18200,7 +18247,7 @@ Generate a professional response:`;
   });
 
   // LMS Quizzes
-  app.get('/api/lms/courses/:courseId/quizzes', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/courses/:courseId/quizzes', isPlatformAuthenticated, async (req, res) => {
     try {
       const quizzes = await storage.getLmsQuizzes(req.params.courseId);
       res.json(quizzes);
@@ -18210,7 +18257,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/quizzes/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/quizzes/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const quiz = await storage.getLmsQuiz(req.params.id);
       if (!quiz) {
@@ -18223,7 +18270,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/quizzes/:id/questions', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/quizzes/:id/questions', isPlatformAuthenticated, async (req, res) => {
     try {
       const questions = await storage.getLmsQuizQuestions(req.params.id);
       res.json(questions);
@@ -18233,7 +18280,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/courses/:courseId/quizzes', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/courses/:courseId/quizzes', isPlatformAuthenticated, async (req, res) => {
     try {
       const quiz = await storage.createLmsQuiz({
         ...req.body,
@@ -18246,7 +18293,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/quizzes/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/quizzes/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const quiz = await storage.updateLmsQuiz(req.params.id, req.body);
       if (!quiz) {
@@ -18259,7 +18306,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/quizzes/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/quizzes/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsQuiz(req.params.id);
       res.json({ success: true });
@@ -18269,7 +18316,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/quizzes/:quizId/questions', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/quizzes/:quizId/questions', isPlatformAuthenticated, async (req, res) => {
     try {
       const link = await storage.addLmsQuizQuestion({
         quizId: req.params.quizId,
@@ -18283,7 +18330,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/quizzes/:quizId/questions/:questionId', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/quizzes/:quizId/questions/:questionId', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.removeLmsQuizQuestion(req.params.quizId, req.params.questionId);
       res.json({ success: true });
@@ -18294,7 +18341,7 @@ Generate a professional response:`;
   });
 
   // LMS Enrollments
-  app.get('/api/lms/enrollments', isAuthenticated, async (req: any, res) => {
+  app.get('/api/lms/enrollments', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { userId } = req.query;
       const enrollments = await storage.getLmsEnrollments(
@@ -18307,7 +18354,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/enrollments/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/enrollments/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const enrollment = await storage.getLmsEnrollment(req.params.id);
       if (!enrollment) {
@@ -18320,7 +18367,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/enrollments', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/enrollments', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const enrollment = await storage.createLmsEnrollment({
         userId: req.body.userId || req.user?.claims?.sub,
@@ -18333,7 +18380,7 @@ Generate a professional response:`;
     }
   });
 
-  app.patch('/api/lms/enrollments/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/lms/enrollments/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const enrollment = await storage.updateLmsEnrollment(req.params.id, req.body);
       if (!enrollment) {
@@ -18346,7 +18393,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/enrollments/:id/complete', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/enrollments/:id/complete', isPlatformAuthenticated, async (req, res) => {
     try {
       const enrollment = await storage.completeLmsEnrollment(req.params.id, req.body.score);
       if (!enrollment) {
@@ -18359,7 +18406,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/enrollments/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/enrollments/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsEnrollment(req.params.id);
       res.json({ success: true });
@@ -18370,7 +18417,7 @@ Generate a professional response:`;
   });
 
   // LMS Lesson Progress
-  app.get('/api/lms/enrollments/:enrollmentId/progress', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/enrollments/:enrollmentId/progress', isPlatformAuthenticated, async (req, res) => {
     try {
       const progress = await storage.getLmsLessonProgress(req.params.enrollmentId);
       res.json(progress);
@@ -18380,7 +18427,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/enrollments/:enrollmentId/progress', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/enrollments/:enrollmentId/progress', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const progress = await storage.createLmsLessonProgress({
         userId: req.body.userId || req.user?.claims?.sub,
@@ -18394,7 +18441,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/lesson-progress/:id/complete', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/lesson-progress/:id/complete', isPlatformAuthenticated, async (req, res) => {
     try {
       const progress = await storage.completeLmsLessonProgress(req.params.id);
       if (!progress) {
@@ -18408,7 +18455,7 @@ Generate a professional response:`;
   });
 
   // LMS Quiz Attempts
-  app.get('/api/lms/courses/:courseId/quiz-attempts', isAuthenticated, async (req: any, res) => {
+  app.get('/api/lms/courses/:courseId/quiz-attempts', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { userId } = req.query;
       const attempts = await storage.getLmsQuizAttempts(
@@ -18422,7 +18469,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/quiz-attempts/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/quiz-attempts/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const attempt = await storage.getLmsQuizAttempt(req.params.id);
       if (!attempt) {
@@ -18435,7 +18482,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/quiz-attempts', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/quiz-attempts', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const attempt = await storage.createLmsQuizAttempt({
         userId: req.body.userId || req.user?.claims?.sub,
@@ -18449,7 +18496,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/quiz-attempts/:id/complete', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/quiz-attempts/:id/complete', isPlatformAuthenticated, async (req, res) => {
     try {
       const attempt = await storage.completeLmsQuizAttempt(
         req.params.id,
@@ -18467,7 +18514,7 @@ Generate a professional response:`;
   });
 
   // LMS Question Responses
-  app.get('/api/lms/quiz-attempts/:attemptId/responses', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/quiz-attempts/:attemptId/responses', isPlatformAuthenticated, async (req, res) => {
     try {
       const responses = await storage.getLmsQuestionResponses(req.params.attemptId);
       res.json(responses);
@@ -18477,7 +18524,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/quiz-attempts/:attemptId/responses', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/quiz-attempts/:attemptId/responses', isPlatformAuthenticated, async (req, res) => {
     try {
       const response = await storage.createLmsQuestionResponse({
         attemptId: req.params.attemptId,
@@ -18493,7 +18540,7 @@ Generate a professional response:`;
   });
 
   // LMS Certificates
-  app.get('/api/lms/certificates', isAuthenticated, async (req: any, res) => {
+  app.get('/api/lms/certificates', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const { userId } = req.query;
       const certificates = await storage.getLmsCertificates(
@@ -18506,7 +18553,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/lms/certificates/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/certificates/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const certificate = await storage.getLmsCertificate(req.params.id);
       if (!certificate) {
@@ -18532,7 +18579,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/certificates', isAuthenticated, async (req, res) => {
+  app.post('/api/lms/certificates', isPlatformAuthenticated, async (req, res) => {
     try {
       const certificate = await storage.createLmsCertificate(req.body);
       res.status(201).json(certificate);
@@ -18542,7 +18589,7 @@ Generate a professional response:`;
     }
   });
 
-  app.delete('/api/lms/certificates/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/lms/certificates/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       await storage.deleteLmsCertificate(req.params.id);
       res.json({ success: true });
@@ -18553,7 +18600,7 @@ Generate a professional response:`;
   });
 
   // LMS Course Ratings
-  app.get('/api/lms/courses/:courseId/ratings', isAuthenticated, async (req, res) => {
+  app.get('/api/lms/courses/:courseId/ratings', isPlatformAuthenticated, async (req, res) => {
     try {
       const ratings = await storage.getLmsCourseRatings(req.params.courseId);
       const averageRating = await storage.getLmsCourseAverageRating(req.params.courseId);
@@ -18564,7 +18611,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/lms/courses/:courseId/ratings', isAuthenticated, async (req: any, res) => {
+  app.post('/api/lms/courses/:courseId/ratings', isPlatformAuthenticated, async (req: any, res) => {
     try {
       const rating = await storage.createLmsCourseRating({
         courseId: req.params.courseId,
@@ -18580,7 +18627,7 @@ Generate a professional response:`;
   });
 
   // LMS Dashboard Stats
-  app.get('/api/lms/dashboard/stats', isAuthenticated, async (_req, res) => {
+  app.get('/api/lms/dashboard/stats', isPlatformAuthenticated, async (_req, res) => {
     try {
       const stats = await storage.getLmsDashboardStats();
       res.json(stats);
@@ -18830,7 +18877,7 @@ Generate a professional response:`;
   // ========================================
 
   // RCC Teams
-  app.get('/api/rcc/teams', isAuthenticated, async (_req, res) => {
+  app.get('/api/rcc/teams', isPlatformAuthenticated, async (_req, res) => {
     try {
       const teams = await storage.getRccTeams();
       res.json(teams);
@@ -18864,7 +18911,7 @@ Generate a professional response:`;
   });
 
   // RCC Weeks
-  app.get('/api/rcc/weeks', isAuthenticated, async (_req, res) => {
+  app.get('/api/rcc/weeks', isPlatformAuthenticated, async (_req, res) => {
     try {
       const weeks = await storage.getRccWeeks();
       res.json(weeks);
@@ -18874,7 +18921,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/rcc/weeks/current', isAuthenticated, async (_req, res) => {
+  app.get('/api/rcc/weeks/current', isPlatformAuthenticated, async (_req, res) => {
     try {
       const week = await storage.getRccCurrentWeek();
       res.json(week || null);
@@ -18884,7 +18931,7 @@ Generate a professional response:`;
     }
   });
 
-  app.get('/api/rcc/weeks/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/weeks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const week = await storage.getRccWeek(parseInt(req.params.id));
       if (!week) {
@@ -19132,7 +19179,7 @@ Generate a professional response:`;
     }
   });
 
-  app.post('/api/rcc/weeks/:id/ai-focus-suggestions', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/weeks/:id/ai-focus-suggestions', isPlatformAuthenticated, async (req, res) => {
     try {
       const weekId = parseInt(req.params.id);
       const week = await storage.getRccWeek(weekId);
@@ -19226,7 +19273,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // RCC Tasks
-  app.get('/api/rcc/tasks', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/tasks', isPlatformAuthenticated, async (req, res) => {
     try {
       const weekId = req.query.weekId ? parseInt(req.query.weekId as string) : undefined;
       const tasks = await storage.getRccTasks(weekId);
@@ -19237,7 +19284,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.get('/api/rcc/ideas', isAuthenticated, async (_req, res) => {
+  app.get('/api/rcc/ideas', isPlatformAuthenticated, async (_req, res) => {
     try {
       const ideas = await storage.getRccIdeas();
       res.json(ideas);
@@ -19247,7 +19294,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.get('/api/rcc/tasks/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/tasks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const task = await storage.getRccTask(parseInt(req.params.id));
       if (!task) {
@@ -19260,7 +19307,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/tasks', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/tasks', isPlatformAuthenticated, async (req, res) => {
     try {
       const task = await storage.createRccTask(req.body);
       res.json(task);
@@ -19270,7 +19317,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.put('/api/rcc/tasks/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/rcc/tasks/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const task = await storage.updateRccTask(parseInt(req.params.id), req.body);
       if (!task) {
@@ -19294,7 +19341,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // RCC Campaigns
-  app.get('/api/rcc/campaigns', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/campaigns', isPlatformAuthenticated, async (req, res) => {
     try {
       const weekId = req.query.weekId ? parseInt(req.query.weekId as string) : undefined;
       const campaigns = await storage.getRccCampaigns(weekId);
@@ -19305,7 +19352,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.get('/api/rcc/campaigns/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/campaigns/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const campaign = await storage.getRccCampaign(parseInt(req.params.id));
       if (!campaign) {
@@ -19318,7 +19365,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/campaigns', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/campaigns', isPlatformAuthenticated, async (req, res) => {
     try {
       const campaign = await storage.createRccCampaign(req.body);
       res.json(campaign);
@@ -19328,7 +19375,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.put('/api/rcc/campaigns/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/rcc/campaigns/:id', isPlatformAuthenticated, async (req, res) => {
     try {
       const campaign = await storage.updateRccCampaign(parseInt(req.params.id), req.body);
       if (!campaign) {
@@ -19352,7 +19399,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // RCC Revenue
-  app.get('/api/rcc/revenue/:weekId', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/revenue/:weekId', isPlatformAuthenticated, async (req, res) => {
     try {
       const revenue = await storage.getRccRevenue(parseInt(req.params.weekId));
       res.json(revenue || null);
@@ -19362,7 +19409,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/revenue', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/revenue', isPlatformAuthenticated, async (req, res) => {
     try {
       const revenue = await storage.upsertRccRevenue(req.body);
       
@@ -19383,7 +19430,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // RCC Daily Revenue
-  app.get('/api/rcc/daily-revenue/:weekId', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/daily-revenue/:weekId', isPlatformAuthenticated, async (req, res) => {
     try {
       const weekId = parseInt(req.params.weekId);
       let dailyRevenue = await storage.getRccDailyRevenueByWeek(weekId);
@@ -19608,7 +19655,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/daily-revenue', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/daily-revenue', isPlatformAuthenticated, async (req, res) => {
     try {
       const dailyRevenue = await storage.upsertRccDailyRevenue(req.body);
       res.json(dailyRevenue);
@@ -19618,7 +19665,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.patch('/api/rcc/daily-revenue/:date/notes', isAuthenticated, async (req, res) => {
+  app.patch('/api/rcc/daily-revenue/:date/notes', isPlatformAuthenticated, async (req, res) => {
     try {
       const { notes } = req.body;
       const updated = await storage.updateRccDailyRevenueNotes(req.params.date, notes);
@@ -19632,7 +19679,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/daily-revenue/:date/fetch-weather', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/daily-revenue/:date/fetch-weather', isPlatformAuthenticated, async (req, res) => {
     try {
       const lat = 42.4334;
       const lon = -71.6068;
@@ -19715,7 +19762,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     return Math.ceil((diff / 86400000 + start.getDay() + 1) / 7);
   }
 
-  app.post('/api/rcc/daily-revenue/sync-toast', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/daily-revenue/sync-toast', isPlatformAuthenticated, async (req, res) => {
     try {
       const { weekId } = req.body;
       if (!weekId) {
@@ -19794,7 +19841,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/daily-revenue/sync-toast-date', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/daily-revenue/sync-toast-date', isPlatformAuthenticated, async (req, res) => {
     try {
       const { date, weekId } = req.body;
       if (!date) {
@@ -19856,7 +19903,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/daily-revenue/sync-shopify', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/daily-revenue/sync-shopify', isPlatformAuthenticated, async (req, res) => {
     try {
       const { weekId } = req.body;
       if (!weekId) {
@@ -19913,7 +19960,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/daily-revenue/sync-shopify-date', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/daily-revenue/sync-shopify-date', isPlatformAuthenticated, async (req, res) => {
     try {
       const { date, weekId } = req.body;
       if (!date) {
@@ -19948,7 +19995,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // Sync wholesale (B2B) revenue for a specific date from b2b_orders
-  app.post('/api/rcc/daily-revenue/sync-wholesale-date', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/daily-revenue/sync-wholesale-date', isPlatformAuthenticated, async (req, res) => {
     try {
       const { date, weekId } = req.body;
       if (!date) {
@@ -20064,7 +20111,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // RCC Learnings
-  app.get('/api/rcc/learnings', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/learnings', isPlatformAuthenticated, async (req, res) => {
     try {
       const weekId = req.query.weekId ? parseInt(req.query.weekId as string) : undefined;
       const learnings = await storage.getRccLearnings(weekId);
@@ -20075,7 +20122,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
-  app.post('/api/rcc/learnings', isAuthenticated, async (req, res) => {
+  app.post('/api/rcc/learnings', isPlatformAuthenticated, async (req, res) => {
     try {
       const learning = await storage.createRccLearning(req.body);
       res.json(learning);
@@ -20086,7 +20133,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // RCC AI Recommendations
-  app.get('/api/rcc/ai-recommendations/:weekId', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/ai-recommendations/:weekId', isPlatformAuthenticated, async (req, res) => {
     try {
       const recommendations = await storage.getRccAiRecommendations(parseInt(req.params.weekId));
       res.json(recommendations);
@@ -20173,7 +20220,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   });
 
   // RCC Toast Historical Revenue - Get prior year comparison data
-  app.get('/api/rcc/toast-historical/week/:weekId', isAuthenticated, async (req, res) => {
+  app.get('/api/rcc/toast-historical/week/:weekId', isPlatformAuthenticated, async (req, res) => {
     try {
       const weekId = parseInt(req.params.weekId);
       const week = await storage.getRccWeek(weekId);

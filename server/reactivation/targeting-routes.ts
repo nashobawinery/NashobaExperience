@@ -2,10 +2,11 @@ import { Router } from "express";
 import { db } from "../db";
 import { sql, eq, desc, and, isNotNull, ne } from "drizzle-orm";
 import { targetingCampaigns, targetingListMembers, offerPerformance } from "@shared/schema";
-import { isAuthenticated } from "../replitAuth";
+import { isPlatformAuthenticated } from "../platformAuth";
 import OpenAI from "openai";
 
 const router = Router();
+const isAuthenticated = isPlatformAuthenticated;
 
 const OFFER_TYPES = [
   { type: "percentage_discount_10", label: "10% Off Next Visit", estimatedCost: 8 },

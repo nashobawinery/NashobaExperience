@@ -2,12 +2,14 @@ import { Router } from "express";
 import { db } from "./db";
 import { enhancementRequests, insertEnhancementRequestSchema } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import { isAuthenticated, isAdmin } from "./replitAuth";
+import { isPlatformAuthenticated, requirePlatformRole } from "./platformAuth";
 import sgMail from "@sendgrid/mail";
 import { generateBrandedEmailHeader, generateBrandedEmailFooter, getBrandedEmailStyles } from "./email";
 import { z } from "zod";
 
 const router = Router();
+const isAuthenticated = isPlatformAuthenticated;
+const isAdmin = requirePlatformRole(['super_admin']);
 
 const updateEnhancementSchema = z.object({
   title: z.string().optional(),

@@ -4,9 +4,10 @@ import { meetingNotes } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import OpenAI, { toFile } from "openai";
 import multer from "multer";
-import { isAdmin } from "./replitAuth";
+import { requirePlatformRole } from "./platformAuth";
 
 const router = Router();
+const isAdmin = requirePlatformRole(['super_admin']);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 router.get("/api/meeting-notes", isAdmin, async (_req: Request, res: Response) => {
@@ -31,10 +32,16 @@ router.get("/api/meeting-notes/:id", isAdmin, async (req: Request, res: Response
 
 router.post("/api/meeting-notes", isAdmin, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const sess = req.session as any;
+    const user = sess.platformAuth?.userId ? {
+      id: sess.platformAuth.userId,
+      email: sess.platformAuth.email,
+      firstName: sess.platformAuth.firstName,
+      lastName: sess.platformAuth.lastName
+    } : null;
     const [note] = await db.insert(meetingNotes).values({
       ...req.body,
-      createdBy: user?.claims?.sub || null,
+      createdBy: user?.id || null,
     }).returning();
     res.json(note);
   } catch (error) {
