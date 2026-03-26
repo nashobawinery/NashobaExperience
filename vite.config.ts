@@ -41,8 +41,13 @@ export default defineConfig({
 });
 ```
 
+**Fix 2 — Update Render build command** to:
+```
+npm install --include=dev; npm run build
+```
+
 Then push to GitHub:
 ```
 git add vite.config.ts
-git commit -m "Remove Replit-specific plugins for Render deployment"
+git commit -m "Fix vite config for Render deployment"
 git push origin main
