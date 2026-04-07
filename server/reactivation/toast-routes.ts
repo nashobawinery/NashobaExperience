@@ -1021,6 +1021,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const hidePricing = req.query.hideprice === "1";
     const hideWinePairing = req.query.hidepairing === "1";
     const showImages = req.query.showimages === "1";
+    const hideAllergyFooter = req.query.hideAllergyFooter === "1";
 
     const _sf = (v: string | undefined, d: string) => { if (!v) return d; const s = v.replace(/[^a-zA-Z0-9 ]/g, "").trim(); return s.slice(0, 60) || d; };
     const _sp = (v: string | undefined, d: number) => { const n = parseFloat(v || ""); return isNaN(n) ? d : Math.min(144, Math.max(6, n)); };
@@ -1364,8 +1365,10 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
-      <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
-      <p>Alert your server if you have special dietary requirements.</p>
+      ${!hideAllergyFooter ? `
+        <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
+        <p>Alert your server if you have special dietary requirements.</p>
+      ` : ""}
       ${customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
     </div>
   </div>
@@ -1453,6 +1456,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const hidePricing = req.query.hideprice === "1";
     const hideWinePairing = req.query.hidepairing === "1";
     const showImages = req.query.showimages === "1";
+    const hideAllergyFooter = req.query.hideAllergyFooter === "1";
     const customTitle = (req.query.title as string) || "";
     const groupGuidParam = req.query.groupGuid as string | undefined;
     const filterGroupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -1774,8 +1778,10 @@ router.get("/public/menus/embed", async (req, res) => {
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
-      <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
-      <p>Alert your server if you have special dietary requirements.</p>
+      ${!hideAllergyFooter ? `
+        <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
+        <p>Alert your server if you have special dietary requirements.</p>
+      ` : ""}
       ${customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
     </div>
   </div>

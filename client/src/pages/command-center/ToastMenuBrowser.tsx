@@ -213,6 +213,7 @@ export function ToastMenuBrowser() {
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
   const [printShowImages, setPrintShowImages] = useState(false);
+  const [printHideAllergyFooter, setPrintHideAllergyFooter] = useState(false);
   const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
@@ -578,25 +579,24 @@ export function ToastMenuBrowser() {
     },
   });
 
-  const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
-
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, showImages?: boolean) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, showImages?: boolean, hideAllergyFooter?: boolean) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
     if (scale && scale !== 100) url += `&scale=${scale}`;
-    if (pages && pages > 0) url += `&pages=${pages}`;
-    if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
+    if (pages && pages !== 0) url += `&pages=${pages}`;
+    if (footer) url += `&footer=${encodeURIComponent(footer)}`;
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
-    if (header && header.trim()) url += `&header=${encodeURIComponent(header.trim())}`;
     if (hidePricing) url += `&hideprice=1`;
     if (hideWinePairing) url += `&hidepairing=1`;
     if (showImages) url += `&showimages=1`;
+    if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
+    if (header) url += `&header=${encodeURIComponent(header)}`;
     return url;
   };
 
-  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, showImages?: boolean) => {
+  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, showImages?: boolean, hideAllergyFooter?: boolean) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -609,6 +609,7 @@ export function ToastMenuBrowser() {
     if (hidePricing) url += `&hideprice=1`;
     if (hideWinePairing) url += `&hidepairing=1`;
     if (showImages) url += `&showimages=1`;
+    if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
     return url;
   };
 
@@ -617,9 +618,9 @@ export function ToastMenuBrowser() {
     const typoStr = buildTypoParams(printTypo);
     let url: string;
     if (additionalMenuGuids.length > 0 && selectedMenu) {
-      url = getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages);
+      url = getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages, printHideAllergyFooter);
     } else {
-      url = getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages);
+      url = getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages, printHideAllergyFooter);
     }
     return typoStr ? `${url}&${typoStr}` : url;
   };
@@ -1248,6 +1249,14 @@ export function ToastMenuBrowser() {
                   data-testid="checkbox-detail-show-images"
                 />
                 <span className="font-medium">Show Images</span>
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={printHideAllergyFooter}
+                  onCheckedChange={(checked) => setPrintHideAllergyFooter(!!checked)}
+                  data-testid="checkbox-detail-hide-allergy-footer"
+                />
+                <span className="font-medium">Hide Allergy Footer</span>
               </label>
             </div>
           </CardContent>
