@@ -268,14 +268,14 @@ export function ToastMenuBrowser() {
     queryKey: ["/api/toast/menus/sync-status"],
   });
 
-  const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
-
   const restaurants = statusData?.restaurants || [];
   const isConfigured = statusData?.configured && statusData?.authenticated;
   const defaultRestaurant = restaurants.find(r => r.guid === "f6a9a99b-0a3a-4a5b-904f-c8c82a46d793") || restaurants.find(r => r.name.toLowerCase().includes("nashoba valley")) || restaurants[0];
   
   // Force Nashoba Valley Winery GUID as fallback
   const restaurantGuid = selectedRestaurant || defaultRestaurant?.guid || "f6a9a99b-0a3a-4a5b-904f-c8c82a46d793";
+
+  const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
   // Debug logging
   console.log("ToastMenuBrowser Debug:", {
