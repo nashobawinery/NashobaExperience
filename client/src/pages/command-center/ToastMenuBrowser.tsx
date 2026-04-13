@@ -2624,6 +2624,10 @@ export function ToastMenuBrowser() {
   return (
     <>
       <div className="p-6 space-y-4">
+        {/* Test render to verify component is mounting */}
+        <div className="text-sm text-muted-foreground">
+          ToastMenuBrowser mounted - ViewMode: {viewMode}, IsConfigured: {isConfigured ? "true" : "false"}
+        </div>
         {viewMode === "list" && renderMenuList()}
         {viewMode === "detail" && renderMenuDetail()}
         {viewMode === "embed" && renderEmbedView()}
