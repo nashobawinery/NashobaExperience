@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ToastSyncDialog } from "@/components/ToastSyncDialog";
@@ -270,8 +270,15 @@ export function ToastMenuBrowser() {
 
   const restaurants = statusData?.restaurants || [];
   const isConfigured = statusData?.configured && statusData?.authenticated;
-  const defaultRestaurant = restaurants.find(r => r.name.toLowerCase().includes("nashoba valley")) || restaurants[0];
+  const defaultRestaurant = restaurants.find(r => r.guid === "f6a9a99b-0a3a-4a5b-904f-c8c82a46d793") || restaurants.find(r => r.name.toLowerCase().includes("nashoba valley")) || restaurants[0];
   const restaurantGuid = selectedRestaurant || (defaultRestaurant?.guid || "");
+
+  // Auto-select Nashoba Valley Winery if none selected and restaurants are available
+  useEffect(() => {
+    if (!selectedRestaurant && defaultRestaurant?.guid) {
+      setSelectedRestaurant(defaultRestaurant.guid);
+    }
+  }, [selectedRestaurant, defaultRestaurant]);
 
   const { data: menus = [], isLoading: menusLoading } = useQuery<ToastMenuData[]>({
     queryKey: ["/api/toast/menus", { restaurantGuid }],
