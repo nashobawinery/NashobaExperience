@@ -43,6 +43,10 @@ const BRAND_COLORS = {
  * Gets the base URL for the application
  */
 function getBaseUrl(): string {
+  // Always use nashobawinery.org for production to avoid confusion
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://nashobawinery.org';
+  }
   if (process.env.APP_URL) return process.env.APP_URL;
   if (process.env.REPLIT_DOMAINS) return `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
