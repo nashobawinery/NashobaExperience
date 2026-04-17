@@ -289,10 +289,10 @@ export default function FoodTruckCalendar() {
                           </div>
                         )}
 
-                        {/* Event Description - Other Events */}
+                        {/* Event Description - Additional Activities */}
                         {event.description && (
                           <div className="space-y-2">
-                            <p className="text-xs font-medium text-muted-foreground">Other Events taking place today:</p>
+                            <p className="text-xs font-medium text-muted-foreground">Additional Activities:</p>
                             <p className="text-sm text-muted-foreground" data-testid={`text-event-description-${event.id}`}>
                               {event.description}
                             </p>
