@@ -280,11 +280,21 @@ export default function FoodTruckCalendar() {
                           </p>
                         )}
 
-                        {/* Enhanced Description Section */}
-                        {(event.truckDescription || event.description) && (
+                        {/* Food Truck Description */}
+                        {event.truckDescription && (
                           <div className="space-y-2">
-                            <p className="text-sm text-muted-foreground" data-testid={`text-description-${event.id}`}>
-                              {event.truckDescription || event.description}
+                            <p className="text-sm text-muted-foreground" data-testid={`text-truck-description-${event.id}`}>
+                              {event.truckDescription}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Event Description - Other Events */}
+                        {event.description && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">Other Events taking place today:</p>
+                            <p className="text-sm text-muted-foreground" data-testid={`text-event-description-${event.id}`}>
+                              {event.description}
                             </p>
                           </div>
                         )}
