@@ -259,68 +259,79 @@ export default function FoodTruckCalendar() {
                         />
                       </div>
                     )}
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-2 flex-wrap">
-                        <h3 className="font-semibold text-base" data-testid={`text-truck-name-${event.id}`}>
-                          {event.truckName || event.title}
-                        </h3>
-                        {event.cuisineType && (
-                          <Badge variant="secondary" data-testid={`badge-cuisine-${event.id}`}>
-                            {event.cuisineType}
-                          </Badge>
+                    <CardContent className="p-4 space-y-4">
+                      <div className="space-y-3">
+                        {/* Truck Name and Cuisine Type */}
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <h3 className="font-semibold text-base leading-tight" data-testid={`text-truck-name-${event.id}`}>
+                            {event.truckName || event.title}
+                          </h3>
+                          {event.cuisineType && (
+                            <Badge variant="secondary" className="shrink-0" data-testid={`badge-cuisine-${event.id}`}>
+                              {event.cuisineType}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Event Title (if different from truck name) */}
+                        {event.title && event.truckName && event.title !== event.truckName && (
+                          <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
+                            {event.title}
+                          </p>
                         )}
-                      </div>
 
-                      {event.title && event.truckName && event.title !== event.truckName && (
-                        <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
-                          {event.title}
-                        </p>
-                      )}
-
-                      <div className="space-y-1.5 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Calendar className="h-4 w-4 shrink-0" />
-                          <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Clock className="h-4 w-4 shrink-0" />
-                          <span data-testid={`text-time-${event.id}`}>
-                            {formatTime(event.startTime)}
-                            {event.endTime ? ` – ${formatTime(event.endTime)}` : ""}
-                          </span>
-                        </div>
-                        {event.location && (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <MapPin className="h-4 w-4 shrink-0" />
-                            <span data-testid={`text-location-${event.id}`}>{event.location}</span>
+                        {/* Enhanced Description Section */}
+                        {(event.truckDescription || event.description) && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground" data-testid={`text-description-${event.id}`}>
+                              {event.truckDescription || event.description}
+                            </p>
                           </div>
                         )}
+
+                        {/* Date, Time, and Location Information */}
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Calendar className="h-4 w-4 shrink-0" />
+                            <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Clock className="h-4 w-4 shrink-0" />
+                            <span data-testid={`text-time-${event.id}`}>
+                              {formatTime(event.startTime)}
+                              {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+                            </span>
+                          </div>
+                          {event.location && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <MapPin className="h-4 w-4 shrink-0" />
+                              <span data-testid={`text-location-${event.id}`}>{event.location}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Featured Badge */}
+                        {event.isFeatured && (
+                          <Badge variant="default" data-testid={`badge-featured-${event.id}`}>Featured</Badge>
+                        )}
+
+                        {/* Website Link - Enhanced */}
+                        {event.truckWebsiteUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            asChild
+                            data-testid={`button-website-${event.id}`}
+                          >
+                            <a href={event.truckWebsiteUrl} target="_blank" rel="noopener noreferrer">
+                              <Globe className="h-4 w-4 mr-2" />
+                              Visit {event.truckName || "Food Truck"} Website
+                              <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </Button>
+                        )}
                       </div>
-
-                      {(event.description || event.truckDescription) && (
-                        <p className="text-sm text-muted-foreground line-clamp-2" data-testid={`text-description-${event.id}`}>
-                          {event.description || event.truckDescription}
-                        </p>
-                      )}
-
-                      {event.isFeatured && (
-                        <Badge variant="default" data-testid={`badge-featured-${event.id}`}>Featured</Badge>
-                      )}
-
-                      {event.truckWebsiteUrl && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          asChild
-                          data-testid={`button-website-${event.id}`}
-                        >
-                          <a href={event.truckWebsiteUrl} target="_blank" rel="noopener noreferrer">
-                            <Globe className="h-4 w-4 mr-2" />
-                            Visit Website
-                          </a>
-                        </Button>
-                      )}
                     </CardContent>
                   </Card>
                 ))}
