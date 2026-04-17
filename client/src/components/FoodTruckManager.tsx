@@ -39,6 +39,7 @@ import {
 import { format, parseISO } from "date-fns";
 import type { FoodTruck, FoodTruckEvent, FoodTruckSubmission, FoodTruckReview } from "@shared/schema";
 import EventFlyerPrinter from "@/components/EventFlyerPrinter";
+import { PermitFileUpload } from "@/components/PermitFileUpload";
 
 function formatTime12(time24: string | null | undefined): string {
   if (!time24) return "";
@@ -445,11 +446,11 @@ function TrucksPanel() {
                   <Label>Permit Expiry Date</Label>
                   <Input type="date" value={form.permitExpiry} onChange={e => setForm(p => ({ ...p, permitExpiry: e.target.value }))} data-testid="input-truck-permit-expiry" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Permit Document URL</Label>
-                  <Input value={form.permitImageUrl} onChange={e => setForm(p => ({ ...p, permitImageUrl: e.target.value }))} placeholder="https://..." data-testid="input-truck-permit-image" />
-                  <p className="text-xs text-muted-foreground">Upload permit document and paste the URL here</p>
-                </div>
+                <PermitFileUpload
+                  value={form.permitImageUrl}
+                  onChange={(url) => setForm(p => ({ ...p, permitImageUrl: url }))}
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                />
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ import {
   insertFoodTruckSubmissionSchema,
   insertFoodTruckReviewSchema,
 } from "@shared/schema";
+import { ObjectStorageService } from "./services/object-storage-service";
 
 const router = Router();
 
@@ -266,6 +267,81 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
     res.json(events);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== Food Truck Permit File Upload ====================
+
+router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const multer = (await import("multer")).default;
+    const upload = multer({ 
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+      fileFilter: (req, file, cb) => {
+        // Only accept PDF files
+        if (file.mimetype === 'application/pdf') {
+          cb(null, true);
+        } else {
+          cb(new Error('Only PDF files are allowed'));
+        }
+      }
+    });
+
+    upload.single('file')(req, res, async (err) => {
+      if (err) {
+        console.error('Permit upload error:', err);
+        return res.status(400).json({ message: err.message || 'File upload error' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      try {
+        const objectStorageService = new ObjectStorageService();
+        const filename = `food-truck-permits/${Date.now()}-${req.file.originalname}`;
+        
+        // Upload to object storage
+        const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
+        const objectPath = await objectStorageService.uploadObjectFromBuffer(
+          req.file.buffer,
+          filename,
+          req.file.mimetype
+        );
+
+        // Return the public URL for the uploaded file
+        const publicUrl = `/api/media/food-trucks/permit-file/${filename}`;
+        res.json({ 
+          url: publicUrl,
+          filename: req.file.originalname,
+          size: req.file.size
+        });
+      } catch (uploadError: any) {
+        console.error('Object storage upload error:', uploadError);
+        res.status(500).json({ message: 'Failed to upload file to storage' });
+      }
+    });
+  } catch (error: any) {
+    console.error('Permit upload setup error:', error);
+    res.status(500).json({ message: error.message || 'Upload service unavailable' });
+  }
+});
+
+// Serve uploaded permit files
+router.get("/api/media/food-trucks/permit-file/:filename", async (req: Request, res: Response) => {
+  try {
+    const { filename } = req.params;
+    const objectStorageService = new ObjectStorageService();
+    
+    // Extract the object path from the filename
+    const objectPath = `food-truck-permits/${filename}`;
+    
+    // Download and serve the file
+    await objectStorageService.downloadObject(objectPath, res);
+  } catch (error: any) {
+    console.error('Permit file download error:', error);
+    res.status(404).json({ message: 'Permit file not found' });
   }
 });
 
