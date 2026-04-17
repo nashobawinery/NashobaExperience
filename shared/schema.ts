@@ -6223,6 +6223,29 @@ export const insertFoodTruckSubmissionSchema = createInsertSchema(mediaFoodTruck
 export type InsertFoodTruckSubmission = z.infer<typeof insertFoodTruckSubmissionSchema>;
 export type FoodTruckSubmission = typeof mediaFoodTruckSubmissions.$inferSelect;
 
+// Food Truck Reviews - Internal quality assessments
+export const mediaFoodTruckReviews = pgTable("media_food_truck_reviews", {
+  id: serial("id").primaryKey(),
+  foodTruckId: integer("food_truck_id").notNull().references(() => mediaFoodTrucks.id, { onDelete: 'cascade' }),
+  rating: integer("rating").notNull(), // 1-5 scale
+  foodQuality: text("food_quality"), // Notes about food quality
+  serviceQuality: text("service_quality"), // Notes about service quality
+  cleanliness: text("cleanliness"), // Notes about cleanliness
+  professionalism: text("professionalism"), // Notes about professionalism
+  overallNotes: text("overall_notes"), // Overall assessment notes
+  wouldRecommend: boolean("would_recommend").notNull().default(true),
+  reviewedBy: varchar("reviewed_by", { length: 255 }), // Name of reviewer
+  reviewDate: varchar("review_date", { length: 10 }).notNull(), // YYYY-MM-DD format
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_food_truck_review_truck").on(table.foodTruckId),
+  index("idx_food_truck_review_date").on(table.reviewDate),
+]);
+
+export const insertFoodTruckReviewSchema = createInsertSchema(mediaFoodTruckReviews).omit({ id: true, createdAt: true });
+export type InsertFoodTruckReview = z.infer<typeof insertFoodTruckReviewSchema>;
+export type FoodTruckReview = typeof mediaFoodTruckReviews.$inferSelect;
+
 export const staffPrintMenus = pgTable("staff_print_menus", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 200 }).notNull(),

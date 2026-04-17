@@ -34,9 +34,10 @@ import {
   ArrowRight,
   UtensilsCrossed,
   ShieldCheck,
+  Star,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import type { FoodTruck, FoodTruckEvent, FoodTruckSubmission } from "@shared/schema";
+import type { FoodTruck, FoodTruckEvent, FoodTruckSubmission, FoodTruckReview } from "@shared/schema";
 import EventFlyerPrinter from "@/components/EventFlyerPrinter";
 
 function formatTime12(time24: string | null | undefined): string {
@@ -84,7 +85,7 @@ export default function FoodTruckManager() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="trucks" className="flex items-center gap-2" data-testid="tab-food-trucks">
             <Users className="h-4 w-4" /> Food Trucks
           </TabsTrigger>
@@ -93,6 +94,9 @@ export default function FoodTruckManager() {
           </TabsTrigger>
           <TabsTrigger value="submissions" className="flex items-center gap-2" data-testid="tab-food-truck-submissions">
             <FileText className="h-4 w-4" /> Submissions
+          </TabsTrigger>
+          <TabsTrigger value="reviews" className="flex items-center gap-2" data-testid="tab-food-truck-reviews">
+            <Star className="h-4 w-4" /> Reviews
           </TabsTrigger>
           <TabsTrigger value="links" className="flex items-center gap-2" data-testid="tab-food-truck-links">
             <Link className="h-4 w-4" /> Links
@@ -112,6 +116,10 @@ export default function FoodTruckManager() {
 
         <TabsContent value="submissions" className="mt-6">
           <SubmissionsPanel />
+        </TabsContent>
+
+        <TabsContent value="reviews" className="mt-6">
+          <ReviewsPanel />
         </TabsContent>
 
         <TabsContent value="links" className="mt-6">
@@ -140,6 +148,9 @@ function TrucksPanel() {
     contactPhone: "",
     isApproved: true,
     isActive: true,
+    permitNumber: "",
+    permitExpiry: "",
+    permitImageUrl: "",
   });
 
   const { data: trucks, isLoading } = useQuery<FoodTruck[]>({
@@ -183,7 +194,7 @@ function TrucksPanel() {
     },
   });
 
-  const resetForm = () => setForm({ name: "", cuisineType: "", description: "", imageUrl: "", websiteUrl: "", contactEmail: "", contactPhone: "", isApproved: true, isActive: true });
+  const resetForm = () => setForm({ name: "", cuisineType: "", description: "", imageUrl: "", websiteUrl: "", contactEmail: "", contactPhone: "", isApproved: true, isActive: true, permitNumber: "", permitExpiry: "", permitImageUrl: "" });
 
   const closeDialog = () => {
     setShowDialog(false);
@@ -207,6 +218,9 @@ function TrucksPanel() {
       contactPhone: t.contactPhone || "",
       isApproved: t.isApproved,
       isActive: t.isActive,
+      permitNumber: t.permitNumber || "",
+      permitExpiry: t.permitExpiry || "",
+      permitImageUrl: t.permitImageUrl || "",
     });
     setEditTruck(t);
     setShowDialog(true);
@@ -337,6 +351,35 @@ function TrucksPanel() {
                     </a>
                   </Button>
                 )}
+
+                {/* Permit Information */}
+                {(t.permitNumber || t.permitExpiry || t.permitImageUrl) && (
+                  <div className="space-y-2 border-t pt-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <ShieldCheck className="h-4 w-4" />
+                      Food Permit
+                    </div>
+                    {t.permitNumber && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Permit #:</span> {t.permitNumber}
+                      </div>
+                    )}
+                    {t.permitExpiry && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Expires:</span> {new Date(t.permitExpiry).toLocaleDateString()}
+                      </div>
+                    )}
+                    {t.permitImageUrl && (
+                      <Button variant="outline" size="sm" className="w-full" asChild>
+                        <a href={t.permitImageUrl} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-4 w-4 mr-2" />
+                          View Permit Document
+                          <ExternalLink className="h-3 w-3 ml-1" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -390,6 +433,24 @@ function TrucksPanel() {
                 <p className="text-xs text-muted-foreground">Show in public listings</p>
               </div>
               <Switch checked={form.isActive} onCheckedChange={v => setForm(p => ({ ...p, isActive: v }))} data-testid="switch-truck-active" />
+            </div>
+            <div className="space-y-2">
+              <Label>Food Permit Information</Label>
+              <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                <div className="space-y-2">
+                  <Label>Permit Number</Label>
+                  <Input value={form.permitNumber} onChange={e => setForm(p => ({ ...p, permitNumber: e.target.value }))} placeholder="Board of Health permit number" data-testid="input-truck-permit-number" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Permit Expiry Date</Label>
+                  <Input type="date" value={form.permitExpiry} onChange={e => setForm(p => ({ ...p, permitExpiry: e.target.value }))} data-testid="input-truck-permit-expiry" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Permit Document URL</Label>
+                  <Input value={form.permitImageUrl} onChange={e => setForm(p => ({ ...p, permitImageUrl: e.target.value }))} placeholder="https://..." data-testid="input-truck-permit-image" />
+                  <p className="text-xs text-muted-foreground">Upload permit document and paste the URL here</p>
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -1003,6 +1064,349 @@ function LinksPanel() {
           </Card>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ReviewsPanel() {
+  const { toast } = useToast();
+  const [showDialog, setShowDialog] = useState(false);
+  const [editReview, setEditReview] = useState<FoodTruckReview | null>(null);
+  const [selectedTruck, setSelectedTruck] = useState<FoodTruck | null>(null);
+  const [form, setForm] = useState({
+    foodTruckId: null as number | null,
+    rating: 5,
+    foodQuality: "",
+    serviceQuality: "",
+    cleanliness: "",
+    professionalism: "",
+    overallNotes: "",
+    wouldRecommend: true,
+    reviewedBy: "",
+    reviewDate: new Date().toISOString().split('T')[0],
+  });
+
+  const { data: trucks } = useQuery<FoodTruck[]>({
+    queryKey: ["/api/media/food-trucks"],
+  });
+
+  const { data: reviews, isLoading } = useQuery<FoodTruckReview[]>({
+    queryKey: ["/api/media/food-truck-reviews", selectedTruck?.id],
+    enabled: !!selectedTruck?.id,
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/media/food-truck-reviews/${selectedTruck!.id}`);
+      return res.json();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof form) => {
+      const res = await apiRequest("POST", "/api/media/food-truck-reviews", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/media/food-truck-reviews", selectedTruck?.id] });
+      closeDialog();
+      toast({ title: "Review added" });
+    },
+    onError: () => toast({ title: "Failed to add review", variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof form }) => {
+      const res = await apiRequest("PUT", `/api/media/food-truck-reviews/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/media/food-truck-reviews", selectedTruck?.id] });
+      closeDialog();
+      toast({ title: "Review updated" });
+    },
+    onError: () => toast({ title: "Failed to update review", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/media/food-truck-reviews/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/media/food-truck-reviews", selectedTruck?.id] });
+      toast({ title: "Review deleted" });
+    },
+  });
+
+  const resetForm = () => setForm({
+    foodTruckId: null,
+    rating: 5,
+    foodQuality: "",
+    serviceQuality: "",
+    cleanliness: "",
+    professionalism: "",
+    overallNotes: "",
+    wouldRecommend: true,
+    reviewedBy: "",
+    reviewDate: new Date().toISOString().split('T')[0],
+  });
+
+  const closeDialog = () => {
+    setShowDialog(false);
+    setEditReview(null);
+    resetForm();
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setForm(p => ({ ...p, foodTruckId: selectedTruck?.id || null }));
+    setShowDialog(true);
+  };
+
+  const openEdit = (review: FoodTruckReview) => {
+    setForm({
+      foodTruckId: review.foodTruckId,
+      rating: review.rating,
+      foodQuality: review.foodQuality || "",
+      serviceQuality: review.serviceQuality || "",
+      cleanliness: review.cleanliness || "",
+      professionalism: review.professionalism || "",
+      overallNotes: review.overallNotes || "",
+      wouldRecommend: review.wouldRecommend,
+      reviewedBy: review.reviewedBy || "",
+      reviewDate: review.reviewDate,
+    });
+    setEditReview(review);
+    setShowDialog(true);
+  };
+
+  const handleSubmit = () => {
+    if (!form.foodTruckId || !form.reviewedBy) return;
+    if (editReview) {
+      updateMutation.mutate({ id: editReview.id, data: form });
+    } else {
+      createMutation.mutate(form);
+    }
+  };
+
+  const renderStars = (rating: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        className={`w-4 h-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+      />
+    ));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-lg font-semibold">Food Truck Reviews</h2>
+        <div className="flex items-center gap-2">
+          <Select
+            value={selectedTruck?.id ? String(selectedTruck.id) : ""}
+            onValueChange={(v) => {
+              const truck = v ? (trucks || []).find(t => t.id === parseInt(v)) : null;
+              setSelectedTruck(truck || null);
+            }}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Select Food Truck" />
+            </SelectTrigger>
+            <SelectContent>
+              {(trucks || []).map(t => (
+                <SelectItem key={t.id} value={String(t.id)}>
+                  {t.name}{t.cuisineType ? ` (${t.cuisineType})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedTruck && (
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Review
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {!selectedTruck ? (
+        <Card className="p-8 text-center">
+          <Star className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Select a Food Truck</h3>
+          <p className="text-muted-foreground">Choose a food truck to view and manage internal reviews.</p>
+        </Card>
+      ) : (!reviews || reviews.length === 0) ? (
+        <Card className="p-8 text-center">
+          <Star className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">No Reviews Yet</h3>
+          <p className="text-muted-foreground mb-4">Add your first internal review for {selectedTruck.name}.</p>
+          <Button onClick={openCreate}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Review
+          </Button>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {reviews.map(review => (
+            <Card key={review.id} className="overflow-visible">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      {renderStars(review.rating)}
+                      <span className="text-sm font-medium">{review.rating}/5</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span>By: {review.reviewedBy}</span>
+                      <span>Date: {new Date(review.reviewDate).toLocaleDateString()}</span>
+                      {review.wouldRecommend && (
+                        <Badge variant="outline">Would Recommend</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button size="icon" variant="ghost" onClick={() => openEdit(review)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => { if (confirm("Delete this review?")) deleteMutation.mutate(review.id); }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  {review.foodQuality && (
+                    <div>
+                      <span className="font-medium">Food Quality:</span>
+                      <p className="text-muted-foreground">{review.foodQuality}</p>
+                    </div>
+                  )}
+                  {review.serviceQuality && (
+                    <div>
+                      <span className="font-medium">Service Quality:</span>
+                      <p className="text-muted-foreground">{review.serviceQuality}</p>
+                    </div>
+                  )}
+                  {review.cleanliness && (
+                    <div>
+                      <span className="font-medium">Cleanliness:</span>
+                      <p className="text-muted-foreground">{review.cleanliness}</p>
+                    </div>
+                  )}
+                  {review.professionalism && (
+                    <div>
+                      <span className="font-medium">Professionalism:</span>
+                      <p className="text-muted-foreground">{review.professionalism}</p>
+                    </div>
+                  )}
+                </div>
+
+                {review.overallNotes && (
+                  <div>
+                    <span className="font-medium text-sm">Overall Notes:</span>
+                    <p className="text-sm text-muted-foreground mt-1">{review.overallNotes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showDialog || !!editReview} onOpenChange={(v) => { if (!v) closeDialog(); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editReview ? "Edit Review" : "Add Review"} - {selectedTruck?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2">
+              <Label>Rating *</Label>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, rating }))}
+                    className="p-1"
+                  >
+                    <Star
+                      className={`w-6 h-6 ${rating <= form.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} hover:text-yellow-400 transition-colors`}
+                    />
+                  </button>
+                ))}
+                <span className="text-sm text-muted-foreground ml-2">{form.rating}/5</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Reviewer Name *</Label>
+                <Input value={form.reviewedBy} onChange={e => setForm(p => ({ ...p, reviewedBy: e.target.value }))} placeholder="Your name" />
+              </div>
+              <div className="space-y-2">
+                <Label>Review Date *</Label>
+                <Input type="date" value={form.reviewDate} onChange={e => setForm(p => ({ ...p, reviewDate: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Food Quality Notes</Label>
+                <Textarea value={form.foodQuality} onChange={e => setForm(p => ({ ...p, foodQuality: e.target.value }))} placeholder="Notes about food quality..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Service Quality Notes</Label>
+                <Textarea value={form.serviceQuality} onChange={e => setForm(p => ({ ...p, serviceQuality: e.target.value }))} placeholder="Notes about service quality..." />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Cleanliness Notes</Label>
+                <Textarea value={form.cleanliness} onChange={e => setForm(p => ({ ...p, cleanliness: e.target.value }))} placeholder="Notes about cleanliness..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Professionalism Notes</Label>
+                <Textarea value={form.professionalism} onChange={e => setForm(p => ({ ...p, professionalism: e.target.value }))} placeholder="Notes about professionalism..." />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Overall Notes</Label>
+              <Textarea value={form.overallNotes} onChange={e => setForm(p => ({ ...p, overallNotes: e.target.value }))} placeholder="Overall assessment and notes..." />
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label>Would Recommend</Label>
+                <p className="text-xs text-muted-foreground">Would you recommend this food truck?</p>
+              </div>
+              <Switch checked={form.wouldRecommend} onCheckedChange={v => setForm(p => ({ ...p, wouldRecommend: v }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!form.foodTruckId || !form.reviewedBy || createMutation.isPending || updateMutation.isPending}
+            >
+              {editReview ? "Save Changes" : "Add Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

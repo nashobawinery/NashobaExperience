@@ -5,9 +5,11 @@ import {
   mediaFoodTrucks,
   mediaFoodTruckEvents,
   mediaFoodTruckSubmissions,
+  mediaFoodTruckReviews,
   insertFoodTruckSchema,
   insertFoodTruckEventSchema,
   insertFoodTruckSubmissionSchema,
+  insertFoodTruckReviewSchema,
 } from "@shared/schema";
 
 const router = Router();
@@ -151,6 +153,58 @@ router.put("/api/media/food-truck-submissions/:id", requireAuth, async (req: Req
     res.json(submission);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+// ==================== Food Truck Reviews CRUD ====================
+
+router.get("/api/media/food-truck-reviews/:foodTruckId", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const foodTruckId = parseInt(req.params.foodTruckId);
+    const reviews = await db
+      .select()
+      .from(mediaFoodTruckReviews)
+      .where(eq(mediaFoodTruckReviews.foodTruckId, foodTruckId))
+      .orderBy(desc(mediaFoodTruckReviews.reviewDate));
+    res.json(reviews);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/api/media/food-truck-reviews", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const data = insertFoodTruckReviewSchema.parse(req.body);
+    const [review] = await db.insert(mediaFoodTruckReviews).values(data).returning();
+    res.json(review);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.put("/api/media/food-truck-reviews/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const data = insertFoodTruckReviewSchema.partial().parse(req.body);
+    const [review] = await db
+      .update(mediaFoodTruckReviews)
+      .set(data)
+      .where(eq(mediaFoodTruckReviews.id, id))
+      .returning();
+    if (!review) return res.status(404).json({ error: "Review not found" });
+    res.json(review);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete("/api/media/food-truck-reviews/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(mediaFoodTruckReviews).where(eq(mediaFoodTruckReviews.id, id));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
