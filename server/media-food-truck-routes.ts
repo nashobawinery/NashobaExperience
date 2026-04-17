@@ -11,7 +11,7 @@ import {
   insertFoodTruckSubmissionSchema,
   insertFoodTruckReviewSchema,
 } from "@shared/schema";
-import { ObjectStorageService } from "./services/object-storage-service";
+import { ObjectStorageService } from "./objectStorage";
 
 const router = Router();
 
