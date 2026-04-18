@@ -456,8 +456,28 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
     });
   } catch (error: any) {
     console.error('Permit upload setup error:', error);
-    console.error('Setup error stack:', error.stack);
-    res.status(500).json({ message: error.message || 'Upload service unavailable' });
+  }
+});
+
+// Test file serving endpoint - for test uploads
+router.get("/api/media/food-trucks/permit-file/test-:filename", async (req: Request, res: Response) => {
+  try {
+    const { filename } = req.params;
+    console.log('=== TEST FILE SERVE START ===');
+    console.log('Requested test filename:', filename);
+    
+    // For test uploads, return a simple PDF response
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    
+    // Return a simple test PDF (just a minimal PDF structure)
+    const testPdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Test Permit PDF) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000054 00000 n\n0000000110 00000 n\n0000000203 00000 n\ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n299\n%%EOF');
+    
+    res.send(testPdf);
+    console.log('Test PDF served successfully');
+  } catch (error: any) {
+    console.error('Error serving test permit file:', error);
+    res.status(500).json({ message: 'Failed to serve test permit file' });
   }
 });
 
@@ -465,35 +485,49 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
 router.get("/api/media/food-trucks/permit-file/:filename", async (req: Request, res: Response) => {
   try {
     const { filename } = req.params;
+    console.log('=== FILE SERVE START ===');
+    console.log('Requested filename:', filename);
+    
     const { Storage } = await import("@google-cloud/storage");
     const storage = new Storage();
     
     // Get bucket from environment or use default
     const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "nashoba-winery-storage";
+    console.log('Using bucket:', bucketName);
+    
     const bucket = storage.bucket(bucketName);
     
     // Construct the full filename with path
     const fullFilename = `food-truck-permits/${filename}`;
+    console.log('Looking for file:', fullFilename);
+    
     const file = bucket.file(fullFilename);
     
     // Check if file exists
     const [exists] = await file.exists();
+    console.log('File exists:', exists);
+    
     if (!exists) {
+      console.log('File not found, returning 404');
       return res.status(404).json({ message: 'Permit file not found' });
     }
     
     // Get file metadata
     const [metadata] = await file.getMetadata();
+    console.log('File metadata:', metadata.contentType, metadata.size);
     
     // Set appropriate headers
     res.setHeader('Content-Type', metadata.contentType || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${metadata.name || filename}"`);
     
     // Stream the file to response
+    console.log('Starting file stream...');
     await file.createReadStream().pipe(res);
+    console.log('File stream completed');
   } catch (error: any) {
-    console.error('Permit file download error:', error);
-    res.status(404).json({ message: 'Permit file not found' });
+    console.error('Error serving permit file:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Failed to serve permit file' });
   }
 });
 
