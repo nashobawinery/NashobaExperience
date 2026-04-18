@@ -37,6 +37,10 @@ router.get("/api/media/food-trucks", requireAuth, async (_req: Request, res: Res
 router.post("/api/media/food-trucks", requireAuth, async (req: Request, res: Response) => {
   try {
     const data = insertFoodTruckSchema.parse(req.body);
+    console.log('Food Truck Creation Data:', {
+      ...data,
+      permitImageUrl: data.permitImageUrl
+    });
     const [truck] = await db.insert(mediaFoodTrucks).values(data).returning();
     res.json(truck);
   } catch (error: any) {
@@ -48,6 +52,11 @@ router.put("/api/media/food-trucks/:id", requireAuth, async (req: Request, res: 
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckSchema.partial().parse(req.body);
+    console.log('Food Truck Update Data:', {
+      id,
+      ...data,
+      permitImageUrl: data.permitImageUrl
+    });
     const [truck] = await db.update(mediaFoodTrucks).set(data).where(eq(mediaFoodTrucks.id, id)).returning();
     if (!truck) return res.status(404).json({ error: "Food truck not found" });
     res.json(truck);
