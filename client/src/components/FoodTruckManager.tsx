@@ -710,8 +710,8 @@ function SchedulePanel() {
         <DialogHeader>
           <DialogTitle>{editEvent ? "Edit Event" : "Add Food Truck Event"}</DialogTitle>
         </DialogHeader>
-        <DialogContent>
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <div className="space-y-4 pr-1">
             <div className="space-y-2">
               <Label>Food Truck</Label>
               <Select
@@ -801,7 +801,7 @@ function SchedulePanel() {
             </div>
           </div>
         </DialogContent>
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 bg-background border-t pt-4">
           <Button variant="outline" onClick={closeDialog} data-testid="button-cancel-truck-event">Cancel</Button>
           <Button
             onClick={handleSubmit}
