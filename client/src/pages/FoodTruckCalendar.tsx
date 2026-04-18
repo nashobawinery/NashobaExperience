@@ -84,8 +84,10 @@ export default function FoodTruckCalendar() {
   const params = new URLSearchParams(window.location.search);
   const isEmbed = params.get("embed") === "1";
 
-  const { data: events = [], isLoading } = useQuery<FoodTruckCalendarEvent[]>({
+  const { data: events = [], isLoading, refetch } = useQuery<FoodTruckCalendarEvent[]>({
     queryKey: ["/api/public/food-truck-calendar"],
+    staleTime: 0, // Force refresh on every request
+    gcTime: 0, // Don't cache the data (new property name)
   });
 
   const [submitted, setSubmitted] = useState(false);

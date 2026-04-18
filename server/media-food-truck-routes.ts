@@ -59,7 +59,13 @@ router.put("/api/media/food-trucks/:id", requireAuth, async (req: Request, res: 
 router.delete("/api/media/food-trucks/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
+    
+    // First delete all related events
+    await db.delete(mediaFoodTruckEvents).where(eq(mediaFoodTruckEvents.foodTruckId, id));
+    
+    // Then delete the food truck
     await db.delete(mediaFoodTrucks).where(eq(mediaFoodTrucks.id, id));
+    
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
