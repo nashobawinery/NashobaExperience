@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, gte, isNotNull, ne } from "drizzle-orm";
 import {
   mediaFoodTrucks,
   mediaFoodTruckEvents,
@@ -277,7 +277,10 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
           eq(mediaFoodTruckEvents.isActive, true),
           gte(mediaFoodTruckEvents.eventDate, today),
           isNotNull(mediaFoodTruckEvents.foodTruckId),
-          isNotNull(mediaFoodTrucks.id)
+          isNotNull(mediaFoodTrucks.id),
+          // Additional filter to ensure only food truck events with valid truck data
+          ne(mediaFoodTruckEvents.title, "Opening Day"),
+          ne(mediaFoodTruckEvents.title, "Opening Day Event")
         )
       )
       .orderBy(asc(mediaFoodTruckEvents.eventDate), asc(mediaFoodTruckEvents.startTime));
