@@ -266,8 +266,31 @@ export default function FoodTruckCalendar() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {monthEvents.map((event) => (
                   <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
+                    {/* Prominent Date and Time Callout at Top */}
+                    <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
+                      <div className="text-center space-y-1">
+                        <div className="flex items-center justify-center gap-2 text-lg font-bold">
+                          <Calendar className="h-5 w-5" />
+                          <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 text-base font-medium">
+                          <Clock className="h-4 w-4" />
+                          <span data-testid={`text-time-${event.id}`}>
+                            {formatTime(event.startTime)}
+                            {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+                          </span>
+                        </div>
+                        {event.location && (
+                          <div className="flex items-center justify-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4" />
+                            <span data-testid={`text-location-${event.id}`}>{event.location}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
                     {(event.imageUrl || event.truckImageUrl) && (
-                      <div className="aspect-video w-full overflow-hidden rounded-t-md">
+                      <div className="aspect-video w-full overflow-hidden">
                         <img
                           src={event.imageUrl || event.truckImageUrl || ""}
                           alt={event.truckName || event.title}
@@ -316,27 +339,7 @@ export default function FoodTruckCalendar() {
                           </div>
                         )}
 
-                        {/* Date, Time, and Location Information */}
-                        <div className="space-y-1.5 text-sm">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Calendar className="h-4 w-4 shrink-0" />
-                            <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Clock className="h-4 w-4 shrink-0" />
-                            <span data-testid={`text-time-${event.id}`}>
-                              {formatTime(event.startTime)}
-                              {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
-                            </span>
-                          </div>
-                          {event.location && (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <MapPin className="h-4 w-4 shrink-0" />
-                              <span data-testid={`text-location-${event.id}`}>{event.location}</span>
-                            </div>
-                          )}
-                        </div>
-
+                        
                         {/* Featured Badge */}
                         {event.isFeatured && (
                           <Badge variant="default" data-testid={`badge-featured-${event.id}`}>Featured</Badge>
