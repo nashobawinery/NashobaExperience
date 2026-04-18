@@ -282,6 +282,18 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
       )
       .orderBy(asc(mediaFoodTruckEvents.eventDate), asc(mediaFoodTruckEvents.startTime));
 
+    // Debug: Log all events with detailed information to identify problematic ones
+    console.log('All Calendar Events:', events.map(e => ({
+      id: e.id,
+      eventDate: e.eventDate,
+      title: e.title,
+      truckName: e.truckName,
+      description: e.description?.substring(0, 100) + (e.description?.length > 100 ? '...' : ''),
+      hasDescription: !!e.description,
+      foodTruckId: e.foodTruckId,
+      truckId: e.truckName ? 'VALID' : 'NULL'
+    })));
+
     res.json(events);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

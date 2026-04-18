@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -89,6 +89,20 @@ export default function FoodTruckCalendar() {
     staleTime: 0, // Force refresh on every request
     gcTime: 0, // Don't cache the data (new property name)
   });
+
+  // Debug: Log events when they change
+  useEffect(() => {
+    if (events.length > 0) {
+      console.log('Frontend Calendar Events:', events.map(e => ({
+        id: e.id,
+        eventDate: e.eventDate,
+        title: e.title,
+        truckName: e.truckName,
+        description: e.description?.substring(0, 100) + ((e.description?.length || 0) > 100 ? '...' : ''),
+        hasDescription: !!e.description
+      })));
+    }
+  }, [events]);
 
   const [submitted, setSubmitted] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
