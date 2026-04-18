@@ -261,7 +261,8 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
         and(
           eq(mediaFoodTruckEvents.isActive, true),
           gte(mediaFoodTruckEvents.eventDate, today),
-          isNotNull(mediaFoodTruckEvents.foodTruckId)
+          isNotNull(mediaFoodTruckEvents.foodTruckId),
+          isNotNull(mediaFoodTrucks.id)
         )
       )
       .orderBy(asc(mediaFoodTruckEvents.eventDate), asc(mediaFoodTruckEvents.startTime));
