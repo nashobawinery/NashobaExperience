@@ -710,8 +710,8 @@ function SchedulePanel() {
         <DialogHeader>
           <DialogTitle>{editEvent ? "Edit Event" : "Add Food Truck Event"}</DialogTitle>
         </DialogHeader>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
-          <div className="space-y-4 pr-1">
+        <DialogContent className="max-h-[70vh] overflow-y-auto">
+          <div className="space-y-4 pr-1 pb-6">
             <div className="space-y-2">
               <Label>Food Truck</Label>
               <Select
@@ -800,17 +800,17 @@ function SchedulePanel() {
               <Switch checked={form.isFeatured} onCheckedChange={v => setForm(p => ({ ...p, isFeatured: v }))} data-testid="switch-truck-event-featured" />
             </div>
           </div>
+          <DialogFooter className="border-t pt-4 mt-4">
+            <Button variant="outline" onClick={closeDialog} data-testid="button-cancel-truck-event">Cancel</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!form.title || !form.eventDate || !form.startTime || createMutation.isPending || updateMutation.isPending}
+              data-testid="button-save-truck-event"
+            >
+              {editEvent ? "Save Changes" : "Add Event"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogFooter className="sticky bottom-0 bg-background border-t pt-4">
-          <Button variant="outline" onClick={closeDialog} data-testid="button-cancel-truck-event">Cancel</Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!form.title || !form.eventDate || !form.startTime || createMutation.isPending || updateMutation.isPending}
-            data-testid="button-save-truck-event"
-          >
-            {editEvent ? "Save Changes" : "Add Event"}
-          </Button>
-        </DialogFooter>
       </Dialog>
     </div>
   );
