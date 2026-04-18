@@ -643,162 +643,68 @@ function SchedulePanel() {
           </Button>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Events List - Left Side (2/3 width) */}
-          <div className="lg:col-span-2 space-y-6">
-            {sortedDates.map(date => (
-              <div key={date} className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground" data-testid={`text-date-group-${date}`}>
-                  {format(parseISO(date), "EEEE, MMMM d, yyyy")}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {groupedEvents[date].map(ev => {
-                    const truck = ev.foodTruckId ? truckMap.get(ev.foodTruckId) : null;
-                    return (
-                      <Card key={ev.id} className="overflow-visible" data-testid={`card-truck-event-${ev.id}`}>
-                        <CardContent className="p-4 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <h4 className="font-semibold truncate" data-testid={`text-truck-event-title-${ev.id}`}>{ev.title}</h4>
-                              {truck && (
-                                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                  <UtensilsCrossed className="w-3 h-3" /> {truck.name}
-                                  {truck.cuisineType && <Badge variant="outline" className="ml-1">{truck.cuisineType}</Badge>}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <Button size="icon" variant="ghost" onClick={() => openEdit(ev)} data-testid={`button-edit-truck-event-${ev.id}`}>
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => { if (confirm(`Delete "${ev.title}"?`)) deleteMutation.mutate(ev.id); }}
-                                data-testid={`button-delete-truck-event-${ev.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {formatTime12(ev.startTime)}{ev.endTime ? ` - ${formatTime12(ev.endTime)}` : ""}
-                            </span>
-                            {ev.location && (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" /> {ev.location}
+        <div className="space-y-6">
+          {sortedDates.map(date => (
+            <div key={date} className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground" data-testid={`text-date-group-${date}`}>
+                {format(parseISO(date), "EEEE, MMMM d, yyyy")}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {groupedEvents[date].map(ev => {
+                  const truck = ev.foodTruckId ? truckMap.get(ev.foodTruckId) : null;
+                  return (
+                    <Card key={ev.id} className="overflow-visible" data-testid={`card-truck-event-${ev.id}`}>
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="font-semibold truncate" data-testid={`text-truck-event-title-${ev.id}`}>{ev.title}</h4>
+                            {truck && (
+                              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                <UtensilsCrossed className="w-3 h-3" /> {truck.name}
+                                {truck.cuisineType && <Badge variant="outline" className="ml-1">{truck.cuisineType}</Badge>}
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant={ev.isActive ? "default" : "secondary"}>
-                              {ev.isActive ? "Active" : "Inactive"}
-                            </Badge>
-                            {ev.isFeatured && <Badge variant="outline">Featured</Badge>}
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button size="icon" variant="ghost" onClick={() => openEdit(ev)} data-testid={`button-edit-truck-event-${ev.id}`}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => { if (confirm(`Delete "${ev.title}"?`)) deleteMutation.mutate(ev.id); }}
+                              data-testid={`button-delete-truck-event-${ev.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTime12(ev.startTime)}{ev.endTime ? ` - ${formatTime12(ev.endTime)}` : ""}
+                          </span>
+                          {ev.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" /> {ev.location}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant={ev.isActive ? "default" : "secondary"}>
+                            {ev.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                          {ev.isFeatured && <Badge variant="outline">Featured</Badge>}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-            ))
-          </div>
+            </div>
+          ))}
         </div>
-      )
-          </DialogHeader>
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-            <div className="space-y-2">
-              <Label>Food Truck</Label>
-              <Select
-                value={form.foodTruckId ? String(form.foodTruckId) : "none"}
-                onValueChange={v => {
-                  const tid = v === "none" ? null : parseInt(v);
-                  const truck = tid ? (trucks || []).find(t => t.id === tid) : null;
-                  setForm(p => ({
-                    ...p,
-                    foodTruckId: tid,
-                    title: truck ? `${truck.name} at Nashoba` : p.title,
-                  }));
-                }}
-              >
-                <SelectTrigger data-testid="select-event-truck">
-                  <SelectValue placeholder="Select Food Truck" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Select Food Truck</SelectItem>
-                  {(trucks || []).filter(t => t.isApproved).map(t => (
-                    <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.cuisineType ? ` (${t.cuisineType})` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Event title" data-testid="input-truck-event-title" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Date *</Label>
-                <Input type="date" value={form.eventDate} onChange={e => setForm(p => ({ ...p, eventDate: e.target.value }))} data-testid="input-truck-event-date" />
-              </div>
-              <div className="space-y-2">
-                <Label>Location</Label>
-                <Input value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="e.g., Main Pavilion" data-testid="input-truck-event-location" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Time *</Label>
-                <Input type="time" value={form.startTime} onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))} data-testid="input-truck-event-start-time" />
-              </div>
-              <div className="space-y-2">
-                <Label>End Time</Label>
-                <Input type="time" value={form.endTime} onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))} data-testid="input-truck-event-end-time" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Additional Activities</Label>
-              <Textarea 
-              value={form.description} 
-              onChange={e => setForm(p => ({ ...p, description: e.target.value }))} 
-              placeholder="Additional activities or events happening on this day&#10;&#10;Formatting tips:&#10;* Use bullet points: - Live music from 1-4pm&#10;* Or numbered lists: 1. Wine tasting&#10;* Press Enter for line breaks&#10;* Mix and match formats!" 
-              data-testid="input-truck-event-description" 
-            />
-            </div>
-            <div className="space-y-2">
-              <Label>Image URL</Label>
-              <Input value={form.imageUrl} onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))} placeholder="https://..." data-testid="input-truck-event-image" />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <Label>Active</Label>
-                <p className="text-xs text-muted-foreground">Show in public calendar</p>
-              </div>
-              <Switch checked={form.isActive} onCheckedChange={v => setForm(p => ({ ...p, isActive: v }))} data-testid="switch-truck-event-active" />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <Label>Featured</Label>
-                <p className="text-xs text-muted-foreground">Highlight this event</p>
-              </div>
-              <Switch checked={form.isFeatured} onCheckedChange={v => setForm(p => ({ ...p, isFeatured: v }))} data-testid="switch-truck-event-featured" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog} data-testid="button-cancel-truck-event">Cancel</Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={!form.title || !form.eventDate || !form.startTime || createMutation.isPending || updateMutation.isPending}
-              data-testid="button-save-truck-event"
-            >
-              {editEvent ? "Save Changes" : "Add Event"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      )}
     </div>
   );
 }
