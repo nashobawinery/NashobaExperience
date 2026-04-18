@@ -766,13 +766,20 @@ function SchedulePanel() {
               <Textarea 
                 value={form.description} 
                 onChange={e => setForm(p => ({ ...p, description: e.target.value }))} 
-                placeholder="Additional activities or events happening on this day&#10;&#10;Formatting tips:&#10;* Use bullet points: - Live music from 1-4pm&#10;* Or numbered lists: 1. Wine tasting&#10;* Press Enter for line breaks&#10;* Mix and match formats!" 
+                placeholder="Live music from 2-5pm&#10;- Acoustic sets 2-4pm&#10;- Full band 4-5pm&#10;&#10;Wine tasting available&#10;1. Complimentary samples&#10;2. Premium pairings&#10;&#10;Food specials throughout the day" 
                 data-testid="input-truck-event-description" 
-                rows={4}
+                rows={6}
               />
-              <p className="text-xs text-muted-foreground">
-                Use bullet points (-), numbered lists (1.), or line breaks to format your content
-              </p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-medium">Formatting Options:</p>
+                <div className="grid grid-cols-1 gap-1 ml-2">
+                  <div><span className="font-medium">Bullet points:</span> Start line with <code className="bg-muted px-1 rounded">-</code> (dash)</div>
+                  <div><span className="font-medium">Numbered lists:</span> Start line with <code className="bg-muted px-1 rounded">1.</code> <code className="bg-muted px-1 rounded">2.</code> etc.</div>
+                  <div><span className="font-medium">Line breaks:</span> Press Enter between paragraphs</div>
+                  <div><span className="font-medium">No HTML tags:</span> Don't use &lt;br&gt; or other HTML</div>
+                </div>
+                <p className="mt-2">Example above shows all formatting types in action.</p>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Image URL</Label>
