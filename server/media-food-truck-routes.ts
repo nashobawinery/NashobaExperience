@@ -306,12 +306,19 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
 // ==================== Food Truck Permit File Upload ====================
 
 router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Request, res: Response) => {
+  console.log('=== PERMIT UPLOAD START ===');
+  console.log('Request headers:', Object.keys(req.headers));
+  console.log('Content-Type:', req.headers['content-type']);
+  
   try {
     const multer = (await import("multer")).default;
+    console.log('Multer imported successfully');
+    
     const upload = multer({ 
       storage: multer.memoryStorage(),
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
       fileFilter: (req, file, cb) => {
+        console.log('File filter called:', file.mimetype, file.originalname);
         // Only accept PDF files
         if (file.mimetype === 'application/pdf') {
           cb(null, true);
@@ -321,39 +328,69 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
       }
     });
 
+    console.log('Multer config created, starting upload...');
+    
     upload.single('file')(req, res, async (err) => {
+      console.log('Upload callback reached, err:', err);
+      
       if (err) {
         console.error('Permit upload error:', err);
         return res.status(400).json({ message: err.message || 'File upload error' });
       }
 
+      console.log('req.file:', req.file ? 'EXISTS' : 'NULL');
+      
       if (!req.file) {
+        console.error('No file in request');
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
+      console.log('File details:', {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferLength: req.file.buffer?.length || 0
+      });
+
       try {
+        console.log('Starting Google Cloud Storage upload...');
         const { Storage } = await import("@google-cloud/storage");
+        console.log('Google Cloud Storage imported');
+        
         const storage = new Storage();
+        console.log('Storage client created');
+        
         const timestamp = Date.now();
         const filename = `food-truck-permits/${timestamp}-${req.file.originalname}`;
+        console.log('Generated filename:', filename);
         
         // Get bucket from environment or use default
         const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "nashoba-winery-storage";
+        console.log('Using bucket:', bucketName);
+        console.log('Environment DEFAULT_OBJECT_STORAGE_BUCKET_ID:', process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID);
+        
         const bucket = storage.bucket(bucketName);
+        console.log('Bucket object created');
         
         // Upload file to Google Cloud Storage
         const file = bucket.file(filename);
+        console.log('File object created, starting save...');
+        
         await file.save(req.file.buffer, {
           metadata: {
             contentType: req.file.mimetype,
           },
         });
+        console.log('File saved to Google Cloud Storage');
 
         // Make file publicly readable
         await file.makePublic();
+        console.log('File made public');
 
         // Return the public URL for the uploaded file
         const publicUrl = `/api/media/food-trucks/permit-file/${timestamp}-${req.file.originalname}`;
+        console.log('Upload successful, returning URL:', publicUrl);
+        
         res.json({ 
           url: publicUrl,
           filename: req.file.originalname,
@@ -361,11 +398,13 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
         });
       } catch (uploadError: any) {
         console.error('Object storage upload error:', uploadError);
-        res.status(500).json({ message: 'Failed to upload file to storage' });
+        console.error('Error stack:', uploadError.stack);
+        res.status(500).json({ message: 'Failed to upload file to storage: ' + uploadError.message });
       }
     });
   } catch (error: any) {
     console.error('Permit upload setup error:', error);
+    console.error('Setup error stack:', error.stack);
     res.status(500).json({ message: error.message || 'Upload service unavailable' });
   }
 });

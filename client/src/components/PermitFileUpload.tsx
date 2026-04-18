@@ -44,22 +44,37 @@ export function PermitFileUpload({ value, onChange, disabled = false }: PermitFi
 
     setIsUploading(true);
     
+    console.log('=== FRONTEND UPLOAD START ===');
+    console.log('File details:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified
+    });
+    
     try {
       const formData = new FormData();
       formData.append('file', file);
+      console.log('FormData created, appending file...');
 
+      console.log('Starting fetch to /api/media/food-trucks/permit-upload');
       const response = await fetch('/api/media/food-trucks/permit-upload', {
         method: 'POST',
         body: formData,
         credentials: 'include',
       });
 
+      console.log('Fetch completed, response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
         const error = await response.json();
+        console.error('Upload failed with error:', error);
         throw new Error(error.message || 'Upload failed');
       }
 
       const result = await response.json();
+      console.log('Upload successful, result:', result);
       
       // Update the form with the new URL
       onChange(result.url);
