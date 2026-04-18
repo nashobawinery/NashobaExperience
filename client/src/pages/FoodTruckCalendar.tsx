@@ -251,20 +251,13 @@ export default function FoodTruckCalendar() {
                 {monthEvents.map((event) => (
                   <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
                     {(event.imageUrl || event.truckImageUrl) && (
-                      <div className="aspect-video w-full overflow-hidden rounded-t-md relative">
+                      <div className="aspect-video w-full overflow-hidden rounded-t-md">
                         <img
                           src={event.imageUrl || event.truckImageUrl || ""}
                           alt={event.truckName || event.title}
                           className="w-full h-full object-cover object-top"
                           data-testid={`img-event-${event.id}`}
                         />
-                        {/* Permit Expiry Badge */}
-                        {event.permitExpiry && (
-                          <div className="absolute top-2 right-2 bg-green-600 text-white px-2 py-1 rounded-md text-xs font-medium shadow-md">
-                            <ShieldCheck className="h-3 w-3 inline mr-1" />
-                            Permit Good until {new Date(event.permitExpiry).toLocaleDateString()}
-                          </div>
-                        )}
                       </div>
                     )}
                     <CardContent className="p-4 space-y-4">
