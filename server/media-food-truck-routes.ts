@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db } from "./db";
-import { eq, and, desc, asc, gte } from "drizzle-orm";
+import { eq, and, desc, asc, gte, isNotNull } from "drizzle-orm";
 import {
   mediaFoodTrucks,
   mediaFoodTruckEvents,
@@ -259,7 +259,8 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
       .where(
         and(
           eq(mediaFoodTruckEvents.isActive, true),
-          gte(mediaFoodTruckEvents.eventDate, today)
+          gte(mediaFoodTruckEvents.eventDate, today),
+          isNotNull(mediaFoodTruckEvents.foodTruckId)
         )
       )
       .orderBy(asc(mediaFoodTruckEvents.eventDate), asc(mediaFoodTruckEvents.startTime));
