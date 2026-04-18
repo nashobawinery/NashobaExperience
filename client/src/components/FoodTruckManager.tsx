@@ -341,6 +341,12 @@ function TrucksPanel() {
                       <span>{t.contactPhone}</span>
                     </div>
                   )}
+                  {t.permitExpiry && (
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 shrink-0" />
+                      <span>Permit Good until {new Date(t.permitExpiry).toLocaleDateString()}</span>
+                    </div>
+                  )}
                 </div>
 
                 {t.websiteUrl && (

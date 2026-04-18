@@ -253,6 +253,7 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
         truckDescription: mediaFoodTrucks.description,
         truckImageUrl: mediaFoodTrucks.imageUrl,
         truckWebsiteUrl: mediaFoodTrucks.websiteUrl,
+        permitExpiry: mediaFoodTrucks.permitExpiry,
       })
       .from(mediaFoodTruckEvents)
       .leftJoin(mediaFoodTrucks, eq(mediaFoodTruckEvents.foodTruckId, mediaFoodTrucks.id))
@@ -312,7 +313,7 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
         );
 
         // Return the public URL for the uploaded file
-        const publicUrl = `/api/media/food-trucks/permit-file/${filename}`;
+        const publicUrl = `/api/media/food-trucks/permit-file/${Date.now()}-${req.file.originalname}`;
         res.json({ 
           url: publicUrl,
           filename: req.file.originalname,
