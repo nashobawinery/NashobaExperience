@@ -305,6 +305,58 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
 
 // ==================== Food Truck Permit File Upload ====================
 
+// Test endpoint - simplified without Google Cloud Storage
+router.post("/api/media/food-trucks/permit-upload-test", requireAuth, async (req: Request, res: Response) => {
+  console.log('=== PERMIT UPLOAD TEST START ===');
+  
+  try {
+    const multer = (await import("multer")).default;
+    
+    const upload = multer({ 
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+          cb(null, true);
+        } else {
+          cb(new Error('Only PDF files are allowed'));
+        }
+      }
+    });
+    
+    upload.single('file')(req, res, async (err) => {
+      if (err) {
+        console.error('Test upload error:', err);
+        return res.status(400).json({ message: err.message || 'File upload error' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      console.log('Test upload successful - file received:', {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferLength: req.file.buffer?.length || 0
+      });
+
+      // Return a mock URL for testing
+      const mockUrl = `/api/media/food-trucks/permit-file/test-${req.file.originalname}`;
+      
+      res.json({ 
+        url: mockUrl,
+        filename: req.file.originalname,
+        size: req.file.size,
+        test: true
+      });
+    });
+  } catch (error: any) {
+    console.error('Test upload setup error:', error);
+    res.status(500).json({ message: error.message || 'Test upload service unavailable' });
+  }
+});
+
 router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Request, res: Response) => {
   console.log('=== PERMIT UPLOAD START ===');
   console.log('Request headers:', Object.keys(req.headers));

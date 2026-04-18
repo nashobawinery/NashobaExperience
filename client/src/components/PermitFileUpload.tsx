@@ -57,8 +57,8 @@ export function PermitFileUpload({ value, onChange, disabled = false }: PermitFi
       formData.append('file', file);
       console.log('FormData created, appending file...');
 
-      console.log('Starting fetch to /api/media/food-trucks/permit-upload');
-      const response = await fetch('/api/media/food-trucks/permit-upload', {
+      console.log('Starting fetch to /api/media/food-trucks/permit-upload-test');
+      const response = await fetch('/api/media/food-trucks/permit-upload-test', {
         method: 'POST',
         body: formData,
         credentials: 'include',
