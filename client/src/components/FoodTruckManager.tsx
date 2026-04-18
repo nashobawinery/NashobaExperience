@@ -706,7 +706,105 @@ function SchedulePanel() {
         </div>
       )}
 
-      {/* Dialog temporarily removed for build fix - will be restored */}
+      <Dialog open={showDialog || !!editEvent} onOpenChange={(v) => { if (!v) closeDialog(); }}>
+        <DialogHeader>
+          <DialogTitle>{editEvent ? "Edit Event" : "Add Food Truck Event"}</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2">
+              <Label>Food Truck</Label>
+              <Select
+                value={form.foodTruckId ? String(form.foodTruckId) : "none"}
+                onValueChange={v => {
+                  const tid = v === "none" ? null : parseInt(v);
+                  const truck = tid ? (trucks || []).find(t => t.id === tid) : null;
+                  setForm(p => ({
+                    ...p,
+                    foodTruckId: tid,
+                    title: truck ? `${truck.name} at Nashoba` : p.title,
+                  }));
+                }}
+              >
+                <SelectTrigger data-testid="select-event-truck">
+                  <SelectValue placeholder="Select Food Truck" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select Food Truck</SelectItem>
+                  {(trucks || []).filter(t => t.isApproved).map(t => (
+                    <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.cuisineType ? ` (${t.cuisineType})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Title *</Label>
+              <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Event title" data-testid="input-truck-event-title" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date *</Label>
+                <Input type="date" value={form.eventDate} onChange={e => setForm(p => ({ ...p, eventDate: e.target.value }))} data-testid="input-truck-event-date" />
+              </div>
+              <div className="space-y-2">
+                <Label>Location</Label>
+                <Input value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="e.g., Main Pavilion" data-testid="input-truck-event-location" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Time *</Label>
+                <Input type="time" value={form.startTime} onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))} data-testid="input-truck-event-start-time" />
+              </div>
+              <div className="space-y-2">
+                <Label>End Time</Label>
+                <Input type="time" value={form.endTime} onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))} data-testid="input-truck-event-end-time" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Additional Activities</Label>
+              <Textarea 
+                value={form.description} 
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))} 
+                placeholder="Additional activities or events happening on this day&#10;&#10;Formatting tips:&#10;* Use bullet points: - Live music from 1-4pm&#10;* Or numbered lists: 1. Wine tasting&#10;* Press Enter for line breaks&#10;* Mix and match formats!" 
+                data-testid="input-truck-event-description" 
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use bullet points (-), numbered lists (1.), or line breaks to format your content
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Image URL</Label>
+              <Input value={form.imageUrl} onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))} placeholder="https://..." data-testid="input-truck-event-image" />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label>Active</Label>
+                <p className="text-xs text-muted-foreground">Show in public calendar</p>
+              </div>
+              <Switch checked={form.isActive} onCheckedChange={v => setForm(p => ({ ...p, isActive: v }))} data-testid="switch-truck-event-active" />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label>Featured</Label>
+                <p className="text-xs text-muted-foreground">Highlight this event</p>
+              </div>
+              <Switch checked={form.isFeatured} onCheckedChange={v => setForm(p => ({ ...p, isFeatured: v }))} data-testid="switch-truck-event-featured" />
+            </div>
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={closeDialog} data-testid="button-cancel-truck-event">Cancel</Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!form.title || !form.eventDate || !form.startTime || createMutation.isPending || updateMutation.isPending}
+            data-testid="button-save-truck-event"
+          >
+            {editEvent ? "Save Changes" : "Add Event"}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }
