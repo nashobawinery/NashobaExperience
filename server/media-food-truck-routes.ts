@@ -301,19 +301,28 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
       }
 
       try {
-        const objectStorageService = new ObjectStorageService();
-        const filename = `food-truck-permits/${Date.now()}-${req.file.originalname}`;
+        const { Storage } = await import("@google-cloud/storage");
+        const storage = new Storage();
+        const timestamp = Date.now();
+        const filename = `food-truck-permits/${timestamp}-${req.file.originalname}`;
         
-        // Upload to object storage
-        const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
-        const objectPath = await objectStorageService.uploadObjectFromBuffer(
-          req.file.buffer,
-          filename,
-          req.file.mimetype
-        );
+        // Get bucket from environment or use default
+        const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "nashoba-winery-storage";
+        const bucket = storage.bucket(bucketName);
+        
+        // Upload file to Google Cloud Storage
+        const file = bucket.file(filename);
+        await file.save(req.file.buffer, {
+          metadata: {
+            contentType: req.file.mimetype,
+          },
+        });
+
+        // Make file publicly readable
+        await file.makePublic();
 
         // Return the public URL for the uploaded file
-        const publicUrl = `/api/media/food-trucks/permit-file/${Date.now()}-${req.file.originalname}`;
+        const publicUrl = `/api/media/food-trucks/permit-file/${timestamp}-${req.file.originalname}`;
         res.json({ 
           url: publicUrl,
           filename: req.file.originalname,
@@ -334,13 +343,32 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
 router.get("/api/media/food-trucks/permit-file/:filename", async (req: Request, res: Response) => {
   try {
     const { filename } = req.params;
-    const objectStorageService = new ObjectStorageService();
+    const { Storage } = await import("@google-cloud/storage");
+    const storage = new Storage();
     
-    // Extract the object path from the filename
-    const objectPath = `food-truck-permits/${filename}`;
+    // Get bucket from environment or use default
+    const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "nashoba-winery-storage";
+    const bucket = storage.bucket(bucketName);
     
-    // Download and serve the file
-    await objectStorageService.downloadObject(objectPath, res);
+    // Construct the full filename with path
+    const fullFilename = `food-truck-permits/${filename}`;
+    const file = bucket.file(fullFilename);
+    
+    // Check if file exists
+    const [exists] = await file.exists();
+    if (!exists) {
+      return res.status(404).json({ message: 'Permit file not found' });
+    }
+    
+    // Get file metadata
+    const [metadata] = await file.getMetadata();
+    
+    // Set appropriate headers
+    res.setHeader('Content-Type', metadata.contentType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${metadata.name || filename}"`);
+    
+    // Stream the file to response
+    await file.createReadStream().pipe(res);
   } catch (error: any) {
     console.error('Permit file download error:', error);
     res.status(404).json({ message: 'Permit file not found' });
