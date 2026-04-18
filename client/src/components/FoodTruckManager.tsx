@@ -585,7 +585,35 @@ function SchedulePanel() {
     return acc;
   }, {});
 
-  const sortedDates = Object.keys(groupedEvents).sort((a, b) => b.localeCompare(a));
+  const sortedDates = Object.keys(groupedEvents).sort((a, b) => a.localeCompare(b));
+
+  // Helper function to get calendar days for a month
+  const getCalendarDays = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    const days = [];
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+    // Add days of the month
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+    return days;
+  };
+
+  // Get scheduled dates for calendar
+  const scheduledDates = new Set((events || []).map(e => e.eventDate));
+  
+  // Get current and next month for calendar view
+  const currentMonth = new Date();
+  const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
 
   if (isLoading) {
     return (
@@ -615,73 +643,71 @@ function SchedulePanel() {
           </Button>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {sortedDates.map(date => (
-            <div key={date} className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground" data-testid={`text-date-group-${date}`}>
-                {format(parseISO(date), "EEEE, MMMM d, yyyy")}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {groupedEvents[date].map(ev => {
-                  const truck = ev.foodTruckId ? truckMap.get(ev.foodTruckId) : null;
-                  return (
-                    <Card key={ev.id} className="overflow-visible" data-testid={`card-truck-event-${ev.id}`}>
-                      <CardContent className="p-4 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <h4 className="font-semibold truncate" data-testid={`text-truck-event-title-${ev.id}`}>{ev.title}</h4>
-                            {truck && (
-                              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                <UtensilsCrossed className="w-3 h-3" /> {truck.name}
-                                {truck.cuisineType && <Badge variant="outline" className="ml-1">{truck.cuisineType}</Badge>}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Events List - Left Side (2/3 width) */}
+          <div className="lg:col-span-2 space-y-6">
+            {sortedDates.map(date => (
+              <div key={date} className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground" data-testid={`text-date-group-${date}`}>
+                  {format(parseISO(date), "EEEE, MMMM d, yyyy")}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {groupedEvents[date].map(ev => {
+                    const truck = ev.foodTruckId ? truckMap.get(ev.foodTruckId) : null;
+                    return (
+                      <Card key={ev.id} className="overflow-visible" data-testid={`card-truck-event-${ev.id}`}>
+                        <CardContent className="p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <h4 className="font-semibold truncate" data-testid={`text-truck-event-title-${ev.id}`}>{ev.title}</h4>
+                              {truck && (
+                                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                  <UtensilsCrossed className="w-3 h-3" /> {truck.name}
+                                  {truck.cuisineType && <Badge variant="outline" className="ml-1">{truck.cuisineType}</Badge>}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Button size="icon" variant="ghost" onClick={() => openEdit(ev)} data-testid={`button-edit-truck-event-${ev.id}`}>
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => { if (confirm(`Delete "${ev.title}"?`)) deleteMutation.mutate(ev.id); }}
+                                data-testid={`button-delete-truck-event-${ev.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatTime12(ev.startTime)}{ev.endTime ? ` - ${formatTime12(ev.endTime)}` : ""}
+                            </span>
+                            {ev.location && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" /> {ev.location}
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <Button size="icon" variant="ghost" onClick={() => openEdit(ev)} data-testid={`button-edit-truck-event-${ev.id}`}>
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => { if (confirm(`Delete "${ev.title}"?`)) deleteMutation.mutate(ev.id); }}
-                              data-testid={`button-delete-truck-event-${ev.id}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant={ev.isActive ? "default" : "secondary"}>
+                              {ev.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                            {ev.isFeatured && <Badge variant="outline">Featured</Badge>}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatTime12(ev.startTime)}{ev.endTime ? ` - ${formatTime12(ev.endTime)}` : ""}
-                          </span>
-                          {ev.location && (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" /> {ev.location}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={ev.isActive ? "default" : "secondary"}>
-                            {ev.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                          {ev.isFeatured && <Badge variant="outline">Featured</Badge>}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          </div>
         </div>
-      )}
-
-      <Dialog open={showDialog || !!editEvent} onOpenChange={(v) => { if (!v) closeDialog(); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editEvent ? "Edit Event" : "Add Food Truck Event"}</DialogTitle>
+      )
           </DialogHeader>
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
             <div className="space-y-2">
