@@ -333,9 +333,31 @@ export default function FoodTruckCalendar() {
                         {event.description && (
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-muted-foreground">Additional Activities:</p>
-                            <p className="text-sm text-muted-foreground" data-testid={`text-event-description-${event.id}`}>
-                              {event.description}
-                            </p>
+                            <div className="text-sm text-muted-foreground" data-testid={`text-event-description-${event.id}`}>
+                              {(() => {
+                                const lines = event.description.split('\n');
+                                return lines.map((line, index) => {
+                                  // Handle bullet points (starting with -, *, or number with dot)
+                                  if (line.trim().match(/^[-*]\s+/) || line.trim().match(/^\d+\.\s+/)) {
+                                    const bulletContent = line.trim().replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, '');
+                                    return (
+                                      <div key={index} className="flex items-start gap-2 mb-1">
+                                        <span className="text-primary mt-1">{'\u2022'}</span>
+                                        <span>{bulletContent}</span>
+                                      </div>
+                                    );
+                                  }
+                                  // Handle regular lines with proper spacing
+                                  else if (line.trim()) {
+                                    return <p key={index} className="mb-1">{line}</p>;
+                                  }
+                                  // Handle empty lines for spacing
+                                  else {
+                                    return <br key={index} />;
+                                  }
+                                });
+                              })()}
+                            </div>
                           </div>
                         )}
 
