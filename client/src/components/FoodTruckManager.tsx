@@ -761,7 +761,12 @@ function SchedulePanel() {
             </div>
             <div className="space-y-2">
               <Label>Additional Activities</Label>
-              <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Additional activities or events happening on this day" data-testid="input-truck-event-description" />
+              <Textarea 
+              value={form.description} 
+              onChange={e => setForm(p => ({ ...p, description: e.target.value }))} 
+              placeholder="Additional activities or events happening on this day&#10;&#10;Formatting tips:&#10;* Use bullet points: - Live music from 1-4pm&#10;* Or numbered lists: 1. Wine tasting&#10;* Press Enter for line breaks&#10;* Mix and match formats!" 
+              data-testid="input-truck-event-description" 
+            />
             </div>
             <div className="space-y-2">
               <Label>Image URL</Label>
