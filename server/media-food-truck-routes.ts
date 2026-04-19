@@ -341,11 +341,27 @@ router.post("/api/media/food-trucks/permit-upload-test", requireAuth, async (req
         bufferLength: req.file.buffer?.length || 0
       });
 
-      // Return a mock URL for testing
-      const mockUrl = `/api/media/food-trucks/permit-file/test-${req.file.originalname}`;
+      // Save the actual uploaded file to local storage
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      // Create uploads directory if it doesn't exist
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'food-truck-permits');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      
+      // Save file with original name
+      const filePath = path.join(uploadsDir, req.file.originalname);
+      fs.writeFileSync(filePath, req.file.buffer);
+      
+      console.log('File saved to:', filePath);
+      
+      // Return URL for the saved file
+      const fileUrl = `/api/media/food-trucks/permit-file/test-${req.file.originalname}`;
       
       res.json({ 
-        url: mockUrl,
+        url: fileUrl,
         filename: req.file.originalname,
         size: req.file.size,
         test: true
@@ -459,22 +475,42 @@ router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Req
   }
 });
 
-// Test file serving endpoint - for test uploads
+// Test file serving endpoint - for test uploads (saves files to local storage)
 router.get("/api/media/food-trucks/permit-file/test-:filename", async (req: Request, res: Response) => {
   try {
     const { filename } = req.params;
     console.log('=== TEST FILE SERVE START ===');
     console.log('Requested test filename:', filename);
     
-    // For test uploads, return a simple PDF response
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    // For test uploads, try to serve the actual uploaded file from local storage
+    const fs = await import('fs');
+    const path = await import('path');
     
-    // Return a simple test PDF (just a minimal PDF structure)
-    const testPdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Test Permit PDF) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000054 00000 n\n0000000110 00000 n\n0000000203 00000 n\ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n299\n%%EOF');
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'food-truck-permits');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
     
-    res.send(testPdf);
-    console.log('Test PDF served successfully');
+    const filePath = path.join(uploadsDir, filename);
+    
+    if (fs.existsSync(filePath)) {
+      // Serve the actual uploaded file
+      const fileBuffer = fs.readFileSync(filePath);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      res.send(fileBuffer);
+      console.log('Actual uploaded file served successfully');
+    } else {
+      // Fallback to test PDF if file not found
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      
+      const testPdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Test Permit PDF) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000054 00000 n\n0000000110 00000 n\n0000000203 00000 n\ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n299\n%%EOF');
+      
+      res.send(testPdf);
+      console.log('Test PDF served (file not found)');
+    }
   } catch (error: any) {
     console.error('Error serving test permit file:', error);
     res.status(500).json({ message: 'Failed to serve test permit file' });
