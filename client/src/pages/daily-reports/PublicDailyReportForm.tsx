@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks, ChevronRight, Save, Send, RotateCcw, MessageSquare } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
+import dailyReportIcon from "@/assets/daily-report-icon.png";
 import ToastVoidsDiscountsPanel from "@/components/ToastVoidsDiscountsPanel";
 
 interface Procedure {
