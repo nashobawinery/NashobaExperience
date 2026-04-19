@@ -155,6 +155,18 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
     queryKey: ["/api/resy/locations"],
   });
 
+  // Predefined list of 8 locations from private events schedule
+  const privateEventLocations = [
+    "Main Pavilion",
+    "Wine Cellar", 
+    "Terrace",
+    "Garden",
+    "Tasting Room",
+    "Event Barn",
+    "Vineyard Patio",
+    "Private Dining Room"
+  ];
+
   const { data: experiences, isLoading: expLoading } = useQuery<ResyExperience[]>({
     queryKey: ["/api/resy/experiences"],
   });
@@ -298,7 +310,7 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
                     <SelectContent>
-                      {locations?.filter(l => l.isActive).map(loc => (
+                      {locations?.filter(l => l.isActive && privateEventLocations.includes(l.name)).map(loc => (
                         <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -595,6 +607,22 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
   onSave: (updates: any) => void;
   isSaving: boolean;
 }) {
+  const { data: locations } = useQuery<ResyLocation[]>({
+    queryKey: ["/api/resy/locations"],
+  });
+
+  // Predefined list of 8 locations from private events schedule
+  const privateEventLocations = [
+    "Main Pavilion",
+    "Wine Cellar", 
+    "Terrace",
+    "Garden",
+    "Tasting Room",
+    "Event Barn",
+    "Vineyard Patio",
+    "Private Dining Room"
+  ];
+  
   const [customerName, setCustomerName] = useState(event.customerName || "");
   const [customerEmail, setCustomerEmail] = useState(event.customerEmail || "");
   const [customerPhone, setCustomerPhone] = useState(event.customerPhone || "");
@@ -605,6 +633,7 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
   const [estimatedRevenue, setEstimatedRevenue] = useState(event.estimatedRevenue != null ? String(event.estimatedRevenue) : "");
   const [actualRevenue, setActualRevenue] = useState(event.actualRevenue != null ? String(event.actualRevenue) : "");
   const [status, setStatus] = useState(event.status || "confirmed");
+  const [locationId, setLocationId] = useState(event.locationId || "");
 
   const handleSave = () => {
     onSave({
@@ -618,6 +647,7 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
       estimatedRevenue: estimatedRevenue ? parseInt(estimatedRevenue) : null,
       actualRevenue: actualRevenue ? parseInt(actualRevenue) : null,
       status,
+      locationId: locationId || null,
     });
   };
 
@@ -646,6 +676,20 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
               <Label>Customer Email</Label>
               <Input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className="mt-1" data-testid="edit-customer-email" />
             </div>
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-1"><MapPin className="h-3 w-3" /> Location</Label>
+            <Select value={locationId} onValueChange={setLocationId}>
+              <SelectTrigger className="mt-1" data-testid="edit-location">
+                <SelectValue placeholder="Select location" />
+              </SelectTrigger>
+              <SelectContent>
+                {locations?.filter(l => l.isActive && privateEventLocations.includes(l.name)).map(loc => (
+                  <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-4 grid-cols-2">
