@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -81,6 +81,20 @@ function groupByMonth(events: FoodTruckCalendarEvent[]): Record<string, FoodTruc
     groups[key].push(event);
   }
   return groups;
+}
+
+/** Preserve order; one group per calendar day so banners can sit above only that day's cards (not the whole month grid). */
+function groupEventsByDateInOrder(events: FoodTruckCalendarEvent[]): { eventDate: string; events: FoodTruckCalendarEvent[] }[] {
+  const out: { eventDate: string; events: FoodTruckCalendarEvent[] }[] = [];
+  for (const ev of events) {
+    const last = out[out.length - 1];
+    if (last && last.eventDate === ev.eventDate) {
+      last.events.push(ev);
+    } else {
+      out.push({ eventDate: ev.eventDate, events: [ev] });
+    }
+  }
+  return out;
 }
 
 export default function FoodTruckCalendar() {
@@ -282,23 +296,22 @@ export default function FoodTruckCalendar() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 {month}
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {monthEvents.map((event, idx) => {
-                  const dayLabel = labelByDate.get(event.eventDate);
-                  const showDayBanner =
-                    !!dayLabel &&
-                    (idx === 0 || monthEvents[idx - 1]!.eventDate !== event.eventDate);
+              <div className="space-y-8">
+                {groupEventsByDateInOrder(monthEvents).map(({ eventDate, events: dayEvents }) => {
+                  const dayLabel = labelByDate.get(eventDate);
                   return (
-                  <Fragment key={event.id}>
-                    {showDayBanner && (
-                      <div
-                        className="col-span-full rounded-md border border-primary/25 bg-primary/5 px-4 py-2.5 text-center text-sm font-medium text-primary"
-                        data-testid={`banner-food-truck-day-${event.eventDate}`}
-                      >
-                        {dayLabel}
-                      </div>
-                    )}
-                  <Card data-testid={`card-food-truck-event-${event.id}`}>
+                    <div key={eventDate} className="space-y-3">
+                      {dayLabel && (
+                        <div
+                          className="rounded-md border border-primary/25 bg-primary/5 px-4 py-2.5 text-center text-sm font-medium text-primary"
+                          data-testid={`banner-food-truck-day-${eventDate}`}
+                        >
+                          {dayLabel}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {dayEvents.map((event) => (
+                  <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
                     {/* Prominent Date and Time Callout at Top */}
                     <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
                       <div className="text-center space-y-1">
@@ -419,7 +432,9 @@ export default function FoodTruckCalendar() {
                       </div>
                     </CardContent>
                   </Card>
-                  </Fragment>
+                        ))}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
