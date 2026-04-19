@@ -74,9 +74,12 @@ export default function FoodTruckManager() {
               Approve in <button className="underline underline-offset-2 hover:text-foreground transition-colors" onClick={() => setActiveTab("submissions")}>Submissions</button> — added to Food Trucks list automatically
             </span>
             <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 flex-wrap">
               <Calendar className="w-3.5 h-3.5" />
-              Book dates in <button className="underline underline-offset-2 hover:text-foreground transition-colors" onClick={() => setActiveTab("schedule")}>Schedule</button>
+              <button type="button" className="underline underline-offset-2 hover:text-foreground transition-colors" onClick={() => setActiveTab("schedule")}>Schedule</button>
+              <span className="text-muted-foreground">— truck bookings; optional</span>{" "}
+              <button type="button" className="underline underline-offset-2 hover:text-foreground transition-colors" onClick={() => setActiveTab("schedule")}>Special day labels</button>
+              <span className="text-muted-foreground">for the public calendar</span>
             </span>
             <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <span className="flex items-center gap-1">
@@ -579,7 +582,7 @@ function FoodTruckDayBannersSection() {
                   Special day labels (public calendar)
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Optional banner text for a calendar day (e.g. &quot;First Food Truck Friday&quot;). Does not replace truck events.
+                  Shown on the public <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">/food-trucks</code> page above the first truck that day. Managed here only — not inside Add Event.
                 </p>
               </div>
             </div>
@@ -822,22 +825,13 @@ function SchedulePanel() {
   const currentMonth = new Date();
   const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-40" />
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <FoodTruckDayBannersSection />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-semibold" data-testid="text-truck-schedule-heading">Food Truck Schedule</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => window.open('/food-truck-calendar', '_blank')} data-testid="button-preview-calendar">
+          <Button variant="outline" onClick={() => window.open("/food-trucks", "_blank")} data-testid="button-preview-calendar">
             <Eye className="w-4 h-4 mr-2" /> Preview Calendar
           </Button>
           <Button onClick={openCreate} data-testid="button-add-truck-event">
@@ -846,7 +840,12 @@ function SchedulePanel() {
         </div>
       </div>
 
-      {sortedDates.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      ) : sortedDates.length === 0 ? (
         <Card className="p-8 text-center">
           <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">No Events Scheduled</h3>
@@ -882,10 +881,10 @@ function SchedulePanel() {
                             <Button size="icon" variant="ghost" onClick={() => openEdit(ev)} data-testid={`button-edit-truck-event-${ev.id}`}>
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={() => window.open('/food-truck-calendar', '_blank')} title="Preview Calendar">
+                            <Button size="icon" variant="ghost" onClick={() => window.open("/food-trucks", "_blank")} title="Preview Calendar">
                               <Eye className="w-4 h-4" />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={() => window.open(`/food-truck-calendar?event=${ev.id}`, '_blank')} title="Preview Event">
+                            <Button size="icon" variant="ghost" onClick={() => window.open(`/food-trucks?event=${ev.id}`, "_blank")} title="Preview Event">
                               <Calendar className="w-4 h-4" />
                             </Button>
                             <Button
@@ -930,6 +929,9 @@ function SchedulePanel() {
           <DialogTitle>{editEvent ? "Edit Event" : "Add Food Truck Event"}</DialogTitle>
         </DialogHeader>
         <DialogContent className="max-h-[70vh] overflow-y-auto">
+          <p className="text-xs text-muted-foreground -mt-1 mb-2 pr-1">
+            Whole-day titles for visitors (e.g. &quot;First Food Truck Friday&quot;) are set in the <strong>Special day labels</strong> card on this Schedule tab — not in this form.
+          </p>
           <div className="space-y-4 pr-1 pb-6">
             <div className="space-y-2">
               <Label>Food Truck</Label>
