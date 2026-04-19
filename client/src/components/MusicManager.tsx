@@ -33,6 +33,7 @@ import {
   Copy,
   Printer,
   ArrowRight,
+  Eye,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Musician, MusicEvent, MusicianSubmission } from "@shared/schema";
@@ -548,9 +549,14 @@ function SchedulePanel() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-semibold" data-testid="text-schedule-heading">Music Schedule</h2>
-        <Button onClick={openCreate} data-testid="button-add-music-event">
-          <Plus className="w-4 h-4 mr-2" /> Add Event
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => window.open('/music-calendar', '_blank')} data-testid="button-preview-music-calendar">
+            <Eye className="w-4 h-4 mr-2" /> Preview Calendar
+          </Button>
+          <Button onClick={openCreate} data-testid="button-add-music-event">
+            <Plus className="w-4 h-4 mr-2" /> Add Event
+          </Button>
+        </div>
       </div>
 
       {sortedDates.length === 0 ? (
@@ -588,6 +594,12 @@ function SchedulePanel() {
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <Button size="icon" variant="ghost" onClick={() => openEdit(ev)} data-testid={`button-edit-event-${ev.id}`}>
                               <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={() => window.open('/music-calendar', '_blank')} title="Preview Calendar">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={() => window.open(`/music-calendar?event=${ev.id}`, '_blank')} title="Preview Event">
+                              <Calendar className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"
