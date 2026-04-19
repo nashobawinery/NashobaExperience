@@ -310,7 +310,7 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
                     <SelectContent>
-                      {locations?.filter(l => l.isActive && privateEventLocations.includes(l.name)).map(loc => (
+                      {locations?.filter(l => l.isActive).map(loc => (
                         <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -685,7 +685,7 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
                 <SelectValue placeholder="Select location" />
               </SelectTrigger>
               <SelectContent>
-                {locations?.filter(l => l.isActive && privateEventLocations.includes(l.name)).map(loc => (
+                {locations?.filter(l => l.isActive).map(loc => (
                   <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
                 ))}
               </SelectContent>
