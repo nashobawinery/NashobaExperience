@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { CheckCircle, Mail, Clock, ArrowLeft } from "lucide-react";
-import logoUrl from "@assets/NVW logo no background_1762469370864.png";
+import logoUrl from "@/assets/nvw-logo.png";
 
 export default function ApplicationThankYouPage() {
   const [, setLocation] = useLocation();

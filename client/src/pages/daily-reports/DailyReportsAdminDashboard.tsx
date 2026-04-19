@@ -67,7 +67,7 @@ import {
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import "@/docs/daily-reports";
-import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
+import dailyReportIcon from "@/assets/daily-report-icon.png";
 import ToastVoidsDiscountsPanel from "@/components/ToastVoidsDiscountsPanel";
 import { VoidDiscountDetailDialog } from "@/components/VoidDiscountDetailDialog";
 import {

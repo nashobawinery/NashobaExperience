@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import nvwLogo from '@assets/NVW logo no background_1762469370864.png';
+import nvwLogo from '@/assets/nvw-logo.png';
 
 interface AgreementData {
   agreement: {

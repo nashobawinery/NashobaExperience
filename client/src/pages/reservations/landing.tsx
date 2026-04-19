@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ExternalLink, Calendar, Wine, Users, Link2, ShoppingCart, Check, AlertTriangle } from "lucide-react";
 import type { Experience, ResySiteSetting, FooterLink } from "@shared/schema";
-import heroImageDefault from "@assets/stock_images/winery_vineyard_land_9ae4eda8.jpg";
+import heroImageDefault from "@/assets/winery-vineyard.jpg";
 import { useReservationCart } from "@/contexts/reservation-cart-context";
 
 export default function Landing() {

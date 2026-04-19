@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Store, MapPin, User, Phone, Mail, FileText, AlertCircle } from "lucide-react";
-import logoUrl from "@assets/NVW logo no background_1762469370864.png";
+import logoUrl from "@/assets/nvw-logo.png";
 
 const registrationSchema = z.object({
   // Business Information
