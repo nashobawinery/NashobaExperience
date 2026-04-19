@@ -4244,7 +4244,7 @@ router.patch("/api/resy/event-registration/edit/:id", async (req, res) => {
     }
 
     const allowedFields: Record<string, any> = {};
-    const editableKeys = ['customerName', 'customerEmail', 'customerPhone', 'partySize', 'startTime', 'endTime', 'notes', 'estimatedRevenue', 'actualRevenue', 'status'];
+    const editableKeys = ['customerName', 'customerEmail', 'customerPhone', 'partySize', 'startTime', 'endTime', 'notes', 'estimatedRevenue', 'actualRevenue', 'status', 'locationId'];
     for (const key of editableKeys) {
       if (updates[key] !== undefined) {
         allowedFields[key] = updates[key];

@@ -155,7 +155,7 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
     queryKey: ["/api/resy/locations"],
   });
 
-  // Predefined list of 8 locations from private events schedule
+  // Predefined list of locations from private events schedule (includes Harvey for existing events)
   const privateEventLocations = [
     "Restaurant Lunch",
     "Restaurant Evening", 
@@ -164,7 +164,8 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
     "The Pavilion",
     "Patio",
     "Distillery",
-    "Terrace Bar"
+    "Terrace Bar",
+    "Harvey"
   ];
 
   const { data: experiences, isLoading: expLoading } = useQuery<ResyExperience[]>({
@@ -611,7 +612,7 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
     queryKey: ["/api/resy/locations"],
   });
 
-  // Predefined list of 8 locations from private events schedule
+  // Predefined list of locations from private events schedule (includes Harvey for existing events)
   const privateEventLocations = [
     "Restaurant Lunch",
     "Restaurant Evening", 
@@ -620,7 +621,8 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
     "The Pavilion",
     "Patio",
     "Distillery",
-    "Terrace Bar"
+    "Terrace Bar",
+    "Harvey"
   ];
   
   const [customerName, setCustomerName] = useState(event.customerName || "");
