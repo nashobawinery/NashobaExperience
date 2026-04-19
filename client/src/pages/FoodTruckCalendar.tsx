@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -27,6 +27,11 @@ import {
   ShieldCheck,
   FileText,
 } from "lucide-react";
+
+interface FoodTruckDayBannerPublic {
+  bannerDate: string;
+  label: string;
+}
 
 interface FoodTruckCalendarEvent {
   id: number;
@@ -89,6 +94,20 @@ export default function FoodTruckCalendar() {
     staleTime: 0, // Force refresh on every request
     gcTime: 0, // Don't cache the data (new property name)
   });
+
+  const { data: dayBanners = [] } = useQuery<FoodTruckDayBannerPublic[]>({
+    queryKey: ["/api/public/food-truck-day-banners"],
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  const labelByDate = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of dayBanners) {
+      m.set(b.bannerDate, b.label);
+    }
+    return m;
+  }, [dayBanners]);
 
   // Debug: Log events when they change
   useEffect(() => {
@@ -264,8 +283,22 @@ export default function FoodTruckCalendar() {
                 {month}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {monthEvents.map((event) => (
-                  <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
+                {monthEvents.map((event, idx) => {
+                  const dayLabel = labelByDate.get(event.eventDate);
+                  const showDayBanner =
+                    !!dayLabel &&
+                    (idx === 0 || monthEvents[idx - 1]!.eventDate !== event.eventDate);
+                  return (
+                  <Fragment key={event.id}>
+                    {showDayBanner && (
+                      <div
+                        className="col-span-full rounded-md border border-primary/25 bg-primary/5 px-4 py-2.5 text-center text-sm font-medium text-primary"
+                        data-testid={`banner-food-truck-day-${event.eventDate}`}
+                      >
+                        {dayLabel}
+                      </div>
+                    )}
+                  <Card data-testid={`card-food-truck-event-${event.id}`}>
                     {/* Prominent Date and Time Callout at Top */}
                     <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
                       <div className="text-center space-y-1">
@@ -386,7 +419,9 @@ export default function FoodTruckCalendar() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  </Fragment>
+                  );
+                })}
               </div>
             </div>
           ))

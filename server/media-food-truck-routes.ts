@@ -4,10 +4,12 @@ import { eq, and, desc, asc, gte, isNotNull, ne } from "drizzle-orm";
 import {
   mediaFoodTrucks,
   mediaFoodTruckEvents,
+  mediaFoodTruckDayBanners,
   mediaFoodTruckSubmissions,
   mediaFoodTruckReviews,
   insertFoodTruckSchema,
   insertFoodTruckEventSchema,
+  insertFoodTruckDayBannerSchema,
   insertFoodTruckSubmissionSchema,
   insertFoodTruckReviewSchema,
 } from "@shared/schema";
@@ -118,6 +120,56 @@ router.delete("/api/media/food-truck-events/:id", requireAuth, async (req: Reque
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckEvents).where(eq(mediaFoodTruckEvents.id, id));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== Food truck day banners (public calendar labels only) ====================
+
+router.get("/api/media/food-truck-day-banners", requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const rows = await db
+      .select()
+      .from(mediaFoodTruckDayBanners)
+      .orderBy(desc(mediaFoodTruckDayBanners.bannerDate));
+    res.json(rows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/api/media/food-truck-day-banners", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const data = insertFoodTruckDayBannerSchema.parse(req.body);
+    const [row] = await db.insert(mediaFoodTruckDayBanners).values(data).returning();
+    res.json(row);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.put("/api/media/food-truck-day-banners/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const data = insertFoodTruckDayBannerSchema.partial().parse(req.body);
+    const [row] = await db
+      .update(mediaFoodTruckDayBanners)
+      .set(data)
+      .where(eq(mediaFoodTruckDayBanners.id, id))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Day banner not found" });
+    res.json(row);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete("/api/media/food-truck-day-banners/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(mediaFoodTruckDayBanners).where(eq(mediaFoodTruckDayBanners.id, id));
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -298,6 +350,23 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
     })));
 
     res.json(events);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/api/public/food-truck-day-banners", async (_req: Request, res: Response) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const rows = await db
+      .select({
+        bannerDate: mediaFoodTruckDayBanners.bannerDate,
+        label: mediaFoodTruckDayBanners.label,
+      })
+      .from(mediaFoodTruckDayBanners)
+      .where(and(eq(mediaFoodTruckDayBanners.isActive, true), gte(mediaFoodTruckDayBanners.bannerDate, today)))
+      .orderBy(asc(mediaFoodTruckDayBanners.bannerDate));
+    res.json(rows);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

@@ -6190,6 +6190,15 @@ export const mediaFoodTruckEvents = pgTable("media_food_truck_events", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/** Optional labels for specific calendar days on the public food truck page (separate from truck schedule rows). */
+export const mediaFoodTruckDayBanners = pgTable("media_food_truck_day_banners", {
+  id: serial("id").primaryKey(),
+  bannerDate: varchar("banner_date", { length: 10 }).notNull().unique(),
+  label: varchar("label", { length: 255 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const mediaFoodTruckSubmissionStatusEnum = pgEnum("media_food_truck_submission_status", [
   "pending", "approved", "declined"
 ]);
@@ -6218,6 +6227,10 @@ export type FoodTruck = typeof mediaFoodTrucks.$inferSelect;
 export const insertFoodTruckEventSchema = createInsertSchema(mediaFoodTruckEvents).omit({ id: true, createdAt: true });
 export type InsertFoodTruckEvent = z.infer<typeof insertFoodTruckEventSchema>;
 export type FoodTruckEvent = typeof mediaFoodTruckEvents.$inferSelect;
+
+export const insertFoodTruckDayBannerSchema = createInsertSchema(mediaFoodTruckDayBanners).omit({ id: true, createdAt: true });
+export type InsertFoodTruckDayBanner = z.infer<typeof insertFoodTruckDayBannerSchema>;
+export type FoodTruckDayBanner = typeof mediaFoodTruckDayBanners.$inferSelect;
 
 export const insertFoodTruckSubmissionSchema = createInsertSchema(mediaFoodTruckSubmissions).omit({ id: true, createdAt: true, reviewedAt: true });
 export type InsertFoodTruckSubmission = z.infer<typeof insertFoodTruckSubmissionSchema>;
