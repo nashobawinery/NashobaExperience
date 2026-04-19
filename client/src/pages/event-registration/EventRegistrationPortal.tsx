@@ -635,8 +635,15 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
   const [status, setStatus] = useState(event.status || "confirmed");
   const [locationId, setLocationId] = useState(event.locationId || "");
 
+  // Debug: Check if locationId is properly initialized
+  useEffect(() => {
+    console.log('EditEventDialog - Event data:', event);
+    console.log('EditEventDialog - Initial locationId:', event.locationId);
+    console.log('EditEventDialog - Set locationId:', event.locationId || "");
+  }, [event]);
+
   const handleSave = () => {
-    onSave({
+    const saveData = {
       customerName,
       customerEmail,
       customerPhone: customerPhone || null,
@@ -648,7 +655,10 @@ function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose
       actualRevenue: actualRevenue ? parseInt(actualRevenue) : null,
       status,
       locationId: locationId || null,
-    });
+    };
+    console.log('EditEventDialog - Saving data:', saveData);
+    console.log('EditEventDialog - Current locationId state:', locationId);
+    onSave(saveData);
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
