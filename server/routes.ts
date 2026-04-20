@@ -53,6 +53,7 @@ import { initMaintenanceReminders } from "./maintenanceReminders";
 import { initContractReminders } from "./contractReminders";
 import { scheduleNightlySync } from "./nightlySync";
 import emailDeliveryRouter from "./email-delivery-routes";
+import { ensureMediaDayBannerTables } from "./ensure-media-day-banner-tables";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import OpenAI from "openai";
@@ -114,6 +115,13 @@ import sgMail from "@sendgrid/mail";
 import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents, sendSupportRequestReceipt, sendAgentEnrollmentEmail, sendForwardedTicketNotification } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  try {
+    await ensureMediaDayBannerTables();
+  } catch (err) {
+    console.error("[DB] ensureMediaDayBannerTables failed:", err);
+    throw err;
+  }
+
   // Health check endpoint for deployment verification (responds immediately)
   app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
