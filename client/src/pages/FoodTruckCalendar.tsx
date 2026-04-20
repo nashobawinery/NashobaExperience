@@ -197,6 +197,34 @@ function FoodTruckEventCard({ event }: { event: FoodTruckCalendarEvent }) {
   );
 }
 
+function FoodTruckDayBanner({ eventDate, label }: { eventDate: string; label: string }) {
+  return (
+    <div
+      className="relative w-full min-w-0 overflow-hidden rounded-lg border-2 border-amber-400/55 bg-gradient-to-r from-primary via-primary to-primary/85 px-4 py-3.5 text-center shadow-lg shadow-primary/35 ring-1 ring-amber-300/40"
+      data-testid={`banner-special-day-${eventDate}`}
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 -left-1/3 w-2/5 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent motion-safe:animate-banner-sheen motion-reduce:animate-none"
+      />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
+      <div className="relative flex w-full min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center">
+        <Sparkles
+          className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+          aria-hidden
+        />
+        <p className="min-w-0 max-w-full flex-1 font-serif text-base font-bold uppercase leading-snug tracking-[0.12em] text-primary-foreground break-words drop-shadow-md sm:text-lg">
+          {label}
+        </p>
+        <Sparkles
+          className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+          aria-hidden
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function FoodTruckCalendar() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -413,40 +441,44 @@ export default function FoodTruckCalendar() {
               if (byDate !== 0) return byDate;
               return a.startTime.localeCompare(b.startTime);
             });
-            const bannerShownForDate = new Set<string>();
+            const eventsByDate = new Map<string, FoodTruckCalendarEvent[]>();
+            for (const e of monthEventsSorted) {
+              if (!eventsByDate.has(e.eventDate)) eventsByDate.set(e.eventDate, []);
+              eventsByDate.get(e.eventDate)!.push(e);
+            }
+            const sortedDates = Array.from(eventsByDate.keys()).sort((a, b) => a.localeCompare(b));
+
             const monthGridItems: ReactNode[] = [];
-            for (const event of monthEventsSorted) {
-              const dayLabel = labelByDate.get(event.eventDate);
-              if (dayLabel && !bannerShownForDate.has(event.eventDate)) {
-                bannerShownForDate.add(event.eventDate);
+            for (const eventDate of sortedDates) {
+              const evs = eventsByDate.get(eventDate)!;
+              const dayLabel = labelByDate.get(eventDate);
+
+              if (dayLabel && evs.length === 1) {
                 monthGridItems.push(
                   <div
-                    key={`banner-${event.eventDate}`}
-                    className="col-span-full relative overflow-hidden rounded-lg border-2 border-amber-400/55 bg-gradient-to-r from-primary via-primary to-primary/85 px-4 py-3.5 text-center shadow-lg shadow-primary/35 ring-1 ring-amber-300/40"
-                    data-testid={`banner-special-day-${event.eventDate}`}
+                    key={`day-col-${eventDate}`}
+                    className="col-span-1 flex min-w-0 flex-col gap-2"
                   >
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute inset-y-0 -left-1/3 w-2/5 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent motion-safe:animate-banner-sheen motion-reduce:animate-none"
-                    />
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
-                    <div className="relative flex w-full min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center">
-                      <Sparkles
-                        className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
-                        aria-hidden
-                      />
-                      <p className="min-w-0 max-w-full flex-1 font-serif text-base font-bold uppercase leading-snug tracking-[0.12em] text-primary-foreground break-words drop-shadow-md sm:text-lg">
-                        {dayLabel}
-                      </p>
-                      <Sparkles
-                        className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
-                        aria-hidden
-                      />
+                    <FoodTruckDayBanner eventDate={eventDate} label={dayLabel} />
+                    <FoodTruckEventCard event={evs[0]} />
+                  </div>,
+                );
+              } else if (dayLabel && evs.length > 1) {
+                monthGridItems.push(
+                  <div key={`day-block-${eventDate}`} className="col-span-full flex min-w-0 flex-col gap-4">
+                    <FoodTruckDayBanner eventDate={eventDate} label={dayLabel} />
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {evs.map((e) => (
+                        <FoodTruckEventCard key={e.id} event={e} />
+                      ))}
                     </div>
                   </div>,
                 );
+              } else {
+                for (const e of evs) {
+                  monthGridItems.push(<FoodTruckEventCard key={e.id} event={e} />);
+                }
               }
-              monthGridItems.push(<FoodTruckEventCard key={event.id} event={event} />);
             }
             return (
             <div key={month} className="mb-10">
