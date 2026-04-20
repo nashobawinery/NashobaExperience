@@ -96,10 +96,16 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        /** Light sweep across special-day banners (food trucks, etc.) */
+        "banner-sheen": {
+          "0%": { transform: "translateX(-120%) skewX(-12deg)" },
+          "100%": { transform: "translateX(280%) skewX(-12deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "banner-sheen": "banner-sheen 3.5s ease-in-out infinite",
       },
     },
   },

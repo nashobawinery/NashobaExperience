@@ -26,6 +26,7 @@ import {
   UtensilsCrossed,
   ShieldCheck,
   FileText,
+  Sparkles,
 } from "lucide-react";
 
 interface FoodTruckDayBannerPublic {
@@ -320,12 +321,34 @@ export default function FoodTruckCalendar() {
                 {groupEventsByDateInOrder(monthEvents).map(({ eventDate, events: dayEvents }) => {
                   const dayLabel = labelByDate.get(eventDate);
                   return (
-                    <div key={eventDate} className={dayLabel ? "space-y-0" : "space-y-3"}>
-                      {dayLabel ? (
-                        <div className="rounded-md border border-primary/25 bg-primary/5 p-4 text-center text-sm font-medium text-primary">
-                          {dayLabel}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
-                            {dayEvents.map((event) => (
+                    <div key={eventDate} className="space-y-3">
+                      {dayLabel && (
+                        <div
+                          className="relative overflow-hidden rounded-lg border-2 border-amber-400/55 bg-gradient-to-r from-primary via-primary to-primary/85 px-4 py-3.5 text-center shadow-lg shadow-primary/35 ring-1 ring-amber-300/40"
+                          data-testid={`banner-special-day-${eventDate}`}
+                        >
+                          <div
+                            aria-hidden
+                            className="pointer-events-none absolute inset-y-0 -left-1/3 w-2/5 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent motion-safe:animate-banner-sheen motion-reduce:animate-none"
+                          />
+                          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
+                          <div className="relative flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                            <Sparkles
+                              className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+                              aria-hidden
+                            />
+                            <p className="font-serif text-base font-bold uppercase tracking-[0.12em] text-primary-foreground drop-shadow-md sm:text-lg">
+                              {dayLabel}
+                            </p>
+                            <Sparkles
+                              className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+                              aria-hidden
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {dayEvents.map((event) => (
                   <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
                     {/* Prominent Date and Time Callout at Top */}
                     <div className="bg-primary text-primary-foreground p-4 rounded-t-md">

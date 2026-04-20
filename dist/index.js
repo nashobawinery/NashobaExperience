@@ -206,7 +206,9 @@ __export(schema_exports, {
   insertFilterOptionSchema: () => insertFilterOptionSchema,
   insertFlightCardConfigSchema: () => insertFlightCardConfigSchema,
   insertFlowControlSchema: () => insertFlowControlSchema,
+  insertFoodTruckDayBannerSchema: () => insertFoodTruckDayBannerSchema,
   insertFoodTruckEventSchema: () => insertFoodTruckEventSchema,
+  insertFoodTruckReviewSchema: () => insertFoodTruckReviewSchema,
   insertFoodTruckSchema: () => insertFoodTruckSchema,
   insertFoodTruckSubmissionSchema: () => insertFoodTruckSubmissionSchema,
   insertFooterLinkSchema: () => insertFooterLinkSchema,
@@ -426,7 +428,9 @@ __export(schema_exports, {
   maintenanceWorkOrderComments: () => maintenanceWorkOrderComments,
   maintenanceWorkOrderNotes: () => maintenanceWorkOrderNotes,
   maintenanceWorkOrders: () => maintenanceWorkOrders,
+  mediaFoodTruckDayBanners: () => mediaFoodTruckDayBanners,
   mediaFoodTruckEvents: () => mediaFoodTruckEvents,
+  mediaFoodTruckReviews: () => mediaFoodTruckReviews,
   mediaFoodTruckSubmissionStatusEnum: () => mediaFoodTruckSubmissionStatusEnum,
   mediaFoodTruckSubmissions: () => mediaFoodTruckSubmissions,
   mediaFoodTrucks: () => mediaFoodTrucks,
@@ -651,7 +655,7 @@ function getEasterDate(year) {
   const day = (h + l - 7 * m + 114) % 31 + 1;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
-var categoryEnum, wineColorEnum, sweetnessEnum, bodyEnum, userRoleEnum, rewardTypeEnum, redemptionStatusEnum, accountStatusEnum, customerTypeEnum, b2bUserTypeEnum, productMediaRoleEnum, beerStyleEnum, beerColorEnum, beerBitternessEnum, spiritTypeEnum, spiritAgingEnum, spiritFlavorEnum, complianceCategoryEnum, complianceRecurrenceEnum, compliancePriorityEnum, complianceStatusEnum, departmentRecurrenceEnum, departmentTaskStatusEnum, departmentTaskPriorityEnum, sessions, users, whitelistedEmails, products, guestSessions, favorites, viewHistory, cartItems, triviaQuestions, triviaAchievements, triviaAttempts, triviaScores, achievementRedemptions, cartDiscounts, appSettings, surveys, productNotes, filterOptions, slideshowImages, b2bSlideshowSlides, mediaLibrary, productMedia, videos, commercials, characteristics, productCharacteristics, tierPricing, salesReps, b2bAdmins, b2bCustomers, customerRequestStatusEnum, b2bCustomerRequests, b2bCustomerLocations, b2bCustomerManualProducts, b2bTierAgreements, b2bSessions, b2bOrders, b2bOrderItems, b2bPurchaseOrders, b2bCommissions, b2bCommissionTiers, b2bSettings, b2bRolePermissions, b2bPasswordResetTokens, b2bEmailTemplates, b2bEmailAutomationLogs, b2bSystemTemplateCustomizations, insertB2bSystemTemplateCustomizationSchema, improvementNotes, moduleStatusEnum, moduleProgressEnum, globalRoleEnum, platformModules, staffDashboardModules, platformUsers, platformUserModuleAccess, sharedLocations, sharedEquipment, sharedDocuments, platformAuditLog, passwordResetTokens, permissionLevelEnum, userGroups, groupMemberships, moduleFeatures, groupModuleAccess, groupFeaturePermissions, userPermissionOverrides, lmsCourseStatusEnum, lmsLessonTypeEnum, lmsEnrollmentStatusEnum, lmsCategories, lmsCourses, lmsLessons, lmsQuizQuestions, lmsEnrollments, lmsLessonProgress, lmsQuizAttempts, lmsCertificates, lmsLessonPages, lmsContentBlocks, lmsQuestionBanks, lmsQuestions, lmsQuizzes, lmsQuizQuestionLinks, lmsQuestionResponses, lmsBadges, lmsUserBadges, lmsCourseRatings, lmsExternalTokens, lmsExternalProgress, lmsTrainingPortalSessions, lmsStaffTrainingCodes, lmsCourseDepartments, complianceTasks, complianceTaskHistory, complianceReminders, complianceAttachments, complianceActionTokens, departments, departmentTasks, departmentTaskReminders, departmentTaskHistory, insertUserSchema, insertWhitelistedEmailSchema, insertProductSchema, updateProductSchema, insertGuestSessionSchema, insertFavoriteSchema, insertViewHistorySchema, insertCartItemSchema, insertTriviaQuestionSchema, insertTriviaAchievementSchema, insertTriviaAttemptSchema, insertTriviaScoreSchema, insertAchievementRedemptionSchema, insertCartDiscountSchema, insertAppSettingSchema, insertSurveySchema, insertProductNoteSchema, insertFilterOptionSchema, insertSlideshowImageSchema, insertB2bSlideshowSlideSchema, insertMediaLibrarySchema, insertProductMediaSchema, insertVideoSchema, insertCommercialSchema, insertCharacteristicSchema, insertProductCharacteristicSchema, insertTierPricingSchema, insertSalesRepSchema, insertB2bAdminSchema, insertB2bCustomerSchema, insertB2bCustomerRequestSchema, insertB2bCustomerLocationSchema, insertB2bCustomerManualProductSchema, insertB2bTierAgreementSchema, insertB2bOrderSchema, insertB2bOrderItemSchema, insertB2bPurchaseOrderSchema, insertB2bCommissionSchema, insertB2bCommissionTierSchema, insertB2bSettingSchema, insertB2bRolePermissionSchema, insertB2bPasswordResetTokenSchema, insertB2bEmailTemplateSchema, insertB2bEmailAutomationLogSchema, insertImprovementNoteSchema, insertPlatformModuleSchema, insertStaffDashboardModuleSchema, insertPlatformUserSchema, insertPlatformUserModuleAccessSchema, insertSharedLocationSchema, insertSharedEquipmentSchema, insertSharedDocumentSchema, insertPlatformAuditLogSchema, insertPasswordResetTokenSchema, insertUserGroupSchema, insertGroupMembershipSchema, insertModuleFeatureSchema, insertGroupModuleAccessSchema, insertGroupFeaturePermissionSchema, insertUserPermissionOverrideSchema, insertLmsCategorySchema, insertLmsCourseSchema, insertLmsLessonSchema, insertLmsQuizQuestionSchema, insertLmsEnrollmentSchema, insertLmsLessonProgressSchema, insertLmsQuizAttemptSchema, insertLmsCertificateSchema, insertLmsLessonPageSchema, insertLmsContentBlockSchema, insertLmsQuestionBankSchema, insertLmsQuestionSchema, insertLmsQuizSchema, insertLmsQuizQuestionLinkSchema, insertLmsQuestionResponseSchema, insertLmsBadgeSchema, insertLmsUserBadgeSchema, insertLmsCourseRatingSchema, insertLmsExternalTokenSchema, insertLmsExternalProgressSchema, insertLmsTrainingPortalSessionSchema, insertLmsStaffTrainingCodeSchema, insertLmsCourseDepartmentSchema, insertComplianceTaskSchema, insertComplianceTaskHistorySchema, insertComplianceReminderSchema, insertComplianceAttachmentSchema, insertDepartmentSchema, insertDepartmentTaskSchema, insertDepartmentTaskReminderSchema, insertDepartmentTaskHistorySchema, incidentSeverityEnum, procedureTypeEnum, dailyReportTemplates, dailyProcedureTemplates, dailyReports, dailyReportIncidents, dailyReportIncidentNotes, dailyProcedureCompletions, dailyReportEmailRecipients, insertDailyReportTemplateSchema, insertDailyProcedureTemplateSchema, insertDailyReportSchema, insertDailyReportIncidentSchema, insertDailyProcedureCompletionSchema, insertDailyReportIncidentNoteSchema, insertDailyReportEmailRecipientSchema, dailyReportAccessCodes, insertDailyReportAccessCodeSchema, dailyReportFieldTypeEnum, dailyReportFieldDefinitions, insertDailyReportFieldDefinitionSchema, departmentFieldAssignments, insertDepartmentFieldAssignmentSchema, dailyReportRevisionRequests, insertDailyReportRevisionRequestSchema, resyUsers, insertResyUserSchema, resySessions, resyLocations, insertResyLocationSchema, resyExperiences, insertResyExperienceSchema, resyClubs, insertResyClubSchema, resyCustomers, insertResyCustomerSchema, updateResyCustomerSchema, resyReservations, insertResyReservationSchema, resyTimeSlots, insertResyTimeSlotSchema, resyWaitlist, insertResyWaitlistSchema, resyCustomerVisits, insertResyCustomerVisitSchema, resyMealPeriods, insertResyMealPeriodSchema, resyOperatingHours, insertResyOperatingHoursSchema, resySpecialDates, insertResySpecialDateSchema, resyLocationHolidays, insertResyLocationHolidaySchema, RECURRING_HOLIDAYS, resyLocationTables, insertResyLocationTableSchema, resyFlowControls, insertResyFlowControlSchema, resyTurnTimeSettings, insertResyTurnTimeSettingSchema, resyExperienceDiscounts, insertResyExperienceDiscountSchema, resyClubExperienceDiscounts, insertResyClubExperienceDiscountSchema, resyPrivateEvents, insertResyPrivateEventSchema, resyEventStaffCodes, insertResyEventStaffCodeSchema, resyTicketedEventDefinitions, insertResyTicketedEventDefinitionSchema, resyTicketedEventTimeslots, insertResyTicketedEventTimeslotSchema, resySiteSettings, insertResySiteSettingSchema, resyFooterLinks, insertResyFooterLinkSchema, platformFutureConcepts, insertPlatformFutureConceptSchema, platformCompanyInfo, insertPlatformCompanyInfoSchema, lmsVerificationStatusEnum, lmsSkillVerifications, insertLmsSkillVerificationSchema, workOrderPriorityEnum, workOrderStatusEnum, workOrderTypeEnum, maintenanceFrequencyEnum, maintenanceAssetCategories, insertMaintenanceAssetCategorySchema, maintenanceLocations, insertMaintenanceLocationSchema, maintenanceAssets, insertMaintenanceAssetSchema, maintenanceTechnicians, insertMaintenanceTechnicianSchema, maintenanceWorkOrders, insertMaintenanceWorkOrderSchema, maintenanceWorkOrderNotes, insertMaintenanceWorkOrderNoteSchema, maintenanceWorkOrderComments, insertMaintenanceWorkOrderCommentSchema, maintenancePreventiveSchedules, insertMaintenancePreventiveScheduleSchema, maintenanceParts, insertMaintenancePartSchema, maintenancePartsUsage, insertMaintenancePartsUsageSchema, maintenanceAssetParts, insertMaintenanceAssetPartSchema, maintenanceMeters, insertMaintenanceMeterSchema, maintenanceMeterReadings, insertMaintenanceMeterReadingSchema, procedureResponseTypeEnum, procedureDayOfWeekType, proceduresTemplates, insertProceduresTemplateSchema, proceduresItems, insertProceduresItemSchema, proceduresUsers, insertProceduresUserSchema, proceduresSubmissions, insertProceduresSubmissionSchema, proceduresStaff, insertProceduresStaffSchema, spotInventoryLocations, insertSpotInventoryLocationSchema, spotInventoryAreas, insertSpotInventoryAreaSchema, spotInventorySessions, insertSpotInventorySessionSchema, spotInventoryCounts, insertSpotInventoryCountSchema, supportRequests, insertSupportRequestSchema, supportMessages, insertSupportMessageSchema, supportAttachments, insertSupportAttachmentSchema, supportCannedResponses, insertSupportCannedResponseSchema, supportWebSources, insertSupportWebSourceSchema, supportSettings, insertSupportSettingSchema, supportCategories, insertSupportCategorySchema, supportArticles, insertSupportArticleSchema, supportTags, insertSupportTagSchema, supportArticleTags, socialChannels, insertSocialChannelSchema, socialReviews, insertSocialReviewSchema, supportAgents, insertSupportAgentSchema, supportAgentCategories, insertSupportAgentCategorySchema, supportAgentAccessTokens, socialReviewResponses, insertSocialReviewResponseSchema, insertLocationSchema, insertExperienceSchema, insertReservationSchema, insertCustomerSchema, insertClubSchema, insertTimeSlotSchema, insertWaitlistSchema, insertCustomerVisitSchema, insertMealPeriodSchema, insertOperatingHoursSchema, insertSpecialDateSchema, insertLocationTableSchema, insertFlowControlSchema, insertTurnTimeSettingsSchema, insertExperienceDiscountSchema, insertClubExperienceDiscountSchema, insertPrivateEventSchema, insertTicketedEventDefinitionSchema, insertTicketedEventTimeslotSchema, insertSiteSettingSchema, insertFooterLinkSchema, updateCustomerSchema, rccTaskStatusEnum, rccCampaignStatusEnum, rccTeams, insertRccTeamSchema, rccWeeks, insertRccWeekSchema, rccTasks, insertRccTaskSchema, rccCampaigns, insertRccCampaignSchema, rccRevenue, insertRccRevenueSchema, rccLearnings, insertRccLearningSchema, rccAiRecommendations, insertRccAiRecommendationSchema, rccToastHistoricalRevenue, insertRccToastHistoricalRevenueSchema, rccDailyRevenue, insertRccDailyRevenueSchema, rccRevenueCenters, rccSalesCategories, rccDailyRevenueByCenter, insertRccDailyRevenueByCenterSchema, rccDailyRevenueByCategory, insertRccDailyRevenueByCategorySchema, rccDailyItemSales, insertRccDailyItemSalesSchema, toastVoidDiscountDetails, insertToastVoidDiscountDetailSchema, toastVoidExplanations, insertToastVoidExplanationSchema, abccProductClassification, insertAbccProductClassificationSchema, shopifyProductCache, toastGuests, rccSyncLog, insertToastGuestSchema, customerIdentities, insertCustomerIdentitySchema, customerIdentityLinks, insertCustomerIdentityLinkSchema, boomerangRfmScores, insertBoomerangRfmScoreSchema, boomerangLoyaltyTiers, insertBoomerangLoyaltyTierSchema, boomerangLoyaltyAccounts, insertBoomerangLoyaltyAccountSchema, boomerangPointsLedger, insertBoomerangPointsLedgerSchema, boomerangCampaigns, insertBoomerangCampaignSchema, boomerangOffers, insertBoomerangOfferSchema, boomerangRedemptions, insertBoomerangRedemptionSchema, boomerangAutomationRules, insertBoomerangAutomationRuleSchema, boomerangAutomationExecutions, insertBoomerangAutomationExecutionSchema, boomerangReferralCodes, insertBoomerangReferralCodeSchema, boomerangReferrals, insertBoomerangReferralSchema, targetingCampaigns, insertTargetingCampaignSchema, targetingListMembers, insertTargetingListMemberSchema, offerPerformance, insertOfferPerformanceSchema, smsCampaigns, insertSmsCampaignSchema, smsMessages, insertSmsMessageSchema, contractStatusEnum, contractCategoryEnum, contracts, insertContractSchema, contractDocuments, insertContractDocumentSchema, contractResponsibles, insertContractResponsibleSchema, toastMenus, insertToastMenuSchema, toastMenuGroups, insertToastMenuGroupSchema, toastMenuItems, insertToastMenuItemSchema, ccContentTypeEnum, ccContentStatusEnum, ccCalendarChannelEnum, ccCalendarStatusEnum, ccCampaignGoalEnum, ccCampaignStatusEnum, ccPromoTypeEnum, ccContentAssets, insertCcContentAssetSchema, ccContentCalendar, insertCcContentCalendarSchema, ccCampaignBuilder, insertCcCampaignBuilderSchema, ccMarketingScorecards, insertCcMarketingScorecardSchema, ccQuickPromotions, insertCcQuickPromotionSchema, enhancementRequests, insertEnhancementRequestSchema, ttbWineClassEnum, ttbSpiritsClassEnum, ttbBeerClassEnum, maAb1ClassEnum, ttbReportingUomEnum, cellartraksProductClassifications, insertCellartraksProductClassificationSchema, cellartraksFederalTaxRates, insertCellartraksFederalTaxRateSchema, cellartraksStateTaxClasses, insertCellartraksStateTaxClassSchema, nashobatvChannels, nashobatvSlideTypeEnum, nashobatvSlides, nashobatvEvents, nashobatvAnnouncements, nashobatvPhotos, nashobatvDisplaySettings, nashobatvHistoricalFacts, nashobatvDailySpecials, insertNashobatvChannelSchema, insertNashobatvSlideSchema, insertNashobatvEventSchema, insertNashobatvAnnouncementSchema, insertNashobatvPhotoSchema, insertNashobatvDisplaySettingSchema, insertNashobatvDailySpecialSchema, insertNashobatvHistoricalFactSchema, qbConnection, qbCustomerMap, qbItemMap, qbSyncLog, qbInvoiceMap, qbPaymentMap, qbDescriptionMap, toastProductMap, shopifyProductMap, insertToastProductMapSchema, insertShopifyProductMapSchema, meetingNotes, insertMeetingNoteSchema, mediaMusicians, mediaMusicEvents, mediaMusicianSubmissionStatusEnum, mediaMusicianSubmissions, mediaSpecialEventCategoryEnum, mediaSpecialEvents, insertMusicianSchema, insertMusicEventSchema, insertMusicianSubmissionSchema, insertSpecialEventSchema, mediaFoodTrucks, mediaFoodTruckEvents, mediaFoodTruckSubmissionStatusEnum, mediaFoodTruckSubmissions, insertFoodTruckSchema, insertFoodTruckEventSchema, insertFoodTruckSubmissionSchema, staffPrintMenus, insertStaffPrintMenuSchema, toastMenuEmbedConfigs, insertToastMenuEmbedConfigSchema, flightCardConfigs, insertFlightCardConfigSchema, emailDeliveryLogs, insertEmailDeliveryLogSchema;
+var categoryEnum, wineColorEnum, sweetnessEnum, bodyEnum, userRoleEnum, rewardTypeEnum, redemptionStatusEnum, accountStatusEnum, customerTypeEnum, b2bUserTypeEnum, productMediaRoleEnum, beerStyleEnum, beerColorEnum, beerBitternessEnum, spiritTypeEnum, spiritAgingEnum, spiritFlavorEnum, complianceCategoryEnum, complianceRecurrenceEnum, compliancePriorityEnum, complianceStatusEnum, departmentRecurrenceEnum, departmentTaskStatusEnum, departmentTaskPriorityEnum, sessions, users, whitelistedEmails, products, guestSessions, favorites, viewHistory, cartItems, triviaQuestions, triviaAchievements, triviaAttempts, triviaScores, achievementRedemptions, cartDiscounts, appSettings, surveys, productNotes, filterOptions, slideshowImages, b2bSlideshowSlides, mediaLibrary, productMedia, videos, commercials, characteristics, productCharacteristics, tierPricing, salesReps, b2bAdmins, b2bCustomers, customerRequestStatusEnum, b2bCustomerRequests, b2bCustomerLocations, b2bCustomerManualProducts, b2bTierAgreements, b2bSessions, b2bOrders, b2bOrderItems, b2bPurchaseOrders, b2bCommissions, b2bCommissionTiers, b2bSettings, b2bRolePermissions, b2bPasswordResetTokens, b2bEmailTemplates, b2bEmailAutomationLogs, b2bSystemTemplateCustomizations, insertB2bSystemTemplateCustomizationSchema, improvementNotes, moduleStatusEnum, moduleProgressEnum, globalRoleEnum, platformModules, staffDashboardModules, platformUsers, platformUserModuleAccess, sharedLocations, sharedEquipment, sharedDocuments, platformAuditLog, passwordResetTokens, permissionLevelEnum, userGroups, groupMemberships, moduleFeatures, groupModuleAccess, groupFeaturePermissions, userPermissionOverrides, lmsCourseStatusEnum, lmsLessonTypeEnum, lmsEnrollmentStatusEnum, lmsCategories, lmsCourses, lmsLessons, lmsQuizQuestions, lmsEnrollments, lmsLessonProgress, lmsQuizAttempts, lmsCertificates, lmsLessonPages, lmsContentBlocks, lmsQuestionBanks, lmsQuestions, lmsQuizzes, lmsQuizQuestionLinks, lmsQuestionResponses, lmsBadges, lmsUserBadges, lmsCourseRatings, lmsExternalTokens, lmsExternalProgress, lmsTrainingPortalSessions, lmsStaffTrainingCodes, lmsCourseDepartments, complianceTasks, complianceTaskHistory, complianceReminders, complianceAttachments, complianceActionTokens, departments, departmentTasks, departmentTaskReminders, departmentTaskHistory, insertUserSchema, insertWhitelistedEmailSchema, insertProductSchema, updateProductSchema, insertGuestSessionSchema, insertFavoriteSchema, insertViewHistorySchema, insertCartItemSchema, insertTriviaQuestionSchema, insertTriviaAchievementSchema, insertTriviaAttemptSchema, insertTriviaScoreSchema, insertAchievementRedemptionSchema, insertCartDiscountSchema, insertAppSettingSchema, insertSurveySchema, insertProductNoteSchema, insertFilterOptionSchema, insertSlideshowImageSchema, insertB2bSlideshowSlideSchema, insertMediaLibrarySchema, insertProductMediaSchema, insertVideoSchema, insertCommercialSchema, insertCharacteristicSchema, insertProductCharacteristicSchema, insertTierPricingSchema, insertSalesRepSchema, insertB2bAdminSchema, insertB2bCustomerSchema, insertB2bCustomerRequestSchema, insertB2bCustomerLocationSchema, insertB2bCustomerManualProductSchema, insertB2bTierAgreementSchema, insertB2bOrderSchema, insertB2bOrderItemSchema, insertB2bPurchaseOrderSchema, insertB2bCommissionSchema, insertB2bCommissionTierSchema, insertB2bSettingSchema, insertB2bRolePermissionSchema, insertB2bPasswordResetTokenSchema, insertB2bEmailTemplateSchema, insertB2bEmailAutomationLogSchema, insertImprovementNoteSchema, insertPlatformModuleSchema, insertStaffDashboardModuleSchema, insertPlatformUserSchema, insertPlatformUserModuleAccessSchema, insertSharedLocationSchema, insertSharedEquipmentSchema, insertSharedDocumentSchema, insertPlatformAuditLogSchema, insertPasswordResetTokenSchema, insertUserGroupSchema, insertGroupMembershipSchema, insertModuleFeatureSchema, insertGroupModuleAccessSchema, insertGroupFeaturePermissionSchema, insertUserPermissionOverrideSchema, insertLmsCategorySchema, insertLmsCourseSchema, insertLmsLessonSchema, insertLmsQuizQuestionSchema, insertLmsEnrollmentSchema, insertLmsLessonProgressSchema, insertLmsQuizAttemptSchema, insertLmsCertificateSchema, insertLmsLessonPageSchema, insertLmsContentBlockSchema, insertLmsQuestionBankSchema, insertLmsQuestionSchema, insertLmsQuizSchema, insertLmsQuizQuestionLinkSchema, insertLmsQuestionResponseSchema, insertLmsBadgeSchema, insertLmsUserBadgeSchema, insertLmsCourseRatingSchema, insertLmsExternalTokenSchema, insertLmsExternalProgressSchema, insertLmsTrainingPortalSessionSchema, insertLmsStaffTrainingCodeSchema, insertLmsCourseDepartmentSchema, insertComplianceTaskSchema, insertComplianceTaskHistorySchema, insertComplianceReminderSchema, insertComplianceAttachmentSchema, insertDepartmentSchema, insertDepartmentTaskSchema, insertDepartmentTaskReminderSchema, insertDepartmentTaskHistorySchema, incidentSeverityEnum, procedureTypeEnum, dailyReportTemplates, dailyProcedureTemplates, dailyReports, dailyReportIncidents, dailyReportIncidentNotes, dailyProcedureCompletions, dailyReportEmailRecipients, insertDailyReportTemplateSchema, insertDailyProcedureTemplateSchema, insertDailyReportSchema, insertDailyReportIncidentSchema, insertDailyProcedureCompletionSchema, insertDailyReportIncidentNoteSchema, insertDailyReportEmailRecipientSchema, dailyReportAccessCodes, insertDailyReportAccessCodeSchema, dailyReportFieldTypeEnum, dailyReportFieldDefinitions, insertDailyReportFieldDefinitionSchema, departmentFieldAssignments, insertDepartmentFieldAssignmentSchema, dailyReportRevisionRequests, insertDailyReportRevisionRequestSchema, resyUsers, insertResyUserSchema, resySessions, resyLocations, insertResyLocationSchema, resyExperiences, insertResyExperienceSchema, resyClubs, insertResyClubSchema, resyCustomers, insertResyCustomerSchema, updateResyCustomerSchema, resyReservations, insertResyReservationSchema, resyTimeSlots, insertResyTimeSlotSchema, resyWaitlist, insertResyWaitlistSchema, resyCustomerVisits, insertResyCustomerVisitSchema, resyMealPeriods, insertResyMealPeriodSchema, resyOperatingHours, insertResyOperatingHoursSchema, resySpecialDates, insertResySpecialDateSchema, resyLocationHolidays, insertResyLocationHolidaySchema, RECURRING_HOLIDAYS, resyLocationTables, insertResyLocationTableSchema, resyFlowControls, insertResyFlowControlSchema, resyTurnTimeSettings, insertResyTurnTimeSettingSchema, resyExperienceDiscounts, insertResyExperienceDiscountSchema, resyClubExperienceDiscounts, insertResyClubExperienceDiscountSchema, resyPrivateEvents, insertResyPrivateEventSchema, resyEventStaffCodes, insertResyEventStaffCodeSchema, resyTicketedEventDefinitions, insertResyTicketedEventDefinitionSchema, resyTicketedEventTimeslots, insertResyTicketedEventTimeslotSchema, resySiteSettings, insertResySiteSettingSchema, resyFooterLinks, insertResyFooterLinkSchema, platformFutureConcepts, insertPlatformFutureConceptSchema, platformCompanyInfo, insertPlatformCompanyInfoSchema, lmsVerificationStatusEnum, lmsSkillVerifications, insertLmsSkillVerificationSchema, workOrderPriorityEnum, workOrderStatusEnum, workOrderTypeEnum, maintenanceFrequencyEnum, maintenanceAssetCategories, insertMaintenanceAssetCategorySchema, maintenanceLocations, insertMaintenanceLocationSchema, maintenanceAssets, insertMaintenanceAssetSchema, maintenanceTechnicians, insertMaintenanceTechnicianSchema, maintenanceWorkOrders, insertMaintenanceWorkOrderSchema, maintenanceWorkOrderNotes, insertMaintenanceWorkOrderNoteSchema, maintenanceWorkOrderComments, insertMaintenanceWorkOrderCommentSchema, maintenancePreventiveSchedules, insertMaintenancePreventiveScheduleSchema, maintenanceParts, insertMaintenancePartSchema, maintenancePartsUsage, insertMaintenancePartsUsageSchema, maintenanceAssetParts, insertMaintenanceAssetPartSchema, maintenanceMeters, insertMaintenanceMeterSchema, maintenanceMeterReadings, insertMaintenanceMeterReadingSchema, procedureResponseTypeEnum, procedureDayOfWeekType, proceduresTemplates, insertProceduresTemplateSchema, proceduresItems, insertProceduresItemSchema, proceduresUsers, insertProceduresUserSchema, proceduresSubmissions, insertProceduresSubmissionSchema, proceduresStaff, insertProceduresStaffSchema, spotInventoryLocations, insertSpotInventoryLocationSchema, spotInventoryAreas, insertSpotInventoryAreaSchema, spotInventorySessions, insertSpotInventorySessionSchema, spotInventoryCounts, insertSpotInventoryCountSchema, supportRequests, insertSupportRequestSchema, supportMessages, insertSupportMessageSchema, supportAttachments, insertSupportAttachmentSchema, supportCannedResponses, insertSupportCannedResponseSchema, supportWebSources, insertSupportWebSourceSchema, supportSettings, insertSupportSettingSchema, supportCategories, insertSupportCategorySchema, supportArticles, insertSupportArticleSchema, supportTags, insertSupportTagSchema, supportArticleTags, socialChannels, insertSocialChannelSchema, socialReviews, insertSocialReviewSchema, supportAgents, insertSupportAgentSchema, supportAgentCategories, insertSupportAgentCategorySchema, supportAgentAccessTokens, socialReviewResponses, insertSocialReviewResponseSchema, insertLocationSchema, insertExperienceSchema, insertReservationSchema, insertCustomerSchema, insertClubSchema, insertTimeSlotSchema, insertWaitlistSchema, insertCustomerVisitSchema, insertMealPeriodSchema, insertOperatingHoursSchema, insertSpecialDateSchema, insertLocationTableSchema, insertFlowControlSchema, insertTurnTimeSettingsSchema, insertExperienceDiscountSchema, insertClubExperienceDiscountSchema, insertPrivateEventSchema, insertTicketedEventDefinitionSchema, insertTicketedEventTimeslotSchema, insertSiteSettingSchema, insertFooterLinkSchema, updateCustomerSchema, rccTaskStatusEnum, rccCampaignStatusEnum, rccTeams, insertRccTeamSchema, rccWeeks, insertRccWeekSchema, rccTasks, insertRccTaskSchema, rccCampaigns, insertRccCampaignSchema, rccRevenue, insertRccRevenueSchema, rccLearnings, insertRccLearningSchema, rccAiRecommendations, insertRccAiRecommendationSchema, rccToastHistoricalRevenue, insertRccToastHistoricalRevenueSchema, rccDailyRevenue, insertRccDailyRevenueSchema, rccRevenueCenters, rccSalesCategories, rccDailyRevenueByCenter, insertRccDailyRevenueByCenterSchema, rccDailyRevenueByCategory, insertRccDailyRevenueByCategorySchema, rccDailyItemSales, insertRccDailyItemSalesSchema, toastVoidDiscountDetails, insertToastVoidDiscountDetailSchema, toastVoidExplanations, insertToastVoidExplanationSchema, abccProductClassification, insertAbccProductClassificationSchema, shopifyProductCache, toastGuests, rccSyncLog, insertToastGuestSchema, customerIdentities, insertCustomerIdentitySchema, customerIdentityLinks, insertCustomerIdentityLinkSchema, boomerangRfmScores, insertBoomerangRfmScoreSchema, boomerangLoyaltyTiers, insertBoomerangLoyaltyTierSchema, boomerangLoyaltyAccounts, insertBoomerangLoyaltyAccountSchema, boomerangPointsLedger, insertBoomerangPointsLedgerSchema, boomerangCampaigns, insertBoomerangCampaignSchema, boomerangOffers, insertBoomerangOfferSchema, boomerangRedemptions, insertBoomerangRedemptionSchema, boomerangAutomationRules, insertBoomerangAutomationRuleSchema, boomerangAutomationExecutions, insertBoomerangAutomationExecutionSchema, boomerangReferralCodes, insertBoomerangReferralCodeSchema, boomerangReferrals, insertBoomerangReferralSchema, targetingCampaigns, insertTargetingCampaignSchema, targetingListMembers, insertTargetingListMemberSchema, offerPerformance, insertOfferPerformanceSchema, smsCampaigns, insertSmsCampaignSchema, smsMessages, insertSmsMessageSchema, contractStatusEnum, contractCategoryEnum, contracts, insertContractSchema, contractDocuments, insertContractDocumentSchema, contractResponsibles, insertContractResponsibleSchema, toastMenus, insertToastMenuSchema, toastMenuGroups, insertToastMenuGroupSchema, toastMenuItems, insertToastMenuItemSchema, ccContentTypeEnum, ccContentStatusEnum, ccCalendarChannelEnum, ccCalendarStatusEnum, ccCampaignGoalEnum, ccCampaignStatusEnum, ccPromoTypeEnum, ccContentAssets, insertCcContentAssetSchema, ccContentCalendar, insertCcContentCalendarSchema, ccCampaignBuilder, insertCcCampaignBuilderSchema, ccMarketingScorecards, insertCcMarketingScorecardSchema, ccQuickPromotions, insertCcQuickPromotionSchema, enhancementRequests, insertEnhancementRequestSchema, ttbWineClassEnum, ttbSpiritsClassEnum, ttbBeerClassEnum, maAb1ClassEnum, ttbReportingUomEnum, cellartraksProductClassifications, insertCellartraksProductClassificationSchema, cellartraksFederalTaxRates, insertCellartraksFederalTaxRateSchema, cellartraksStateTaxClasses, insertCellartraksStateTaxClassSchema, nashobatvChannels, nashobatvSlideTypeEnum, nashobatvSlides, nashobatvEvents, nashobatvAnnouncements, nashobatvPhotos, nashobatvDisplaySettings, nashobatvHistoricalFacts, nashobatvDailySpecials, insertNashobatvChannelSchema, insertNashobatvSlideSchema, insertNashobatvEventSchema, insertNashobatvAnnouncementSchema, insertNashobatvPhotoSchema, insertNashobatvDisplaySettingSchema, insertNashobatvDailySpecialSchema, insertNashobatvHistoricalFactSchema, qbConnection, qbCustomerMap, qbItemMap, qbSyncLog, qbInvoiceMap, qbPaymentMap, qbDescriptionMap, toastProductMap, shopifyProductMap, insertToastProductMapSchema, insertShopifyProductMapSchema, meetingNotes, insertMeetingNoteSchema, mediaMusicians, mediaMusicEvents, mediaMusicianSubmissionStatusEnum, mediaMusicianSubmissions, mediaSpecialEventCategoryEnum, mediaSpecialEvents, insertMusicianSchema, insertMusicEventSchema, insertMusicianSubmissionSchema, insertSpecialEventSchema, mediaFoodTrucks, mediaFoodTruckEvents, mediaFoodTruckDayBanners, mediaFoodTruckSubmissionStatusEnum, mediaFoodTruckSubmissions, insertFoodTruckSchema, insertFoodTruckEventSchema, insertFoodTruckDayBannerSchema, insertFoodTruckSubmissionSchema, mediaFoodTruckReviews, insertFoodTruckReviewSchema, staffPrintMenus, insertStaffPrintMenuSchema, toastMenuEmbedConfigs, insertToastMenuEmbedConfigSchema, flightCardConfigs, insertFlightCardConfigSchema, emailDeliveryLogs, insertEmailDeliveryLogSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -5618,6 +5622,13 @@ var init_schema = __esm({
       permitReminderSentAt: timestamp("permit_reminder_sent_at"),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
+    mediaFoodTruckDayBanners = pgTable("media_food_truck_day_banners", {
+      id: serial("id").primaryKey(),
+      bannerDate: varchar("banner_date", { length: 10 }).notNull().unique(),
+      label: varchar("label", { length: 255 }).notNull(),
+      isActive: boolean("is_active").notNull().default(true),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
     mediaFoodTruckSubmissionStatusEnum = pgEnum("media_food_truck_submission_status", [
       "pending",
       "approved",
@@ -5641,7 +5652,34 @@ var init_schema = __esm({
     });
     insertFoodTruckSchema = createInsertSchema(mediaFoodTrucks).omit({ id: true, createdAt: true });
     insertFoodTruckEventSchema = createInsertSchema(mediaFoodTruckEvents).omit({ id: true, createdAt: true });
+    insertFoodTruckDayBannerSchema = createInsertSchema(mediaFoodTruckDayBanners).omit({ id: true, createdAt: true });
     insertFoodTruckSubmissionSchema = createInsertSchema(mediaFoodTruckSubmissions).omit({ id: true, createdAt: true, reviewedAt: true });
+    mediaFoodTruckReviews = pgTable("media_food_truck_reviews", {
+      id: serial("id").primaryKey(),
+      foodTruckId: integer("food_truck_id").notNull().references(() => mediaFoodTrucks.id, { onDelete: "cascade" }),
+      rating: integer("rating").notNull(),
+      // 1-5 scale
+      foodQuality: text("food_quality"),
+      // Notes about food quality
+      serviceQuality: text("service_quality"),
+      // Notes about service quality
+      cleanliness: text("cleanliness"),
+      // Notes about cleanliness
+      professionalism: text("professionalism"),
+      // Notes about professionalism
+      overallNotes: text("overall_notes"),
+      // Overall assessment notes
+      wouldRecommend: boolean("would_recommend").notNull().default(true),
+      reviewedBy: varchar("reviewed_by", { length: 255 }),
+      // Name of reviewer
+      reviewDate: varchar("review_date", { length: 10 }).notNull(),
+      // YYYY-MM-DD format
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    }, (table) => [
+      index("idx_food_truck_review_truck").on(table.foodTruckId),
+      index("idx_food_truck_review_date").on(table.reviewDate)
+    ]);
+    insertFoodTruckReviewSchema = createInsertSchema(mediaFoodTruckReviews).omit({ id: true, createdAt: true });
     staffPrintMenus = pgTable("staff_print_menus", {
       id: serial("id").primaryKey(),
       name: varchar("name", { length: 200 }).notNull(),
@@ -12474,6 +12512,9 @@ async function getEmailCustomization(templateKey) {
   }
 }
 function getBaseUrl() {
+  if (process.env.NODE_ENV === "production") {
+    return "https://nashobawinery.org";
+  }
   if (process.env.APP_URL) return process.env.APP_URL;
   if (process.env.REPLIT_DOMAINS) return `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`;
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
@@ -31626,7 +31667,7 @@ router5.patch("/api/resy/event-registration/edit/:id", async (req, res) => {
       return res.status(403).json({ message: "You can only edit your own events" });
     }
     const allowedFields = {};
-    const editableKeys = ["customerName", "customerEmail", "customerPhone", "partySize", "startTime", "endTime", "notes", "estimatedRevenue", "actualRevenue", "status"];
+    const editableKeys = ["customerName", "customerEmail", "customerPhone", "partySize", "startTime", "endTime", "notes", "estimatedRevenue", "actualRevenue", "status", "locationId"];
     for (const key of editableKeys) {
       if (updates[key] !== void 0) {
         allowedFields[key] = updates[key];
@@ -40187,7 +40228,7 @@ var media_music_routes_default = router20;
 init_db();
 init_schema();
 import { Router as Router21 } from "express";
-import { eq as eq18, and as and13, desc as desc13, asc as asc4, gte as gte5 } from "drizzle-orm";
+import { eq as eq18, and as and13, desc as desc13, asc as asc4, gte as gte5, isNotNull as isNotNull3, ne as ne2 } from "drizzle-orm";
 var router21 = Router21();
 function requireAuth4(req, res, next) {
   const sess = req.session;
@@ -40207,6 +40248,10 @@ router21.get("/api/media/food-trucks", requireAuth4, async (_req, res) => {
 router21.post("/api/media/food-trucks", requireAuth4, async (req, res) => {
   try {
     const data = insertFoodTruckSchema.parse(req.body);
+    console.log("Food Truck Creation Data:", {
+      ...data,
+      permitImageUrl: data.permitImageUrl
+    });
     const [truck] = await db.insert(mediaFoodTrucks).values(data).returning();
     res.json(truck);
   } catch (error) {
@@ -40217,6 +40262,11 @@ router21.put("/api/media/food-trucks/:id", requireAuth4, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckSchema.partial().parse(req.body);
+    console.log("Food Truck Update Data:", {
+      id,
+      ...data,
+      permitImageUrl: data.permitImageUrl
+    });
     const [truck] = await db.update(mediaFoodTrucks).set(data).where(eq18(mediaFoodTrucks.id, id)).returning();
     if (!truck) return res.status(404).json({ error: "Food truck not found" });
     res.json(truck);
@@ -40227,6 +40277,7 @@ router21.put("/api/media/food-trucks/:id", requireAuth4, async (req, res) => {
 router21.delete("/api/media/food-trucks/:id", requireAuth4, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    await db.delete(mediaFoodTruckEvents).where(eq18(mediaFoodTruckEvents.foodTruckId, id));
     await db.delete(mediaFoodTrucks).where(eq18(mediaFoodTrucks.id, id));
     res.json({ success: true });
   } catch (error) {
@@ -40270,6 +40321,43 @@ router21.delete("/api/media/food-truck-events/:id", requireAuth4, async (req, re
     res.status(500).json({ error: error.message });
   }
 });
+router21.get("/api/media/food-truck-day-banners", requireAuth4, async (_req, res) => {
+  try {
+    const rows = await db.select().from(mediaFoodTruckDayBanners).orderBy(desc13(mediaFoodTruckDayBanners.bannerDate));
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router21.post("/api/media/food-truck-day-banners", requireAuth4, async (req, res) => {
+  try {
+    const data = insertFoodTruckDayBannerSchema.parse(req.body);
+    const [row] = await db.insert(mediaFoodTruckDayBanners).values(data).returning();
+    res.json(row);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+router21.put("/api/media/food-truck-day-banners/:id", requireAuth4, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const data = insertFoodTruckDayBannerSchema.partial().parse(req.body);
+    const [row] = await db.update(mediaFoodTruckDayBanners).set(data).where(eq18(mediaFoodTruckDayBanners.id, id)).returning();
+    if (!row) return res.status(404).json({ error: "Day banner not found" });
+    res.json(row);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+router21.delete("/api/media/food-truck-day-banners/:id", requireAuth4, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(mediaFoodTruckDayBanners).where(eq18(mediaFoodTruckDayBanners.id, id));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 router21.get("/api/media/food-truck-submissions", requireAuth4, async (_req, res) => {
   try {
     const submissions = await db.select().from(mediaFoodTruckSubmissions).orderBy(desc13(mediaFoodTruckSubmissions.createdAt));
@@ -40303,6 +40391,44 @@ router21.put("/api/media/food-truck-submissions/:id", requireAuth4, async (req, 
     res.json(submission);
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+router21.get("/api/media/food-truck-reviews/:foodTruckId", requireAuth4, async (req, res) => {
+  try {
+    const foodTruckId = parseInt(req.params.foodTruckId);
+    const reviews = await db.select().from(mediaFoodTruckReviews).where(eq18(mediaFoodTruckReviews.foodTruckId, foodTruckId)).orderBy(desc13(mediaFoodTruckReviews.reviewDate));
+    res.json(reviews);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router21.post("/api/media/food-truck-reviews", requireAuth4, async (req, res) => {
+  try {
+    const data = insertFoodTruckReviewSchema.parse(req.body);
+    const [review] = await db.insert(mediaFoodTruckReviews).values(data).returning();
+    res.json(review);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+router21.put("/api/media/food-truck-reviews/:id", requireAuth4, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const data = insertFoodTruckReviewSchema.partial().parse(req.body);
+    const [review] = await db.update(mediaFoodTruckReviews).set(data).where(eq18(mediaFoodTruckReviews.id, id)).returning();
+    if (!review) return res.status(404).json({ error: "Review not found" });
+    res.json(review);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+router21.delete("/api/media/food-truck-reviews/:id", requireAuth4, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(mediaFoodTruckReviews).where(eq18(mediaFoodTruckReviews.id, id));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 router21.post("/api/public/food-truck-submit", async (req, res) => {
@@ -40341,16 +40467,237 @@ router21.get("/api/public/food-truck-calendar", async (_req, res) => {
       cuisineType: mediaFoodTrucks.cuisineType,
       truckDescription: mediaFoodTrucks.description,
       truckImageUrl: mediaFoodTrucks.imageUrl,
-      truckWebsiteUrl: mediaFoodTrucks.websiteUrl
+      truckWebsiteUrl: mediaFoodTrucks.websiteUrl,
+      permitExpiry: mediaFoodTrucks.permitExpiry
     }).from(mediaFoodTruckEvents).leftJoin(mediaFoodTrucks, eq18(mediaFoodTruckEvents.foodTruckId, mediaFoodTrucks.id)).where(
       and13(
         eq18(mediaFoodTruckEvents.isActive, true),
-        gte5(mediaFoodTruckEvents.eventDate, today)
+        gte5(mediaFoodTruckEvents.eventDate, today),
+        isNotNull3(mediaFoodTruckEvents.foodTruckId),
+        isNotNull3(mediaFoodTrucks.id),
+        // Additional filter to ensure only food truck events with valid truck data
+        ne2(mediaFoodTruckEvents.title, "Opening Day"),
+        ne2(mediaFoodTruckEvents.title, "Opening Day Event")
       )
     ).orderBy(asc4(mediaFoodTruckEvents.eventDate), asc4(mediaFoodTruckEvents.startTime));
+    console.log("All Calendar Events:", events.map((e) => ({
+      id: e.id,
+      eventDate: e.eventDate,
+      title: e.title,
+      truckName: e.truckName,
+      description: e.description?.substring(0, 100) + (e.description?.length > 100 ? "..." : ""),
+      hasDescription: !!e.description,
+      foodTruckId: e.foodTruckId,
+      truckId: e.truckName ? "VALID" : "NULL"
+    })));
     res.json(events);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+router21.get("/api/public/food-truck-day-banners", async (_req, res) => {
+  try {
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const rows = await db.select({
+      bannerDate: mediaFoodTruckDayBanners.bannerDate,
+      label: mediaFoodTruckDayBanners.label
+    }).from(mediaFoodTruckDayBanners).where(and13(eq18(mediaFoodTruckDayBanners.isActive, true), gte5(mediaFoodTruckDayBanners.bannerDate, today))).orderBy(asc4(mediaFoodTruckDayBanners.bannerDate));
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+router21.post("/api/media/food-trucks/permit-upload-test", requireAuth4, async (req, res) => {
+  console.log("=== PERMIT UPLOAD TEST START ===");
+  try {
+    const multer3 = (await import("multer")).default;
+    const upload2 = multer3({
+      storage: multer3.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      // 10MB limit
+      fileFilter: (req2, file, cb) => {
+        if (file.mimetype === "application/pdf") {
+          cb(null, true);
+        } else {
+          cb(new Error("Only PDF files are allowed"));
+        }
+      }
+    });
+    upload2.single("file")(req, res, async (err) => {
+      if (err) {
+        console.error("Test upload error:", err);
+        return res.status(400).json({ message: err.message || "File upload error" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      console.log("Test upload successful - file received:", {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferLength: req.file.buffer?.length || 0
+      });
+      const fs2 = await import("fs");
+      const path4 = await import("path");
+      const uploadsDir = path4.join(process.cwd(), "uploads", "food-truck-permits");
+      if (!fs2.existsSync(uploadsDir)) {
+        fs2.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const filePath = path4.join(uploadsDir, req.file.originalname);
+      fs2.writeFileSync(filePath, req.file.buffer);
+      console.log("File saved to:", filePath);
+      const fileUrl = `/api/media/food-trucks/permit-file/test-${req.file.originalname}`;
+      res.json({
+        url: fileUrl,
+        filename: req.file.originalname,
+        size: req.file.size,
+        test: true
+      });
+    });
+  } catch (error) {
+    console.error("Test upload setup error:", error);
+    res.status(500).json({ message: error.message || "Test upload service unavailable" });
+  }
+});
+router21.post("/api/media/food-trucks/permit-upload", requireAuth4, async (req, res) => {
+  console.log("=== PERMIT UPLOAD START ===");
+  console.log("Request headers:", Object.keys(req.headers));
+  console.log("Content-Type:", req.headers["content-type"]);
+  try {
+    const multer3 = (await import("multer")).default;
+    console.log("Multer imported successfully");
+    const upload2 = multer3({
+      storage: multer3.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      // 10MB limit
+      fileFilter: (req2, file, cb) => {
+        console.log("File filter called:", file.mimetype, file.originalname);
+        if (file.mimetype === "application/pdf") {
+          cb(null, true);
+        } else {
+          cb(new Error("Only PDF files are allowed"));
+        }
+      }
+    });
+    console.log("Multer config created, starting upload...");
+    upload2.single("file")(req, res, async (err) => {
+      console.log("Upload callback reached, err:", err);
+      if (err) {
+        console.error("Permit upload error:", err);
+        return res.status(400).json({ message: err.message || "File upload error" });
+      }
+      console.log("req.file:", req.file ? "EXISTS" : "NULL");
+      if (!req.file) {
+        console.error("No file in request");
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      console.log("File details:", {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferLength: req.file.buffer?.length || 0
+      });
+      try {
+        console.log("Starting Google Cloud Storage upload...");
+        const { Storage: Storage2 } = await import("@google-cloud/storage");
+        console.log("Google Cloud Storage imported");
+        const storage2 = new Storage2();
+        console.log("Storage client created");
+        const timestamp2 = Date.now();
+        const filename = `food-truck-permits/${timestamp2}-${req.file.originalname}`;
+        console.log("Generated filename:", filename);
+        const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "nashoba-winery-storage";
+        console.log("Using bucket:", bucketName);
+        console.log("Environment DEFAULT_OBJECT_STORAGE_BUCKET_ID:", process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID);
+        const bucket = storage2.bucket(bucketName);
+        console.log("Bucket object created");
+        const file = bucket.file(filename);
+        console.log("File object created, starting save...");
+        await file.save(req.file.buffer, {
+          metadata: {
+            contentType: req.file.mimetype
+          }
+        });
+        console.log("File saved to Google Cloud Storage");
+        await file.makePublic();
+        console.log("File made public");
+        const publicUrl = `/api/media/food-trucks/permit-file/${timestamp2}-${req.file.originalname}`;
+        console.log("Upload successful, returning URL:", publicUrl);
+        res.json({
+          url: publicUrl,
+          filename: req.file.originalname,
+          size: req.file.size
+        });
+      } catch (uploadError) {
+        console.error("Object storage upload error:", uploadError);
+        console.error("Error stack:", uploadError.stack);
+        res.status(500).json({ message: "Failed to upload file to storage: " + uploadError.message });
+      }
+    });
+  } catch (error) {
+    console.error("Permit upload setup error:", error);
+  }
+});
+router21.get("/api/media/food-trucks/permit-file/test-:filename", async (req, res) => {
+  try {
+    const { filename } = req.params;
+    console.log("=== TEST FILE SERVE START ===");
+    console.log("Requested test filename:", filename);
+    const fs2 = await import("fs");
+    const path4 = await import("path");
+    const uploadsDir = path4.join(process.cwd(), "uploads", "food-truck-permits");
+    if (!fs2.existsSync(uploadsDir)) {
+      fs2.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const filePath = path4.join(uploadsDir, filename);
+    if (fs2.existsSync(filePath)) {
+      const fileBuffer = fs2.readFileSync(filePath);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      res.send(fileBuffer);
+      console.log("Actual uploaded file served successfully");
+    } else {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      const testPdf = Buffer.from("%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Test Permit PDF) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000054 00000 n\n0000000110 00000 n\n0000000203 00000 n\ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n299\n%%EOF");
+      res.send(testPdf);
+      console.log("Test PDF served (file not found)");
+    }
+  } catch (error) {
+    console.error("Error serving test permit file:", error);
+    res.status(500).json({ message: "Failed to serve test permit file" });
+  }
+});
+router21.get("/api/media/food-trucks/permit-file/:filename", async (req, res) => {
+  try {
+    const { filename } = req.params;
+    console.log("=== FILE SERVE START ===");
+    console.log("Requested filename:", filename);
+    const { Storage: Storage2 } = await import("@google-cloud/storage");
+    const storage2 = new Storage2();
+    const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "nashoba-winery-storage";
+    console.log("Using bucket:", bucketName);
+    const bucket = storage2.bucket(bucketName);
+    const fullFilename = `food-truck-permits/${filename}`;
+    console.log("Looking for file:", fullFilename);
+    const file = bucket.file(fullFilename);
+    const [exists] = await file.exists();
+    console.log("File exists:", exists);
+    if (!exists) {
+      console.log("File not found, returning 404");
+      return res.status(404).json({ message: "Permit file not found" });
+    }
+    const [metadata] = await file.getMetadata();
+    console.log("File metadata:", metadata.contentType, metadata.size);
+    res.setHeader("Content-Type", metadata.contentType || "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${metadata.name || filename}"`);
+    console.log("Starting file stream...");
+    await file.createReadStream().pipe(res);
+    console.log("File stream completed");
+  } catch (error) {
+    console.error("Error serving permit file:", error);
+    console.error("Error stack:", error.stack);
+    res.status(500).json({ message: "Failed to serve permit file" });
   }
 });
 var media_food_truck_routes_default = router21;
