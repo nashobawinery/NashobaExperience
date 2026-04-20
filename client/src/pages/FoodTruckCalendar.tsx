@@ -320,17 +320,12 @@ export default function FoodTruckCalendar() {
                 {groupEventsByDateInOrder(monthEvents).map(({ eventDate, events: dayEvents }) => {
                   const dayLabel = labelByDate.get(eventDate);
                   return (
-                    <div key={eventDate} className="space-y-3">
-                      {dayLabel && (
-                        <div
-                          className="rounded-md border border-primary/25 bg-primary/5 px-4 py-2.5 text-center text-sm font-medium text-primary"
-                          data-testid={`banner-food-truck-day-${eventDate}`}
-                        >
+                    <div key={eventDate} className={dayLabel ? "space-y-0" : "space-y-3"}>
+                      {dayLabel ? (
+                        <div className="rounded-md border border-primary/25 bg-primary/5 p-4 text-center text-sm font-medium text-primary">
                           {dayLabel}
-                        </div>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {dayEvents.map((event) => (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
+                            {dayEvents.map((event) => (
                   <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
                     {/* Prominent Date and Time Callout at Top */}
                     <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
