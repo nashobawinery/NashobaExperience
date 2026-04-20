@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { buildCalendarMonthGridItems } from "@/lib/calendarPublicMonthGrid";
+import { FormattedCalendarEventDescription } from "@/lib/calendarPublicDescription";
 import {
   Music,
   MapPin,
@@ -85,8 +86,30 @@ interface MusicDayBannerPublic {
 function MusicEventCard({ event }: { event: MusicCalendarEvent }) {
   return (
     <Card data-testid={`card-music-event-${event.id}`}>
+      <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
+        <div className="text-center space-y-1">
+          <div className="flex items-center justify-center gap-2 text-lg font-bold">
+            <Calendar className="h-5 w-5" />
+            <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
+          </div>
+          <div className="flex items-center justify-center gap-2 text-base font-medium">
+            <Clock className="h-4 w-4" />
+            <span data-testid={`text-time-${event.id}`}>
+              {formatTime(event.startTime)}
+              {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+            </span>
+          </div>
+          {event.location && (
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <MapPin className="h-4 w-4" />
+              <span data-testid={`text-location-${event.id}`}>{event.location}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {(event.imageUrl || event.musicianImageUrl) && (
-        <div className="aspect-video w-full overflow-hidden rounded-t-md">
+        <div className="aspect-video w-full overflow-hidden">
           <img
             src={event.imageUrl || event.musicianImageUrl || ""}
             alt={event.musicianName || event.title}
@@ -95,70 +118,65 @@ function MusicEventCard({ event }: { event: MusicCalendarEvent }) {
           />
         </div>
       )}
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-2 flex-wrap">
-          <h3 className="font-semibold text-base" data-testid={`text-musician-name-${event.id}`}>
-            {event.musicianName || event.title}
-          </h3>
-          {event.musicianGenre && (
-            <Badge variant="secondary" data-testid={`badge-genre-${event.id}`}>
-              {event.musicianGenre}
-            </Badge>
+      <CardContent className="p-4 space-y-4">
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <h3 className="font-semibold text-base leading-tight" data-testid={`text-musician-name-${event.id}`}>
+              {event.musicianName || event.title}
+            </h3>
+            {event.musicianGenre && (
+              <Badge variant="secondary" className="shrink-0" data-testid={`badge-genre-${event.id}`}>
+                {event.musicianGenre}
+              </Badge>
+            )}
+          </div>
+
+          {event.title && event.musicianName && event.title !== event.musicianName && (
+            <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
+              {event.title}
+            </p>
           )}
-        </div>
 
-        {event.title && event.musicianName && event.title !== event.musicianName && (
-          <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
-            {event.title}
-          </p>
-        )}
+          {event.musicianBio && (
+            <p
+              className="text-sm text-muted-foreground whitespace-pre-wrap"
+              data-testid={`text-musician-bio-${event.id}`}
+            >
+              {event.musicianBio}
+            </p>
+          )}
 
-        <div className="space-y-1.5 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="h-4 w-4 shrink-0" />
-            <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Clock className="h-4 w-4 shrink-0" />
-            <span data-testid={`text-time-${event.id}`}>
-              {formatTime(event.startTime)}
-              {event.endTime ? ` – ${formatTime(event.endTime)}` : ""}
-            </span>
-          </div>
-          {event.location && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="h-4 w-4 shrink-0" />
-              <span data-testid={`text-location-${event.id}`}>{event.location}</span>
+          {event.description && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Additional Activities:</p>
+              <FormattedCalendarEventDescription
+                text={event.description}
+                testId={`text-event-description-${event.id}`}
+              />
             </div>
           )}
+
+          {event.isFeatured && (
+            <Badge variant="default" data-testid={`badge-featured-${event.id}`}>
+              Featured
+            </Badge>
+          )}
+
+          {event.musicianWebsiteUrl && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              asChild
+              data-testid={`button-website-${event.id}`}
+            >
+              <a href={event.musicianWebsiteUrl} target="_blank" rel="noopener noreferrer">
+                <Globe className="h-4 w-4 mr-2" />
+                Visit {event.musicianName || "Artist"} Website
+              </a>
+            </Button>
+          )}
         </div>
-
-        {event.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2" data-testid={`text-description-${event.id}`}>
-            {event.description}
-          </p>
-        )}
-
-        {event.isFeatured && (
-          <Badge variant="default" data-testid={`badge-featured-${event.id}`}>
-            Featured
-          </Badge>
-        )}
-
-        {event.musicianWebsiteUrl && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            asChild
-            data-testid={`button-website-${event.id}`}
-          >
-            <a href={event.musicianWebsiteUrl} target="_blank" rel="noopener noreferrer">
-              <Globe className="h-4 w-4 mr-2" />
-              Visit Website
-            </a>
-          </Button>
-        )}
       </CardContent>
     </Card>
   );
@@ -169,6 +187,7 @@ export default function MusicCalendar() {
   const { toast } = useToast();
   const params = new URLSearchParams(window.location.search);
   const isEmbed = params.get("embed") === "1";
+  const previewEventId = params.get("event");
 
   const { data: events = [], isLoading } = useQuery<MusicCalendarEvent[]>({
     queryKey: ["/api/public/music-calendar"],
@@ -187,6 +206,19 @@ export default function MusicCalendar() {
     }
     return m;
   }, [dayBanners]);
+
+  useEffect(() => {
+    if (previewEventId && events.length > 0) {
+      const eventElement = document.querySelector(`[data-testid="card-music-event-${previewEventId}"]`);
+      if (eventElement) {
+        eventElement.classList.add("ring-2", "ring-primary", "ring-offset-2");
+        eventElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => {
+          eventElement.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+        }, 3000);
+      }
+    }
+  }, [previewEventId, events]);
 
   const [submitted, setSubmitted] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);

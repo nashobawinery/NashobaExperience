@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import type { SpecialEvent } from "@shared/schema";
 import { buildCalendarMonthGridItems } from "@/lib/calendarPublicMonthGrid";
+import { FormattedCalendarEventDescription } from "@/lib/calendarPublicDescription";
 
 const CATEGORY_LABELS: Record<string, string> = {
   "workshop": "Workshop",
@@ -68,19 +69,36 @@ interface SpecialEventsDayBannerPublic {
 function SpecialEventPublicCard({ event }: { event: SpecialEvent }) {
   return (
     <Card className="overflow-visible flex flex-col" data-testid={`card-event-${event.id}`}>
+      <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
+        <div className="text-center space-y-1">
+          <div className="flex items-center justify-center gap-2 text-lg font-bold">
+            <Calendar className="h-5 w-5" />
+            <span data-testid={`text-event-date-${event.id}`}>{formatDate(event.eventDate)}</span>
+          </div>
+          <div className="flex items-center justify-center gap-2 text-base font-medium">
+            <Clock className="h-4 w-4" />
+            <span data-testid={`text-event-time-${event.id}`}>
+              {formatTime(event.startTime)}
+              {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+            </span>
+          </div>
+          {event.location && (
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <MapPin className="h-4 w-4" />
+              <span data-testid={`text-event-location-${event.id}`}>{event.location}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {event.imageUrl && (
-        <div className="relative aspect-[16/9] overflow-hidden rounded-t-md">
+        <div className="relative aspect-[16/9] overflow-hidden">
           <img
             src={event.imageUrl}
             alt={event.title}
             className="w-full h-full object-cover"
             data-testid={`img-event-${event.id}`}
           />
-          {event.isFeatured && (
-            <Badge variant="default" className="absolute top-2 right-2" data-testid={`badge-featured-${event.id}`}>
-              Featured
-            </Badge>
-          )}
         </div>
       )}
       <CardContent className="flex flex-col flex-1 p-4 gap-3">
@@ -94,32 +112,19 @@ function SpecialEventPublicCard({ event }: { event: SpecialEvent }) {
         </div>
 
         {event.description && (
-          <p className="text-sm text-muted-foreground line-clamp-3" data-testid={`text-event-desc-${event.id}`}>
-            {event.description}
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Additional Activities:</p>
+            <FormattedCalendarEventDescription text={event.description} testId={`text-event-desc-${event.id}`} />
+          </div>
         )}
 
-        <div className="flex flex-col gap-1.5 text-sm mt-auto">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span data-testid={`text-event-date-${event.id}`}>{formatDate(event.eventDate)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span data-testid={`text-event-time-${event.id}`}>
-              {formatTime(event.startTime)}
-              {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
-            </span>
-          </div>
-          {event.location && (
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span data-testid={`text-event-location-${event.id}`}>{event.location}</span>
-            </div>
-          )}
-        </div>
+        {event.isFeatured && (
+          <Badge variant="default" className="w-fit" data-testid={`badge-featured-${event.id}`}>
+            Featured
+          </Badge>
+        )}
 
-        <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
+        <div className="flex items-center justify-between gap-3 pt-2 flex-wrap mt-auto">
           {event.price && (
             <span className="font-semibold text-lg" data-testid={`text-event-price-${event.id}`}>
               {event.price.startsWith("$") ? event.price : `$${event.price}`}
@@ -152,6 +157,7 @@ export default function SpecialEventsPublic() {
 
   const params = new URLSearchParams(window.location.search);
   const isEmbed = params.get("embed") === "1";
+  const previewEventId = params.get("event");
 
   const { data: events, isLoading } = useQuery<SpecialEvent[]>({
     queryKey: ["/api/public/special-events"],
@@ -195,6 +201,18 @@ export default function SpecialEventsPublic() {
       ),
     [groupedByMonth],
   );
+
+  useEffect(() => {
+    if (!previewEventId || !sortedFiltered.length) return;
+    const eventElement = document.querySelector(`[data-testid="card-event-${previewEventId}"]`);
+    if (eventElement) {
+      eventElement.classList.add("ring-2", "ring-primary", "ring-offset-2");
+      eventElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => {
+        eventElement.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+      }, 3000);
+    }
+  }, [previewEventId, sortedFiltered]);
 
   if (isLoading) {
     return (

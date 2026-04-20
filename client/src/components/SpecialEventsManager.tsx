@@ -27,6 +27,7 @@ import {
   CalendarDays,
   Image,
   Printer,
+  Eye,
 } from "lucide-react";
 import type { SpecialEvent } from "@shared/schema";
 import EventFlyerPrinter from "./EventFlyerPrinter";
@@ -254,6 +255,10 @@ export default function SpecialEventsManager() {
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
+              <Button variant="outline" onClick={() => window.open("/events", "_blank")} data-testid="button-preview-special-events-calendar">
+                <Eye className="w-4 h-4 mr-2" />
+                Preview Calendar
+              </Button>
               <Button onClick={openCreate} data-testid="button-create-special-event">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Event
@@ -584,6 +589,18 @@ function EventCard({
           <div className="flex items-center gap-1">
             <Button size="icon" variant="ghost" onClick={() => onEdit(event)} data-testid={`button-edit-event-${event.id}`}>
               <Edit className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => window.open("/events", "_blank")} title="Preview Calendar">
+              <Eye className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => window.open(`/events?event=${event.id}`, "_blank")}
+              title="Preview Event"
+              data-testid={`button-preview-event-public-${event.id}`}
+            >
+              <Calendar className="w-4 h-4" />
             </Button>
             <Button size="icon" variant="ghost" onClick={() => onDelete(event.id)} data-testid={`button-delete-event-${event.id}`}>
               <Trash2 className="w-4 h-4" />
