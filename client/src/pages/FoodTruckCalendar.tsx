@@ -102,6 +102,7 @@ export default function FoodTruckCalendar() {
   const { toast } = useToast();
   const params = new URLSearchParams(window.location.search);
   const isEmbed = params.get("embed") === "1";
+  const previewEventId = params.get("event");
 
   const { data: events = [], isLoading, refetch } = useQuery<FoodTruckCalendarEvent[]>({
     queryKey: ["/api/public/food-truck-calendar"],
@@ -136,6 +137,25 @@ export default function FoodTruckCalendar() {
       })));
     }
   }, [events]);
+
+  // Scroll to and highlight preview event
+  useEffect(() => {
+    if (previewEventId && events.length > 0) {
+      const eventElement = document.querySelector(`[data-testid="card-food-truck-event-${previewEventId}"]`);
+      if (eventElement) {
+        // Add highlight class
+        eventElement.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        
+        // Scroll into view
+        eventElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          eventElement.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+        }, 3000);
+      }
+    }
+  }, [previewEventId, events]);
 
   const [submitted, setSubmitted] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
