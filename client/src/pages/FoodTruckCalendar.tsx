@@ -320,30 +320,40 @@ export default function FoodTruckCalendar() {
               <div className="space-y-8">
                 {groupEventsByDateInOrder(monthEvents).map(({ eventDate, events: dayEvents }) => {
                   const dayLabel = labelByDate.get(eventDate);
+                  const n = dayEvents.length;
+                  /** Match banner width to that day’s cards: 1 / 2 / 3 columns on lg. */
+                  const bannerColSpan =
+                    n >= 3
+                      ? "col-span-1 sm:col-span-2 lg:col-span-3"
+                      : n === 2
+                        ? "col-span-1 sm:col-span-2 lg:col-span-2"
+                        : "col-span-1";
                   return (
-                    <div key={eventDate} className="space-y-3">
+                    <div key={eventDate} className={dayLabel ? "space-y-4" : "space-y-3"}>
                       {dayLabel && (
-                        <div
-                          className="relative overflow-hidden rounded-lg border-2 border-amber-400/55 bg-gradient-to-r from-primary via-primary to-primary/85 px-4 py-3.5 text-center shadow-lg shadow-primary/35 ring-1 ring-amber-300/40"
-                          data-testid={`banner-special-day-${eventDate}`}
-                        >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div
-                            aria-hidden
-                            className="pointer-events-none absolute inset-y-0 -left-1/3 w-2/5 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent motion-safe:animate-banner-sheen motion-reduce:animate-none"
-                          />
-                          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
-                          <div className="relative flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-                            <Sparkles
-                              className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+                            className={`relative overflow-hidden rounded-lg border-2 border-amber-400/55 bg-gradient-to-r from-primary via-primary to-primary/85 px-4 py-3.5 text-center shadow-lg shadow-primary/35 ring-1 ring-amber-300/40 ${bannerColSpan}`}
+                            data-testid={`banner-special-day-${eventDate}`}
+                          >
+                            <div
                               aria-hidden
+                              className="pointer-events-none absolute inset-y-0 -left-1/3 w-2/5 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent motion-safe:animate-banner-sheen motion-reduce:animate-none"
                             />
-                            <p className="font-serif text-base font-bold uppercase tracking-[0.12em] text-primary-foreground drop-shadow-md sm:text-lg">
-                              {dayLabel}
-                            </p>
-                            <Sparkles
-                              className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
-                              aria-hidden
-                            />
+                            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
+                            <div className="relative flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                              <Sparkles
+                                className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+                                aria-hidden
+                              />
+                              <p className="font-serif text-base font-bold uppercase tracking-[0.12em] text-primary-foreground drop-shadow-md sm:text-lg">
+                                {dayLabel}
+                              </p>
+                              <Sparkles
+                                className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+                                aria-hidden
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
