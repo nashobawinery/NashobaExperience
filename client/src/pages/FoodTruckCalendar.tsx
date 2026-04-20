@@ -319,6 +319,23 @@ export default function FoodTruckCalendar() {
               <div className="space-y-8">
                 {groupEventsByDateInOrder(monthEvents).map(({ eventDate, events: dayEvents }) => {
                   const dayLabel = labelByDate.get(eventDate);
+                  return (
+                    <div key={eventDate} className="space-y-3">
+                      {dayLabel && (
+                        <div
+                          className="rounded-md border border-primary/25 bg-primary/5 px-4 py-2.5 text-center text-sm font-medium text-primary"
+                          data-testid={`banner-food-truck-day-${eventDate}`}
+                        >
+                          {dayLabel}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {dayEvents.map((event) => (
+                  <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
+                    {/* Prominent Date and Time Callout at Top */}
+                    <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
+                      <div className="text-center space-y-1">
+                        <div className="flex items-center justify-center gap-2 text-lg font-bold">
                           <Calendar className="h-5 w-5" />
                           <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
                         </div>
