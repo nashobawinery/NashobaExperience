@@ -38,6 +38,7 @@ import {
 import { format, parseISO } from "date-fns";
 import type { Musician, MusicEvent, MusicianSubmission } from "@shared/schema";
 import EventFlyerPrinter from "./EventFlyerPrinter";
+import { MediaDayBannersSection } from "@/components/media/MediaDayBannersSection";
 
 function formatTime12(time24: string | null | undefined): string {
   if (!time24) return "";
@@ -547,6 +548,14 @@ function SchedulePanel() {
 
   return (
     <div className="space-y-4">
+      <MediaDayBannersSection
+        heading="Special day labels (public calendar)"
+        description={<>Shown above performances on that calendar day. Managed here only — not inside Add Event.</>}
+        publicPathLabel="/music"
+        mediaListUrl="/api/media/music-day-banners"
+        publicListUrl="/api/public/music-day-banners"
+        addButtonTestId="button-add-music-day-banner"
+      />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-semibold" data-testid="text-schedule-heading">Music Schedule</h2>
         <div className="flex items-center gap-2">

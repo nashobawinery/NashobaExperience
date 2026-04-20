@@ -6232,6 +6232,32 @@ export const insertFoodTruckDayBannerSchema = createInsertSchema(mediaFoodTruckD
 export type InsertFoodTruckDayBanner = z.infer<typeof insertFoodTruckDayBannerSchema>;
 export type FoodTruckDayBanner = typeof mediaFoodTruckDayBanners.$inferSelect;
 
+/** Optional per-day labels on the public Live Music calendar (`/music`). */
+export const mediaMusicDayBanners = pgTable("media_music_day_banners", {
+  id: serial("id").primaryKey(),
+  bannerDate: varchar("banner_date", { length: 10 }).notNull().unique(),
+  label: varchar("label", { length: 255 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertMusicDayBannerSchema = createInsertSchema(mediaMusicDayBanners).omit({ id: true, createdAt: true });
+export type InsertMusicDayBanner = z.infer<typeof insertMusicDayBannerSchema>;
+export type MusicDayBanner = typeof mediaMusicDayBanners.$inferSelect;
+
+/** Optional per-day labels on the public Special Events calendar (`/events`). */
+export const mediaSpecialEventsDayBanners = pgTable("media_special_events_day_banners", {
+  id: serial("id").primaryKey(),
+  bannerDate: varchar("banner_date", { length: 10 }).notNull().unique(),
+  label: varchar("label", { length: 255 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertSpecialEventsDayBannerSchema = createInsertSchema(mediaSpecialEventsDayBanners).omit({ id: true, createdAt: true });
+export type InsertSpecialEventsDayBanner = z.infer<typeof insertSpecialEventsDayBannerSchema>;
+export type SpecialEventsDayBanner = typeof mediaSpecialEventsDayBanners.$inferSelect;
+
 export const insertFoodTruckSubmissionSchema = createInsertSchema(mediaFoodTruckSubmissions).omit({ id: true, createdAt: true, reviewedAt: true });
 export type InsertFoodTruckSubmission = z.infer<typeof insertFoodTruckSubmissionSchema>;
 export type FoodTruckSubmission = typeof mediaFoodTruckSubmissions.$inferSelect;

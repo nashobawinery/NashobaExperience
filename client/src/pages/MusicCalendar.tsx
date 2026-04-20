@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { buildCalendarMonthGridItems } from "@/lib/calendarPublicMonthGrid";
 import {
   Music,
   MapPin,
@@ -76,6 +77,93 @@ function groupByMonth(events: MusicCalendarEvent[]): Record<string, MusicCalenda
   return groups;
 }
 
+interface MusicDayBannerPublic {
+  bannerDate: string;
+  label: string;
+}
+
+function MusicEventCard({ event }: { event: MusicCalendarEvent }) {
+  return (
+    <Card data-testid={`card-music-event-${event.id}`}>
+      {(event.imageUrl || event.musicianImageUrl) && (
+        <div className="aspect-video w-full overflow-hidden rounded-t-md">
+          <img
+            src={event.imageUrl || event.musicianImageUrl || ""}
+            alt={event.musicianName || event.title}
+            className="w-full h-full object-cover object-top"
+            data-testid={`img-event-${event.id}`}
+          />
+        </div>
+      )}
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <h3 className="font-semibold text-base" data-testid={`text-musician-name-${event.id}`}>
+            {event.musicianName || event.title}
+          </h3>
+          {event.musicianGenre && (
+            <Badge variant="secondary" data-testid={`badge-genre-${event.id}`}>
+              {event.musicianGenre}
+            </Badge>
+          )}
+        </div>
+
+        {event.title && event.musicianName && event.title !== event.musicianName && (
+          <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
+            {event.title}
+          </p>
+        )}
+
+        <div className="space-y-1.5 text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Calendar className="h-4 w-4 shrink-0" />
+            <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
+          </div>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="h-4 w-4 shrink-0" />
+            <span data-testid={`text-time-${event.id}`}>
+              {formatTime(event.startTime)}
+              {event.endTime ? ` – ${formatTime(event.endTime)}` : ""}
+            </span>
+          </div>
+          {event.location && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <MapPin className="h-4 w-4 shrink-0" />
+              <span data-testid={`text-location-${event.id}`}>{event.location}</span>
+            </div>
+          )}
+        </div>
+
+        {event.description && (
+          <p className="text-sm text-muted-foreground line-clamp-2" data-testid={`text-description-${event.id}`}>
+            {event.description}
+          </p>
+        )}
+
+        {event.isFeatured && (
+          <Badge variant="default" data-testid={`badge-featured-${event.id}`}>
+            Featured
+          </Badge>
+        )}
+
+        {event.musicianWebsiteUrl && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            asChild
+            data-testid={`button-website-${event.id}`}
+          >
+            <a href={event.musicianWebsiteUrl} target="_blank" rel="noopener noreferrer">
+              <Globe className="h-4 w-4 mr-2" />
+              Visit Website
+            </a>
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function MusicCalendar() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -85,6 +173,20 @@ export default function MusicCalendar() {
   const { data: events = [], isLoading } = useQuery<MusicCalendarEvent[]>({
     queryKey: ["/api/public/music-calendar"],
   });
+
+  const { data: dayBanners = [] } = useQuery<MusicDayBannerPublic[]>({
+    queryKey: ["/api/public/music-day-banners"],
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  const labelByDate = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of dayBanners) {
+      m.set(b.bannerDate, b.label);
+    }
+    return m;
+  }, [dayBanners]);
 
   const [submitted, setSubmitted] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
@@ -236,7 +338,18 @@ export default function MusicCalendar() {
             </p>
           </div>
         ) : (
-          Object.entries(grouped).map(([month, monthEvents]) => (
+          Object.entries(grouped).map(([month, monthEvents]) => {
+            const monthEventsSorted = [...monthEvents].sort((a, b) => {
+              const byDate = a.eventDate.localeCompare(b.eventDate);
+              if (byDate !== 0) return byDate;
+              return a.startTime.localeCompare(b.startTime);
+            });
+            const monthGridItems = buildCalendarMonthGridItems(
+              monthEventsSorted,
+              labelByDate,
+              (e) => <MusicEventCard event={e} />,
+            );
+            return (
             <div key={month} className="mb-10">
               <h2
                 className="text-lg font-semibold mb-4 flex items-center gap-2"
@@ -246,92 +359,11 @@ export default function MusicCalendar() {
                 {month}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {monthEvents.map((event) => (
-                  <Card key={event.id} data-testid={`card-music-event-${event.id}`}>
-                    {(event.imageUrl || event.musicianImageUrl) && (
-                      <div className="aspect-video w-full overflow-hidden rounded-t-md">
-                        <img
-                          src={event.imageUrl || event.musicianImageUrl || ""}
-                          alt={event.musicianName || event.title}
-                          className="w-full h-full object-cover object-top"
-                          data-testid={`img-event-${event.id}`}
-                        />
-                      </div>
-                    )}
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-2 flex-wrap">
-                        <h3 className="font-semibold text-base" data-testid={`text-musician-name-${event.id}`}>
-                          {event.musicianName || event.title}
-                        </h3>
-                        {event.musicianGenre && (
-                          <Badge variant="secondary" data-testid={`badge-genre-${event.id}`}>
-                            {event.musicianGenre}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {event.title && event.musicianName && event.title !== event.musicianName && (
-                        <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
-                          {event.title}
-                        </p>
-                      )}
-
-                      <div className="space-y-1.5 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Calendar className="h-4 w-4 shrink-0" />
-                          <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Clock className="h-4 w-4 shrink-0" />
-                          <span data-testid={`text-time-${event.id}`}>
-                            {formatTime(event.startTime)}
-                            {event.endTime ? ` – ${formatTime(event.endTime)}` : ""}
-                          </span>
-                        </div>
-                        {event.location && (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <MapPin className="h-4 w-4 shrink-0" />
-                            <span data-testid={`text-location-${event.id}`}>{event.location}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {event.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2" data-testid={`text-description-${event.id}`}>
-                          {event.description}
-                        </p>
-                      )}
-
-                      {event.isFeatured && (
-                        <Badge variant="default" data-testid={`badge-featured-${event.id}`}>
-                          Featured
-                        </Badge>
-                      )}
-
-                      {event.musicianWebsiteUrl && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          asChild
-                          data-testid={`button-website-${event.id}`}
-                        >
-                          <a
-                            href={event.musicianWebsiteUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Globe className="h-4 w-4 mr-2" />
-                            Visit Website
-                          </a>
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+                {monthGridItems}
               </div>
             </div>
-          ))
+            );
+          })
         )}
 
         <div className="mt-16 border-t pt-10">

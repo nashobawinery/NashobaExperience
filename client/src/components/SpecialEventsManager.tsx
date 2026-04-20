@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { SpecialEvent } from "@shared/schema";
 import EventFlyerPrinter from "./EventFlyerPrinter";
+import { MediaDayBannersSection } from "@/components/media/MediaDayBannersSection";
 
 const CATEGORY_LABELS: Record<string, string> = {
   workshop: "Workshop",
@@ -261,7 +262,15 @@ export default function SpecialEventsManager() {
           )}
         </div>
 
-        <TabsContent value="events" className="mt-6">
+        <TabsContent value="events" className="mt-6 space-y-6">
+          <MediaDayBannersSection
+            heading="Special day labels (public calendar)"
+            description={<>Shown above events on that calendar day on the public Special Events page. Managed here only — not inside Add Event.</>}
+            publicPathLabel="/events"
+            mediaListUrl="/api/media/special-events-day-banners"
+            publicListUrl="/api/public/special-events-day-banners"
+            addButtonTestId="button-add-special-events-day-banner"
+          />
           {(!filteredEvents || filteredEvents.length === 0) ? (
             <Card className="p-8 text-center">
               <CalendarDays className="w-12 h-12 text-muted-foreground mx-auto mb-4" />

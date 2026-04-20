@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { SpecialEvent } from "@shared/schema";
+import { buildCalendarMonthGridItems } from "@/lib/calendarPublicMonthGrid";
 
 const CATEGORY_LABELS: Record<string, string> = {
   "workshop": "Workshop",
@@ -47,6 +48,102 @@ function formatTime(timeStr: string): string {
   return `${displayHours}:${minutes.toString().padStart(2, "0")} ${ampm}`;
 }
 
+function groupByMonth(events: SpecialEvent[]): Record<string, SpecialEvent[]> {
+  const groups: Record<string, SpecialEvent[]> = {};
+  for (const event of events) {
+    const [year, month] = event.eventDate.split("-");
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1);
+    const key = date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(event);
+  }
+  return groups;
+}
+
+interface SpecialEventsDayBannerPublic {
+  bannerDate: string;
+  label: string;
+}
+
+function SpecialEventPublicCard({ event }: { event: SpecialEvent }) {
+  return (
+    <Card className="overflow-visible flex flex-col" data-testid={`card-event-${event.id}`}>
+      {event.imageUrl && (
+        <div className="relative aspect-[16/9] overflow-hidden rounded-t-md">
+          <img
+            src={event.imageUrl}
+            alt={event.title}
+            className="w-full h-full object-cover"
+            data-testid={`img-event-${event.id}`}
+          />
+          {event.isFeatured && (
+            <Badge variant="default" className="absolute top-2 right-2" data-testid={`badge-featured-${event.id}`}>
+              Featured
+            </Badge>
+          )}
+        </div>
+      )}
+      <CardContent className="flex flex-col flex-1 p-4 gap-3">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <h3 className="font-semibold text-lg leading-tight" data-testid={`text-event-title-${event.id}`}>
+            {event.title}
+          </h3>
+          <Badge variant="secondary" className="shrink-0" data-testid={`badge-category-${event.id}`}>
+            {CATEGORY_LABELS[event.category] || event.category}
+          </Badge>
+        </div>
+
+        {event.description && (
+          <p className="text-sm text-muted-foreground line-clamp-3" data-testid={`text-event-desc-${event.id}`}>
+            {event.description}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-1.5 text-sm mt-auto">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span data-testid={`text-event-date-${event.id}`}>{formatDate(event.eventDate)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span data-testid={`text-event-time-${event.id}`}>
+              {formatTime(event.startTime)}
+              {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+            </span>
+          </div>
+          {event.location && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span data-testid={`text-event-location-${event.id}`}>{event.location}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
+          {event.price && (
+            <span className="font-semibold text-lg" data-testid={`text-event-price-${event.id}`}>
+              {event.price.startsWith("$") ? event.price : `$${event.price}`}
+            </span>
+          )}
+          {event.shopifyUrl ? (
+            <Button asChild className="ml-auto" data-testid={`button-tickets-${event.id}`}>
+              <a href={event.shopifyUrl} target="_blank" rel="noopener noreferrer">
+                <Ticket className="h-4 w-4 mr-2" />
+                Get Tickets
+              </a>
+            </Button>
+          ) : (
+            <Button variant="secondary" disabled className="ml-auto" data-testid={`button-tickets-disabled-${event.id}`}>
+              <Ticket className="h-4 w-4 mr-2" />
+              Coming Soon
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SpecialEventsPublic() {
   const [, setLocation] = useLocation();
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -60,10 +157,44 @@ export default function SpecialEventsPublic() {
     queryKey: ["/api/public/special-events"],
   });
 
+  const { data: dayBanners = [] } = useQuery<SpecialEventsDayBannerPublic[]>({
+    queryKey: ["/api/public/special-events-day-banners"],
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  const labelByDate = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of dayBanners) {
+      m.set(b.bannerDate, b.label);
+    }
+    return m;
+  }, [dayBanners]);
+
   const filteredEvents = events?.filter((event) => {
     if (categoryFilter === "all") return true;
     return event.category === categoryFilter;
   }) ?? [];
+
+  const sortedFiltered = useMemo(
+    () =>
+      [...filteredEvents].sort((a, b) => {
+        const byDate = a.eventDate.localeCompare(b.eventDate);
+        if (byDate !== 0) return byDate;
+        return a.startTime.localeCompare(b.startTime);
+      }),
+    [filteredEvents],
+  );
+
+  const groupedByMonth = useMemo(() => groupByMonth(sortedFiltered), [sortedFiltered]);
+
+  const sortedMonthEntries = useMemo(
+    () =>
+      Object.entries(groupedByMonth).sort(([, evsA], [, evsB]) =>
+        evsA[0].eventDate.localeCompare(evsB[0].eventDate),
+      ),
+    [groupedByMonth],
+  );
 
   if (isLoading) {
     return (
@@ -192,92 +323,31 @@ export default function SpecialEventsPublic() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredEvents.map((event) => (
-              <Card key={event.id} className="overflow-visible flex flex-col" data-testid={`card-event-${event.id}`}>
-                {event.imageUrl && (
-                  <div className="relative aspect-[16/9] overflow-hidden rounded-t-md">
-                    <img
-                      src={event.imageUrl}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                      data-testid={`img-event-${event.id}`}
-                    />
-                    {event.isFeatured && (
-                      <Badge
-                        variant="default"
-                        className="absolute top-2 right-2"
-                        data-testid={`badge-featured-${event.id}`}
-                      >
-                        Featured
-                      </Badge>
-                    )}
+          <>
+            {sortedMonthEntries.map(([month, monthEvents]) => {
+              const monthEventsSorted = [...monthEvents].sort((a, b) => {
+                const byDate = a.eventDate.localeCompare(b.eventDate);
+                if (byDate !== 0) return byDate;
+                return a.startTime.localeCompare(b.startTime);
+              });
+              const monthGridItems = buildCalendarMonthGridItems(
+                monthEventsSorted,
+                labelByDate,
+                (e) => <SpecialEventPublicCard event={e} />,
+              );
+              return (
+                <div key={month} className="mb-10">
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    {month}
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {monthGridItems}
                   </div>
-                )}
-                <CardContent className="flex flex-col flex-1 p-4 gap-3">
-                  <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <h3 className="font-semibold text-lg leading-tight" data-testid={`text-event-title-${event.id}`}>
-                      {event.title}
-                    </h3>
-                    <Badge variant="secondary" className="shrink-0" data-testid={`badge-category-${event.id}`}>
-                      {CATEGORY_LABELS[event.category] || event.category}
-                    </Badge>
-                  </div>
-
-                  {event.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-3" data-testid={`text-event-desc-${event.id}`}>
-                      {event.description}
-                    </p>
-                  )}
-
-                  <div className="flex flex-col gap-1.5 text-sm mt-auto">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span data-testid={`text-event-date-${event.id}`}>{formatDate(event.eventDate)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span data-testid={`text-event-time-${event.id}`}>
-                        {formatTime(event.startTime)}
-                        {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
-                      </span>
-                    </div>
-                    {event.location && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span data-testid={`text-event-location-${event.id}`}>{event.location}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
-                    {event.price && (
-                      <span className="font-semibold text-lg" data-testid={`text-event-price-${event.id}`}>
-                        {event.price.startsWith("$") ? event.price : `$${event.price}`}
-                      </span>
-                    )}
-                    {event.shopifyUrl ? (
-                      <Button
-                        asChild
-                        className="ml-auto"
-                        data-testid={`button-tickets-${event.id}`}
-                      >
-                        <a href={event.shopifyUrl} target="_blank" rel="noopener noreferrer">
-                          <Ticket className="h-4 w-4 mr-2" />
-                          Get Tickets
-                        </a>
-                      </Button>
-                    ) : (
-                      <Button variant="secondary" disabled className="ml-auto" data-testid={`button-tickets-disabled-${event.id}`}>
-                        <Ticket className="h-4 w-4 mr-2" />
-                        Coming Soon
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              );
+            })}
+          </>
         )}
       </div>
     </div>

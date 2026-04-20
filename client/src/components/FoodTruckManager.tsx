@@ -36,11 +36,11 @@ import {
   ShieldCheck,
   Star,
   Eye,
-  Megaphone,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import type { FoodTruck, FoodTruckEvent, FoodTruckDayBanner, FoodTruckSubmission, FoodTruckReview } from "@shared/schema";
+import type { FoodTruck, FoodTruckEvent, FoodTruckSubmission, FoodTruckReview } from "@shared/schema";
 import EventFlyerPrinter from "@/components/EventFlyerPrinter";
+import { MediaDayBannersSection } from "@/components/media/MediaDayBannersSection";
 import { PermitFileUpload } from "@/components/PermitFileUpload";
 
 function formatTime12(time24: string | null | undefined): string {
@@ -482,207 +482,14 @@ function TrucksPanel() {
 }
 
 function FoodTruckDayBannersSection() {
-  const { toast } = useToast();
-  const [showDialog, setShowDialog] = useState(false);
-  const [editBanner, setEditBanner] = useState<FoodTruckDayBanner | null>(null);
-  const [form, setForm] = useState({ bannerDate: "", label: "", isActive: true });
-
-  const { data: banners = [], isLoading } = useQuery<FoodTruckDayBanner[]>({
-    queryKey: ["/api/media/food-truck-day-banners"],
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (data: typeof form) => {
-      const res = await apiRequest("POST", "/api/media/food-truck-day-banners", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/media/food-truck-day-banners"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/public/food-truck-day-banners"] });
-      setShowDialog(false);
-      setEditBanner(null);
-      setForm({ bannerDate: "", label: "", isActive: true });
-      toast({ title: "Day label saved" });
-    },
-    onError: (e: Error) => toast({ title: "Failed to save", description: e.message, variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: typeof form }) => {
-      const res = await apiRequest("PUT", `/api/media/food-truck-day-banners/${id}`, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/media/food-truck-day-banners"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/public/food-truck-day-banners"] });
-      setShowDialog(false);
-      setEditBanner(null);
-      setForm({ bannerDate: "", label: "", isActive: true });
-      toast({ title: "Day label updated" });
-    },
-    onError: (e: Error) => toast({ title: "Failed to update", description: e.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("DELETE", `/api/media/food-truck-day-banners/${id}`);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/media/food-truck-day-banners"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/public/food-truck-day-banners"] });
-      toast({ title: "Day label removed" });
-    },
-    onError: (e: Error) => toast({ title: "Failed to delete", description: e.message, variant: "destructive" }),
-  });
-
-  const openCreate = () => {
-    setEditBanner(null);
-    setForm({ bannerDate: "", label: "", isActive: true });
-    setShowDialog(true);
-  };
-
-  const openEdit = (b: FoodTruckDayBanner) => {
-    setEditBanner(b);
-    setForm({
-      bannerDate: b.bannerDate,
-      label: b.label,
-      isActive: b.isActive,
-    });
-    setShowDialog(true);
-  };
-
-  const closeDialog = () => {
-    setShowDialog(false);
-    setEditBanner(null);
-    setForm({ bannerDate: "", label: "", isActive: true });
-  };
-
-  const handleSave = () => {
-    if (!form.bannerDate.trim() || !form.label.trim()) {
-      toast({ title: "Date and label are required", variant: "destructive" });
-      return;
-    }
-    if (editBanner) {
-      updateMutation.mutate({ id: editBanner.id, data: form });
-    } else {
-      createMutation.mutate(form);
-    }
-  };
-
   return (
-    <>
-      <Card className="border-dashed">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="flex gap-2 min-w-0">
-              <Megaphone className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-sm" data-testid="text-day-banners-heading">
-                  Special day labels (public calendar)
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Shown on the public <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">/food-trucks</code> page above the first truck that day. Managed here only — not inside Add Event.
-                </p>
-              </div>
-            </div>
-            <Button size="sm" variant="secondary" onClick={openCreate} data-testid="button-add-day-banner">
-              <Plus className="h-4 w-4 mr-1" /> Add label
-            </Button>
-          </div>
-
-          {isLoading ? (
-            <Skeleton className="h-16 w-full" />
-          ) : banners.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No day labels — the public calendar is unchanged.</p>
-          ) : (
-            <div className="space-y-2">
-              {banners.map((b) => (
-                <div
-                  key={b.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
-                  data-testid={`row-day-banner-${b.id}`}
-                >
-                  <div className="min-w-0">
-                    <span className="font-medium">{format(parseISO(b.bannerDate), "MMM d, yyyy")}</span>
-                    <span className="text-muted-foreground"> — </span>
-                    <span>{b.label}</span>
-                    {!b.isActive && (
-                      <Badge variant="secondary" className="ml-2">
-                        Hidden
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(b)} data-testid={`button-edit-day-banner-${b.id}`}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        if (confirm(`Remove label for ${b.bannerDate}?`)) deleteMutation.mutate(b.id);
-                      }}
-                      data-testid={`button-delete-day-banner-${b.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog open={showDialog} onOpenChange={(v) => { if (!v) closeDialog(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editBanner ? "Edit day label" : "Add day label"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pr-1 pb-2">
-            <div className="space-y-2">
-              <Label>Calendar date *</Label>
-              <Input
-                type="date"
-                value={form.bannerDate}
-                onChange={(e) => setForm((p) => ({ ...p, bannerDate: e.target.value }))}
-                data-testid="input-day-banner-date"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Banner text *</Label>
-              <Input
-                value={form.label}
-                onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))}
-                placeholder="e.g. First Food Truck Friday"
-                data-testid="input-day-banner-label"
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <Label>Show on public calendar</Label>
-                <p className="text-xs text-muted-foreground">Turn off to hide without deleting.</p>
-              </div>
-              <Switch checked={form.isActive} onCheckedChange={(v) => setForm((p) => ({ ...p, isActive: v }))} data-testid="switch-day-banner-active" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog} data-testid="button-cancel-day-banner">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={createMutation.isPending || updateMutation.isPending}
-              data-testid="button-save-day-banner"
-            >
-              {editBanner ? "Save" : "Add"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <MediaDayBannersSection
+      heading="Special day labels (public calendar)"
+      description={<>Shown above the first truck scheduled that day. Managed here only — not inside Add Event.</>}
+      publicPathLabel="/food-trucks"
+      mediaListUrl="/api/media/food-truck-day-banners"
+      publicListUrl="/api/public/food-truck-day-banners"
+    />
   );
 }
 

@@ -5,9 +5,11 @@ import {
   mediaMusicians,
   mediaMusicEvents,
   mediaMusicianSubmissions,
+  mediaMusicDayBanners,
   insertMusicianSchema,
   insertMusicEventSchema,
   insertMusicianSubmissionSchema,
+  insertMusicDayBannerSchema,
 } from "@shared/schema";
 
 const router = Router();
@@ -210,6 +212,66 @@ router.get("/api/public/music-calendar", async (_req: Request, res: Response) =>
       .orderBy(asc(mediaMusicEvents.eventDate), asc(mediaMusicEvents.startTime));
 
     res.json(events);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== Live Music day banners (public calendar) ====================
+
+router.get("/api/media/music-day-banners", requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const rows = await db.select().from(mediaMusicDayBanners).orderBy(desc(mediaMusicDayBanners.bannerDate));
+    res.json(rows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/api/media/music-day-banners", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const data = insertMusicDayBannerSchema.parse(req.body);
+    const [row] = await db.insert(mediaMusicDayBanners).values(data).returning();
+    res.json(row);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.put("/api/media/music-day-banners/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const data = insertMusicDayBannerSchema.partial().parse(req.body);
+    const [row] = await db.update(mediaMusicDayBanners).set(data).where(eq(mediaMusicDayBanners.id, id)).returning();
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json(row);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete("/api/media/music-day-banners/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await db.delete(mediaMusicDayBanners).where(eq(mediaMusicDayBanners.id, id));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/api/public/music-day-banners", async (_req: Request, res: Response) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const rows = await db
+      .select({
+        bannerDate: mediaMusicDayBanners.bannerDate,
+        label: mediaMusicDayBanners.label,
+      })
+      .from(mediaMusicDayBanners)
+      .where(and(eq(mediaMusicDayBanners.isActive, true), gte(mediaMusicDayBanners.bannerDate, today)))
+      .orderBy(asc(mediaMusicDayBanners.bannerDate));
+    res.json(rows);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
