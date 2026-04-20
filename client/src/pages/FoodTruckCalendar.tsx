@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -84,18 +84,117 @@ function groupByMonth(events: FoodTruckCalendarEvent[]): Record<string, FoodTruc
   return groups;
 }
 
-/** Preserve order; one group per calendar day so banners can sit above only that day's cards (not the whole month grid). */
-function groupEventsByDateInOrder(events: FoodTruckCalendarEvent[]): { eventDate: string; events: FoodTruckCalendarEvent[] }[] {
-  const out: { eventDate: string; events: FoodTruckCalendarEvent[] }[] = [];
-  for (const ev of events) {
-    const last = out[out.length - 1];
-    if (last && last.eventDate === ev.eventDate) {
-      last.events.push(ev);
-    } else {
-      out.push({ eventDate: ev.eventDate, events: [ev] });
-    }
-  }
-  return out;
+function FoodTruckEventCard({ event }: { event: FoodTruckCalendarEvent }) {
+  return (
+    <Card data-testid={`card-food-truck-event-${event.id}`}>
+      <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
+        <div className="text-center space-y-1">
+          <div className="flex items-center justify-center gap-2 text-lg font-bold">
+            <Calendar className="h-5 w-5" />
+            <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
+          </div>
+          <div className="flex items-center justify-center gap-2 text-base font-medium">
+            <Clock className="h-4 w-4" />
+            <span data-testid={`text-time-${event.id}`}>
+              {formatTime(event.startTime)}
+              {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+            </span>
+          </div>
+          {event.location && (
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <MapPin className="h-4 w-4" />
+              <span data-testid={`text-location-${event.id}`}>{event.location}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {(event.imageUrl || event.truckImageUrl) && (
+        <div className="aspect-video w-full overflow-hidden">
+          <img
+            src={event.imageUrl || event.truckImageUrl || ""}
+            alt={event.truckName || event.title}
+            className="w-full h-full object-cover object-top"
+            data-testid={`img-event-${event.id}`}
+          />
+        </div>
+      )}
+      <CardContent className="p-4 space-y-4">
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <h3 className="font-semibold text-base leading-tight" data-testid={`text-truck-name-${event.id}`}>
+              {event.truckName || event.title}
+            </h3>
+            {event.cuisineType && (
+              <Badge variant="secondary" className="shrink-0" data-testid={`badge-cuisine-${event.id}`}>
+                {event.cuisineType}
+              </Badge>
+            )}
+          </div>
+
+          {event.title && event.truckName && event.title !== event.truckName && (
+            <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
+              {event.title}
+            </p>
+          )}
+
+          {event.truckDescription && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground" data-testid={`text-truck-description-${event.id}`}>
+                {event.truckDescription}
+              </p>
+            </div>
+          )}
+
+          {event.description && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Additional Activities:</p>
+              <div className="text-sm text-muted-foreground" data-testid={`text-event-description-${event.id}`}>
+                {(() => {
+                  const lines = event.description.split("\n");
+                  return lines.map((line, index) => {
+                    if (line.trim().match(/^[-*]\s+/) || line.trim().match(/^\d+\.\s+/)) {
+                      const bulletContent = line.trim().replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "");
+                      return (
+                        <div key={index} className="flex items-start gap-2 mb-1">
+                          <span className="text-primary mt-1">{"\u2022"}</span>
+                          <span>{bulletContent}</span>
+                        </div>
+                      );
+                    } else if (line.trim()) {
+                      return <p key={index} className="mb-1">{line}</p>;
+                    } else {
+                      return <br key={index} />;
+                    }
+                  });
+                })()}
+              </div>
+            </div>
+          )}
+
+          {event.isFeatured && (
+            <Badge variant="default" data-testid={`badge-featured-${event.id}`}>Featured</Badge>
+          )}
+
+          {event.truckWebsiteUrl && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              asChild
+              data-testid={`button-website-${event.id}`}
+            >
+              <a href={event.truckWebsiteUrl} target="_blank" rel="noopener noreferrer">
+                <Globe className="h-4 w-4 mr-2" />
+                Visit {event.truckName || "Food Truck"} Website
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </a>
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function FoodTruckCalendar() {
@@ -308,7 +407,48 @@ export default function FoodTruckCalendar() {
             </p>
           </div>
         ) : (
-          Object.entries(grouped).map(([month, monthEvents]) => (
+          Object.entries(grouped).map(([month, monthEvents]) => {
+            const monthEventsSorted = [...monthEvents].sort((a, b) => {
+              const byDate = a.eventDate.localeCompare(b.eventDate);
+              if (byDate !== 0) return byDate;
+              return a.startTime.localeCompare(b.startTime);
+            });
+            const bannerShownForDate = new Set<string>();
+            const monthGridItems: ReactNode[] = [];
+            for (const event of monthEventsSorted) {
+              const dayLabel = labelByDate.get(event.eventDate);
+              if (dayLabel && !bannerShownForDate.has(event.eventDate)) {
+                bannerShownForDate.add(event.eventDate);
+                monthGridItems.push(
+                  <div
+                    key={`banner-${event.eventDate}`}
+                    className="col-span-full relative overflow-hidden rounded-lg border-2 border-amber-400/55 bg-gradient-to-r from-primary via-primary to-primary/85 px-4 py-3.5 text-center shadow-lg shadow-primary/35 ring-1 ring-amber-300/40"
+                    data-testid={`banner-special-day-${event.eventDate}`}
+                  >
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 -left-1/3 w-2/5 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent motion-safe:animate-banner-sheen motion-reduce:animate-none"
+                    />
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
+                    <div className="relative flex w-full min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center">
+                      <Sparkles
+                        className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+                        aria-hidden
+                      />
+                      <p className="min-w-0 max-w-full flex-1 font-serif text-base font-bold uppercase leading-snug tracking-[0.12em] text-primary-foreground break-words drop-shadow-md sm:text-lg">
+                        {dayLabel}
+                      </p>
+                      <Sparkles
+                        className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
+                        aria-hidden
+                      />
+                    </div>
+                  </div>,
+                );
+              }
+              monthGridItems.push(<FoodTruckEventCard key={event.id} event={event} />);
+            }
+            return (
             <div key={month} className="mb-10">
               <h2
                 className="text-lg font-semibold mb-4 flex items-center gap-2"
@@ -317,177 +457,12 @@ export default function FoodTruckCalendar() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 {month}
               </h2>
-              <div className="space-y-8">
-                {groupEventsByDateInOrder(monthEvents).map(({ eventDate, events: dayEvents }) => {
-                  const dayLabel = labelByDate.get(eventDate);
-                  const n = dayEvents.length;
-                  /** Match banner width to that day’s cards: 1 / 2 / 3 columns on lg. */
-                  const bannerColSpan =
-                    n >= 3
-                      ? "col-span-1 sm:col-span-2 lg:col-span-3"
-                      : n === 2
-                        ? "col-span-1 sm:col-span-2 lg:col-span-2"
-                        : "col-span-1";
-                  return (
-                    <div key={eventDate} className={dayLabel ? "space-y-4" : "space-y-3"}>
-                      {dayLabel && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div
-                            className={`relative overflow-hidden rounded-lg border-2 border-amber-400/55 bg-gradient-to-r from-primary via-primary to-primary/85 px-4 py-3.5 text-center shadow-lg shadow-primary/35 ring-1 ring-amber-300/40 ${bannerColSpan}`}
-                            data-testid={`banner-special-day-${eventDate}`}
-                          >
-                            <div
-                              aria-hidden
-                              className="pointer-events-none absolute inset-y-0 -left-1/3 w-2/5 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent motion-safe:animate-banner-sheen motion-reduce:animate-none"
-                            />
-                            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
-                            <div className="relative flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-                              <Sparkles
-                                className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
-                                aria-hidden
-                              />
-                              <p className="font-serif text-base font-bold uppercase tracking-[0.12em] text-primary-foreground drop-shadow-md sm:text-lg">
-                                {dayLabel}
-                              </p>
-                              <Sparkles
-                                className="h-5 w-5 shrink-0 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)] motion-safe:animate-pulse motion-reduce:animate-none"
-                                aria-hidden
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {dayEvents.map((event) => (
-                  <Card key={event.id} data-testid={`card-food-truck-event-${event.id}`}>
-                    {/* Prominent Date and Time Callout at Top */}
-                    <div className="bg-primary text-primary-foreground p-4 rounded-t-md">
-                      <div className="text-center space-y-1">
-                        <div className="flex items-center justify-center gap-2 text-lg font-bold">
-                          <Calendar className="h-5 w-5" />
-                          <span data-testid={`text-date-${event.id}`}>{formatDate(event.eventDate)}</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-2 text-base font-medium">
-                          <Clock className="h-4 w-4" />
-                          <span data-testid={`text-time-${event.id}`}>
-                            {formatTime(event.startTime)}
-                            {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
-                          </span>
-                        </div>
-                        {event.location && (
-                          <div className="flex items-center justify-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4" />
-                            <span data-testid={`text-location-${event.id}`}>{event.location}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {(event.imageUrl || event.truckImageUrl) && (
-                      <div className="aspect-video w-full overflow-hidden">
-                        <img
-                          src={event.imageUrl || event.truckImageUrl || ""}
-                          alt={event.truckName || event.title}
-                          className="w-full h-full object-cover object-top"
-                          data-testid={`img-event-${event.id}`}
-                        />
-                      </div>
-                    )}
-                    <CardContent className="p-4 space-y-4">
-                      <div className="space-y-3">
-                        {/* Truck Name and Cuisine Type */}
-                        <div className="flex items-start justify-between gap-2 flex-wrap">
-                          <h3 className="font-semibold text-base leading-tight" data-testid={`text-truck-name-${event.id}`}>
-                            {event.truckName || event.title}
-                          </h3>
-                          {event.cuisineType && (
-                            <Badge variant="secondary" className="shrink-0" data-testid={`badge-cuisine-${event.id}`}>
-                              {event.cuisineType}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Event Title (if different from truck name) */}
-                        {event.title && event.truckName && event.title !== event.truckName && (
-                          <p className="text-sm text-muted-foreground" data-testid={`text-event-title-${event.id}`}>
-                            {event.title}
-                          </p>
-                        )}
-
-                        {/* Food Truck Description */}
-                        {event.truckDescription && (
-                          <div className="space-y-2">
-                            <p className="text-sm text-muted-foreground" data-testid={`text-truck-description-${event.id}`}>
-                              {event.truckDescription}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Event Description - Additional Activities */}
-                        {event.description && (
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-muted-foreground">Additional Activities:</p>
-                            <div className="text-sm text-muted-foreground" data-testid={`text-event-description-${event.id}`}>
-                              {(() => {
-                                const lines = event.description.split('\n');
-                                return lines.map((line, index) => {
-                                  // Handle bullet points (starting with -, *, or number with dot)
-                                  if (line.trim().match(/^[-*]\s+/) || line.trim().match(/^\d+\.\s+/)) {
-                                    const bulletContent = line.trim().replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, '');
-                                    return (
-                                      <div key={index} className="flex items-start gap-2 mb-1">
-                                        <span className="text-primary mt-1">{'\u2022'}</span>
-                                        <span>{bulletContent}</span>
-                                      </div>
-                                    );
-                                  }
-                                  // Handle regular lines with proper spacing
-                                  else if (line.trim()) {
-                                    return <p key={index} className="mb-1">{line}</p>;
-                                  }
-                                  // Handle empty lines for spacing
-                                  else {
-                                    return <br key={index} />;
-                                  }
-                                });
-                              })()}
-                            </div>
-                          </div>
-                        )}
-
-                        
-                        {/* Featured Badge */}
-                        {event.isFeatured && (
-                          <Badge variant="default" data-testid={`badge-featured-${event.id}`}>Featured</Badge>
-                        )}
-
-                        {/* Website Link - Enhanced */}
-                        {event.truckWebsiteUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            asChild
-                            data-testid={`button-website-${event.id}`}
-                          >
-                            <a href={event.truckWebsiteUrl} target="_blank" rel="noopener noreferrer">
-                              <Globe className="h-4 w-4 mr-2" />
-                              Visit {event.truckName || "Food Truck"} Website
-                              <ExternalLink className="h-3 w-3 ml-1" />
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {monthGridItems}
               </div>
             </div>
-          ))
+            );
+          })
         )}
 
         <div className="mt-16 border-t pt-10" id="apply">
