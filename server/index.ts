@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+config();
+
 process.env.TZ = 'America/New_York';
 
 import reactivationRoutes from "./reactivation/routes";
@@ -90,7 +93,7 @@ app.use(express.static(path.join(process.cwd(), 'public')));
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
+
   }, () => {
     log(`serving on port ${port}`);
   });
