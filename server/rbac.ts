@@ -1187,6 +1187,16 @@ export async function seedPlatformModules(): Promise<void> {
       routePrefix: '/media-center',
       status: 'active',
       sortOrder: 18
+    },
+    {
+      moduleKey: 'media_library',
+      moduleName: 'Media Library',
+      description: 'Centralized media library with search, metadata, and storage management',
+      icon: 'Image',
+      color: 'bg-indigo-500',
+      routePrefix: '/media-library',
+      status: 'active',
+      sortOrder: 19
     }
   ];
 
@@ -1198,6 +1208,7 @@ export async function seedPlatformModules(): Promise<void> {
         INSERT INTO platform_modules (module_key, module_name, description, icon, color, route_prefix, status, sort_order)
         VALUES (${mod.moduleKey}, ${mod.moduleName}, ${mod.description}, ${mod.icon}, ${mod.color}, ${mod.routePrefix}, ${mod.status}, ${mod.sortOrder})
         ON CONFLICT (module_key) DO UPDATE SET
+          module_name = EXCLUDED.module_name,
           route_prefix = EXCLUDED.route_prefix,
           sort_order = EXCLUDED.sort_order,
           status = EXCLUDED.status,

@@ -13,9 +13,9 @@ const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
 // Helper function to get the storage bucket for email attachments
 function getStorageBucket() {
-  const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
+  const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID || process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) {
-    console.error('[ObjectStorage] REPLIT_DEFAULT_BUCKET_ID not set');
+    console.error('[ObjectStorage] Storage bucket env var not set');
     return null;
   }
   return objectStorageClient.bucket(bucketId);
@@ -55,7 +55,7 @@ import { scheduleNightlySync } from "./nightlySync";
 import emailDeliveryRouter from "./email-delivery-routes";
 import { ensureMediaDayBannerTables } from "./ensure-media-day-banner-tables";
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import bcrypt from "bcrypt";
 import { 
@@ -90,10 +90,13 @@ import {
   insertFilterOptionSchema,
   insertSlideshowImageSchema,
   insertMediaLibrarySchema,
+  insertMediaUsageSchema,
   insertProductMediaSchema,
   insertVideoSchema,
   insertCommercialSchema,
   categoryEnum,
+  mediaLibrary,
+  mediaUsage,
   insertLmsCategorySchema,
   insertLmsCourseSchema,
   insertLmsLessonSchema,
@@ -122,9 +125,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     throw err;
   }
 
+  const isAdmin = requirePlatformRole(['super_admin']);
+
   // Health check endpoint for deployment verification (responds immediately)
   app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.get('/api/admin/storage/health', isAdmin, async (_req, res) => {
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || process.env.REPLIT_DEFAULT_BUCKET_ID;
+    if (!bucketId) {
+      return res.status(500).json({ ok: false, message: "No storage bucket configured" });
+    }
+
+    try {
+      const bucket = objectStorageClient.bucket(bucketId);
+      const [exists] = await bucket.exists();
+      const [files] = await bucket.getFiles({ maxResults: 5 });
+      res.json({
+        ok: exists,
+        bucketId,
+        sampleCount: files.length,
+        sampleObjects: files.map((f) => f.name),
+      });
+    } catch (error) {
+      console.error("Storage health check failed:", error);
+      res.status(500).json({ ok: false, bucketId, message: "Storage health check failed" });
+    }
   });
 
   // Mount B2B routes FIRST (before main session middleware) to ensure session isolation
@@ -353,12 +380,9 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   logSyncRegistryStatus(syncValidation);
 
   // Platform authentication middleware only
-const unifiedIsAuthenticated = isPlatformAuthenticated;
+  const unifiedIsAuthenticated = isPlatformAuthenticated;
 
-// Platform admin middleware (super_admin role)
-const isAdmin = requirePlatformRole(['super_admin']);
-
-// Authentication routes
+  // Authentication routes
   app.get('/api/auth/user', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       const sess = req.session as any;
@@ -4186,6 +4210,67 @@ const isAdmin = requirePlatformRole(['super_admin']);
     res.json(files);
   });
 
+  app.get("/api/media-hub/assets", async (req, res) => {
+    try {
+      const q = (req.query.q as string | undefined)?.trim();
+      const category = req.query.category as string | undefined;
+      const mimePrefix = req.query.mimePrefix as string | undefined;
+      const limit = Math.min(Number(req.query.limit ?? 100), 250);
+      const offset = Math.max(Number(req.query.offset ?? 0), 0);
+
+      const whereConditions = [];
+      if (category && category !== "all") {
+        whereConditions.push(eq(mediaLibrary.category, category));
+      }
+      if (mimePrefix) {
+        whereConditions.push(ilike(mediaLibrary.mimeType, `${mimePrefix}%`));
+      }
+      if (q) {
+        whereConditions.push(
+          sql`(
+            ${mediaLibrary.filename} ILIKE ${`%${q}%`} OR
+            ${mediaLibrary.originalFilename} ILIKE ${`%${q}%`} OR
+            ${mediaLibrary.description} ILIKE ${`%${q}%`} OR
+            ${mediaLibrary.altText} ILIKE ${`%${q}%`} OR
+            EXISTS (
+              SELECT 1 FROM unnest(${mediaLibrary.tags}) tag
+              WHERE tag ILIKE ${`%${q}%`}
+            )
+          )`,
+        );
+      }
+
+      const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+      const assets = await db
+        .select()
+        .from(mediaLibrary)
+        .where(whereClause)
+        .orderBy(desc(mediaLibrary.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      res.json(assets);
+    } catch (error) {
+      console.error("Error searching media assets:", error);
+      res.status(500).json({ message: "Failed to search media assets" });
+    }
+  });
+
+  app.get("/api/media-hub/folders", async (_req, res) => {
+    try {
+      const rows = await db.select({ objectPath: mediaLibrary.objectPath }).from(mediaLibrary);
+      const folders = Array.from(new Set(
+        rows
+          .map((r) => r.objectPath.split("/").slice(0, -1).join("/"))
+          .filter(Boolean),
+      )).sort((a, b) => a.localeCompare(b));
+      res.json({ folders });
+    } catch (error) {
+      console.error("Error loading media folders:", error);
+      res.status(500).json({ message: "Failed to load media folders" });
+    }
+  });
+
   app.get("/api/media-library/:id", async (req, res) => {
     const file = await storage.getMediaLibraryFile(req.params.id);
     if (!file) {
@@ -4245,6 +4330,50 @@ const isAdmin = requirePlatformRole(['super_admin']);
       res.json(file);
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.get("/api/media-hub/assets/:id/usages", async (req, res) => {
+    try {
+      const usages = await db
+        .select()
+        .from(mediaUsage)
+        .where(eq(mediaUsage.mediaId, req.params.id))
+        .orderBy(desc(mediaUsage.createdAt));
+      res.json(usages);
+    } catch (error) {
+      console.error("Error loading media usages:", error);
+      res.status(500).json({ message: "Failed to load media usages" });
+    }
+  });
+
+  app.post("/api/media-hub/assets/:id/usages", isAdmin, async (req, res) => {
+    try {
+      const media = await storage.getMediaLibraryFile(req.params.id);
+      if (!media) return res.status(404).json({ message: "Media not found" });
+
+      const payload = insertMediaUsageSchema.parse({
+        ...req.body,
+        mediaId: req.params.id,
+      });
+      const [created] = await db.insert(mediaUsage).values(payload).returning();
+      res.status(201).json(created);
+    } catch (error) {
+      console.error("Error creating media usage:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/media-hub/usages/:usageId", isAdmin, async (req, res) => {
+    try {
+      const result = await db.delete(mediaUsage).where(eq(mediaUsage.id, req.params.usageId));
+      if (!result.rowCount) {
+        return res.status(404).json({ message: "Usage not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting media usage:", error);
+      res.status(500).json({ message: "Failed to delete media usage" });
     }
   });
 

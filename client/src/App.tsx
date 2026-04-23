@@ -145,6 +145,7 @@ const SpecialEventsPublic = lazy(() => import("@/pages/SpecialEventsPublic"));
 
 // Lazy load Media Center module
 const MediaCenter = lazy(() => import("@/pages/MediaCenter"));
+const MediaLibraryPage = lazy(() => import("@/pages/MediaLibraryPage"));
 
 // Lazy load Music Calendar public page
 const MusicCalendar = lazy(() => import("@/pages/MusicCalendar"));
@@ -649,6 +650,13 @@ function MediaCenterRoute() {
   if (isLoading) return <PageLoader />;
   if (!isAdmin) return <Redirect to="/" />;
   return <Suspense fallback={<PageLoader />}><MediaCenter /></Suspense>;
+}
+
+function MediaLibraryRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><MediaLibraryPage /></Suspense>;
 }
 
 function MusicCalendarRoute() {
@@ -1313,6 +1321,7 @@ function Router() {
         <Route path="/music" component={MusicCalendarRoute} />
         <Route path="/food-trucks" component={FoodTruckCalendarRoute} />
         <Route path="/media-center" component={MediaCenterRoute} />
+        <Route path="/media-library" component={MediaLibraryRoute} />
         <Route path="/events" component={SpecialEventsPublicRoute} />
         <Route path="/toast-connect" component={ToastConnectRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />

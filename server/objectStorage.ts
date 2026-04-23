@@ -12,13 +12,18 @@ import {
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
-// Check if we're in development (has sidecar) or production (has ADC via metadata server)
-const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.REPL_DEPLOYMENT_ID;
+// Replit workspace dev uses a local sidecar; Replit deployed uses ADC. Only use the
+// sidecar when actually running on Replit (REPL_ID). GOOGLE_APPLICATION_CREDENTIALS
+// always wins so self-hosted / Neon / etc. use your service account key.
+const isReplitDevWithSidecar =
+  !process.env.GOOGLE_APPLICATION_CREDENTIALS &&
+  Boolean(process.env.REPL_ID) &&
+  (process.env.NODE_ENV === "development" || !process.env.REPL_DEPLOYMENT_ID);
 
 export const objectStorageClient = new Storage(
-  isDevelopment
+  isReplitDevWithSidecar
     ? {
-        // Development: use Replit sidecar for authentication
+        // Replit workspace: use Replit sidecar for authentication
         credentials: {
           audience: "replit",
           subject_token_type: "access_token",
@@ -35,7 +40,7 @@ export const objectStorageClient = new Storage(
         },
         projectId: "",
       }
-    : undefined // Production: use Application Default Credentials (metadata server)
+    : undefined // GOOGLE_APPLICATION_CREDENTIALS, Replit production ADC, or GCP metadata
 );
 
 export class ObjectNotFoundError extends Error {

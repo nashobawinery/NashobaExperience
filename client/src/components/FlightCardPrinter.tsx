@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -75,6 +76,7 @@ const CATEGORIES = [
 ];
 
 const PAPER_SIZES = [
+  { value: "2p5x3p5-land", label: "2.5×3.5\" landscape (3.5×2.5\" @ print)" },
   { value: "a6",   label: "A6 — 4.13×5.83\" (standard flight card)" },
   { value: "4x6",  label: "4×6\" Postcard" },
   { value: "a5",   label: "A5 — 5.83×8.27\" (6+ selections)" },
@@ -366,6 +368,10 @@ export default function FlightCardPrinter() {
   const [saveOpen, setSaveOpen]           = useState(false);
   const [editingConfig, setEditingConfig] = useState<FlightCardConfig | null>(null);
   const [fcTypo, setFcTypo]               = useState<Record<string, TypoElem>>(DEFAULT_FC_TYPO);
+  /** Per-wine blurb for print (from catalog or edited, like Menu Printer). Omitted = use product.description. */
+  const [descEdits, setDescEdits]         = useState<Record<string, string>>({});
+  const [previewUrl, setPreviewUrl]       = useState<string | null>(null);
+  const lastPreviewObjectUrl = useRef<string | null>(null);
 
   const handleFcTypoChange = (key: string, field: keyof TypoElem, value: string | number | boolean) => {
     setFcTypo(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
@@ -438,9 +444,18 @@ export default function FlightCardPrinter() {
   };
 
   const toggleProduct = (id: string) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedIds(prev => {
+      if (prev.includes(id)) {
+        setDescEdits(d => {
+          if (!(id in d)) return d;
+          const n = { ...d };
+          delete n[id];
+          return n;
+        });
+        return prev.filter(i => i !== id);
+      }
+      return [...prev, id];
+    });
   };
 
   const moveUp = (idx: number) => {
@@ -461,37 +476,78 @@ export default function FlightCardPrinter() {
     });
   };
 
-  const buildPrintUrl = useCallback((tmpl: string) => {
-    const base = window.location.origin;
-    const p = new URLSearchParams();
-    p.set("ids", selectedIds.join(",") || "none");
-    p.set("template", tmpl);
-    p.set("size", paperSize);
-    if (fontScale !== 100) p.set("scale", String(fontScale));
-    if (header) p.set("header", header);
-    if (footer) p.set("footer", footer);
-    if (!showPrice) p.set("showprice", "0");
-    if (!showDescription) p.set("showdesc", "0");
-    if (!showVintage) p.set("showvintage", "0");
-    if (!showVarietal) p.set("showvarietal", "0");
-    if (showAlcohol) p.set("showalcohol", "1");
-    if (showTastingLines) p.set("showtasting", "1");
+  const buildPrintBody = useCallback((tmpl: string) => {
+    const body: Record<string, unknown> = {
+      ids: selectedIds.join(",") || "none",
+      template: tmpl,
+      size: paperSize,
+      scale: String(fontScale),
+    };
+    if (header) body.header = header;
+    if (footer) body.footer = footer;
+    if (!showPrice) body.showprice = "0";
+    if (!showDescription) body.showdesc = "0";
+    if (!showVintage) body.showvintage = "0";
+    if (!showVarietal) body.showvarietal = "0";
+    if (showAlcohol) body.showalcohol = "1";
+    if (showTastingLines) body.showtasting = "1";
     Object.entries(fcTypo).forEach(([k, el]) => {
-      p.set(`${k}Font`, el.font);
-      p.set(`${k}Sz`, String(el.size));
-      if (el.bold) p.set(`${k}Bold`, "1");
-      if (el.italic) p.set(`${k}Italic`, "1");
+      body[`${k}Font`] = el.font;
+      body[`${k}Sz`] = String(el.size);
+      if (el.bold) body[`${k}Bold`] = "1";
+      if (el.italic) body[`${k}Italic`] = "1";
     });
-    return `${base}/api/media/flight-cards/print?${p.toString()}`;
-  }, [selectedIds, template, paperSize, fontScale, header, footer, showPrice, showDescription, showVintage, showVarietal, showAlcohol, showTastingLines, fcTypo]);
+    const o: Record<string, { description: string }> = {};
+    for (const id of selectedIds) {
+      if (Object.prototype.hasOwnProperty.call(descEdits, id)) {
+        o[id] = { description: descEdits[id] ?? "" };
+      }
+    }
+    if (Object.keys(o).length > 0) body.itemOverrides = o;
+    return body;
+  }, [selectedIds, paperSize, fontScale, header, footer, showPrice, showDescription, showVintage, showVarietal, showAlcohol, showTastingLines, fcTypo, descEdits]);
+
+  const runFlightPrint = useCallback(
+    async (tmpl: string) => {
+      const res = await fetch(`${window.location.origin}/api/media/flight-cards/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(buildPrintBody(tmpl)),
+      });
+      if (!res.ok) {
+        toast({ title: "Failed to build print", variant: "destructive" });
+        return;
+      }
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, "_blank");
+      if (w) {
+        w.addEventListener("load", () => {
+          setTimeout(() => w.print(), 500);
+        });
+        setTimeout(() => URL.revokeObjectURL(url), 120_000);
+      } else {
+        URL.revokeObjectURL(url);
+        toast({ title: "Pop-up blocked", description: "Allow pop-ups to print the flight card.", variant: "destructive" });
+      }
+    },
+    [buildPrintBody, toast]
+  );
 
   const handlePrint = (tmpl: string) => {
-    const url = buildPrintUrl(tmpl);
-    const w = window.open(url, "_blank");
-    if (w) {
-      w.addEventListener("load", () => setTimeout(() => w.print(), 500));
-    }
+    void runFlightPrint(tmpl);
   };
+
+  const buildItemOverridesForSave = useCallback(() => {
+    const o: Record<string, { description: string }> = {};
+    for (const id of selectedIds) {
+      const p = products.find(x => x.id === id);
+      o[id] = { description: (Object.prototype.hasOwnProperty.call(descEdits, id) ? descEdits[id] : p?.description) ?? "" };
+    }
+    return o;
+  }, [selectedIds, products, descEdits]);
 
   const handleSave = (name: string, showOnStaffBoard: boolean) => {
     saveMutation.mutate({
@@ -509,6 +565,7 @@ export default function FlightCardPrinter() {
       showTastingLines,
       fontScale,
       showOnStaffBoard,
+      itemOverrides: buildItemOverridesForSave(),
     });
   };
 
@@ -526,12 +583,69 @@ export default function FlightCardPrinter() {
     setShowTastingLines(cfg.showTastingLines === true);
     const ids = (cfg.productIds || "").split(",").filter(Boolean);
     setSelectedIds(ids);
+    const next: Record<string, string> = {};
+    try {
+      const raw = JSON.parse(cfg.itemOverrides || "{}") as Record<string, { description?: string } | undefined>;
+      for (const [k, v] of Object.entries(raw)) {
+        if (v && typeof v.description === "string") next[k] = v.description;
+      }
+    } catch { /* use catalog */ }
+    setDescEdits(next);
     toast({ title: `Loaded "${cfg.name}"` });
   };
 
   const hasSelection = selectedIds.length > 0;
   const tooMany = selectedIds.length > 8;
-  const previewUrl = buildPrintUrl(template);
+
+  useEffect(() => {
+    if (!hasSelection) {
+      if (lastPreviewObjectUrl.current) {
+        URL.revokeObjectURL(lastPreviewObjectUrl.current);
+        lastPreviewObjectUrl.current = null;
+      }
+      setPreviewUrl(null);
+      return;
+    }
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => {
+      (async () => {
+        try {
+          const res = await fetch(`${window.location.origin}/api/media/flight-cards/print`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(buildPrintBody(template)),
+            signal: ac.signal,
+          });
+          if (!res.ok) return;
+          const html = await res.text();
+          const blob = new Blob([html], { type: "text/html" });
+          const url = URL.createObjectURL(blob);
+          if (lastPreviewObjectUrl.current) {
+            URL.revokeObjectURL(lastPreviewObjectUrl.current);
+          }
+          lastPreviewObjectUrl.current = url;
+          setPreviewUrl(url);
+        } catch (e) {
+          if (e && typeof e === "object" && (e as Error).name === "AbortError") return;
+        }
+      })();
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      ac.abort();
+    };
+  }, [hasSelection, buildPrintBody, template]);
+
+  useEffect(
+    () => () => {
+      if (lastPreviewObjectUrl.current) {
+        URL.revokeObjectURL(lastPreviewObjectUrl.current);
+        lastPreviewObjectUrl.current = null;
+      }
+    },
+    []
+  );
 
   if (isLoading) {
     return (
@@ -547,7 +661,7 @@ export default function FlightCardPrinter() {
       <div>
         <h2 className="text-lg font-semibold" data-testid="text-flight-card-title">Flight Card Printer</h2>
         <p className="text-sm text-muted-foreground">
-          Design and print tasting flight cards. Select 3–6 products from your catalog, choose a template and paper size, then print or save for later.
+          Design and print tasting flight cards. Select products from your catalog, edit per-wine text for the card (like the Menu Printer), pick a size including 2.5×3.5&quot; landscape, then print or save.
         </p>
       </div>
 
@@ -565,7 +679,7 @@ export default function FlightCardPrinter() {
               <Printer className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
               <div>
                 <span className="font-medium block">Choose Size &amp; Template</span>
-                <span className="text-muted-foreground">A6 fits 3–4 selections nicely. A5 or Half Sheet give more room for 5–6. Add a header (flight name) and optional footer.</span>
+                <span className="text-muted-foreground">2.5×3.5&quot; landscape is compact; use 2–3 wines. A6 works for 3–4. A5 or half sheet for more. Add a header and optional footer.</span>
               </div>
             </div>
             <div className="flex gap-2">
@@ -678,47 +792,58 @@ export default function FlightCardPrinter() {
               )}
               <div className="border rounded-md divide-y" data-testid="flight-selected-list">
                 {selectedProducts.map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-2 px-3 py-2" data-testid={`flight-selected-${p.id}`}>
-                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium block truncate">{p.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {p.category?.replace(/_/g, " ")}
-                        {p.vintageYear ? ` · ${p.vintageYear}` : ""}
-                        {p.varietal ? ` · ${p.varietal}` : ""}
-                      </span>
-                    </div>
-                    <span className="text-sm font-medium shrink-0">${Number(p.price).toFixed(2)}</span>
-                    <div className="flex flex-col gap-0.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => moveUp(i)}
-                        disabled={i === 0}
-                        className="p-0.5 rounded hover-elevate disabled:opacity-30"
-                        data-testid={`button-flight-up-${p.id}`}
+                  <div key={p.id} className="px-3 py-2 space-y-2" data-testid={`flight-selected-${p.id}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium block truncate">{p.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {p.category?.replace(/_/g, " ")}
+                          {p.vintageYear ? ` · ${p.vintageYear}` : ""}
+                          {p.varietal ? ` · ${p.varietal}` : ""}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium shrink-0">${Number(p.price).toFixed(2)}</span>
+                      <div className="flex flex-col gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => moveUp(i)}
+                          disabled={i === 0}
+                          className="p-0.5 rounded hover-elevate disabled:opacity-30"
+                          data-testid={`button-flight-up-${p.id}`}
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveDown(i)}
+                          disabled={i === selectedProducts.length - 1}
+                          className="p-0.5 rounded hover-elevate disabled:opacity-30"
+                          data-testid={`button-flight-down-${p.id}`}
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => toggleProduct(p.id)}
+                        data-testid={`button-flight-remove-${p.id}`}
                       >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveDown(i)}
-                        disabled={i === selectedProducts.length - 1}
-                        className="p-0.5 rounded hover-elevate disabled:opacity-30"
-                        data-testid={`button-flight-down-${p.id}`}
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => toggleProduct(p.id)}
-                      data-testid={`button-flight-remove-${p.id}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    {showDescription && (
+                      <Textarea
+                        value={Object.prototype.hasOwnProperty.call(descEdits, p.id) ? (descEdits[p.id] ?? "") : p.description}
+                        onChange={e => setDescEdits(prev => ({ ...prev, [p.id]: e.target.value }))}
+                        placeholder="Card blurb. Use <br> for line breaks; b, i, u tags allowed (like Menu custom header & footer)."
+                        className="text-xs min-h-[52px] resize-y font-sans"
+                        data-testid={`input-flight-desc-${p.id}`}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -924,6 +1049,7 @@ export default function FlightCardPrinter() {
                 Open &amp; Print
               </Button>
             </div>
+            {previewUrl ? (
             <iframe
               src={previewUrl}
               className="w-full border-0"
@@ -931,6 +1057,11 @@ export default function FlightCardPrinter() {
               title="Flight Card Preview"
               data-testid="iframe-flight-card-preview"
             />
+            ) : (
+              <div className="flex items-center justify-center" style={{ height: "200px" }}>
+                <span className="text-sm text-muted-foreground">Updating preview…</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

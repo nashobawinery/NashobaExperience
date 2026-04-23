@@ -29,6 +29,20 @@ function buildFontsLink(els: TypoEl[]): string {
   return `https://fonts.googleapis.com/css2?${all.map(p => `family=${p}`).join("&")}&display=swap`;
 }
 
+/** Match Toast menu custom header/footer: br, b, strong, i, em, u. */
+function sanitizeMenuHeaderHtml(str: string) {
+  const safeTags = ['br', 'b', 'strong', 'i', 'em', 'u'];
+  const saved: string[] = [];
+  let result = str;
+  safeTags.forEach(tag => {
+    const re = new RegExp(`</?${tag}\\b[^>]*>`, 'gi');
+    result = result.replace(re, (m) => { const p = `___HTAG${saved.length}___`; saved.push(m); return p; });
+  });
+  result = result.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  saved.forEach((tag, i) => { result = result.split(`___HTAG${i}___`).join(tag); });
+  return result;
+}
+
 router.get("/api/media/flyer/embed", async (req, res) => {
   try {
     const {
@@ -649,6 +663,7 @@ router.post("/api/media/flight-cards/configs", async (req, res) => {
       showTastingLines: body.showTastingLines === true,
       fontScale: body.fontScale || 100,
       showOnStaffBoard: body.showOnStaffBoard === true,
+      itemOverrides: typeof body.itemOverrides === "string" ? body.itemOverrides : JSON.stringify(body.itemOverrides ?? {}),
     }).returning();
     res.status(201).json(created);
   } catch (err: any) {
@@ -675,6 +690,7 @@ router.put("/api/media/flight-cards/configs/:id", async (req, res) => {
       showTastingLines: body.showTastingLines === true,
       fontScale: body.fontScale || 100,
       showOnStaffBoard: body.showOnStaffBoard === true,
+      itemOverrides: typeof body.itemOverrides === "string" ? body.itemOverrides : JSON.stringify(body.itemOverrides ?? {}),
       updatedAt: new Date(),
     }).where(eq(flightCardConfigs.id, id)).returning();
     res.json(updated);
@@ -695,57 +711,108 @@ router.delete("/api/media/flight-cards/configs/:id", async (req, res) => {
 
 // ─── Flight Card Print Renderer ───────────────────────────────────────────────
 
+type FlightItemOverride = { description?: string };
+type FlightItemOverrideMap = Record<string, FlightItemOverride>;
+
+function stringifyParamsForTypo(p: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(p)) {
+    if (v === null || v === undefined) continue;
+    out[k] = typeof v === "string" ? v : String(v);
+  }
+  return out;
+}
+
+function parseItemOverridesFromBody(val: unknown): FlightItemOverrideMap {
+  if (!val) return {};
+  if (typeof val === "string") {
+    try {
+      const o = JSON.parse(val) as unknown;
+      return o && typeof o === "object" && !Array.isArray(o) ? o as FlightItemOverrideMap : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof val === "object" && !Array.isArray(val)) return val as FlightItemOverrideMap;
+  return {};
+}
+
+async function buildFlightCardPrintHtml(p: Record<string, unknown>): Promise<string> {
+  const q = stringifyParamsForTypo(p);
+  const {
+    ids = "",
+    template = "classic",
+    size = "a6",
+    scale = "100",
+    header = "",
+    footer = "",
+  } = q;
+  const showprice = q.showprice;
+  const showdesc = q.showdesc;
+  const showvintage = q.showvintage;
+  const showvarietal = q.showvarietal;
+  const showalcohol = q.showalcohol;
+  const showtasting = q.showtasting;
+  const itemOverrides = parseItemOverridesFromBody(p.itemOverrides);
+
+  const fontScale = parseInt(String(scale), 10) || 100;
+  const show = {
+    price: showprice !== "0",
+    description: showdesc !== "0",
+    vintage: showvintage !== "0",
+    varietal: showvarietal !== "0",
+    alcohol: showalcohol === "1",
+    tastingLines: showtasting === "1",
+  };
+
+  let products: any[] = [];
+  const idList = String(ids).split(",").map(s => s.trim()).filter(Boolean);
+  if (idList.length > 0) {
+    const pgArray = `{${idList.map(id => `"${id}"`).join(",")}}`;
+    const result = await db.execute(sql`
+      SELECT id, name, category, type, varietal, vintage_year, price,
+             description, tasting_notes, alcohol_content, image_url, staff_pick
+      FROM products
+      WHERE id = ANY(${pgArray}::text[])
+        AND is_archived = false
+    `);
+    const rows = result.rows as any[];
+    products = idList.map(id => rows.find((r: any) => r.id === id)).filter(Boolean);
+  }
+
+  const fcTypo = {
+    name:   pTypo(q, "name",   "Playfair Display", 9.5),
+    desc:   pTypo(q, "desc",   "Playfair Display", 7.5),
+    meta:   pTypo(q, "meta",   "Playfair Display", 7.5),
+    header: pTypo(q, "header", "Playfair Display", 15),
+  };
+
+  return renderFlightCardHtml(products, {
+    template: String(template),
+    fontScale,
+    paperSize: String(size),
+    header: String(header),
+    footer: String(footer),
+    show,
+    typo: fcTypo,
+    itemOverrides,
+  });
+}
+
 router.get("/api/media/flight-cards/print", async (req, res) => {
   try {
-    const {
-      ids = "",
-      template = "classic",
-      size = "a6",
-      scale = "100",
-      header,
-      footer,
-      showprice,
-      showdesc,
-      showvintage,
-      showvarietal,
-      showalcohol,
-      showtasting,
-    } = req.query as Record<string, string>;
+    const html = await buildFlightCardPrintHtml(req.query as Record<string, unknown>);
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
+  } catch (err: any) {
+    console.error("Flight card render error:", err);
+    res.status(500).send("Error generating flight card");
+  }
+});
 
-    const fontScale = parseInt(scale) || 100;
-    const show = {
-      price: showprice !== "0",
-      description: showdesc !== "0",
-      vintage: showvintage !== "0",
-      varietal: showvarietal !== "0",
-      alcohol: showalcohol === "1",
-      tastingLines: showtasting === "1",
-    };
-
-    let products: any[] = [];
-    const idList = ids.split(",").map(s => s.trim()).filter(Boolean);
-    if (idList.length > 0) {
-      const pgArray = `{${idList.map(id => `"${id}"`).join(",")}}`;
-      const result = await db.execute(sql`
-        SELECT id, name, category, type, varietal, vintage_year, price,
-               description, tasting_notes, alcohol_content, image_url, staff_pick
-        FROM products
-        WHERE id = ANY(${pgArray}::text[])
-          AND is_archived = false
-      `);
-      const rows = result.rows as any[];
-      products = idList.map(id => rows.find((r: any) => r.id === id)).filter(Boolean);
-    }
-
-    const fq = req.query as Record<string, string>;
-    const fcTypo = {
-      name:   pTypo(fq, "name",   "Playfair Display", 9.5),
-      desc:   pTypo(fq, "desc",   "Playfair Display", 7.5),
-      meta:   pTypo(fq, "meta",   "Playfair Display", 7.5),
-      header: pTypo(fq, "header", "Playfair Display", 15),
-    };
-
-    const html = renderFlightCardHtml(products, { template, fontScale, paperSize: size, header: header || "", footer: footer || "", show, typo: fcTypo });
+router.post("/api/media/flight-cards/print", async (req, res) => {
+  try {
+    const html = await buildFlightCardPrintHtml((req.body || {}) as Record<string, unknown>);
     res.setHeader("Content-Type", "text/html");
     res.send(html);
   } catch (err: any) {
@@ -769,19 +836,27 @@ interface FlightCardOptions {
     tastingLines: boolean;
   };
   typo?: { name: TypoEl; desc: TypoEl; meta: TypoEl; header: TypoEl; };
+  itemOverrides?: FlightItemOverrideMap;
 }
 
-const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label: string }> = {
+const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label: string; compact?: boolean }> = {
   "a6":   { width: "4.13in", height: "5.83in",  label: "A6 (4.13×5.83\")" },
   "4x6":  { width: "4in",    height: "6in",      label: "4×6\" Postcard" },
   "a5":   { width: "5.83in", height: "8.27in",   label: "A5 (5.83×8.27\")" },
   "5x7":  { width: "5in",    height: "7in",      label: "5×7\" Photo Card" },
   "half": { width: "5.5in",  height: "8.5in",    label: "Half Sheet (5.5×8.5\")" },
+  /** 2.5 high × 3.5 wide (landscape) — e.g. index / mini table cards */
+  "2p5x3p5-land": { width: "3.5in", height: "2.5in", label: "2.5×3.5\" landscape", compact: true },
 };
 
 function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string {
-  const { template, fontScale, paperSize, header, footer, show, typo } = opts;
+  const { template, fontScale, paperSize, header, footer, show, typo, itemOverrides = {} } = opts;
   const sz = FLIGHT_PAPER_SIZES[paperSize] || FLIGHT_PAPER_SIZES["a6"];
+  const compact = sz.compact === true;
+  const cardPad = compact ? "7px 8px" : "18px 16px";
+  const rowPadV = compact ? 4 : 7;
+  const numPx = compact ? 16 : 20;
+  const headerMb = compact ? 6 : 10;
 
   const themes = {
     classic: {
@@ -841,17 +916,17 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
   const fcFontsLink = buildFontsLink([tyHdr, tyName, tyDesc, tyMeta]);
 
   const headerHtml = header
-    ? `<div style="text-align:center;margin-bottom:10px;">
-        <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:0.5px;line-height:1.2;">${esc(header)}</div>
+    ? `<div style="text-align:center;margin-bottom:${headerMb}px;">
+        <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:0.5px;line-height:1.2;">${sanitizeMenuHeaderHtml(header)}</div>
         <div style="width:50px;height:2px;background:${t.divider};margin:5px auto 0;"></div>
        </div>`
-    : `<div style="text-align:center;margin-bottom:10px;">
+    : `<div style="text-align:center;margin-bottom:${headerMb}px;">
         <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:1px;text-transform:uppercase;">Tasting Flight</div>
         <div style="width:50px;height:2px;background:${t.divider};margin:5px auto 0;"></div>
        </div>`;
 
   const footerHtml = footer
-    ? `<div style="text-align:center;${tStyle(tyMeta)}color:${t.muted};margin-top:auto;padding-top:8px;border-top:1px solid ${t.divider};font-style:italic;">${esc(footer)}</div>`
+    ? `<div style="text-align:center;${tStyle(tyMeta)}color:${t.muted};margin-top:auto;padding-top:${compact ? 4 : 8}px;border-top:1px solid ${t.divider};font-style:italic;">${sanitizeMenuHeaderHtml(footer)}</div>`
     : "";
 
   const emptyHtml = `<div style="text-align:center;color:${t.muted};font-size:10pt;padding:20px 0;">No products selected.</div>`;
@@ -863,8 +938,12 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
     const varietal = show.varietal && p.varietal ? esc(p.varietal) : "";
     const alcohol = show.alcohol && p.alcohol_content ? esc(p.alcohol_content) + " ABV" : "";
     const price = show.price && p.price ? `$${Number(p.price).toFixed(2)}` : "";
-    const desc = show.description && p.description
-      ? `<div style="${tStyle(tyDesc)}color:${t.secondary};line-height:1.4;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${esc(p.description)}</div>`
+    const ovr = itemOverrides[p.id];
+    const rawDesc = ovr && "description" in ovr
+      ? (ovr.description ?? "")
+      : (p.description || "");
+    const desc = show.description && String(rawDesc).trim()
+      ? `<div style="${tStyle(tyDesc)}color:${t.secondary};line-height:1.4;margin-top:${compact ? 1 : 3}px;${compact ? "max-height:3.2em;overflow:hidden;" : "max-height:5.5em;overflow:hidden;"}">${sanitizeMenuHeaderHtml(String(rawDesc))}</div>`
       : "";
 
     const metaParts = [varietal, alcohol].filter(Boolean);
@@ -873,7 +952,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
       : "";
 
     const tastingLines = show.tastingLines
-      ? `<div style="margin-top:5px;">
+      ? `<div style="margin-top:${compact ? 3 : 5}px;">
            <div style="font-size:6pt;color:${t.muted};letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">My Notes</div>
            <div style="height:1px;background:${t.divider};margin-bottom:4px;opacity:0.6;"></div>
            <div style="height:1px;background:${t.divider};margin-bottom:4px;opacity:0.6;"></div>
@@ -883,8 +962,8 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
 
     const isLast = i === products.length - 1;
     return `
-      <div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;${!isLast ? `border-bottom:1px solid ${t.divider};` : ""}">
-        <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:${t.numberBg};color:${t.numberFg};font-size:9pt;font-weight:700;font-family:${t.bodyFont};display:flex;align-items:center;justify-content:center;margin-top:1px;">${num}</div>
+      <div style="display:flex;align-items:flex-start;gap:${compact ? 5 : 8}px;padding:${rowPadV}px 0;${!isLast ? `border-bottom:1px solid ${t.divider};` : ""}">
+        <div style="flex-shrink:0;width:${numPx}px;height:${numPx}px;border-radius:50%;background:${t.numberBg};color:${t.numberFg};font-size:${compact ? "8pt" : "9pt"};font-weight:700;font-family:${t.bodyFont};display:flex;align-items:center;justify-content:center;margin-top:1px;">${num}</div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:4px;">
             <div style="${tStyle(tyName)}color:${t.text};line-height:1.2;">${vintage ? `${name} <span style="font-weight:400;font-size:8pt;color:${t.muted};">${vintage}</span>` : name}</div>
@@ -924,7 +1003,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
   </style>
 </head>
 <body>
-  <div class="card" style="width:${sz.width};min-height:${sz.height};background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:18px 16px;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
+  <div class="card" style="width:${sz.width};min-height:${sz.height};background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
     ${headerHtml}
     <div style="flex:1;">
       ${itemRows}

@@ -357,6 +357,21 @@ export const mediaLibrary = pgTable("media_library", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const mediaUsage = pgTable("media_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mediaId: varchar("media_id").notNull().references(() => mediaLibrary.id, { onDelete: "cascade" }),
+  moduleKey: varchar("module_key").notNull(),
+  entityType: varchar("entity_type").notNull(),
+  entityId: varchar("entity_id").notNull(),
+  fieldName: varchar("field_name").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_media_usage_media_id").on(table.mediaId),
+  index("idx_media_usage_module").on(table.moduleKey),
+  index("idx_media_usage_entity").on(table.entityType, table.entityId),
+]);
+
 export const productMedia = pgTable("product_media", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
@@ -1796,6 +1811,7 @@ export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({
 export const insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bSlideshowSlideSchema = createInsertSchema(b2bSlideshowSlides).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMediaUsageSchema = createInsertSchema(mediaUsage).omit({ id: true, createdAt: true });
 export const insertProductMediaSchema = createInsertSchema(productMedia).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCommercialSchema = createInsertSchema(commercials).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1949,6 +1965,9 @@ export type B2bSlideshowSlide = typeof b2bSlideshowSlides.$inferSelect;
 
 export type InsertMediaLibrary = z.infer<typeof insertMediaLibrarySchema>;
 export type MediaLibrary = typeof mediaLibrary.$inferSelect;
+
+export type InsertMediaUsage = z.infer<typeof insertMediaUsageSchema>;
+export type MediaUsage = typeof mediaUsage.$inferSelect;
 
 export type InsertProductMedia = z.infer<typeof insertProductMediaSchema>;
 export type ProductMedia = typeof productMedia.$inferSelect;
@@ -6350,6 +6369,8 @@ export const flightCardConfigs = pgTable("flight_card_configs", {
   showTastingLines: boolean("show_tasting_lines").default(false),
   fontScale: integer("font_scale").default(100),
   showOnStaffBoard: boolean("show_on_staff_board").default(false),
+  /** Per-product print overrides, JSON: { [productId]: { description?: string } } */
+  itemOverrides: text("item_overrides").default("{}"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
