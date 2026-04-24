@@ -427,7 +427,12 @@ export default function FlightCardPrinter() {
       setEditingConfig(null);
       toast({ title: `Flight card "${cfg.name}" saved` });
     },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+    onError: (err: Error) =>
+      toast({
+        title: "Failed to save",
+        description: err?.message?.replace(/^\d+:\s*/, "") || "Request failed",
+        variant: "destructive",
+      }),
   });
 
   const deleteMutation = useMutation({
@@ -438,7 +443,12 @@ export default function FlightCardPrinter() {
       queryClient.invalidateQueries({ queryKey: ["/api/media/flight-cards/configs"] });
       toast({ title: "Deleted" });
     },
-    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+    onError: (err: Error) =>
+      toast({
+        title: "Failed to delete",
+        description: err?.message?.replace(/^\d+:\s*/, "") || "Request failed",
+        variant: "destructive",
+      }),
   });
 
   const filteredProducts = useMemo(() => {
