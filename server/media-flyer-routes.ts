@@ -655,6 +655,7 @@ router.post("/api/media/flight-cards/configs", async (req, res) => {
       productIds: body.productIds || "",
       template: body.template || "classic",
       paperSize: body.paperSize || "a6",
+      printOrientation: body.printOrientation === "landscape" ? "landscape" : "portrait",
       showPrice: body.showPrice !== false,
       showDescription: body.showDescription !== false,
       showVintage: body.showVintage !== false,
@@ -682,6 +683,7 @@ router.put("/api/media/flight-cards/configs/:id", async (req, res) => {
       productIds: body.productIds || "",
       template: body.template || "classic",
       paperSize: body.paperSize || "a6",
+      printOrientation: body.printOrientation === "landscape" ? "landscape" : "portrait",
       showPrice: body.showPrice !== false,
       showDescription: body.showDescription !== false,
       showVintage: body.showVintage !== false,
@@ -755,6 +757,14 @@ async function buildFlightCardPrintHtml(p: Record<string, unknown>): Promise<str
   const showtasting = q.showtasting;
   const itemOverrides = parseItemOverridesFromBody(p.itemOverrides);
 
+  let paperKey = String(size);
+  let orientation: "portrait" | "landscape" =
+    String(q.orientation || "portrait").toLowerCase() === "landscape" ? "landscape" : "portrait";
+  if (paperKey === "2p5x3p5-land") {
+    paperKey = "2p5x3p5";
+    orientation = "landscape";
+  }
+
   const fontScale = parseInt(String(scale), 10) || 100;
   const show = {
     price: showprice !== "0",
@@ -790,7 +800,8 @@ async function buildFlightCardPrintHtml(p: Record<string, unknown>): Promise<str
   return renderFlightCardHtml(products, {
     template: String(template),
     fontScale,
-    paperSize: String(size),
+    paperSize: paperKey,
+    orientation,
     header: String(header),
     footer: String(footer),
     show,
@@ -825,6 +836,8 @@ interface FlightCardOptions {
   template: string;
   fontScale: number;
   paperSize: string;
+  /** After resolving size key: swap width/height for @page when "landscape" */
+  orientation: "portrait" | "landscape";
   header: string;
   footer: string;
   show: {
@@ -845,13 +858,21 @@ const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label:
   "a5":   { width: "5.83in", height: "8.27in",   label: "A5 (5.83×8.27\")" },
   "5x7":  { width: "5in",    height: "7in",      label: "5×7\" Photo Card" },
   "half": { width: "5.5in",  height: "8.5in",    label: "Half Sheet (5.5×8.5\")" },
-  /** 2.5 high × 3.5 wide (landscape) — e.g. index / mini table cards */
-  "2p5x3p5-land": { width: "3.5in", height: "2.5in", label: "2.5×3.5\" landscape", compact: true },
+  /** Physical card 2.5\" × 3.5\" — use Print orientation to choose portrait (tall) or landscape (wide) */
+  "2p5x3p5": { width: "2.5in", height: "3.5in", label: "2.5×3.5\" index / mini", compact: true },
+  /** @deprecated use 2p5x3p5 + landscape — kept for old saved URLs/configs */
+  "2p5x3p5-land": { width: "2.5in", height: "3.5in", label: "2.5×3.5 (legacy key)", compact: true },
 };
 
 function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string {
   const { template, fontScale, paperSize, header, footer, show, typo, itemOverrides = {} } = opts;
   const sz = FLIGHT_PAPER_SIZES[paperSize] || FLIGHT_PAPER_SIZES["a6"];
+  const orientation = opts.orientation === "landscape" ? "landscape" : "portrait";
+  let pageW = sz.width;
+  let pageH = sz.height;
+  if (orientation === "landscape") {
+    [pageW, pageH] = [pageH, pageW];
+  }
   const compact = sz.compact === true;
   const cardPad = compact ? "7px 8px" : "18px 16px";
   const rowPadV = compact ? 4 : 7;
@@ -980,6 +1001,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flight Card - Nashoba Valley</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="${fcFontsLink}" rel="stylesheet">
@@ -994,18 +1016,19 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
       align-items: center;
       justify-content: center;
       min-height: 100vh;
+      min-height: 100dvh;
     }
     @media print {
-      @page { margin: 0; size: ${sz.width} ${sz.height}; }
+      @page { margin: 0; size: ${pageW} ${pageH}; }
       body { margin: 0; min-height: unset; }
-      .card { box-shadow: none !important; }
+      .card { box-shadow: none !important; overflow: hidden !important; }
     }
   </style>
 </head>
 <body>
-  <div class="card" style="width:${sz.width};min-height:${sz.height};background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
+    <div class="card" style="width:${pageW};height:${pageH};max-width:${pageW};max-height:${pageH};overflow:auto;box-sizing:border-box;-webkit-overflow-scrolling:touch;background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;min-height:0;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
     ${headerHtml}
-    <div style="flex:1;">
+    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
       ${itemRows}
     </div>
     ${footerHtml}

@@ -6361,6 +6361,8 @@ export const flightCardConfigs = pgTable("flight_card_configs", {
   productIds: text("product_ids").notNull().default(""),
   template: varchar("template", { length: 50 }).default("classic"),
   paperSize: varchar("paper_size", { length: 20 }).default("a6"),
+  /** print: portrait (tall) vs landscape (wide) — swap @page width/height */
+  printOrientation: varchar("print_orientation", { length: 20 }).default("portrait"),
   showPrice: boolean("show_price").default(true),
   showDescription: boolean("show_description").default(true),
   showVintage: boolean("show_vintage").default(true),

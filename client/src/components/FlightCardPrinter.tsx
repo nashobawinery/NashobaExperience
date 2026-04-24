@@ -76,13 +76,39 @@ const CATEGORIES = [
 ];
 
 const PAPER_SIZES = [
-  { value: "2p5x3p5-land", label: "2.5×3.5\" landscape (3.5×2.5\" @ print)" },
+  { value: "2p5x3p5", label: "2.5×3.5\" index / mini (business-card size)" },
   { value: "a6",   label: "A6 — 4.13×5.83\" (standard flight card)" },
   { value: "4x6",  label: "4×6\" Postcard" },
   { value: "a5",   label: "A5 — 5.83×8.27\" (6+ selections)" },
   { value: "5x7",  label: "5×7\" Photo Card" },
   { value: "half", label: "Half Sheet — 5.5×8.5\"" },
 ];
+
+const PRINT_ORIENTATIONS = [
+  { value: "portrait" as const, label: "Portrait" },
+  { value: "landscape" as const, label: "Landscape" },
+];
+
+/** Inches, portrait = narrow × tall (same basis as print HTML); used only for preview aspect */
+const FLIGHT_PAGE_IN: Record<string, { w: number; h: number }> = {
+  "2p5x3p5": { w: 2.5, h: 3.5 },
+  "2p5x3p5-land": { w: 2.5, h: 3.5 },
+  a6: { w: 4.13, h: 5.83 },
+  "4x6": { w: 4, h: 6 },
+  a5: { w: 5.83, h: 8.27 },
+  "5x7": { w: 5, h: 7 },
+  half: { w: 5.5, h: 8.5 },
+};
+
+function getPreviewPageInches(paper: string, orient: "portrait" | "landscape") {
+  const k = paper === "2p5x3p5-land" ? "2p5x3p5" : paper;
+  const b = FLIGHT_PAGE_IN[k] || FLIGHT_PAGE_IN.a6;
+  let w = b.w, h = b.h;
+  if (orient === "landscape") {
+    [w, h] = [h, w];
+  }
+  return { w, h };
+}
 
 const TEMPLATES = [
   { value: "classic", label: "Classic Winery",   desc: "Cream parchment, burgundy accents, serif" },
@@ -353,6 +379,7 @@ export default function FlightCardPrinter() {
 
   const [template, setTemplate]           = useState("classic");
   const [paperSize, setPaperSize]         = useState("a6");
+  const [printOrientation, setPrintOrientation] = useState<"portrait" | "landscape">("portrait");
   const [fontScale, setFontScale]         = useState(100);
   const [header, setHeader]               = useState("");
   const [footer, setFooter]               = useState("");
@@ -481,6 +508,7 @@ export default function FlightCardPrinter() {
       ids: selectedIds.join(",") || "none",
       template: tmpl,
       size: paperSize,
+      orientation: printOrientation,
       scale: String(fontScale),
     };
     if (header) body.header = header;
@@ -505,7 +533,7 @@ export default function FlightCardPrinter() {
     }
     if (Object.keys(o).length > 0) body.itemOverrides = o;
     return body;
-  }, [selectedIds, paperSize, fontScale, header, footer, showPrice, showDescription, showVintage, showVarietal, showAlcohol, showTastingLines, fcTypo, descEdits]);
+  }, [selectedIds, paperSize, printOrientation, fontScale, header, footer, showPrice, showDescription, showVintage, showVarietal, showAlcohol, showTastingLines, fcTypo, descEdits]);
 
   const runFlightPrint = useCallback(
     async (tmpl: string) => {
@@ -566,12 +594,22 @@ export default function FlightCardPrinter() {
       fontScale,
       showOnStaffBoard,
       itemOverrides: buildItemOverridesForSave(),
+      printOrientation: printOrientation === "landscape" ? "landscape" : "portrait",
     });
   };
 
   const loadConfig = (cfg: FlightCardConfig) => {
     setTemplate(cfg.template || "classic");
-    setPaperSize(cfg.paperSize || "a6");
+    let nextPaper = cfg.paperSize || "a6";
+    let nextOrient: "portrait" | "landscape" = "portrait";
+    if (nextPaper === "2p5x3p5-land") {
+      nextPaper = "2p5x3p5";
+      nextOrient = "landscape";
+    } else {
+      nextOrient = cfg.printOrientation === "landscape" ? "landscape" : "portrait";
+    }
+    setPaperSize(nextPaper);
+    setPrintOrientation(nextOrient);
     setFontScale(cfg.fontScale || 100);
     setHeader(cfg.header || "");
     setFooter(cfg.footer || "");
@@ -596,6 +634,11 @@ export default function FlightCardPrinter() {
 
   const hasSelection = selectedIds.length > 0;
   const tooMany = selectedIds.length > 8;
+
+  const previewPageIn = useMemo(
+    () => getPreviewPageInches(paperSize, printOrientation),
+    [paperSize, printOrientation]
+  );
 
   useEffect(() => {
     if (!hasSelection) {
@@ -661,7 +704,7 @@ export default function FlightCardPrinter() {
       <div>
         <h2 className="text-lg font-semibold" data-testid="text-flight-card-title">Flight Card Printer</h2>
         <p className="text-sm text-muted-foreground">
-          Design and print tasting flight cards. Select products from your catalog, edit per-wine text for the card (like the Menu Printer), pick a size including 2.5×3.5&quot; landscape, then print or save.
+          Design and print tasting flight cards. Select products, edit per-wine text (like the Menu Printer), pick paper size and print orientation (portrait or landscape), then print or save.
         </p>
       </div>
 
@@ -679,7 +722,7 @@ export default function FlightCardPrinter() {
               <Printer className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
               <div>
                 <span className="font-medium block">Choose Size &amp; Template</span>
-                <span className="text-muted-foreground">2.5×3.5&quot; landscape is compact; use 2–3 wines. A6 works for 3–4. A5 or half sheet for more. Add a header and optional footer.</span>
+                <span className="text-muted-foreground">Use &quot;Print orientation&quot; for wide (landscape) vs tall (portrait). 2.5×3.5&quot; is compact. A6 fits 3–4 wines. Add a header and optional footer.</span>
               </div>
             </div>
             <div className="flex gap-2">
@@ -891,7 +934,7 @@ export default function FlightCardPrinter() {
         </div>
 
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Paper Size</Label>
               <Select value={paperSize} onValueChange={setPaperSize}>
@@ -906,6 +949,23 @@ export default function FlightCardPrinter() {
               </Select>
             </div>
             <div className="space-y-2">
+              <Label className="text-sm font-medium">Print orientation</Label>
+              <Select
+                value={printOrientation}
+                onValueChange={v => setPrintOrientation(v as "portrait" | "landscape")}
+              >
+                <SelectTrigger data-testid="select-flight-orientation">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRINT_ORIENTATIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Landscape = wide, portrait = tall on the page.</p>
+            </div>
+            <div className="space-y-2 sm:col-span-2 lg:col-span-1">
               <Label className="text-sm font-medium">Font Scale: {fontScale}%</Label>
               <input
                 type="range"
@@ -1037,7 +1097,7 @@ export default function FlightCardPrinter() {
           <CardContent className="p-0 overflow-hidden rounded-md">
             <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b flex items-center justify-between gap-2 flex-wrap">
               <span>
-                Preview — {selectedIds.length} product{selectedIds.length !== 1 ? "s" : ""} · {PAPER_SIZES.find(s => s.value === paperSize)?.label.split(" — ")[0] || paperSize}
+                Preview (matches print) — {selectedIds.length} product{selectedIds.length !== 1 ? "s" : ""} · {PAPER_SIZES.find(s => s.value === paperSize)?.label.split(" — ")[0] || paperSize} · {printOrientation} · {previewPageIn.w}×{previewPageIn.h}&quot;
               </span>
               <Button
                 size="sm"
@@ -1049,19 +1109,30 @@ export default function FlightCardPrinter() {
                 Open &amp; Print
               </Button>
             </div>
-            {previewUrl ? (
-            <iframe
-              src={previewUrl}
-              className="w-full border-0"
-              style={{ height: "600px" }}
-              title="Flight Card Preview"
-              data-testid="iframe-flight-card-preview"
-            />
-            ) : (
-              <div className="flex items-center justify-center" style={{ height: "200px" }}>
-                <span className="text-sm text-muted-foreground">Updating preview…</span>
+            <div className="p-3 flex justify-center bg-muted/20">
+              <div
+                className="relative w-full overflow-hidden rounded-md border border-border bg-background shadow-sm"
+                style={{
+                  aspectRatio: `${previewPageIn.w} / ${previewPageIn.h}`,
+                  maxWidth: "min(100%, 40rem)",
+                  maxHeight: "min(80vh, 48rem)",
+                }}
+                data-testid="wrapper-flight-card-preview"
+              >
+                {previewUrl ? (
+                  <iframe
+                    src={previewUrl}
+                    className="absolute inset-0 block h-full w-full border-0"
+                    title="Flight Card Preview"
+                    data-testid="iframe-flight-card-preview"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-sm text-muted-foreground">Updating preview…</span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       )}

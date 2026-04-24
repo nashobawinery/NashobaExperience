@@ -15,6 +15,59 @@ import {
   refreshSegments,
 } from "./toast-api";
 
+/** In-menu "section" lines stored in Toast as normal items (no item type to style). */
+type ToastItemLike = {
+  type?: string | null;
+  price?: string | null;
+  description?: string | null;
+  sizePrices?: string | null;
+  imageUrl?: string | null;
+  name: string;
+  suggestedPairing?: string | null;
+  isSpecial?: boolean | null;
+};
+
+function normalizeMenuLabel(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isToastInMenuSectionRow(item: ToastItemLike): boolean {
+  if (item.isSpecial) return false;
+  const t = (item.type || "").toLowerCase();
+  if (t) {
+    if (/\b(header|heading|subheader|subgroup|separator|label|section|divider|title)\b/.test(t)) return true;
+    if (t.includes("groupheader") || t.includes("menuhead") || t === "subgroup") return true;
+  }
+  const p = item.price;
+  const num = p != null && p !== "" ? parseFloat(p) : NaN;
+  const noOrZeroPrice = p == null || p === "" || (!isNaN(num) && num === 0);
+  if (!noOrZeroPrice) return false;
+  if (item.description?.trim()) return false;
+  if (item.sizePrices) return false;
+  if (item.imageUrl) return false;
+  if (item.suggestedPairing?.trim()) return false;
+  const raw = (item.name || "").trim();
+  if (raw.length < 2 || raw.length > 100) return false;
+  if (raw === raw.toUpperCase() && /[A-Z]/.test(raw)) return true;
+  if (raw.length > 40) return false;
+  if (/\$\s*\d/.test(raw) || /^\d+(\.\d+)?$/.test(raw)) return false;
+  return true;
+}
+
+/** Descriptions: allow the same light HTML as custom headers (incl. <i> / <em>), plus <br>. */
+function sanitizeMenuDescriptionHtml(str: string): string {
+  const safeTags = ['br', 'b', 'strong', 'i', 'em', 'u'];
+  const saved: string[] = [];
+  let result = str;
+  safeTags.forEach(tag => {
+    const re = new RegExp(`</?${tag}\\b[^>]*>`, 'gi');
+    result = result.replace(re, (m) => { const p = `___HTAG${saved.length}___`; saved.push(m); return p; });
+  });
+  result = result.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  saved.forEach((tag, i) => { result = result.split(`___HTAG${i}___`).join(tag); });
+  return result;
+}
+
 const router = Router();
 const isAuthenticated = isPlatformAuthenticated;
 const isAdmin = requirePlatformRole(['super_admin']);
@@ -1022,6 +1075,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const hideWinePairing = req.query.hidepairing === "1";
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
+    /** When the Toast group name matches the page title, hide the duplicate cursive/secondary heading (pass hidedupgroup=0 to show). */
+    const hidedupgroup = req.query.hidedupgroup !== "0";
+    const nosectionrows = req.query.nosectionrows === "1";
 
     const _sf = (v: string | undefined, d: string) => { if (!v) return d; const s = v.replace(/[^a-zA-Z0-9 ]/g, "").trim(); return s.slice(0, 60) || d; };
     const _sp = (v: string | undefined, d: number) => { const n = parseFloat(v || ""); return isNaN(n) ? d : Math.min(144, Math.max(6, n)); };
@@ -1095,6 +1151,16 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
     }));
 
+    const embedTitle = groupGuids.length === 1 && groups.length === 1
+      ? groups[0].name
+      : menuData.name;
+    const shouldHideGroupHeading = hidedupgroup && (() => {
+      const withItems = groupsWithItems.filter((g) => g.items.length > 0);
+      if (withItems.length !== 1) return false;
+      const gn = withItems[0].name;
+      return normalizeMenuLabel(gn) === normalizeMenuLabel(embedTitle) || normalizeMenuLabel(gn) === normalizeMenuLabel(menuData.name);
+    })();
+
     const formatPrice = (price: string | null) => {
       if (!price) return "";
       const num = parseFloat(price);
@@ -1103,12 +1169,6 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 
     const escapeHtml = (str: string) =>
       str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-    const sanitizeDescriptionHtml = (str: string) => {
-      return str.replace(/<br\s*\/?>/gi, "___BR___")
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-        .replace(/___BR___/g, "<br>");
-    };
 
     const sanitizeHeaderHtml = (str: string) => {
       const safeTags = ['br', 'b', 'strong', 'i', 'em', 'u'];
@@ -1163,6 +1223,34 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
+        const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
+        if (isInMenuSection) {
+          if (template === "beverage") {
+            itemsHtml += `
+            <div class="bev-item-row bev-item-row--in-menu-section">
+              <div class="bev-item bev-item--in-menu-section">
+                <span class="bev-name bev-name--in-menu-section">${escapeHtml(cleanName)}</span>
+              </div>
+            </div>`;
+          } else if (template === "fine-dining") {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <h3 class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</h3>
+            </div>`;
+          } else {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <div class="item-header item-header--in-menu-section">
+                <span class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</span>
+              </div>
+            </div>`;
+          }
+          if (pagebreakGuids.includes(item.itemGuid)) {
+            itemsHtml += `<div class="item-page-break"></div>`;
+          }
+          continue;
+        }
+
         const tagsHtml = dietaryTags.length > 0
           ? `<span class="dietary-tags">${dietaryTags.map(t => `<span class="dietary-tag">${t}</span>`).join("")}</span>`
           : "";
@@ -1204,7 +1292,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
               ${itemImageHtml}
               <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
@@ -1215,7 +1303,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         }
@@ -1224,25 +1312,22 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
+      const showGroupSubheading = !shouldHideGroupHeading;
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="bev-group-name">${escapeHtml(group.name)}</h2>
+            ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml(group.name)}</h2>` : ""}
             ${itemsHtml}
           </div>`;
       } else {
         groupsHtml += `
           <div class="menu-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="group-name">${escapeHtml(group.name)}</h2>
-            <div class="group-divider"></div>
+            ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml(group.name)}</h2>
+            <div class="group-divider"></div>` : ""}
             ${itemsHtml}
           </div>`;
       }
     }
-
-    const embedTitle = groupGuids.length === 1 && groups.length === 1
-      ? groups[0].name
-      : menuData.name;
 
     let css = "";
     const dietaryTagsCss = `
@@ -1273,6 +1358,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
+        .menu-item--in-menu-section { text-align: center; margin: 20px 0 12px; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem; color: #e8c89a; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(212, 184, 150, 0.6); text-underline-offset: 0.2em; letter-spacing: 0.12em; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
@@ -1283,7 +1370,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name--in-menu-section { color: #6b5a3a; font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
@@ -1298,6 +1385,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
         .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
         .bev-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .bev-item-row--in-menu-section { margin: 10px 0 6px; }
+        .bev-item--in-menu-section { justify-content: center; }
+        .bev-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.12).toFixed(3)}rem; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; letter-spacing: 0.06em; }
         .bev-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; white-space: nowrap; }
         .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
         .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
@@ -1327,6 +1417,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .menu-item--in-menu-section { border-bottom: none; margin: 10px 0; padding: 0; }
+        .item-header--in-menu-section { justify-content: center; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.15).toFixed(3)}rem; text-transform: uppercase; letter-spacing: 0.08em; text-decoration: underline; text-decoration-color: #a8a29e; text-underline-offset: 0.2em; color: #1c1917; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #44403c; white-space: nowrap; }
         .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
         .size-entry { white-space: nowrap; }
@@ -1458,6 +1551,8 @@ router.get("/public/menus/embed", async (req, res) => {
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
     const customTitle = (req.query.title as string) || "";
+    const hidedupgroup = req.query.hidedupgroup !== "0";
+    const nosectionrows = req.query.nosectionrows === "1";
     const groupGuidParam = req.query.groupGuid as string | undefined;
     const filterGroupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
 
@@ -1517,6 +1612,11 @@ router.get("/public/menus/embed", async (req, res) => {
       return res.status(404).send("<html><body><p>No menu items found</p></body></html>");
     }
 
+    const embedTitle = customTitle || (menuNames.length === 1 ? menuNames[0] : "Menu");
+    const shouldHideGroupHeading = hidedupgroup && allGroups.length === 1
+      && (normalizeMenuLabel(allGroups[0].group.name) === normalizeMenuLabel(embedTitle)
+        || (!customTitle && menuNames.length === 1 && normalizeMenuLabel(allGroups[0].group.name) === normalizeMenuLabel(menuNames[0])));
+
     const formatPrice = (price: string | null) => {
       if (!price) return "";
       const num = parseFloat(price);
@@ -1525,12 +1625,6 @@ router.get("/public/menus/embed", async (req, res) => {
 
     const escapeHtml = (str: string) =>
       str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-    const sanitizeDescriptionHtml = (str: string) => {
-      return str.replace(/<br\s*\/?>/gi, "___BR___")
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-        .replace(/___BR___/g, "<br>");
-    };
 
     const sanitizeHeaderHtml = (str: string) => {
       const safeTags = ['br', 'b', 'strong', 'i', 'em', 'u'];
@@ -1577,6 +1671,34 @@ router.get("/public/menus/embed", async (req, res) => {
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
+        const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
+        if (isInMenuSection) {
+          if (template === "beverage") {
+            itemsHtml += `
+            <div class="bev-item-row bev-item-row--in-menu-section">
+              <div class="bev-item bev-item--in-menu-section">
+                <span class="bev-name bev-name--in-menu-section">${escapeHtml(cleanName)}</span>
+              </div>
+            </div>`;
+          } else if (template === "fine-dining") {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <h3 class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</h3>
+            </div>`;
+          } else {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <div class="item-header item-header--in-menu-section">
+                <span class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</span>
+              </div>
+            </div>`;
+          }
+          if (pagebreakGuids.includes(item.itemGuid)) {
+            itemsHtml += `<div class="item-page-break"></div>`;
+          }
+          continue;
+        }
+
         const tagsHtml = dietaryTags.length > 0
           ? `<span class="dietary-tags">${dietaryTags.map(t => `<span class="dietary-tag">${t}</span>`).join("")}</span>`
           : "";
@@ -1618,7 +1740,7 @@ router.get("/public/menus/embed", async (req, res) => {
               ${itemImageHtml}
               <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
@@ -1629,7 +1751,7 @@ router.get("/public/menus/embed", async (req, res) => {
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         }
@@ -1638,23 +1760,22 @@ router.get("/public/menus/embed", async (req, res) => {
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
+      const showGroupSubheading = !shouldHideGroupHeading;
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="bev-group-name">${escapeHtml(group.name)}</h2>
+            ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml(group.name)}</h2>` : ""}
             ${itemsHtml}
           </div>`;
       } else {
         groupsHtml += `
           <div class="menu-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="group-name">${escapeHtml(group.name)}</h2>
-            <div class="group-divider"></div>
+            ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml(group.name)}</h2>
+            <div class="group-divider"></div>` : ""}
             ${itemsHtml}
           </div>`;
       }
     }
-
-    const embedTitle = customTitle || (menuNames.length === 1 ? menuNames[0] : "Menu");
 
     const dietaryTagsCss = `
         .dietary-tags { margin-left: 6px; }
@@ -1686,6 +1807,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
+        .menu-item--in-menu-section { text-align: center; margin: 20px 0 12px; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem; color: #e8c89a; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(212, 184, 150, 0.6); text-underline-offset: 0.2em; letter-spacing: 0.12em; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
@@ -1696,7 +1819,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name--in-menu-section { color: #6b5a3a; font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
@@ -1711,6 +1834,9 @@ router.get("/public/menus/embed", async (req, res) => {
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
         .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
         .bev-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .bev-item-row--in-menu-section { margin: 10px 0 6px; }
+        .bev-item--in-menu-section { justify-content: center; }
+        .bev-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.12).toFixed(3)}rem; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; letter-spacing: 0.06em; }
         .bev-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; white-space: nowrap; }
         .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
         .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
@@ -1740,6 +1866,9 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .menu-item--in-menu-section { border-bottom: none; margin: 10px 0; padding: 0; }
+        .item-header--in-menu-section { justify-content: center; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.15).toFixed(3)}rem; text-transform: uppercase; letter-spacing: 0.08em; text-decoration: underline; text-decoration-color: #a8a29e; text-underline-offset: 0.2em; color: #1c1917; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #44403c; white-space: nowrap; }
         .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
         .size-entry { white-space: nowrap; }
