@@ -1188,7 +1188,12 @@ function ReviewsPanel() {
       closeDialog();
       toast({ title: "Review added" });
     },
-    onError: () => toast({ title: "Failed to add review", variant: "destructive" }),
+    onError: (error: any) => {
+      const detail = typeof error?.message === "string" && error.message.trim().length > 0
+        ? error.message
+        : "Request failed while adding review. Please check your session and try again.";
+      toast({ title: "Failed to add review", description: detail, variant: "destructive" });
+    },
   });
 
   const updateMutation = useMutation({
@@ -1201,7 +1206,12 @@ function ReviewsPanel() {
       closeDialog();
       toast({ title: "Review updated" });
     },
-    onError: () => toast({ title: "Failed to update review", variant: "destructive" }),
+    onError: (error: any) => {
+      const detail = typeof error?.message === "string" && error.message.trim().length > 0
+        ? error.message
+        : "Request failed while updating review. Please check your session and try again.";
+      toast({ title: "Failed to update review", description: detail, variant: "destructive" });
+    },
   });
 
   const deleteMutation = useMutation({

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, isNotNull, ne } from "drizzle-orm";
+import { z } from "zod";
 import {
   mediaFoodTrucks,
   mediaFoodTruckEvents,
@@ -16,6 +17,19 @@ import {
 import { ObjectStorageService } from "./objectStorage";
 
 const router = Router();
+
+const foodTruckReviewPayloadSchema = z.object({
+  foodTruckId: z.coerce.number().int().positive(),
+  rating: z.coerce.number().int().min(1).max(5),
+  foodQuality: z.string().optional().nullable(),
+  serviceQuality: z.string().optional().nullable(),
+  cleanliness: z.string().optional().nullable(),
+  professionalism: z.string().optional().nullable(),
+  overallNotes: z.string().optional().nullable(),
+  wouldRecommend: z.boolean().optional(),
+  reviewedBy: z.string().trim().min(1).max(255),
+  reviewDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
 
 function requireAuth(req: Request, res: Response, next: Function) {
   const sess = req.session as any;
@@ -242,10 +256,17 @@ router.get("/api/media/food-truck-reviews/:foodTruckId", requireAuth, async (req
 
 router.post("/api/media/food-truck-reviews", requireAuth, async (req: Request, res: Response) => {
   try {
-    const data = insertFoodTruckReviewSchema.parse(req.body);
+    const payload = {
+      ...req.body,
+      reviewDate: typeof req.body?.reviewDate === "string" ? req.body.reviewDate.slice(0, 10) : req.body?.reviewDate,
+      reviewedBy: typeof req.body?.reviewedBy === "string" ? req.body.reviewedBy.trim() : req.body?.reviewedBy,
+    };
+    const normalized = foodTruckReviewPayloadSchema.parse(payload);
+    const data = insertFoodTruckReviewSchema.parse(normalized);
     const [review] = await db.insert(mediaFoodTruckReviews).values(data).returning();
     res.json(review);
   } catch (error: any) {
+    console.error("[Food Truck Reviews] Failed to create review:", error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -253,7 +274,13 @@ router.post("/api/media/food-truck-reviews", requireAuth, async (req: Request, r
 router.put("/api/media/food-truck-reviews/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
-    const data = insertFoodTruckReviewSchema.partial().parse(req.body);
+    const payload = {
+      ...req.body,
+      reviewDate: typeof req.body?.reviewDate === "string" ? req.body.reviewDate.slice(0, 10) : req.body?.reviewDate,
+      reviewedBy: typeof req.body?.reviewedBy === "string" ? req.body.reviewedBy.trim() : req.body?.reviewedBy,
+    };
+    const normalized = foodTruckReviewPayloadSchema.partial().parse(payload);
+    const data = insertFoodTruckReviewSchema.partial().parse(normalized);
     const [review] = await db
       .update(mediaFoodTruckReviews)
       .set(data)
@@ -262,6 +289,7 @@ router.put("/api/media/food-truck-reviews/:id", requireAuth, async (req: Request
     if (!review) return res.status(404).json({ error: "Review not found" });
     res.json(review);
   } catch (error: any) {
+    console.error("[Food Truck Reviews] Failed to update review:", error);
     res.status(400).json({ error: error.message });
   }
 });
