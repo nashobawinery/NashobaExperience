@@ -123,7 +123,7 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
         let result: any;
         if (pageInfo) {
           const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
-          const SHOPIFY_API_VERSION = "2026-01";
+          const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || "2025-10";
           const { getShopifyToken: getToken } = await import("./shopify-api");
           const token = await getToken();
           const url = `https://${storeDomain}/admin/api/${SHOPIFY_API_VERSION}/orders.json?limit=250&page_info=${pageInfo}&fields=id,customer,line_items,financial_status,cancelled_at`;

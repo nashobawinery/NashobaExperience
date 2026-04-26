@@ -19792,6 +19792,71 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     }
   });
 
+  app.get('/api/rcc/daily-revenue/ytd-discount-void', isPlatformAuthenticated, async (req, res) => {
+    try {
+      const dateParam = typeof req.query.date === 'string' ? req.query.date : '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return res.status(400).json({ message: 'date query param is required in YYYY-MM-DD format' });
+      }
+
+      const yearStart = `${dateParam.slice(0, 4)}-01-01`;
+      const result = await db.execute(sql`
+        SELECT
+          date,
+          COALESCE(toast_gross_sales, 0) AS toast_gross_sales,
+          COALESCE(toast_discount_amount, 0) AS toast_discount_amount,
+          COALESCE(toast_void_amount, 0) AS toast_void_amount,
+          COALESCE(toast_discount_pct, 0) AS toast_discount_pct
+        FROM rcc_daily_revenue
+        WHERE date >= ${yearStart}
+          AND date <= ${dateParam}
+          AND COALESCE(toast_gross_sales, 0) > 0
+        ORDER BY date ASC
+      `);
+
+      const rows = result.rows.map((row: any) => {
+        const gross = parseFloat(row.toast_gross_sales || '0');
+        const discountAmount = parseFloat(row.toast_discount_amount || '0');
+        const voidAmount = parseFloat(row.toast_void_amount || '0');
+        const discountPct = parseFloat(row.toast_discount_pct || '0') || (gross > 0 ? (discountAmount / gross) * 100 : 0);
+        const voidPct = gross > 0 ? (voidAmount / gross) * 100 : 0;
+        return { gross, discountAmount, voidAmount, discountPct, voidPct };
+      });
+
+      const daysWithSales = rows.length;
+      const totalGross = rows.reduce((sum, row) => sum + row.gross, 0);
+      const totalDiscountAmount = rows.reduce((sum, row) => sum + row.discountAmount, 0);
+      const totalVoidAmount = rows.reduce((sum, row) => sum + row.voidAmount, 0);
+      const discountPctWeighted = totalGross > 0 ? (totalDiscountAmount / totalGross) * 100 : 0;
+      const voidPctWeighted = totalGross > 0 ? (totalVoidAmount / totalGross) * 100 : 0;
+
+      const calcStdDev = (values: number[]): number => {
+        if (values.length < 2) return 0;
+        const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+        const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+        return Math.sqrt(variance);
+      };
+
+      const discountPctStdDev = calcStdDev(rows.map(row => row.discountPct));
+      const voidPctStdDev = calcStdDev(rows.map(row => row.voidPct));
+
+      res.json({
+        throughDate: dateParam,
+        daysWithSales,
+        totalGross,
+        totalDiscountAmount,
+        totalVoidAmount,
+        discountPctWeighted,
+        voidPctWeighted,
+        discountPctStdDev,
+        voidPctStdDev,
+      });
+    } catch (error) {
+      console.error('Error fetching YTD discount/void analysis:', error);
+      res.status(500).json({ message: 'Failed to fetch YTD discount/void analysis' });
+    }
+  });
+
   app.post('/api/rcc/daily-revenue', isPlatformAuthenticated, async (req, res) => {
     try {
       const dailyRevenue = await storage.upsertRccDailyRevenue(req.body);
@@ -20092,8 +20157,11 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         results,
       });
     } catch (error: any) {
+      if (error instanceof ShopifyNotInstalledError) {
+        return res.status(503).json({ message: error.message, code: 'SHOPIFY_UNAVAILABLE' });
+      }
       console.error('Error syncing Shopify revenue:', error);
-      res.status(500).json({ message: 'Failed to sync Shopify revenue' });
+      res.status(500).json({ message: error?.message || 'Failed to sync Shopify revenue' });
     }
   });
 
@@ -20127,7 +20195,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         return res.status(503).json({ message: error.message, code: 'SHOPIFY_UNAVAILABLE' });
       }
       console.error('Error syncing Shopify revenue for date:', error);
-      res.status(500).json({ message: 'Failed to sync Shopify revenue' });
+      res.status(500).json({ message: error?.message || 'Failed to sync Shopify revenue' });
     }
   });
 

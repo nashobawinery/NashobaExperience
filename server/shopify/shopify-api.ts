@@ -1,9 +1,7 @@
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 
-const SHOPIFY_API_VERSION = "2026-01";
-
-let cachedToken: { accessToken: string; expiresAt: number } | null = null;
+const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || "2025-10";
 
 export class ShopifyNotInstalledError extends Error {
   constructor(message: string) {
@@ -20,65 +18,24 @@ export function isShopifyAvailable(): boolean {
   }
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-  const clientId = process.env.SHOPIFY_CLIENT_ID;
-  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  return !!(storeDomain && (accessToken || (clientId && clientSecret)));
+  return !!(storeDomain && accessToken);
 }
 
 export async function getShopifyToken(): Promise<string> {
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
-  const directToken = process.env.SHOPIFY_ACCESS_TOKEN;
+  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
   if (!storeDomain) {
     throw new ShopifyNotInstalledError("SHOPIFY_STORE_DOMAIN not configured");
   }
 
-  if (directToken) {
-    return directToken;
+  if (!accessToken) {
+    throw new ShopifyNotInstalledError(
+      "SHOPIFY_ACCESS_TOKEN not configured. Set a Shopify Admin API access token for this environment."
+    );
   }
 
-  const clientId = process.env.SHOPIFY_CLIENT_ID;
-  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new ShopifyNotInstalledError("Shopify API credentials not configured (SHOPIFY_ACCESS_TOKEN or SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET required)");
-  }
-
-  if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
-    return cachedToken.accessToken;
-  }
-
-  const response = await fetch(`https://${storeDomain}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Accept": "application/json",
-    },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: "client_credentials",
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    if (text.includes("app_not_installed")) {
-      shopifyUnavailableUntil = Date.now() + 60 * 60 * 1000;
-      cachedToken = null;
-      throw new ShopifyNotInstalledError("Shopify app is not installed on this shop. Please install the app in your Shopify admin first.");
-    }
-    throw new Error(`Shopify auth failed (${response.status}): ${text}`);
-  }
-
-  const data = await response.json();
-  cachedToken = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + 23 * 60 * 60 * 1000,
-  };
-
-  console.log("[Shopify API] Authentication successful, token cached");
-  return cachedToken.accessToken;
+  return accessToken;
 }
 
 export async function shopifyApiRequest(path: string, params?: Record<string, string>): Promise<any> {

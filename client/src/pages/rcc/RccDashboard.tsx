@@ -1440,6 +1440,9 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
   const [whatWorked, setWhatWorked] = useState(revenue?.whatWorked || "");
   const [whatFlopped, setWhatFlopped] = useState(revenue?.whatFlopped || "");
   const [weekNotes, setWeekNotes] = useState(revenue?.notes || "");
+  const [analysisDetailOpen, setAnalysisDetailOpen] = useState(false);
+  const [analysisDetailDate, setAnalysisDetailDate] = useState<string | null>(null);
+  const [analysisDetailSource, setAnalysisDetailSource] = useState<"all" | "toast" | "shopify" | "wholesale">("toast");
 
   // Fetch daily revenue entries for the week
   const { data: dailyRevenue, isLoading: dailyLoading, dataUpdatedAt } = useQuery<RccDailyRevenue[]>({
@@ -1698,6 +1701,90 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
   const weeklyDiscountPct = weeklyDiscountVoidSummary.grossSales > 0 
     ? (weeklyDiscountVoidSummary.discounts / weeklyDiscountVoidSummary.grossSales) * 100 
     : 0;
+  const weeklyVoidPct = weeklyDiscountVoidSummary.grossSales > 0
+    ? (weeklyDiscountVoidSummary.voids / weeklyDiscountVoidSummary.grossSales) * 100
+    : 0;
+  const todayDateStr = new Date().toISOString().split('T')[0];
+
+  const analysisDate = weekDays
+    .map(d => d.date)
+    .filter(date => date <= todayDateStr)
+    .sort()
+    .slice(-1)[0] || weekDays[0]?.date;
+
+  const analysisEntry = analysisDate ? dailyMap.get(analysisDate) : undefined;
+  const analysisDateLabel = analysisDate
+    ? weekDays.find(d => d.date === analysisDate)?.displayDate || analysisDate
+    : null;
+  const todayDiscountPct = parseFloat(analysisEntry?.toastDiscountPct || '0');
+  const todayGrossSales = parseFloat(analysisEntry?.toastGrossSales || '0');
+  const todayVoidAmount = parseFloat(analysisEntry?.toastVoidAmount || '0');
+  const todayVoidPct = todayGrossSales > 0 ? (todayVoidAmount / todayGrossSales) * 100 : 0;
+
+  const { data: ytdDiscountVoidStats } = useQuery<{
+    throughDate: string;
+    daysWithSales: number;
+    totalGross: number;
+    totalDiscountAmount: number;
+    totalVoidAmount: number;
+    discountPctWeighted: number;
+    voidPctWeighted: number;
+    discountPctStdDev: number;
+    voidPctStdDev: number;
+  }>({
+    queryKey: ["/api/rcc/daily-revenue/ytd-discount-void", { date: analysisDate }],
+    queryFn: async () => {
+      const res = await fetch(`/api/rcc/daily-revenue/ytd-discount-void?date=${analysisDate}`);
+      if (!res.ok) throw new Error("Failed to load YTD discount/void analysis");
+      return res.json();
+    },
+    enabled: !!analysisDate,
+  });
+
+  const weekRiskRows = weekDays
+    .map(day => {
+      const row = dailyMap.get(day.date);
+      const gross = parseFloat(row?.toastGrossSales || '0');
+      const discountPct = parseFloat(row?.toastDiscountPct || '0');
+      const voidPct = gross > 0 ? (parseFloat(row?.toastVoidAmount || '0') / gross) * 100 : 0;
+      return { day, gross, discountPct, voidPct };
+    })
+    .filter(row => row.gross > 0);
+
+  const findLargestOutlier = (
+    values: Array<{ day: { date: string; displayDate: string }; value: number }>,
+    baseline: number
+  ) => {
+    if (values.length === 0) return null;
+    return [...values]
+      .sort((a, b) => Math.abs(b.value - baseline) - Math.abs(a.value - baseline))[0];
+  };
+
+  const topDiscountOutlier = ytdDiscountVoidStats
+    ? findLargestOutlier(
+        weekRiskRows.map(row => ({ day: row.day, value: row.discountPct })),
+        ytdDiscountVoidStats.discountPctWeighted
+      )
+    : null;
+  const topVoidOutlier = ytdDiscountVoidStats
+    ? findLargestOutlier(
+        weekRiskRows.map(row => ({ day: row.day, value: row.voidPct })),
+        ytdDiscountVoidStats.voidPctWeighted
+      )
+    : null;
+
+  const isTodayVoidUnusual = ytdDiscountVoidStats
+    ? Math.abs(todayVoidPct - ytdDiscountVoidStats.voidPctWeighted) > Math.max(0.25, ytdDiscountVoidStats.voidPctStdDev * 2)
+    : false;
+  const isTodayDiscountUnusual = ytdDiscountVoidStats
+    ? Math.abs(todayDiscountPct - ytdDiscountVoidStats.discountPctWeighted) > Math.max(0.5, ytdDiscountVoidStats.discountPctStdDev * 1.5)
+    : false;
+
+  const openAnalysisDetail = (date: string, source: "all" | "toast" | "shopify" | "wholesale") => {
+    setAnalysisDetailDate(date);
+    setAnalysisDetailSource(source);
+    setAnalysisDetailOpen(true);
+  };
 
   const priorYearMap = new Map<string, { toast: number; shopify: number; wholesale: number; other: number; total: number }>();
   historicalData?.priorYearData?.forEach(d => {
@@ -1716,9 +1803,8 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
     });
   }
 
-  const today = new Date().toISOString().split('T')[0];
   const hasStaleDays = dailyRevenue?.some(d =>
-    d.date <= today && (!d.toastRevenue || d.toastRevenue === '0' || d.toastRevenue === '0.00')
+    d.date <= todayDateStr && (!d.toastRevenue || d.toastRevenue === '0' || d.toastRevenue === '0.00')
   ) ?? false;
   const isAutoRefetchPending = hasStaleDays && autoRefetchCountRef.current < 3;
 
@@ -1833,6 +1919,73 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
         </div>
       )}
 
+      {ytdDiscountVoidStats && analysisDateLabel && (
+        <Card data-testid="card-weekly-discount-void-analysis">
+          <CardContent className="pt-4 pb-4 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-sm font-medium">Discount & Void Analysis (YTD Baseline vs {analysisDateLabel})</p>
+              <Badge variant={isTodayVoidUnusual ? "destructive" : "outline"}>
+                {isTodayVoidUnusual ? "Void anomaly detected" : "Within expected range"}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              YTD discount rate is <span className="font-medium text-foreground">{ytdDiscountVoidStats.discountPctWeighted.toFixed(2)}%</span> and
+              this week is <span className="font-medium text-foreground">{weeklyDiscountPct.toFixed(2)}%</span>. {analysisDateLabel} is
+              <span className={`font-medium ${isTodayDiscountUnusual ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}> {todayDiscountPct.toFixed(2)}%</span>
+              {isTodayDiscountUnusual ? " which is unusual versus YTD." : " which tracks close to YTD."}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              YTD void rate is <span className="font-medium text-foreground">{ytdDiscountVoidStats.voidPctWeighted.toFixed(2)}%</span> and
+              this week is <span className="font-medium text-foreground">{weeklyVoidPct.toFixed(2)}%</span>. {analysisDateLabel} is
+              <span className={`font-medium ${isTodayVoidUnusual ? "text-red-600 dark:text-red-400" : "text-foreground"}`}> {todayVoidPct.toFixed(2)}%</span>
+              {isTodayVoidUnusual ? " and should be reviewed for unusual void activity." : " and is not showing an unusual spike."}
+            </p>
+            {(topVoidOutlier || topDiscountOutlier) && (
+              <p className="text-xs text-muted-foreground">
+                Biggest weekly outlier:
+                {topVoidOutlier && ` voids on ${topVoidOutlier.day.displayDate} (${topVoidOutlier.value.toFixed(2)}%)`}
+                {topVoidOutlier && topDiscountOutlier && ","}
+                {topDiscountOutlier && ` discounts on ${topDiscountOutlier.day.displayDate} (${topDiscountOutlier.value.toFixed(2)}%)`}.
+              </p>
+            )}
+            {(isTodayVoidUnusual || topVoidOutlier || topDiscountOutlier) && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {isTodayVoidUnusual && analysisDate && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => openAnalysisDetail(analysisDate, "toast")}
+                    data-testid="button-open-void-anomaly-detail"
+                  >
+                    Review Void Anomaly
+                  </Button>
+                )}
+                {topVoidOutlier && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openAnalysisDetail(topVoidOutlier.day.date, "toast")}
+                    data-testid="button-open-top-void-outlier"
+                  >
+                    Open {topVoidOutlier.day.displayDate} Void Detail
+                  </Button>
+                )}
+                {topDiscountOutlier && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openAnalysisDetail(topDiscountOutlier.day.date, "toast")}
+                    data-testid="button-open-top-discount-outlier"
+                  >
+                    Open {topDiscountOutlier.day.displayDate} Discount Detail
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4">
         {weekDays.map((day) => {
           const entry = dailyMap.get(day.date);
@@ -1906,6 +2059,19 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
           </Button>
         </CardContent>
       </Card>
+
+      {analysisDetailDate && (
+        <RevenueDetailDialog
+          open={analysisDetailOpen}
+          onOpenChange={setAnalysisDetailOpen}
+          date={analysisDetailDate}
+          displayDate={weekDays.find(d => d.date === analysisDetailDate)?.displayDate || analysisDetailDate}
+          toastRevenue={dailyMap.get(analysisDetailDate)?.toastRevenue || null}
+          shopifyRevenue={dailyMap.get(analysisDetailDate)?.shopifyRevenue || null}
+          wholesaleRevenue={dailyMap.get(analysisDetailDate)?.wholesaleRevenue || null}
+          sourceFilter={analysisDetailSource}
+        />
+      )}
     </div>
   );
 }
@@ -2089,6 +2255,22 @@ function DailyRevenueRow({
                   <p className="text-xs text-muted-foreground">Toast</p>
                   <p className="font-medium">${parseFloat(toastRev || '0').toLocaleString('en-US')}</p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setDetailSourceFilter("toast"); setDetailDialogOpen(true); }}
+                  data-testid={`btn-toast-detail-quick-${day.date}`}
+                >
+                  Toast Details
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setDetailSourceFilter("shopify"); setDetailDialogOpen(true); }}
+                  data-testid={`btn-shopify-detail-quick-${day.date}`}
+                >
+                  Shopify Details
+                </Button>
                 {(() => {
                   const discPct = parseFloat(entry?.toastDiscountPct || '0');
                   const voidAmt = parseFloat(entry?.toastVoidAmount || '0');
@@ -2173,6 +2355,15 @@ function DailyRevenueRow({
                     <p className="text-xs font-medium">${priorYearRevenue.toast.toLocaleString('en-US')}</p>
                   </div>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-1"
+                  onClick={() => { setDetailSourceFilter("toast"); setDetailDialogOpen(true); }}
+                  data-testid={`btn-toast-detail-${day.date}`}
+                >
+                  View Toast Categories & Items
+                </Button>
                 {(parseFloat(entry?.toastDiscountPct || '0') > 0 || (entry?.toastVoidCount || 0) > 0) && (
                   <div className="pt-1 space-y-0.5" data-testid={`detail-flags-${day.date}`}>
                     {parseFloat(entry?.toastGrossSales || '0') > 0 && (
@@ -2324,6 +2515,15 @@ function DailyRevenueRow({
                     <p className="text-xs font-medium">${priorYearRevenue.shopify.toLocaleString('en-US')}</p>
                   </div>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-1"
+                  onClick={() => { setDetailSourceFilter("shopify"); setDetailDialogOpen(true); }}
+                  data-testid={`btn-shopify-detail-${day.date}`}
+                >
+                  View Shopify Categories & Items
+                </Button>
               </div>
               <div className="space-y-1">
                 <Label className="flex items-center gap-1">
