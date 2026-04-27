@@ -646,9 +646,9 @@ function CellarTraksRoute() {
 }
 
 function MediaCenterRoute() {
-  const { isLoading, isAdmin } = useAuth();
+  const { isLoading, isAdmin, hasModuleAccess } = useAuth();
   if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
+  if (!isAdmin && !hasModuleAccess("media_center")) return <Redirect to="/" />;
   return <Suspense fallback={<PageLoader />}><MediaCenter /></Suspense>;
 }
 

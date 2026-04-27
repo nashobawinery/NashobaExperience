@@ -432,37 +432,70 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  // Bridge login for base app admins - auto-login to B2B without password
+  // Bridge login for base app users - auto-login to B2B without password
   app.post('/api/b2b/bridge-login', unifiedIsAuthenticated, async (req: any, res) => {
     try {
       // Get email from authenticated platform session
       const sess = req.session as any;
-      const userEmail = sess.platformAuth?.email;
+      const userEmail = sess.platformAuth?.email?.toLowerCase?.();
       
       if (!userEmail) {
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      // Look up B2B admin by email
+      // Prefer B2B admin match first, then fall back to sales rep match.
       const admin = await storage.getB2bAdminByEmail(userEmail);
+      if (admin) {
+        // Create B2B session as admin
+        req.session.b2bUserId = admin.id;
+        req.session.b2bUserType = 'admin';
+        req.session.b2bUserEmail = admin.email;
 
-      if (!admin) {
-        return res.status(403).json({ error: 'No B2B admin account found for this email' });
+        return req.session.save((err: any) => {
+          if (err) {
+            console.error('Bridge login session save error:', err);
+            return res.status(500).json({ error: 'Failed to save B2B session' });
+          }
+
+          res.json({
+            success: true,
+            user: {
+              id: admin.id,
+              name: `${admin.firstName} ${admin.lastName}`,
+              email: admin.email,
+              type: 'admin',
+            },
+          });
+        });
       }
 
-      // Create B2B session
-      req.session.b2bUserId = admin.id;
-      req.session.b2bUserType = 'admin';
-      req.session.b2bUserEmail = admin.email;
+      const salesRep = await storage.getSalesRepByEmail(userEmail);
+      if (salesRep && salesRep.active) {
+        // Create B2B session as sales rep
+        req.session.b2bUserId = salesRep.id;
+        req.session.b2bUserType = 'sales_rep';
+        req.session.b2bUserEmail = salesRep.email;
 
-      res.json({
-        success: true,
-        user: {
-          id: admin.id,
-          name: `${admin.firstName} ${admin.lastName}`,
-          email: admin.email,
-          type: 'admin',
-        },
+        return req.session.save((err: any) => {
+          if (err) {
+            console.error('Bridge login session save error:', err);
+            return res.status(500).json({ error: 'Failed to save B2B session' });
+          }
+
+          res.json({
+            success: true,
+            user: {
+              id: salesRep.id,
+              name: `${salesRep.firstName} ${salesRep.lastName}`,
+              email: salesRep.email,
+              type: 'sales_rep',
+            },
+          });
+        });
+      }
+
+      return res.status(403).json({
+        error: 'No active B2B admin or sales rep account found for this email',
       });
     } catch (error: any) {
       console.error('Bridge login error:', error);

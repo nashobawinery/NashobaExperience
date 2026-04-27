@@ -15,6 +15,7 @@ import {
   insertFoodTruckReviewSchema,
 } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
+import { computeUserPermissions, hasModuleAccess, isGlobalAdmin } from "./rbac";
 
 const router = Router();
 
@@ -33,10 +34,27 @@ const foodTruckReviewPayloadSchema = z.object({
 
 function requireAuth(req: Request, res: Response, next: Function) {
   const sess = req.session as any;
-  if (!sess.platformAuth?.platformUserId) {
+  const platformUserId = sess.platformAuth?.platformUserId;
+  if (!platformUserId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  next();
+  const userRole = sess.platformAuth?.globalRole;
+  if (userRole === "super_admin") {
+    return next();
+  }
+
+  computeUserPermissions(platformUserId)
+    .then((permissions) => {
+      if (isGlobalAdmin(permissions) || hasModuleAccess(permissions, "media_center")) {
+        return next();
+      }
+
+      return res.status(403).json({ error: "Access denied. Media Center access required." });
+    })
+    .catch((error) => {
+      console.error("[Food Truck Auth] Failed RBAC check:", error);
+      return res.status(500).json({ error: "Failed to validate access permissions" });
+    });
 }
 
 // ==================== Food Trucks CRUD ====================
