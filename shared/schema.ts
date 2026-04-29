@@ -6342,6 +6342,7 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
   pages: integer("pages").default(0),
   pageBreaks: text("page_breaks"),
   printAdditionalMenuGuids: text("print_additional_menu_guids"),
+  customPrintLines: text("custom_print_lines"),
   customTitle: text("custom_title"),
   showOnStaffBoard: boolean("show_on_staff_board").default(false),
   createdAt: timestamp("created_at").defaultNow(),

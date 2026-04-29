@@ -156,6 +156,15 @@ interface SyncStatus {
   };
 }
 
+type PrintCustomLineKind = "banner" | "header" | "note";
+
+interface PrintCustomLine {
+  id: string;
+  kind: PrintCustomLineKind;
+  text: string;
+  placement: string;
+}
+
 function formatPrice(price: string | null): string {
   if (!price) return "";
   const num = parseFloat(price);
@@ -214,6 +223,7 @@ export function ToastMenuBrowser() {
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
   const [printShowImages, setPrintShowImages] = useState(false);
   const [printHideAllergyFooter, setPrintHideAllergyFooter] = useState(false);
+  const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
   const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
@@ -234,6 +244,51 @@ export function ToastMenuBrowser() {
     const updated = presets.filter(p => p !== value);
     setPresets(updated);
     localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  const addPrintCustomLine = () => {
+    setPrintCustomLines(prev => [
+      ...prev,
+      {
+        id: `line-${Date.now()}-${prev.length}`,
+        kind: "banner",
+        text: "",
+        placement: "after-title",
+      },
+    ]);
+  };
+
+  const updatePrintCustomLine = (id: string, change: Partial<PrintCustomLine>) => {
+    setPrintCustomLines(prev => prev.map(line => line.id === id ? { ...line, ...change } : line));
+  };
+
+  const removePrintCustomLine = (id: string) => {
+    setPrintCustomLines(prev => prev.filter(line => line.id !== id));
+  };
+
+  const serializePrintCustomLines = () => {
+    const lines = printCustomLines
+      .map(({ kind, text, placement }) => ({ kind, text: text.trim(), placement }))
+      .filter(line => line.text && line.placement);
+    return lines.length > 0 ? JSON.stringify(lines) : "";
+  };
+
+  const parsePrintCustomLines = (value: string | null | undefined): PrintCustomLine[] => {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((line, index) => ({
+          id: `line-${Date.now()}-${index}`,
+          kind: ["banner", "header", "note"].includes(line?.kind) ? line.kind as PrintCustomLineKind : "banner",
+          text: typeof line?.text === "string" ? line.text : "",
+          placement: typeof line?.placement === "string" ? line.placement : "after-title",
+        }))
+        .filter(line => line.text.trim());
+    } catch {
+      return [];
+    }
   };
 
   const [activeDetailTab, setActiveDetailTab] = useState<"web" | "print">("web");
@@ -339,6 +394,7 @@ export function ToastMenuBrowser() {
     pages: number | null;
     pageBreaks: string | null;
     printAdditionalMenuGuids: string | null;
+    customPrintLines: string | null;
     customTitle: string | null;
     showOnStaffBoard: boolean | null;
     createdAt: string;
@@ -387,6 +443,7 @@ export function ToastMenuBrowser() {
     showImages: printShowImages,
     pages: printPages,
     pageBreaks: printPageBreaks.length > 0 ? printPageBreaks.join(",") : null,
+    customPrintLines: serializePrintCustomLines() || null,
     customTitle: null,
   });
 
@@ -635,6 +692,8 @@ export function ToastMenuBrowser() {
     } else {
       url = getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages, printHideAllergyFooter);
     }
+    const customLines = serializePrintCustomLines();
+    if (customLines) url += `&customlines=${encodeURIComponent(customLines)}`;
     return typoStr ? `${url}&${typoStr}` : url;
   };
 
@@ -693,6 +752,7 @@ export function ToastMenuBrowser() {
       setPrintShowImages(params.get("showimages") === "1");
       setPrintPages(parseInt(params.get("pages") || "0") || 0);
       setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
+      setPrintCustomLines(parsePrintCustomLines(params.get("customlines")));
       setAdditionalMenuGuids(extraMenuGuids);
 
       clearPendingChanges();
@@ -721,6 +781,7 @@ export function ToastMenuBrowser() {
     setPrintShowImages(config.showImages || false);
     setPrintPages(config.pages || 0);
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
+    setPrintCustomLines(parsePrintCustomLines(config.customPrintLines));
     setSelectedPrintGroups(config.groupGuids ? config.groupGuids.split(",").filter(Boolean) : []);
     // Use dedicated print additional guids if available, otherwise fall back to legacy multi-guid format
     if (config.printAdditionalMenuGuids) {
@@ -747,6 +808,7 @@ export function ToastMenuBrowser() {
       setViewMode("detail");
       setAdditionalMenuGuids([]);
       setSelectedPrintGroups([]);
+      setPrintCustomLines([]);
       setLoadedEmbedConfigId(null);
       setLoadedEmbedConfigName("");
       setSaveName("");
@@ -1566,6 +1628,92 @@ export function ToastMenuBrowser() {
                 </Select>
               </div>
             </div>
+
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold">Added Print Lines</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Add print-only banners, headers, or notes without adding them to Toast or the online Toast store. Supports safe HTML like <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, and <code className="text-xs">&lt;i&gt;</code>.
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={addPrintCustomLine} data-testid="button-add-print-line">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Banner / Header
+                  </Button>
+                </div>
+
+                {printCustomLines.length === 0 ? (
+                  <p className="text-xs text-muted-foreground border rounded-md px-3 py-2 bg-muted/30">
+                    No added print lines yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {printCustomLines.map((line, index) => (
+                      <div key={line.id} className="border rounded-md p-3 space-y-3" data-testid={`print-line-${index}`}>
+                        <div className="grid gap-3 sm:grid-cols-[160px_1fr_auto] sm:items-end">
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Line Style</label>
+                            <Select value={line.kind} onValueChange={(v) => updatePrintCustomLine(line.id, { kind: v as PrintCustomLineKind })}>
+                              <SelectTrigger data-testid={`select-print-line-kind-${index}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="banner">Banner</SelectItem>
+                                <SelectItem value="header">Header</SelectItem>
+                                <SelectItem value="note">Notation</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Placement</label>
+                            <Select value={line.placement} onValueChange={(v) => updatePrintCustomLine(line.id, { placement: v })}>
+                              <SelectTrigger data-testid={`select-print-line-placement-${index}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="after-title">After menu title/header</SelectItem>
+                                {allPrintGroups.map((group) => (
+                                  <SelectItem key={`before-${group.groupGuid}`} value={`before-group:${group.groupGuid}`}>
+                                    Before {group.name}{group.sourceName ? ` (${group.sourceName})` : ""}
+                                  </SelectItem>
+                                ))}
+                                {allPrintGroups.flatMap((group) =>
+                                  (group.items || []).filter((item: ToastMenuItemData) => !item.hidden).map((item: ToastMenuItemData) => (
+                                    <SelectItem key={`after-${item.itemGuid}`} value={`after-item:${item.itemGuid}`}>
+                                      After {item.name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim()}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-destructive"
+                            onClick={() => removePrintCustomLine(line.id)}
+                            data-testid={`button-remove-print-line-${index}`}
+                            title="Remove line"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <Textarea
+                          value={line.text}
+                          onChange={(e) => updatePrintCustomLine(line.id, { text: e.target.value })}
+                          placeholder="e.g., Chef's Specials<br>Available after 5pm"
+                          rows={2}
+                          className="text-sm"
+                          data-testid={`textarea-print-line-text-${index}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {allPrintGroups.length > 0 && (
               <div className="space-y-2">

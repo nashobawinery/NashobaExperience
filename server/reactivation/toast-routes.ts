@@ -27,6 +27,12 @@ type ToastItemLike = {
   isSpecial?: boolean | null;
 };
 
+type CustomPrintLine = {
+  kind: "banner" | "header" | "note";
+  text: string;
+  placement: string;
+};
+
 function normalizeMenuLabel(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -52,6 +58,31 @@ function isToastInMenuSectionRow(item: ToastItemLike): boolean {
   if (raw.length > 40) return false;
   if (/\$\s*\d/.test(raw) || /^\d+(\.\d+)?$/.test(raw)) return false;
   return true;
+}
+
+function parseCustomPrintLines(value: unknown): CustomPrintLine[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((line): CustomPrintLine => ({
+        kind: ["banner", "header", "note"].includes(line?.kind) ? line.kind : "banner",
+        text: typeof line?.text === "string" ? line.text.trim() : "",
+        placement: typeof line?.placement === "string" ? line.placement : "after-title",
+      }))
+      .filter((line) => line.text.length > 0 && line.text.length <= 1000 && line.placement.length <= 160)
+      .slice(0, 25);
+  } catch {
+    return [];
+  }
+}
+
+function renderCustomPrintLines(lines: CustomPrintLine[], placement: string): string {
+  return lines
+    .filter((line) => line.placement === placement)
+    .map((line) => `<div class="custom-print-line custom-print-line--${line.kind}">${sanitizeMenuDescriptionHtml(line.text)}</div>`)
+    .join("");
 }
 
 /** Descriptions: allow the same light HTML as custom headers (incl. <i> / <em>), plus <br>. */
@@ -1067,6 +1098,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const pages = Math.min(10, Math.max(0, rawPages));
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
+    const customPrintLines = parseCustomPrintLines(req.query.customlines);
 
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -1245,6 +1277,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
               </div>
             </div>`;
           }
+          itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
+          itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
           if (pagebreakGuids.includes(item.itemGuid)) {
             itemsHtml += `<div class="item-page-break"></div>`;
           }
@@ -1307,21 +1341,25 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
               ${showPairing}
             </div>`;
         }
+        itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
         if (pagebreakGuids.includes(item.itemGuid)) {
           itemsHtml += `<div class="item-page-break"></div>`;
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
       const showGroupSubheading = !shouldHideGroupHeading;
+      const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
+            ${customBeforeGroupHtml}
             ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml(group.name)}</h2>` : ""}
             ${itemsHtml}
           </div>`;
       } else {
         groupsHtml += `
           <div class="menu-group${hasPageBreak ? " page-break" : ""}">
+            ${customBeforeGroupHtml}
             ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml(group.name)}</h2>
             <div class="group-divider"></div>` : ""}
             ${itemsHtml}
@@ -1334,6 +1372,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .dietary-tags { margin-left: 6px; }
         .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
         .special-badge { display: inline-block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; margin-left: 8px; vertical-align: middle; background: rgba(180,120,40,0.18); color: #b47828; border: 1px solid rgba(180,120,40,0.35); }
+    `;
+    const customPrintLineCss = `
+        .custom-print-line { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; line-height: 1.45; margin: 12px 0; break-inside: avoid; }
+        .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
+        .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+        .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
     `;
     if (template === "fine-dining") {
       css = `
@@ -1361,6 +1405,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-item--in-menu-section { text-align: center; margin: 20px 0 12px; }
         .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem; color: #e8c89a; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(212, 184, 150, 0.6); text-underline-offset: 0.2em; letter-spacing: 0.12em; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
@@ -1392,6 +1437,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
         .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -1430,6 +1476,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -1456,6 +1503,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
+    ${renderCustomPrintLines(customPrintLines, "after-title")}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
       ${!hideAllergyFooter ? `
@@ -1542,6 +1590,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const pages = Math.min(10, Math.max(0, rawPages));
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
+    const customPrintLines = parseCustomPrintLines(req.query.customlines);
 
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -1755,21 +1804,25 @@ router.get("/public/menus/embed", async (req, res) => {
               ${showPairing}
             </div>`;
         }
+        itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
         if (pagebreakGuids.includes(item.itemGuid)) {
           itemsHtml += `<div class="item-page-break"></div>`;
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
       const showGroupSubheading = !shouldHideGroupHeading;
+      const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
+            ${customBeforeGroupHtml}
             ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml(group.name)}</h2>` : ""}
             ${itemsHtml}
           </div>`;
       } else {
         groupsHtml += `
           <div class="menu-group${hasPageBreak ? " page-break" : ""}">
+            ${customBeforeGroupHtml}
             ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml(group.name)}</h2>
             <div class="group-divider"></div>` : ""}
             ${itemsHtml}
@@ -1781,6 +1834,12 @@ router.get("/public/menus/embed", async (req, res) => {
         .dietary-tags { margin-left: 6px; }
         .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
         .special-badge { display: inline-block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; margin-left: 8px; vertical-align: middle; background: rgba(180,120,40,0.18); color: #b47828; border: 1px solid rgba(180,120,40,0.35); }
+    `;
+    const customPrintLineCss = `
+        .custom-print-line { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; line-height: 1.45; margin: 12px 0; break-inside: avoid; }
+        .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
+        .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+        .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
     `;
 
     let css = "";
@@ -1810,6 +1869,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-item--in-menu-section { text-align: center; margin: 20px 0 12px; }
         .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem; color: #e8c89a; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(212, 184, 150, 0.6); text-underline-offset: 0.2em; letter-spacing: 0.12em; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
@@ -1841,6 +1901,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
         .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -1879,6 +1940,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -1905,6 +1967,7 @@ router.get("/public/menus/embed", async (req, res) => {
     <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
+    ${renderCustomPrintLines(customPrintLines, "after-title")}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
       ${!hideAllergyFooter ? `
@@ -2041,7 +2104,10 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (!config) return res.status(404).send("<html><body><p style='font-family:sans-serif;padding:2rem'>Embed configuration not found.</p></body></html>");
 
     const base = `${req.protocol}://${req.get("host")}`;
-    const menuGuids = (config.menuGuids || "").split(",").map((g: string) => g.trim()).filter(Boolean);
+    const menuGuids = [
+      ...(config.menuGuids || "").split(",").map((g: string) => g.trim()).filter(Boolean),
+      ...(config.printAdditionalMenuGuids || "").split(",").map((g: string) => g.trim()).filter(Boolean),
+    ];
     if (menuGuids.length === 0) return res.status(400).send("<html><body><p>No menus configured.</p></body></html>");
 
     let url: string;
@@ -2055,6 +2121,7 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.pages && config.pages > 0) url += `&pages=${config.pages}`;
     if (config.footer) url += `&footer=${encodeURIComponent(config.footer)}`;
     if (config.pageBreaks) url += `&pagebreaks=${encodeURIComponent(config.pageBreaks)}`;
+    if (config.customPrintLines) url += `&customlines=${encodeURIComponent(config.customPrintLines)}`;
     if (config.hideDescriptions) url += `&hidedesc=1`;
     if (config.header) url += `&header=${encodeURIComponent(config.header)}`;
     if (config.hidePricing) url += `&hideprice=1`;
@@ -2118,6 +2185,8 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       showImages: req.body.showImages ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks || null,
+      printAdditionalMenuGuids: req.body.printAdditionalMenuGuids || null,
+      customPrintLines: req.body.customPrintLines || null,
       customTitle: req.body.customTitle || null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
     }).returning();
@@ -2150,6 +2219,8 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       showImages: req.body.showImages ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks ?? null,
+      printAdditionalMenuGuids: req.body.printAdditionalMenuGuids ?? null,
+      customPrintLines: req.body.customPrintLines ?? null,
       customTitle: req.body.customTitle ?? null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
       updatedAt: new Date(),
