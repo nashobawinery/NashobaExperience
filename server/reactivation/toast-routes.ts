@@ -1552,6 +1552,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         @media (max-width: 600px) { .menu-groups-container { column-count: 1; } .menu-container { padding: 20px 16px; } }`;
     }
 
+    css += `
+        @media print {
+          .menu-container { display: block !important; min-height: auto !important; }
+          .menu-groups-container, .bev-groups-container { break-before: avoid; page-break-before: avoid; column-fill: balance; }
+          .footer { margin-top: 12px !important; break-before: avoid; page-break-before: avoid; }
+        }`;
+
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2023,6 +2030,13 @@ router.get("/public/menus/embed", async (req, res) => {
         @media print { html { font-size: ${scale}%; } body { display: block; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 16px; } .menu-group { margin-bottom: 14px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; } .group-divider { margin-bottom: 8px; } .menu-item { padding: 4px 0; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .item-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .item-description { font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; margin-top: 2px; } .item-pairing { font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 12px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-groups-container { column-count: 1; } .menu-container { padding: 20px 16px; } }`;
     }
+
+    css += `
+        @media print {
+          .menu-container { display: block !important; min-height: auto !important; }
+          .menu-groups-container, .bev-groups-container { break-before: avoid; page-break-before: avoid; column-fill: balance; }
+          .footer { margin-top: 12px !important; break-before: avoid; page-break-before: avoid; }
+        }`;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
