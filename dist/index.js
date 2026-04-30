@@ -258,6 +258,7 @@ __export(schema_exports, {
   insertMaintenanceWorkOrderSchema: () => insertMaintenanceWorkOrderSchema,
   insertMealPeriodSchema: () => insertMealPeriodSchema,
   insertMediaLibrarySchema: () => insertMediaLibrarySchema,
+  insertMediaUsageSchema: () => insertMediaUsageSchema,
   insertMeetingNoteSchema: () => insertMeetingNoteSchema,
   insertModuleFeatureSchema: () => insertModuleFeatureSchema,
   insertMusicDayBannerSchema: () => insertMusicDayBannerSchema,
@@ -445,6 +446,7 @@ __export(schema_exports, {
   mediaSpecialEventCategoryEnum: () => mediaSpecialEventCategoryEnum,
   mediaSpecialEvents: () => mediaSpecialEvents,
   mediaSpecialEventsDayBanners: () => mediaSpecialEventsDayBanners,
+  mediaUsage: () => mediaUsage,
   meetingNotes: () => meetingNotes,
   moduleFeatures: () => moduleFeatures,
   moduleProgressEnum: () => moduleProgressEnum,
@@ -659,7 +661,7 @@ function getEasterDate(year) {
   const day = (h + l - 7 * m + 114) % 31 + 1;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
-var categoryEnum, wineColorEnum, sweetnessEnum, bodyEnum, userRoleEnum, rewardTypeEnum, redemptionStatusEnum, accountStatusEnum, customerTypeEnum, b2bUserTypeEnum, productMediaRoleEnum, beerStyleEnum, beerColorEnum, beerBitternessEnum, spiritTypeEnum, spiritAgingEnum, spiritFlavorEnum, complianceCategoryEnum, complianceRecurrenceEnum, compliancePriorityEnum, complianceStatusEnum, departmentRecurrenceEnum, departmentTaskStatusEnum, departmentTaskPriorityEnum, sessions, users, whitelistedEmails, products, guestSessions, favorites, viewHistory, cartItems, triviaQuestions, triviaAchievements, triviaAttempts, triviaScores, achievementRedemptions, cartDiscounts, appSettings, surveys, productNotes, filterOptions, slideshowImages, b2bSlideshowSlides, mediaLibrary, productMedia, videos, commercials, characteristics, productCharacteristics, tierPricing, salesReps, b2bAdmins, b2bCustomers, customerRequestStatusEnum, b2bCustomerRequests, b2bCustomerLocations, b2bCustomerManualProducts, b2bTierAgreements, b2bSessions, b2bOrders, b2bOrderItems, b2bPurchaseOrders, b2bCommissions, b2bCommissionTiers, b2bSettings, b2bRolePermissions, b2bPasswordResetTokens, b2bEmailTemplates, b2bEmailAutomationLogs, b2bSystemTemplateCustomizations, insertB2bSystemTemplateCustomizationSchema, improvementNotes, moduleStatusEnum, moduleProgressEnum, globalRoleEnum, platformModules, staffDashboardModules, platformUsers, platformUserModuleAccess, sharedLocations, sharedEquipment, sharedDocuments, platformAuditLog, passwordResetTokens, permissionLevelEnum, userGroups, groupMemberships, moduleFeatures, groupModuleAccess, groupFeaturePermissions, userPermissionOverrides, lmsCourseStatusEnum, lmsLessonTypeEnum, lmsEnrollmentStatusEnum, lmsCategories, lmsCourses, lmsLessons, lmsQuizQuestions, lmsEnrollments, lmsLessonProgress, lmsQuizAttempts, lmsCertificates, lmsLessonPages, lmsContentBlocks, lmsQuestionBanks, lmsQuestions, lmsQuizzes, lmsQuizQuestionLinks, lmsQuestionResponses, lmsBadges, lmsUserBadges, lmsCourseRatings, lmsExternalTokens, lmsExternalProgress, lmsTrainingPortalSessions, lmsStaffTrainingCodes, lmsCourseDepartments, complianceTasks, complianceTaskHistory, complianceReminders, complianceAttachments, complianceActionTokens, departments, departmentTasks, departmentTaskReminders, departmentTaskHistory, insertUserSchema, insertWhitelistedEmailSchema, insertProductSchema, updateProductSchema, insertGuestSessionSchema, insertFavoriteSchema, insertViewHistorySchema, insertCartItemSchema, insertTriviaQuestionSchema, insertTriviaAchievementSchema, insertTriviaAttemptSchema, insertTriviaScoreSchema, insertAchievementRedemptionSchema, insertCartDiscountSchema, insertAppSettingSchema, insertSurveySchema, insertProductNoteSchema, insertFilterOptionSchema, insertSlideshowImageSchema, insertB2bSlideshowSlideSchema, insertMediaLibrarySchema, insertProductMediaSchema, insertVideoSchema, insertCommercialSchema, insertCharacteristicSchema, insertProductCharacteristicSchema, insertTierPricingSchema, insertSalesRepSchema, insertB2bAdminSchema, insertB2bCustomerSchema, insertB2bCustomerRequestSchema, insertB2bCustomerLocationSchema, insertB2bCustomerManualProductSchema, insertB2bTierAgreementSchema, insertB2bOrderSchema, insertB2bOrderItemSchema, insertB2bPurchaseOrderSchema, insertB2bCommissionSchema, insertB2bCommissionTierSchema, insertB2bSettingSchema, insertB2bRolePermissionSchema, insertB2bPasswordResetTokenSchema, insertB2bEmailTemplateSchema, insertB2bEmailAutomationLogSchema, insertImprovementNoteSchema, insertPlatformModuleSchema, insertStaffDashboardModuleSchema, insertPlatformUserSchema, insertPlatformUserModuleAccessSchema, insertSharedLocationSchema, insertSharedEquipmentSchema, insertSharedDocumentSchema, insertPlatformAuditLogSchema, insertPasswordResetTokenSchema, insertUserGroupSchema, insertGroupMembershipSchema, insertModuleFeatureSchema, insertGroupModuleAccessSchema, insertGroupFeaturePermissionSchema, insertUserPermissionOverrideSchema, insertLmsCategorySchema, insertLmsCourseSchema, insertLmsLessonSchema, insertLmsQuizQuestionSchema, insertLmsEnrollmentSchema, insertLmsLessonProgressSchema, insertLmsQuizAttemptSchema, insertLmsCertificateSchema, insertLmsLessonPageSchema, insertLmsContentBlockSchema, insertLmsQuestionBankSchema, insertLmsQuestionSchema, insertLmsQuizSchema, insertLmsQuizQuestionLinkSchema, insertLmsQuestionResponseSchema, insertLmsBadgeSchema, insertLmsUserBadgeSchema, insertLmsCourseRatingSchema, insertLmsExternalTokenSchema, insertLmsExternalProgressSchema, insertLmsTrainingPortalSessionSchema, insertLmsStaffTrainingCodeSchema, insertLmsCourseDepartmentSchema, insertComplianceTaskSchema, insertComplianceTaskHistorySchema, insertComplianceReminderSchema, insertComplianceAttachmentSchema, insertDepartmentSchema, insertDepartmentTaskSchema, insertDepartmentTaskReminderSchema, insertDepartmentTaskHistorySchema, incidentSeverityEnum, procedureTypeEnum, dailyReportTemplates, dailyProcedureTemplates, dailyReports, dailyReportIncidents, dailyReportIncidentNotes, dailyProcedureCompletions, dailyReportEmailRecipients, insertDailyReportTemplateSchema, insertDailyProcedureTemplateSchema, insertDailyReportSchema, insertDailyReportIncidentSchema, insertDailyProcedureCompletionSchema, insertDailyReportIncidentNoteSchema, insertDailyReportEmailRecipientSchema, dailyReportAccessCodes, insertDailyReportAccessCodeSchema, dailyReportFieldTypeEnum, dailyReportFieldDefinitions, insertDailyReportFieldDefinitionSchema, departmentFieldAssignments, insertDepartmentFieldAssignmentSchema, dailyReportRevisionRequests, insertDailyReportRevisionRequestSchema, resyUsers, insertResyUserSchema, resySessions, resyLocations, insertResyLocationSchema, resyExperiences, insertResyExperienceSchema, resyClubs, insertResyClubSchema, resyCustomers, insertResyCustomerSchema, updateResyCustomerSchema, resyReservations, insertResyReservationSchema, resyTimeSlots, insertResyTimeSlotSchema, resyWaitlist, insertResyWaitlistSchema, resyCustomerVisits, insertResyCustomerVisitSchema, resyMealPeriods, insertResyMealPeriodSchema, resyOperatingHours, insertResyOperatingHoursSchema, resySpecialDates, insertResySpecialDateSchema, resyLocationHolidays, insertResyLocationHolidaySchema, RECURRING_HOLIDAYS, resyLocationTables, insertResyLocationTableSchema, resyFlowControls, insertResyFlowControlSchema, resyTurnTimeSettings, insertResyTurnTimeSettingSchema, resyExperienceDiscounts, insertResyExperienceDiscountSchema, resyClubExperienceDiscounts, insertResyClubExperienceDiscountSchema, resyPrivateEvents, insertResyPrivateEventSchema, resyEventStaffCodes, insertResyEventStaffCodeSchema, resyTicketedEventDefinitions, insertResyTicketedEventDefinitionSchema, resyTicketedEventTimeslots, insertResyTicketedEventTimeslotSchema, resySiteSettings, insertResySiteSettingSchema, resyFooterLinks, insertResyFooterLinkSchema, platformFutureConcepts, insertPlatformFutureConceptSchema, platformCompanyInfo, insertPlatformCompanyInfoSchema, lmsVerificationStatusEnum, lmsSkillVerifications, insertLmsSkillVerificationSchema, workOrderPriorityEnum, workOrderStatusEnum, workOrderTypeEnum, maintenanceFrequencyEnum, maintenanceAssetCategories, insertMaintenanceAssetCategorySchema, maintenanceLocations, insertMaintenanceLocationSchema, maintenanceAssets, insertMaintenanceAssetSchema, maintenanceTechnicians, insertMaintenanceTechnicianSchema, maintenanceWorkOrders, insertMaintenanceWorkOrderSchema, maintenanceWorkOrderNotes, insertMaintenanceWorkOrderNoteSchema, maintenanceWorkOrderComments, insertMaintenanceWorkOrderCommentSchema, maintenancePreventiveSchedules, insertMaintenancePreventiveScheduleSchema, maintenanceParts, insertMaintenancePartSchema, maintenancePartsUsage, insertMaintenancePartsUsageSchema, maintenanceAssetParts, insertMaintenanceAssetPartSchema, maintenanceMeters, insertMaintenanceMeterSchema, maintenanceMeterReadings, insertMaintenanceMeterReadingSchema, procedureResponseTypeEnum, procedureDayOfWeekType, proceduresTemplates, insertProceduresTemplateSchema, proceduresItems, insertProceduresItemSchema, proceduresUsers, insertProceduresUserSchema, proceduresSubmissions, insertProceduresSubmissionSchema, proceduresStaff, insertProceduresStaffSchema, spotInventoryLocations, insertSpotInventoryLocationSchema, spotInventoryAreas, insertSpotInventoryAreaSchema, spotInventorySessions, insertSpotInventorySessionSchema, spotInventoryCounts, insertSpotInventoryCountSchema, supportRequests, insertSupportRequestSchema, supportMessages, insertSupportMessageSchema, supportAttachments, insertSupportAttachmentSchema, supportCannedResponses, insertSupportCannedResponseSchema, supportWebSources, insertSupportWebSourceSchema, supportSettings, insertSupportSettingSchema, supportCategories, insertSupportCategorySchema, supportArticles, insertSupportArticleSchema, supportTags, insertSupportTagSchema, supportArticleTags, socialChannels, insertSocialChannelSchema, socialReviews, insertSocialReviewSchema, supportAgents, insertSupportAgentSchema, supportAgentCategories, insertSupportAgentCategorySchema, supportAgentAccessTokens, socialReviewResponses, insertSocialReviewResponseSchema, insertLocationSchema, insertExperienceSchema, insertReservationSchema, insertCustomerSchema, insertClubSchema, insertTimeSlotSchema, insertWaitlistSchema, insertCustomerVisitSchema, insertMealPeriodSchema, insertOperatingHoursSchema, insertSpecialDateSchema, insertLocationTableSchema, insertFlowControlSchema, insertTurnTimeSettingsSchema, insertExperienceDiscountSchema, insertClubExperienceDiscountSchema, insertPrivateEventSchema, insertTicketedEventDefinitionSchema, insertTicketedEventTimeslotSchema, insertSiteSettingSchema, insertFooterLinkSchema, updateCustomerSchema, rccTaskStatusEnum, rccCampaignStatusEnum, rccTeams, insertRccTeamSchema, rccWeeks, insertRccWeekSchema, rccTasks, insertRccTaskSchema, rccCampaigns, insertRccCampaignSchema, rccRevenue, insertRccRevenueSchema, rccLearnings, insertRccLearningSchema, rccAiRecommendations, insertRccAiRecommendationSchema, rccToastHistoricalRevenue, insertRccToastHistoricalRevenueSchema, rccDailyRevenue, insertRccDailyRevenueSchema, rccRevenueCenters, rccSalesCategories, rccDailyRevenueByCenter, insertRccDailyRevenueByCenterSchema, rccDailyRevenueByCategory, insertRccDailyRevenueByCategorySchema, rccDailyItemSales, insertRccDailyItemSalesSchema, toastVoidDiscountDetails, insertToastVoidDiscountDetailSchema, toastVoidExplanations, insertToastVoidExplanationSchema, abccProductClassification, insertAbccProductClassificationSchema, shopifyProductCache, toastGuests, rccSyncLog, insertToastGuestSchema, customerIdentities, insertCustomerIdentitySchema, customerIdentityLinks, insertCustomerIdentityLinkSchema, boomerangRfmScores, insertBoomerangRfmScoreSchema, boomerangLoyaltyTiers, insertBoomerangLoyaltyTierSchema, boomerangLoyaltyAccounts, insertBoomerangLoyaltyAccountSchema, boomerangPointsLedger, insertBoomerangPointsLedgerSchema, boomerangCampaigns, insertBoomerangCampaignSchema, boomerangOffers, insertBoomerangOfferSchema, boomerangRedemptions, insertBoomerangRedemptionSchema, boomerangAutomationRules, insertBoomerangAutomationRuleSchema, boomerangAutomationExecutions, insertBoomerangAutomationExecutionSchema, boomerangReferralCodes, insertBoomerangReferralCodeSchema, boomerangReferrals, insertBoomerangReferralSchema, targetingCampaigns, insertTargetingCampaignSchema, targetingListMembers, insertTargetingListMemberSchema, offerPerformance, insertOfferPerformanceSchema, smsCampaigns, insertSmsCampaignSchema, smsMessages, insertSmsMessageSchema, contractStatusEnum, contractCategoryEnum, contracts, insertContractSchema, contractDocuments, insertContractDocumentSchema, contractResponsibles, insertContractResponsibleSchema, toastMenus, insertToastMenuSchema, toastMenuGroups, insertToastMenuGroupSchema, toastMenuItems, insertToastMenuItemSchema, ccContentTypeEnum, ccContentStatusEnum, ccCalendarChannelEnum, ccCalendarStatusEnum, ccCampaignGoalEnum, ccCampaignStatusEnum, ccPromoTypeEnum, ccContentAssets, insertCcContentAssetSchema, ccContentCalendar, insertCcContentCalendarSchema, ccCampaignBuilder, insertCcCampaignBuilderSchema, ccMarketingScorecards, insertCcMarketingScorecardSchema, ccQuickPromotions, insertCcQuickPromotionSchema, enhancementRequests, insertEnhancementRequestSchema, ttbWineClassEnum, ttbSpiritsClassEnum, ttbBeerClassEnum, maAb1ClassEnum, ttbReportingUomEnum, cellartraksProductClassifications, insertCellartraksProductClassificationSchema, cellartraksFederalTaxRates, insertCellartraksFederalTaxRateSchema, cellartraksStateTaxClasses, insertCellartraksStateTaxClassSchema, nashobatvChannels, nashobatvSlideTypeEnum, nashobatvSlides, nashobatvEvents, nashobatvAnnouncements, nashobatvPhotos, nashobatvDisplaySettings, nashobatvHistoricalFacts, nashobatvDailySpecials, insertNashobatvChannelSchema, insertNashobatvSlideSchema, insertNashobatvEventSchema, insertNashobatvAnnouncementSchema, insertNashobatvPhotoSchema, insertNashobatvDisplaySettingSchema, insertNashobatvDailySpecialSchema, insertNashobatvHistoricalFactSchema, qbConnection, qbCustomerMap, qbItemMap, qbSyncLog, qbInvoiceMap, qbPaymentMap, qbDescriptionMap, toastProductMap, shopifyProductMap, insertToastProductMapSchema, insertShopifyProductMapSchema, meetingNotes, insertMeetingNoteSchema, mediaMusicians, mediaMusicEvents, mediaMusicianSubmissionStatusEnum, mediaMusicianSubmissions, mediaSpecialEventCategoryEnum, mediaSpecialEvents, insertMusicianSchema, insertMusicEventSchema, insertMusicianSubmissionSchema, insertSpecialEventSchema, mediaFoodTrucks, mediaFoodTruckEvents, mediaFoodTruckDayBanners, mediaFoodTruckSubmissionStatusEnum, mediaFoodTruckSubmissions, insertFoodTruckSchema, insertFoodTruckEventSchema, insertFoodTruckDayBannerSchema, mediaMusicDayBanners, insertMusicDayBannerSchema, mediaSpecialEventsDayBanners, insertSpecialEventsDayBannerSchema, insertFoodTruckSubmissionSchema, mediaFoodTruckReviews, insertFoodTruckReviewSchema, staffPrintMenus, insertStaffPrintMenuSchema, toastMenuEmbedConfigs, insertToastMenuEmbedConfigSchema, flightCardConfigs, insertFlightCardConfigSchema, emailDeliveryLogs, insertEmailDeliveryLogSchema;
+var categoryEnum, wineColorEnum, sweetnessEnum, bodyEnum, userRoleEnum, rewardTypeEnum, redemptionStatusEnum, accountStatusEnum, customerTypeEnum, b2bUserTypeEnum, productMediaRoleEnum, beerStyleEnum, beerColorEnum, beerBitternessEnum, spiritTypeEnum, spiritAgingEnum, spiritFlavorEnum, complianceCategoryEnum, complianceRecurrenceEnum, compliancePriorityEnum, complianceStatusEnum, departmentRecurrenceEnum, departmentTaskStatusEnum, departmentTaskPriorityEnum, sessions, users, whitelistedEmails, products, guestSessions, favorites, viewHistory, cartItems, triviaQuestions, triviaAchievements, triviaAttempts, triviaScores, achievementRedemptions, cartDiscounts, appSettings, surveys, productNotes, filterOptions, slideshowImages, b2bSlideshowSlides, mediaLibrary, mediaUsage, productMedia, videos, commercials, characteristics, productCharacteristics, tierPricing, salesReps, b2bAdmins, b2bCustomers, customerRequestStatusEnum, b2bCustomerRequests, b2bCustomerLocations, b2bCustomerManualProducts, b2bTierAgreements, b2bSessions, b2bOrders, b2bOrderItems, b2bPurchaseOrders, b2bCommissions, b2bCommissionTiers, b2bSettings, b2bRolePermissions, b2bPasswordResetTokens, b2bEmailTemplates, b2bEmailAutomationLogs, b2bSystemTemplateCustomizations, insertB2bSystemTemplateCustomizationSchema, improvementNotes, moduleStatusEnum, moduleProgressEnum, globalRoleEnum, platformModules, staffDashboardModules, platformUsers, platformUserModuleAccess, sharedLocations, sharedEquipment, sharedDocuments, platformAuditLog, passwordResetTokens, permissionLevelEnum, userGroups, groupMemberships, moduleFeatures, groupModuleAccess, groupFeaturePermissions, userPermissionOverrides, lmsCourseStatusEnum, lmsLessonTypeEnum, lmsEnrollmentStatusEnum, lmsCategories, lmsCourses, lmsLessons, lmsQuizQuestions, lmsEnrollments, lmsLessonProgress, lmsQuizAttempts, lmsCertificates, lmsLessonPages, lmsContentBlocks, lmsQuestionBanks, lmsQuestions, lmsQuizzes, lmsQuizQuestionLinks, lmsQuestionResponses, lmsBadges, lmsUserBadges, lmsCourseRatings, lmsExternalTokens, lmsExternalProgress, lmsTrainingPortalSessions, lmsStaffTrainingCodes, lmsCourseDepartments, complianceTasks, complianceTaskHistory, complianceReminders, complianceAttachments, complianceActionTokens, departments, departmentTasks, departmentTaskReminders, departmentTaskHistory, insertUserSchema, insertWhitelistedEmailSchema, insertProductSchema, updateProductSchema, insertGuestSessionSchema, insertFavoriteSchema, insertViewHistorySchema, insertCartItemSchema, insertTriviaQuestionSchema, insertTriviaAchievementSchema, insertTriviaAttemptSchema, insertTriviaScoreSchema, insertAchievementRedemptionSchema, insertCartDiscountSchema, insertAppSettingSchema, insertSurveySchema, insertProductNoteSchema, insertFilterOptionSchema, insertSlideshowImageSchema, insertB2bSlideshowSlideSchema, insertMediaLibrarySchema, insertMediaUsageSchema, insertProductMediaSchema, insertVideoSchema, insertCommercialSchema, insertCharacteristicSchema, insertProductCharacteristicSchema, insertTierPricingSchema, insertSalesRepSchema, insertB2bAdminSchema, insertB2bCustomerSchema, insertB2bCustomerRequestSchema, insertB2bCustomerLocationSchema, insertB2bCustomerManualProductSchema, insertB2bTierAgreementSchema, insertB2bOrderSchema, insertB2bOrderItemSchema, insertB2bPurchaseOrderSchema, insertB2bCommissionSchema, insertB2bCommissionTierSchema, insertB2bSettingSchema, insertB2bRolePermissionSchema, insertB2bPasswordResetTokenSchema, insertB2bEmailTemplateSchema, insertB2bEmailAutomationLogSchema, insertImprovementNoteSchema, insertPlatformModuleSchema, insertStaffDashboardModuleSchema, insertPlatformUserSchema, insertPlatformUserModuleAccessSchema, insertSharedLocationSchema, insertSharedEquipmentSchema, insertSharedDocumentSchema, insertPlatformAuditLogSchema, insertPasswordResetTokenSchema, insertUserGroupSchema, insertGroupMembershipSchema, insertModuleFeatureSchema, insertGroupModuleAccessSchema, insertGroupFeaturePermissionSchema, insertUserPermissionOverrideSchema, insertLmsCategorySchema, insertLmsCourseSchema, insertLmsLessonSchema, insertLmsQuizQuestionSchema, insertLmsEnrollmentSchema, insertLmsLessonProgressSchema, insertLmsQuizAttemptSchema, insertLmsCertificateSchema, insertLmsLessonPageSchema, insertLmsContentBlockSchema, insertLmsQuestionBankSchema, insertLmsQuestionSchema, insertLmsQuizSchema, insertLmsQuizQuestionLinkSchema, insertLmsQuestionResponseSchema, insertLmsBadgeSchema, insertLmsUserBadgeSchema, insertLmsCourseRatingSchema, insertLmsExternalTokenSchema, insertLmsExternalProgressSchema, insertLmsTrainingPortalSessionSchema, insertLmsStaffTrainingCodeSchema, insertLmsCourseDepartmentSchema, insertComplianceTaskSchema, insertComplianceTaskHistorySchema, insertComplianceReminderSchema, insertComplianceAttachmentSchema, insertDepartmentSchema, insertDepartmentTaskSchema, insertDepartmentTaskReminderSchema, insertDepartmentTaskHistorySchema, incidentSeverityEnum, procedureTypeEnum, dailyReportTemplates, dailyProcedureTemplates, dailyReports, dailyReportIncidents, dailyReportIncidentNotes, dailyProcedureCompletions, dailyReportEmailRecipients, insertDailyReportTemplateSchema, insertDailyProcedureTemplateSchema, insertDailyReportSchema, insertDailyReportIncidentSchema, insertDailyProcedureCompletionSchema, insertDailyReportIncidentNoteSchema, insertDailyReportEmailRecipientSchema, dailyReportAccessCodes, insertDailyReportAccessCodeSchema, dailyReportFieldTypeEnum, dailyReportFieldDefinitions, insertDailyReportFieldDefinitionSchema, departmentFieldAssignments, insertDepartmentFieldAssignmentSchema, dailyReportRevisionRequests, insertDailyReportRevisionRequestSchema, resyUsers, insertResyUserSchema, resySessions, resyLocations, insertResyLocationSchema, resyExperiences, insertResyExperienceSchema, resyClubs, insertResyClubSchema, resyCustomers, insertResyCustomerSchema, updateResyCustomerSchema, resyReservations, insertResyReservationSchema, resyTimeSlots, insertResyTimeSlotSchema, resyWaitlist, insertResyWaitlistSchema, resyCustomerVisits, insertResyCustomerVisitSchema, resyMealPeriods, insertResyMealPeriodSchema, resyOperatingHours, insertResyOperatingHoursSchema, resySpecialDates, insertResySpecialDateSchema, resyLocationHolidays, insertResyLocationHolidaySchema, RECURRING_HOLIDAYS, resyLocationTables, insertResyLocationTableSchema, resyFlowControls, insertResyFlowControlSchema, resyTurnTimeSettings, insertResyTurnTimeSettingSchema, resyExperienceDiscounts, insertResyExperienceDiscountSchema, resyClubExperienceDiscounts, insertResyClubExperienceDiscountSchema, resyPrivateEvents, insertResyPrivateEventSchema, resyEventStaffCodes, insertResyEventStaffCodeSchema, resyTicketedEventDefinitions, insertResyTicketedEventDefinitionSchema, resyTicketedEventTimeslots, insertResyTicketedEventTimeslotSchema, resySiteSettings, insertResySiteSettingSchema, resyFooterLinks, insertResyFooterLinkSchema, platformFutureConcepts, insertPlatformFutureConceptSchema, platformCompanyInfo, insertPlatformCompanyInfoSchema, lmsVerificationStatusEnum, lmsSkillVerifications, insertLmsSkillVerificationSchema, workOrderPriorityEnum, workOrderStatusEnum, workOrderTypeEnum, maintenanceFrequencyEnum, maintenanceAssetCategories, insertMaintenanceAssetCategorySchema, maintenanceLocations, insertMaintenanceLocationSchema, maintenanceAssets, insertMaintenanceAssetSchema, maintenanceTechnicians, insertMaintenanceTechnicianSchema, maintenanceWorkOrders, insertMaintenanceWorkOrderSchema, maintenanceWorkOrderNotes, insertMaintenanceWorkOrderNoteSchema, maintenanceWorkOrderComments, insertMaintenanceWorkOrderCommentSchema, maintenancePreventiveSchedules, insertMaintenancePreventiveScheduleSchema, maintenanceParts, insertMaintenancePartSchema, maintenancePartsUsage, insertMaintenancePartsUsageSchema, maintenanceAssetParts, insertMaintenanceAssetPartSchema, maintenanceMeters, insertMaintenanceMeterSchema, maintenanceMeterReadings, insertMaintenanceMeterReadingSchema, procedureResponseTypeEnum, procedureDayOfWeekType, proceduresTemplates, insertProceduresTemplateSchema, proceduresItems, insertProceduresItemSchema, proceduresUsers, insertProceduresUserSchema, proceduresSubmissions, insertProceduresSubmissionSchema, proceduresStaff, insertProceduresStaffSchema, spotInventoryLocations, insertSpotInventoryLocationSchema, spotInventoryAreas, insertSpotInventoryAreaSchema, spotInventorySessions, insertSpotInventorySessionSchema, spotInventoryCounts, insertSpotInventoryCountSchema, supportRequests, insertSupportRequestSchema, supportMessages, insertSupportMessageSchema, supportAttachments, insertSupportAttachmentSchema, supportCannedResponses, insertSupportCannedResponseSchema, supportWebSources, insertSupportWebSourceSchema, supportSettings, insertSupportSettingSchema, supportCategories, insertSupportCategorySchema, supportArticles, insertSupportArticleSchema, supportTags, insertSupportTagSchema, supportArticleTags, socialChannels, insertSocialChannelSchema, socialReviews, insertSocialReviewSchema, supportAgents, insertSupportAgentSchema, supportAgentCategories, insertSupportAgentCategorySchema, supportAgentAccessTokens, socialReviewResponses, insertSocialReviewResponseSchema, insertLocationSchema, insertExperienceSchema, insertReservationSchema, insertCustomerSchema, insertClubSchema, insertTimeSlotSchema, insertWaitlistSchema, insertCustomerVisitSchema, insertMealPeriodSchema, insertOperatingHoursSchema, insertSpecialDateSchema, insertLocationTableSchema, insertFlowControlSchema, insertTurnTimeSettingsSchema, insertExperienceDiscountSchema, insertClubExperienceDiscountSchema, insertPrivateEventSchema, insertTicketedEventDefinitionSchema, insertTicketedEventTimeslotSchema, insertSiteSettingSchema, insertFooterLinkSchema, updateCustomerSchema, rccTaskStatusEnum, rccCampaignStatusEnum, rccTeams, insertRccTeamSchema, rccWeeks, insertRccWeekSchema, rccTasks, insertRccTaskSchema, rccCampaigns, insertRccCampaignSchema, rccRevenue, insertRccRevenueSchema, rccLearnings, insertRccLearningSchema, rccAiRecommendations, insertRccAiRecommendationSchema, rccToastHistoricalRevenue, insertRccToastHistoricalRevenueSchema, rccDailyRevenue, insertRccDailyRevenueSchema, rccRevenueCenters, rccSalesCategories, rccDailyRevenueByCenter, insertRccDailyRevenueByCenterSchema, rccDailyRevenueByCategory, insertRccDailyRevenueByCategorySchema, rccDailyItemSales, insertRccDailyItemSalesSchema, toastVoidDiscountDetails, insertToastVoidDiscountDetailSchema, toastVoidExplanations, insertToastVoidExplanationSchema, abccProductClassification, insertAbccProductClassificationSchema, shopifyProductCache, toastGuests, rccSyncLog, insertToastGuestSchema, customerIdentities, insertCustomerIdentitySchema, customerIdentityLinks, insertCustomerIdentityLinkSchema, boomerangRfmScores, insertBoomerangRfmScoreSchema, boomerangLoyaltyTiers, insertBoomerangLoyaltyTierSchema, boomerangLoyaltyAccounts, insertBoomerangLoyaltyAccountSchema, boomerangPointsLedger, insertBoomerangPointsLedgerSchema, boomerangCampaigns, insertBoomerangCampaignSchema, boomerangOffers, insertBoomerangOfferSchema, boomerangRedemptions, insertBoomerangRedemptionSchema, boomerangAutomationRules, insertBoomerangAutomationRuleSchema, boomerangAutomationExecutions, insertBoomerangAutomationExecutionSchema, boomerangReferralCodes, insertBoomerangReferralCodeSchema, boomerangReferrals, insertBoomerangReferralSchema, targetingCampaigns, insertTargetingCampaignSchema, targetingListMembers, insertTargetingListMemberSchema, offerPerformance, insertOfferPerformanceSchema, smsCampaigns, insertSmsCampaignSchema, smsMessages, insertSmsMessageSchema, contractStatusEnum, contractCategoryEnum, contracts, insertContractSchema, contractDocuments, insertContractDocumentSchema, contractResponsibles, insertContractResponsibleSchema, toastMenus, insertToastMenuSchema, toastMenuGroups, insertToastMenuGroupSchema, toastMenuItems, insertToastMenuItemSchema, ccContentTypeEnum, ccContentStatusEnum, ccCalendarChannelEnum, ccCalendarStatusEnum, ccCampaignGoalEnum, ccCampaignStatusEnum, ccPromoTypeEnum, ccContentAssets, insertCcContentAssetSchema, ccContentCalendar, insertCcContentCalendarSchema, ccCampaignBuilder, insertCcCampaignBuilderSchema, ccMarketingScorecards, insertCcMarketingScorecardSchema, ccQuickPromotions, insertCcQuickPromotionSchema, enhancementRequests, insertEnhancementRequestSchema, ttbWineClassEnum, ttbSpiritsClassEnum, ttbBeerClassEnum, maAb1ClassEnum, ttbReportingUomEnum, cellartraksProductClassifications, insertCellartraksProductClassificationSchema, cellartraksFederalTaxRates, insertCellartraksFederalTaxRateSchema, cellartraksStateTaxClasses, insertCellartraksStateTaxClassSchema, nashobatvChannels, nashobatvSlideTypeEnum, nashobatvSlides, nashobatvEvents, nashobatvAnnouncements, nashobatvPhotos, nashobatvDisplaySettings, nashobatvHistoricalFacts, nashobatvDailySpecials, insertNashobatvChannelSchema, insertNashobatvSlideSchema, insertNashobatvEventSchema, insertNashobatvAnnouncementSchema, insertNashobatvPhotoSchema, insertNashobatvDisplaySettingSchema, insertNashobatvDailySpecialSchema, insertNashobatvHistoricalFactSchema, qbConnection, qbCustomerMap, qbItemMap, qbSyncLog, qbInvoiceMap, qbPaymentMap, qbDescriptionMap, toastProductMap, shopifyProductMap, insertToastProductMapSchema, insertShopifyProductMapSchema, meetingNotes, insertMeetingNoteSchema, mediaMusicians, mediaMusicEvents, mediaMusicianSubmissionStatusEnum, mediaMusicianSubmissions, mediaSpecialEventCategoryEnum, mediaSpecialEvents, insertMusicianSchema, insertMusicEventSchema, insertMusicianSubmissionSchema, insertSpecialEventSchema, mediaFoodTrucks, mediaFoodTruckEvents, mediaFoodTruckDayBanners, mediaFoodTruckSubmissionStatusEnum, mediaFoodTruckSubmissions, insertFoodTruckSchema, insertFoodTruckEventSchema, insertFoodTruckDayBannerSchema, mediaMusicDayBanners, insertMusicDayBannerSchema, mediaSpecialEventsDayBanners, insertSpecialEventsDayBannerSchema, insertFoodTruckSubmissionSchema, mediaFoodTruckReviews, insertFoodTruckReviewSchema, staffPrintMenus, insertStaffPrintMenuSchema, toastMenuEmbedConfigs, insertToastMenuEmbedConfigSchema, flightCardConfigs, insertFlightCardConfigSchema, emailDeliveryLogs, insertEmailDeliveryLogSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -985,6 +987,20 @@ var init_schema = __esm({
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
     });
+    mediaUsage = pgTable("media_usage", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      mediaId: varchar("media_id").notNull().references(() => mediaLibrary.id, { onDelete: "cascade" }),
+      moduleKey: varchar("module_key").notNull(),
+      entityType: varchar("entity_type").notNull(),
+      entityId: varchar("entity_id").notNull(),
+      fieldName: varchar("field_name").notNull(),
+      notes: text("notes"),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    }, (table) => [
+      index("idx_media_usage_media_id").on(table.mediaId),
+      index("idx_media_usage_module").on(table.moduleKey),
+      index("idx_media_usage_entity").on(table.entityType, table.entityId)
+    ]);
     productMedia = pgTable("product_media", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
@@ -2325,6 +2341,7 @@ var init_schema = __esm({
     insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
     insertB2bSlideshowSlideSchema = createInsertSchema(b2bSlideshowSlides).omit({ id: true, createdAt: true, updatedAt: true });
     insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({ id: true, createdAt: true, updatedAt: true });
+    insertMediaUsageSchema = createInsertSchema(mediaUsage).omit({ id: true, createdAt: true });
     insertProductMediaSchema = createInsertSchema(productMedia).omit({ id: true, createdAt: true, updatedAt: true });
     insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });
     insertCommercialSchema = createInsertSchema(commercials).omit({ id: true, createdAt: true, updatedAt: true });
@@ -5734,6 +5751,7 @@ var init_schema = __esm({
       pages: integer("pages").default(0),
       pageBreaks: text("page_breaks"),
       printAdditionalMenuGuids: text("print_additional_menu_guids"),
+      customPrintLines: text("custom_print_lines"),
       customTitle: text("custom_title"),
       showOnStaffBoard: boolean("show_on_staff_board").default(false),
       createdAt: timestamp("created_at").defaultNow(),
@@ -5748,6 +5766,8 @@ var init_schema = __esm({
       productIds: text("product_ids").notNull().default(""),
       template: varchar("template", { length: 50 }).default("classic"),
       paperSize: varchar("paper_size", { length: 20 }).default("a6"),
+      /** print: portrait (tall) vs landscape (wide) — swap @page width/height */
+      printOrientation: varchar("print_orientation", { length: 20 }).default("portrait"),
       showPrice: boolean("show_price").default(true),
       showDescription: boolean("show_description").default(true),
       showVintage: boolean("show_vintage").default(true),
@@ -5756,6 +5776,8 @@ var init_schema = __esm({
       showTastingLines: boolean("show_tasting_lines").default(false),
       fontScale: integer("font_scale").default(100),
       showOnStaffBoard: boolean("show_on_staff_board").default(false),
+      /** Per-product print overrides, JSON: { [productId]: { description?: string } } */
+      itemOverrides: text("item_overrides").default("{}"),
       createdAt: timestamp("created_at").defaultNow(),
       updatedAt: timestamp("updated_at").defaultNow()
     });
@@ -5791,12 +5813,14 @@ __export(db_exports, {
 });
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
+import { config } from "dotenv";
 import ws from "ws";
 var rawUrl, databaseUrl, pool, db;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
+    config();
     neonConfig.webSocketConstructor = ws;
     if (!process.env.DATABASE_URL) {
       throw new Error(
@@ -6710,55 +6734,20 @@ function isShopifyAvailable() {
   }
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-  const clientId = process.env.SHOPIFY_CLIENT_ID;
-  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  return !!(storeDomain && (accessToken || clientId && clientSecret));
+  return !!(storeDomain && accessToken);
 }
 async function getShopifyToken() {
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
-  const directToken = process.env.SHOPIFY_ACCESS_TOKEN;
+  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
   if (!storeDomain) {
     throw new ShopifyNotInstalledError("SHOPIFY_STORE_DOMAIN not configured");
   }
-  if (directToken) {
-    return directToken;
+  if (!accessToken) {
+    throw new ShopifyNotInstalledError(
+      "SHOPIFY_ACCESS_TOKEN not configured. Set a Shopify Admin API access token for this environment."
+    );
   }
-  const clientId = process.env.SHOPIFY_CLIENT_ID;
-  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new ShopifyNotInstalledError("Shopify API credentials not configured (SHOPIFY_ACCESS_TOKEN or SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET required)");
-  }
-  if (cachedToken2 && Date.now() < cachedToken2.expiresAt - 6e4) {
-    return cachedToken2.accessToken;
-  }
-  const response = await fetch(`https://${storeDomain}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Accept": "application/json"
-    },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: "client_credentials"
-    })
-  });
-  if (!response.ok) {
-    const text2 = await response.text();
-    if (text2.includes("app_not_installed")) {
-      shopifyUnavailableUntil = Date.now() + 60 * 60 * 1e3;
-      cachedToken2 = null;
-      throw new ShopifyNotInstalledError("Shopify app is not installed on this shop. Please install the app in your Shopify admin first.");
-    }
-    throw new Error(`Shopify auth failed (${response.status}): ${text2}`);
-  }
-  const data = await response.json();
-  cachedToken2 = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + 23 * 60 * 60 * 1e3
-  };
-  console.log("[Shopify API] Authentication successful, token cached");
-  return cachedToken2.accessToken;
+  return accessToken;
 }
 async function shopifyApiRequest(path4, params) {
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
@@ -7052,13 +7041,12 @@ async function getShopifyOrderCount(dateStr) {
   const result = await shopifyApiRequest("/orders/count.json", params);
   return result.count || 0;
 }
-var SHOPIFY_API_VERSION, cachedToken2, ShopifyNotInstalledError, shopifyUnavailableUntil, SHOPIFY_CATEGORY_RULES;
+var SHOPIFY_API_VERSION, ShopifyNotInstalledError, shopifyUnavailableUntil, SHOPIFY_CATEGORY_RULES;
 var init_shopify_api = __esm({
   "server/shopify/shopify-api.ts"() {
     "use strict";
     init_db();
-    SHOPIFY_API_VERSION = "2026-01";
-    cachedToken2 = null;
+    SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || "2025-10";
     ShopifyNotInstalledError = class extends Error {
       constructor(message) {
         super(message);
@@ -8412,6 +8400,12 @@ var init_storage = __esm({
       async getB2bAdminByEmail(email) {
         const [admin] = await db.select().from(b2bAdmins).where(eq5(b2bAdmins.email, email));
         return admin;
+      }
+      async getB2bAdminByEmailNormalized(email) {
+        const normalized = email?.trim();
+        if (!normalized) return void 0;
+        const result = await db.select().from(b2bAdmins).where(buildLowerTrimEquals(b2bAdmins.email, normalized));
+        return result[0];
       }
       async createB2bAdmin(data) {
         const [admin] = await db.insert(b2bAdmins).values(data).returning();
@@ -12178,16 +12172,16 @@ async function signObjectURL({
   const { signed_url: signedURL } = await response.json();
   return signedURL;
 }
-var REPLIT_SIDECAR_ENDPOINT, isDevelopment, objectStorageClient, ObjectNotFoundError, ObjectStorageService;
+var REPLIT_SIDECAR_ENDPOINT, isReplitDevWithSidecar, objectStorageClient, ObjectNotFoundError, ObjectStorageService;
 var init_objectStorage = __esm({
   "server/objectStorage.ts"() {
     "use strict";
     init_objectAcl();
     REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
-    isDevelopment = process.env.NODE_ENV === "development" || !process.env.REPL_DEPLOYMENT_ID;
+    isReplitDevWithSidecar = !process.env.GOOGLE_APPLICATION_CREDENTIALS && Boolean(process.env.REPL_ID) && (process.env.NODE_ENV === "development" || !process.env.REPL_DEPLOYMENT_ID);
     objectStorageClient = new Storage(
-      isDevelopment ? {
-        // Development: use Replit sidecar for authentication
+      isReplitDevWithSidecar ? {
+        // Replit workspace: use Replit sidecar for authentication
         credentials: {
           audience: "replit",
           subject_token_type: "access_token",
@@ -12204,7 +12198,7 @@ var init_objectStorage = __esm({
         },
         projectId: ""
       } : void 0
-      // Production: use Application Default Credentials (metadata server)
+      // GOOGLE_APPLICATION_CREDENTIALS, Replit production ADC, or GCP metadata
     );
     ObjectNotFoundError = class _ObjectNotFoundError extends Error {
       constructor() {
@@ -18064,10 +18058,10 @@ function toCamelCase(str) {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 function exportTableToSheet(tableId, records, lookups) {
-  const config = getTableConfig(tableId);
-  if (!config || config.excludeFromSync) return null;
+  const config3 = getTableConfig(tableId);
+  if (!config3 || config3.excludeFromSync) return null;
   const adapter = TABLE_ADAPTERS[tableId];
-  const exportFields = config.exportFields;
+  const exportFields = config3.exportFields;
   const data = records.map((record) => {
     let processedRecord = adapter?.toExportRow ? adapter.toExportRow(record, lookups) : record;
     const row = {};
@@ -18087,11 +18081,11 @@ function exportTableToSheet(tableId, records, lookups) {
     }
     return row;
   });
-  return { sheetName: config.sheetName, data };
+  return { sheetName: config3.sheetName, data };
 }
 function importSheetToRecords(tableId, rows) {
-  const config = getTableConfig(tableId);
-  if (!config || config.excludeFromSync) {
+  const config3 = getTableConfig(tableId);
+  if (!config3 || config3.excludeFromSync) {
     return { records: [], errors: [`Table ${tableId} not found in registry or excluded from sync`] };
   }
   const adapter = TABLE_ADAPTERS[tableId];
@@ -18124,19 +18118,19 @@ function importSheetToRecords(tableId, rows) {
           record[camelKey] = processedValue;
         }
       }
-      if (config.schema) {
-        const result = config.schema.safeParse(record);
+      if (config3.schema) {
+        const result = config3.schema.safeParse(record);
         if (result.success) {
           records.push(result.data);
         } else {
           const fieldErrors = result.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; ");
-          errors.push(`${config.sheetName} Row ${rowNum}: ${fieldErrors}`);
+          errors.push(`${config3.sheetName} Row ${rowNum}: ${fieldErrors}`);
         }
       } else {
         records.push(record);
       }
     } catch (error) {
-      errors.push(`${config.sheetName} Row ${rowNum}: ${error instanceof Error ? error.message : "Unknown error"}`);
+      errors.push(`${config3.sheetName} Row ${rowNum}: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   });
   return { records, errors };
@@ -18144,12 +18138,12 @@ function importSheetToRecords(tableId, rows) {
 function exportModulesToWorkbook(modules, dataByTable, lookups) {
   const workbook = XLSX.utils.book_new();
   const orderedTables = getTablesByDependencyOrder();
-  for (const config of orderedTables) {
-    if (!modules.includes(config.module)) continue;
-    if (config.excludeFromSync) continue;
-    const tableData = dataByTable[config.id];
+  for (const config3 of orderedTables) {
+    if (!modules.includes(config3.module)) continue;
+    if (config3.excludeFromSync) continue;
+    const tableData = dataByTable[config3.id];
     if (!tableData || tableData.length === 0) continue;
-    const result = exportTableToSheet(config.id, tableData, lookups);
+    const result = exportTableToSheet(config3.id, tableData, lookups);
     if (result && result.data.length > 0) {
       const sheet = XLSX.utils.json_to_sheet(result.data);
       XLSX.utils.book_append_sheet(workbook, sheet, result.sheetName);
@@ -18163,16 +18157,16 @@ function parseWorkbookByRegistry(buffer) {
   const errors = [];
   const warnings = [];
   const orderedTables = getTablesByDependencyOrder();
-  for (const config of orderedTables) {
-    if (config.excludeFromSync) continue;
-    if (workbook.SheetNames.includes(config.sheetName)) {
-      const sheet = workbook.Sheets[config.sheetName];
+  for (const config3 of orderedTables) {
+    if (config3.excludeFromSync) continue;
+    if (workbook.SheetNames.includes(config3.sheetName)) {
+      const sheet = workbook.Sheets[config3.sheetName];
       const rawData = XLSX.utils.sheet_to_json(sheet);
-      const result = importSheetToRecords(config.id, rawData);
-      recordsByTable[config.id] = result.records;
+      const result = importSheetToRecords(config3.id, rawData);
+      recordsByTable[config3.id] = result.records;
       errors.push(...result.errors);
     } else {
-      warnings.push(`Sheet "${config.sheetName}" not found for table ${config.id}`);
+      warnings.push(`Sheet "${config3.sheetName}" not found for table ${config3.id}`);
     }
   }
   return { recordsByTable, errors, warnings };
@@ -18182,8 +18176,8 @@ function getTablesRequiringConfirmation() {
   return orderedTables.filter((t) => t.requiresConfirmation).map((t) => t.id);
 }
 function getSensitiveFields(tableId) {
-  const config = getTableConfig(tableId);
-  return config?.sensitiveFields || [];
+  const config3 = getTableConfig(tableId);
+  return config3?.sensitiveFields || [];
 }
 var TABLE_ADAPTERS;
 var init_excel_import = __esm({
@@ -18778,13 +18772,13 @@ async function syncFeaturePermissionsForAllGroups(featureId) {
   `);
   return result.rows.length;
 }
-async function syncModulesForNewGroup(groupId, isGlobalAdmin3 = false) {
+async function syncModulesForNewGroup(groupId, isGlobalAdmin2 = false) {
   const result = await db.execute(sql9`
     INSERT INTO group_module_access (group_id, module_id, has_access)
     SELECT 
       ${groupId} as group_id,
       pm.id as module_id,
-      ${isGlobalAdmin3} as has_access
+      ${isGlobalAdmin2} as has_access
     FROM platform_modules pm
     WHERE NOT EXISTS (
       SELECT 1 FROM group_module_access gma 
@@ -18794,8 +18788,8 @@ async function syncModulesForNewGroup(groupId, isGlobalAdmin3 = false) {
   `);
   return result.rows.length;
 }
-async function syncFeaturesForNewGroup(groupId, isGlobalAdmin3 = false) {
-  const defaultLevel = isGlobalAdmin3 ? "admin" : "none";
+async function syncFeaturesForNewGroup(groupId, isGlobalAdmin2 = false) {
+  const defaultLevel = isGlobalAdmin2 ? "admin" : "none";
   const result = await db.execute(sql9`
     INSERT INTO group_feature_permissions (group_id, feature_id, permission_level)
     SELECT 
@@ -19257,6 +19251,16 @@ async function seedPlatformModules() {
       routePrefix: "/media-center",
       status: "active",
       sortOrder: 18
+    },
+    {
+      moduleKey: "media_library",
+      moduleName: "Media Library",
+      description: "Centralized media library with search, metadata, and storage management",
+      icon: "Image",
+      color: "bg-indigo-500",
+      routePrefix: "/media-library",
+      status: "active",
+      sortOrder: 19
     }
   ];
   console.log("[RBAC] Checking platform modules...");
@@ -19266,10 +19270,36 @@ async function seedPlatformModules() {
         INSERT INTO platform_modules (module_key, module_name, description, icon, color, route_prefix, status, sort_order)
         VALUES (${mod.moduleKey}, ${mod.moduleName}, ${mod.description}, ${mod.icon}, ${mod.color}, ${mod.routePrefix}, ${mod.status}, ${mod.sortOrder})
         ON CONFLICT (module_key) DO UPDATE SET
+          module_name = EXCLUDED.module_name,
           route_prefix = EXCLUDED.route_prefix,
           sort_order = EXCLUDED.sort_order,
           status = EXCLUDED.status,
           description = EXCLUDED.description
+      `);
+    } catch (err) {
+    }
+  }
+  const defaultFeatures = [
+    { moduleKey: "media_center", featureKey: "nashobatv", featureName: "NashobaTV", description: "Manage TV display channels and content", sortOrder: 1 },
+    { moduleKey: "media_center", featureKey: "menu_printer", featureName: "Toast Menu Printer", description: "Prepare Toast menus for print and web display", sortOrder: 2 },
+    { moduleKey: "media_center", featureKey: "live_music", featureName: "Live Music", description: "Manage live music listings and calendar content", sortOrder: 3 },
+    { moduleKey: "media_center", featureKey: "food_trucks", featureName: "Food Trucks", description: "Manage food truck vendors, scheduling, permits, and reviews", sortOrder: 4 },
+    { moduleKey: "media_center", featureKey: "special_events", featureName: "Special Events", description: "Manage special events listings and calendar content", sortOrder: 5 },
+    { moduleKey: "media_center", featureKey: "shelf_talkers", featureName: "Shelf Talkers", description: "Print retail shelf talkers", sortOrder: 6 },
+    { moduleKey: "media_center", featureKey: "flight_cards", featureName: "Flight Cards", description: "Print tasting flight cards", sortOrder: 7 }
+  ];
+  for (const feature of defaultFeatures) {
+    try {
+      await db.execute(sql9`
+        INSERT INTO module_features (module_id, feature_key, feature_name, description, sort_order, active)
+        SELECT id, ${feature.featureKey}, ${feature.featureName}, ${feature.description}, ${feature.sortOrder}, true
+        FROM platform_modules
+        WHERE module_key = ${feature.moduleKey}
+        ON CONFLICT (module_id, feature_key) DO UPDATE SET
+          feature_name = EXCLUDED.feature_name,
+          description = EXCLUDED.description,
+          sort_order = EXCLUDED.sort_order,
+          active = EXCLUDED.active
       `);
     } catch (err) {
     }
@@ -20095,7 +20125,7 @@ async function scanSingleTable(tableConfig, prodDatabaseUrl) {
     };
   }
 }
-async function scanBidirectional(config) {
+async function scanBidirectional(config3) {
   const scanId = crypto8.randomUUID();
   const tables = [];
   let totalDevNewer = 0;
@@ -20103,20 +20133,20 @@ async function scanBidirectional(config) {
   let totalConflicts = 0;
   let totalIdentical = 0;
   const devDbUrl = process.env.DATABASE_URL || "";
-  const prodDbUrl = config.prodDatabaseUrl || "";
+  const prodDbUrl = config3.prodDatabaseUrl || "";
   console.log(`[Sync] DEV database (DATABASE_URL): ${devDbUrl.substring(0, 50)}...`);
   console.log(`[Sync] PROD database (from UI): ${prodDbUrl.substring(0, 50)}...`);
   if (devDbUrl && prodDbUrl && devDbUrl === prodDbUrl) {
     console.warn(`[Sync] WARNING: DEV and PROD database URLs are IDENTICAL! This will cause sync issues.`);
   }
-  const tablesToScan = config.tableIds ? SYNC_TABLES.filter((t) => config.tableIds.includes(t.id) && !t.excludeFromSync) : SYNC_TABLES.filter((t) => !t.excludeFromSync);
+  const tablesToScan = config3.tableIds ? SYNC_TABLES.filter((t) => config3.tableIds.includes(t.id) && !t.excludeFromSync) : SYNC_TABLES.filter((t) => !t.excludeFromSync);
   console.log(`[Sync] Scanning ${tablesToScan.length} tables in batches`);
   const BATCH_SIZE = 5;
   for (let i = 0; i < tablesToScan.length; i += BATCH_SIZE) {
     const batch = tablesToScan.slice(i, i + BATCH_SIZE);
     console.log(`[Sync] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tablesToScan.length / BATCH_SIZE)}: ${batch.map((t) => t.id).join(", ")}`);
     const batchResults = await Promise.all(
-      batch.map((tableConfig) => scanSingleTable(tableConfig, config.prodDatabaseUrl))
+      batch.map((tableConfig) => scanSingleTable(tableConfig, config3.prodDatabaseUrl))
     );
     for (const result of batchResults) {
       if (result) {
@@ -20139,12 +20169,12 @@ async function scanBidirectional(config) {
     totalIdentical
   };
 }
-async function applySync(config, selections) {
+async function applySync(config3, selections) {
   const { Pool: Pool3 } = await import("pg");
   const errors = [];
   let appliedToDevCount = 0;
   let appliedToProdCount = 0;
-  if (config.dryRun) {
+  if (config3.dryRun) {
     const toApplyToDev = selections.filter((s) => s.selected === "prod");
     const toApplyToProd = selections.filter((s) => s.selected === "dev");
     return {
@@ -20155,7 +20185,7 @@ async function applySync(config, selections) {
     };
   }
   const prodPool = new Pool3({
-    connectionString: config.prodDatabaseUrl,
+    connectionString: config3.prodDatabaseUrl,
     connectionTimeoutMillis: 1e4,
     idleTimeoutMillis: 3e4,
     max: 3,
@@ -20692,6 +20722,9 @@ var init_shopify_import = __esm({
     "use strict";
   }
 });
+
+// server/index.ts
+import { config as config2 } from "dotenv";
 
 // server/reactivation/routes.ts
 init_db();
@@ -21556,10 +21589,12 @@ async function setupPlatformAuth(app2) {
   });
   app2.use((req, _res, next) => {
     const sess = req.session;
-    if (sess.platformAuth?.userId) {
+    const platformUserId = sess.platformAuth?.platformUserId || sess.platformAuth?.userId;
+    if (platformUserId) {
       req.user = {
+        platformUserId,
         claims: {
-          sub: sess.platformAuth.userId,
+          sub: platformUserId,
           email: sess.platformAuth.email,
           first_name: sess.platformAuth.firstName,
           last_name: sess.platformAuth.lastName,
@@ -21867,6 +21902,35 @@ function requireB2bAdminOrSalesRep(req, res, next) {
     return res.status(403).json({ error: "Admin or Sales Rep access required" });
   }
   next();
+}
+async function establishB2bBridgeSession(req, platformEmail) {
+  const email = platformEmail?.trim().toLowerCase();
+  if (!email) return null;
+  const admin = await storage.getB2bAdminByEmailNormalized(email);
+  if (admin?.active) {
+    req.session.b2bUserId = admin.id;
+    req.session.b2bUserType = "admin";
+    req.session.b2bUserEmail = admin.email;
+    return {
+      id: admin.id,
+      name: `${admin.firstName} ${admin.lastName}`,
+      email: admin.email,
+      type: "admin"
+    };
+  }
+  const salesRep = await storage.getSalesRepByEmailNormalized(email);
+  if (salesRep?.active) {
+    req.session.b2bUserId = salesRep.id;
+    req.session.b2bUserType = "sales_rep";
+    req.session.b2bUserEmail = salesRep.email;
+    return {
+      id: salesRep.id,
+      name: `${salesRep.firstName} ${salesRep.lastName}`,
+      email: salesRep.email,
+      type: "sales_rep"
+    };
+  }
+  return null;
 }
 async function authenticateB2bAdmin(email, password) {
   const admin = await storage.getB2bAdminByEmail(email);
@@ -28315,9 +28379,19 @@ var authToken = process.env.TWILIO_AUTH_TOKEN;
 var rawFromPhone = process.env.TWILIO_PHONE_NUMBER;
 var fromPhone = rawFromPhone ? rawFromPhone.replace(/^\++/, "+") : void 0;
 var twilioClient = null;
-if (accountSid && authToken) {
-  twilioClient = twilio(accountSid, authToken);
-  console.log("[SMS] Twilio client initialized");
+if (accountSid && authToken && accountSid.startsWith("AC")) {
+  try {
+    twilioClient = twilio(accountSid, authToken);
+    console.log("[SMS] Twilio client initialized");
+  } catch (error) {
+    console.warn("[SMS] Twilio credentials are invalid - SMS will be disabled:", error.message);
+  }
+} else if (accountSid || authToken) {
+  console.warn("[SMS] Twilio credentials are incomplete or invalid - SMS will be disabled", {
+    hasAccountSid: !!accountSid,
+    accountSidPrefix: accountSid ? accountSid.substring(0, 2) : "none",
+    hasAuthToken: !!authToken
+  });
 } else {
   console.warn("[SMS] Twilio credentials not configured - SMS will be disabled");
 }
@@ -34012,9 +34086,79 @@ import { Router as Router9 } from "express";
 import { sql as sql13, eq as eq10, and as and7, inArray as inArray4, or as or4 } from "drizzle-orm";
 init_schema();
 init_toast_api();
+function normalizeMenuLabel(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function isToastInMenuSectionRow(item) {
+  if (item.isSpecial) return false;
+  const t = (item.type || "").toLowerCase();
+  if (t) {
+    if (/\b(header|heading|subheader|subgroup|separator|label|section|divider|title)\b/.test(t)) return true;
+    if (t.includes("groupheader") || t.includes("menuhead") || t === "subgroup") return true;
+  }
+  const p = item.price;
+  const num = p != null && p !== "" ? parseFloat(p) : NaN;
+  const noOrZeroPrice = p == null || p === "" || !isNaN(num) && num === 0;
+  if (!noOrZeroPrice) return false;
+  if (item.description?.trim()) return false;
+  if (item.sizePrices) return false;
+  if (item.imageUrl) return false;
+  if (item.suggestedPairing?.trim()) return false;
+  const raw = (item.name || "").trim();
+  if (raw.length < 2 || raw.length > 100) return false;
+  if (raw === raw.toUpperCase() && /[A-Z]/.test(raw)) return true;
+  if (raw.length > 40) return false;
+  if (/\$\s*\d/.test(raw) || /^\d+(\.\d+)?$/.test(raw)) return false;
+  return true;
+}
+function parseCustomPrintLines(value) {
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((line) => ({
+      kind: ["banner", "header", "note"].includes(line?.kind) ? line.kind : "banner",
+      text: typeof line?.text === "string" ? line.text.trim() : "",
+      placement: typeof line?.placement === "string" ? line.placement : "after-title"
+    })).filter((line) => line.text.length > 0 && line.text.length <= 1e3 && line.placement.length <= 160).slice(0, 25);
+  } catch {
+    return [];
+  }
+}
+function renderCustomPrintLines(lines, placement) {
+  return lines.filter((line) => line.placement === placement).map((line) => `<div class="custom-print-line custom-print-line--${line.kind}">${sanitizeMenuDescriptionHtml(line.text)}</div>`).join("");
+}
+function sanitizeMenuDescriptionHtml(str) {
+  const safeTags = ["br", "b", "strong", "i", "em", "u"];
+  const saved = [];
+  let result = str;
+  safeTags.forEach((tag) => {
+    const re = new RegExp(`</?${tag}\\b[^>]*>`, "gi");
+    result = result.replace(re, (m) => {
+      const p = `___HTAG${saved.length}___`;
+      saved.push(m);
+      return p;
+    });
+  });
+  result = result.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  saved.forEach((tag, i) => {
+    result = result.split(`___HTAG${i}___`).join(tag);
+  });
+  return result;
+}
 var router9 = Router9();
 var isAuthenticated = isPlatformAuthenticated;
 var isAdmin2 = requirePlatformRole(["super_admin"]);
+var ensureEmbedConfigColumnsPromise = null;
+function ensureEmbedConfigColumns() {
+  if (!ensureEmbedConfigColumnsPromise) {
+    ensureEmbedConfigColumnsPromise = db.execute(sql13`
+      ALTER TABLE toast_menu_embed_configs
+      ADD COLUMN IF NOT EXISTS custom_print_lines text
+    `).then(() => void 0);
+  }
+  return ensureEmbedConfigColumnsPromise;
+}
 router9.get("/status", isAuthenticated, async (_req, res) => {
   try {
     const hasClientId = !!process.env.TOAST_CLIENT_ID;
@@ -34813,6 +34957,7 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const pages = Math.min(10, Math.max(0, rawPages));
     const customHeader = req.query.header || "";
     const customFooter = req.query.footer || "";
+    const customPrintLines = parseCustomPrintLines(req.query.customlines);
     const pagebreaksParam = req.query.pagebreaks;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map((g) => g.trim()).filter(Boolean) : [];
     const hideDescriptions = req.query.hidedesc === "1";
@@ -34820,6 +34965,8 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const hideWinePairing = req.query.hidepairing === "1";
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
+    const hidedupgroup = req.query.hidedupgroup !== "0";
+    const nosectionrows = req.query.nosectionrows === "1";
     const _sf = (v, d) => {
       if (!v) return d;
       const s = v.replace(/[^a-zA-Z0-9 ]/g, "").trim();
@@ -34877,15 +35024,19 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
       ...g,
       items: visibleItems.filter((i) => i.groupGuid === g.groupGuid)
     }));
+    const embedTitle = groupGuids.length === 1 && groups.length === 1 ? groups[0].name : menuData.name;
+    const shouldHideGroupHeading = hidedupgroup && (() => {
+      const withItems = groupsWithItems.filter((g) => g.items.length > 0);
+      if (withItems.length !== 1) return false;
+      const gn = withItems[0].name;
+      return normalizeMenuLabel(gn) === normalizeMenuLabel(embedTitle) || normalizeMenuLabel(gn) === normalizeMenuLabel(menuData.name);
+    })();
     const formatPrice = (price) => {
       if (!price) return "";
       const num = parseFloat(price);
       return isNaN(num) ? "" : `$${num.toFixed(2)}`;
     };
     const escapeHtml2 = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const sanitizeDescriptionHtml = (str) => {
-      return str.replace(/<br\s*\/?>/gi, "___BR___").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/___BR___/g, "<br>");
-    };
     const sanitizeHeaderHtml = (str) => {
       const safeTags = ["br", "b", "strong", "i", "em", "u"];
       const saved = [];
@@ -34942,6 +35093,34 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
+        const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
+        if (isInMenuSection) {
+          if (template === "beverage") {
+            itemsHtml += `
+            <div class="bev-item-row bev-item-row--in-menu-section">
+              <div class="bev-item bev-item--in-menu-section">
+                <span class="bev-name bev-name--in-menu-section">${escapeHtml2(cleanName)}</span>
+              </div>
+            </div>`;
+          } else if (template === "fine-dining") {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <h3 class="item-name item-name--in-menu-section">${escapeHtml2(cleanName)}</h3>
+            </div>`;
+          } else {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <div class="item-header item-header--in-menu-section">
+                <span class="item-name item-name--in-menu-section">${escapeHtml2(cleanName)}</span>
+              </div>
+            </div>`;
+          }
+          itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
+          if (pagebreakGuids.includes(item.itemGuid)) {
+            itemsHtml += `<div class="item-page-break"></div>`;
+          }
+          continue;
+        }
         const tagsHtml = dietaryTags.length > 0 ? `<span class="dietary-tags">${dietaryTags.map((t) => `<span class="dietary-tag">${t}</span>`).join("")}</span>` : "";
         const pairingHtml = item.suggestedPairing ? `<p class="item-pairing">${escapeHtml2(item.suggestedPairing)}</p>` : "";
         const showDesc = !hideDescriptions && item.description;
@@ -34977,7 +35156,7 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
               ${itemImageHtml}
               <h3 class="item-name">${escapeHtml2(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
@@ -34988,36 +35167,46 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
                 <span class="item-name">${escapeHtml2(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description)}</p>` : ""}
               ${showPairing}
             </div>`;
         }
+        itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
         if (pagebreakGuids.includes(item.itemGuid)) {
           itemsHtml += `<div class="item-page-break"></div>`;
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
+      const showGroupSubheading = !shouldHideGroupHeading;
+      const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="bev-group-name">${escapeHtml2(group.name)}</h2>
+            ${customBeforeGroupHtml}
+            ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml2(group.name)}</h2>` : ""}
             ${itemsHtml}
           </div>`;
       } else {
         groupsHtml += `
           <div class="menu-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="group-name">${escapeHtml2(group.name)}</h2>
-            <div class="group-divider"></div>
+            ${customBeforeGroupHtml}
+            ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml2(group.name)}</h2>
+            <div class="group-divider"></div>` : ""}
             ${itemsHtml}
           </div>`;
       }
     }
-    const embedTitle = groupGuids.length === 1 && groups.length === 1 ? groups[0].name : menuData.name;
     let css = "";
     const dietaryTagsCss = `
         .dietary-tags { margin-left: 6px; }
         .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
         .special-badge { display: inline-block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; margin-left: 8px; vertical-align: middle; background: rgba(180,120,40,0.18); color: #b47828; border: 1px solid rgba(180,120,40,0.35); }
+    `;
+    const customPrintLineCss = `
+        .custom-print-line { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; line-height: 1.45; margin: 12px 0; break-inside: avoid; }
+        .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
+        .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+        .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
     `;
     if (template === "fine-dining") {
       css = `
@@ -35042,7 +35231,10 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
+        .menu-item--in-menu-section { text-align: center; margin: 20px 0 12px; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem; color: #e8c89a; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(212, 184, 150, 0.6); text-underline-offset: 0.2em; letter-spacing: 0.12em; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
@@ -35052,7 +35244,7 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name--in-menu-section { color: #6b5a3a; font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
@@ -35067,10 +35259,14 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
         .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
         .bev-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .bev-item-row--in-menu-section { margin: 10px 0 6px; }
+        .bev-item--in-menu-section { justify-content: center; }
+        .bev-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.12).toFixed(3)}rem; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; letter-spacing: 0.06em; }
         .bev-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; white-space: nowrap; }
         .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
         .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -35096,6 +35292,9 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .menu-item--in-menu-section { border-bottom: none; margin: 10px 0; padding: 0; }
+        .item-header--in-menu-section { justify-content: center; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.15).toFixed(3)}rem; text-transform: uppercase; letter-spacing: 0.08em; text-decoration: underline; text-decoration-color: #a8a29e; text-underline-offset: 0.2em; color: #1c1917; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #44403c; white-space: nowrap; }
         .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
         .size-entry { white-space: nowrap; }
@@ -35106,6 +35305,7 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -35131,6 +35331,7 @@ router9.get("/public/menu/:menuGuid/embed", async (req, res) => {
     <h1 class="menu-title">${escapeHtml2(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
+    ${renderCustomPrintLines(customPrintLines, "after-title")}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
       ${!hideAllergyFooter ? `
@@ -35213,6 +35414,7 @@ router9.get("/public/menus/embed", async (req, res) => {
     const pages = Math.min(10, Math.max(0, rawPages));
     const customHeader = req.query.header || "";
     const customFooter = req.query.footer || "";
+    const customPrintLines = parseCustomPrintLines(req.query.customlines);
     const pagebreaksParam = req.query.pagebreaks;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map((g) => g.trim()).filter(Boolean) : [];
     const hideDescriptions = req.query.hidedesc === "1";
@@ -35221,6 +35423,8 @@ router9.get("/public/menus/embed", async (req, res) => {
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
     const customTitle = req.query.title || "";
+    const hidedupgroup = req.query.hidedupgroup !== "0";
+    const nosectionrows = req.query.nosectionrows === "1";
     const groupGuidParam = req.query.groupGuid;
     const filterGroupGuids = groupGuidParam ? groupGuidParam.split(",").map((g) => g.trim()).filter(Boolean) : [];
     const _sf = (v, d) => {
@@ -35271,15 +35475,14 @@ router9.get("/public/menus/embed", async (req, res) => {
     if (allGroups.length === 0) {
       return res.status(404).send("<html><body><p>No menu items found</p></body></html>");
     }
+    const embedTitle = customTitle || (menuNames.length === 1 ? menuNames[0] : "Menu");
+    const shouldHideGroupHeading = hidedupgroup && allGroups.length === 1 && (normalizeMenuLabel(allGroups[0].group.name) === normalizeMenuLabel(embedTitle) || !customTitle && menuNames.length === 1 && normalizeMenuLabel(allGroups[0].group.name) === normalizeMenuLabel(menuNames[0]));
     const formatPrice = (price) => {
       if (!price) return "";
       const num = parseFloat(price);
       return isNaN(num) ? "" : `$${num.toFixed(2)}`;
     };
     const escapeHtml2 = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const sanitizeDescriptionHtml = (str) => {
-      return str.replace(/<br\s*\/?>/gi, "___BR___").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/___BR___/g, "<br>");
-    };
     const sanitizeHeaderHtml = (str) => {
       const safeTags = ["br", "b", "strong", "i", "em", "u"];
       const saved = [];
@@ -35332,6 +35535,33 @@ router9.get("/public/menus/embed", async (req, res) => {
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
+        const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
+        if (isInMenuSection) {
+          if (template === "beverage") {
+            itemsHtml += `
+            <div class="bev-item-row bev-item-row--in-menu-section">
+              <div class="bev-item bev-item--in-menu-section">
+                <span class="bev-name bev-name--in-menu-section">${escapeHtml2(cleanName)}</span>
+              </div>
+            </div>`;
+          } else if (template === "fine-dining") {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <h3 class="item-name item-name--in-menu-section">${escapeHtml2(cleanName)}</h3>
+            </div>`;
+          } else {
+            itemsHtml += `
+            <div class="menu-item menu-item--in-menu-section">
+              <div class="item-header item-header--in-menu-section">
+                <span class="item-name item-name--in-menu-section">${escapeHtml2(cleanName)}</span>
+              </div>
+            </div>`;
+          }
+          if (pagebreakGuids.includes(item.itemGuid)) {
+            itemsHtml += `<div class="item-page-break"></div>`;
+          }
+          continue;
+        }
         const tagsHtml = dietaryTags.length > 0 ? `<span class="dietary-tags">${dietaryTags.map((t) => `<span class="dietary-tag">${t}</span>`).join("")}</span>` : "";
         const pairingHtml = item.suggestedPairing ? `<p class="item-pairing">${escapeHtml2(item.suggestedPairing)}</p>` : "";
         const showDesc = !hideDescriptions && item.description;
@@ -35367,7 +35597,7 @@ router9.get("/public/menus/embed", async (req, res) => {
               ${itemImageHtml}
               <h3 class="item-name">${escapeHtml2(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
@@ -35378,35 +35608,45 @@ router9.get("/public/menus/embed", async (req, res) => {
                 <span class="item-name">${escapeHtml2(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
-              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description)}</p>` : ""}
               ${showPairing}
             </div>`;
         }
+        itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
         if (pagebreakGuids.includes(item.itemGuid)) {
           itemsHtml += `<div class="item-page-break"></div>`;
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
+      const showGroupSubheading = !shouldHideGroupHeading;
+      const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="bev-group-name">${escapeHtml2(group.name)}</h2>
+            ${customBeforeGroupHtml}
+            ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml2(group.name)}</h2>` : ""}
             ${itemsHtml}
           </div>`;
       } else {
         groupsHtml += `
           <div class="menu-group${hasPageBreak ? " page-break" : ""}">
-            <h2 class="group-name">${escapeHtml2(group.name)}</h2>
-            <div class="group-divider"></div>
+            ${customBeforeGroupHtml}
+            ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml2(group.name)}</h2>
+            <div class="group-divider"></div>` : ""}
             ${itemsHtml}
           </div>`;
       }
     }
-    const embedTitle = customTitle || (menuNames.length === 1 ? menuNames[0] : "Menu");
     const dietaryTagsCss = `
         .dietary-tags { margin-left: 6px; }
         .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
         .special-badge { display: inline-block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; margin-left: 8px; vertical-align: middle; background: rgba(180,120,40,0.18); color: #b47828; border: 1px solid rgba(180,120,40,0.35); }
+    `;
+    const customPrintLineCss = `
+        .custom-print-line { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; line-height: 1.45; margin: 12px 0; break-inside: avoid; }
+        .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
+        .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+        .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
     `;
     let css = "";
     if (template === "fine-dining") {
@@ -35432,7 +35672,10 @@ router9.get("/public/menus/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
+        .menu-item--in-menu-section { text-align: center; margin: 20px 0 12px; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem; color: #e8c89a; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(212, 184, 150, 0.6); text-underline-offset: 0.2em; letter-spacing: 0.12em; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
         .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
@@ -35442,7 +35685,7 @@ router9.get("/public/menus/embed", async (req, res) => {
         .item-page-break { border-top: 2px dashed #a08c6e; margin: 8px 0 0; position: relative; height: 20px; }
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
-        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name--in-menu-section { color: #6b5a3a; font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
@@ -35457,10 +35700,14 @@ router9.get("/public/menus/embed", async (req, res) => {
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
         .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
         .bev-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .bev-item-row--in-menu-section { margin: 10px 0 6px; }
+        .bev-item--in-menu-section { justify-content: center; }
+        .bev-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.12).toFixed(3)}rem; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; letter-spacing: 0.06em; }
         .bev-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; white-space: nowrap; }
         .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
         .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -35486,6 +35733,9 @@ router9.get("/public/menus/embed", async (req, res) => {
         .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
+        .menu-item--in-menu-section { border-bottom: none; margin: 10px 0; padding: 0; }
+        .item-header--in-menu-section { justify-content: center; }
+        .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.15).toFixed(3)}rem; text-transform: uppercase; letter-spacing: 0.08em; text-decoration: underline; text-decoration-color: #a8a29e; text-underline-offset: 0.2em; color: #1c1917; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #44403c; white-space: nowrap; }
         .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
         .size-entry { white-space: nowrap; }
@@ -35496,6 +35746,7 @@ router9.get("/public/menus/embed", async (req, res) => {
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
+        ${customPrintLineCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
@@ -35521,6 +35772,7 @@ router9.get("/public/menus/embed", async (req, res) => {
     <h1 class="menu-title">${escapeHtml2(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
+    ${renderCustomPrintLines(customPrintLines, "after-title")}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
       ${!hideAllergyFooter ? `
@@ -35630,28 +35882,33 @@ router9.delete("/staff-print-menus/:id", isAuthenticated, async (req, res) => {
 });
 router9.get("/public/embed-config/:slug", async (req, res) => {
   try {
-    const [config] = await db.select().from(toastMenuEmbedConfigs).where(eq10(toastMenuEmbedConfigs.slug, req.params.slug)).limit(1);
-    if (!config) return res.status(404).send("<html><body><p style='font-family:sans-serif;padding:2rem'>Embed configuration not found.</p></body></html>");
+    await ensureEmbedConfigColumns();
+    const [config3] = await db.select().from(toastMenuEmbedConfigs).where(eq10(toastMenuEmbedConfigs.slug, req.params.slug)).limit(1);
+    if (!config3) return res.status(404).send("<html><body><p style='font-family:sans-serif;padding:2rem'>Embed configuration not found.</p></body></html>");
     const base = `${req.protocol}://${req.get("host")}`;
-    const menuGuids = (config.menuGuids || "").split(",").map((g) => g.trim()).filter(Boolean);
+    const menuGuids = [
+      ...(config3.menuGuids || "").split(",").map((g) => g.trim()).filter(Boolean),
+      ...(config3.printAdditionalMenuGuids || "").split(",").map((g) => g.trim()).filter(Boolean)
+    ];
     if (menuGuids.length === 0) return res.status(400).send("<html><body><p>No menus configured.</p></body></html>");
     let url;
     if (menuGuids.length > 1) {
-      url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${encodeURIComponent(config.template || "fine-dining")}`;
+      url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${encodeURIComponent(config3.template || "fine-dining")}`;
     } else {
-      url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuids[0])}/embed?template=${encodeURIComponent(config.template || "fine-dining")}`;
+      url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuids[0])}/embed?template=${encodeURIComponent(config3.template || "fine-dining")}`;
     }
-    if (config.groupGuids) url += `&groupGuid=${encodeURIComponent(config.groupGuids)}`;
-    if (config.scale && config.scale !== 100) url += `&scale=${config.scale}`;
-    if (config.pages && config.pages > 0) url += `&pages=${config.pages}`;
-    if (config.footer) url += `&footer=${encodeURIComponent(config.footer)}`;
-    if (config.pageBreaks) url += `&pagebreaks=${encodeURIComponent(config.pageBreaks)}`;
-    if (config.hideDescriptions) url += `&hidedesc=1`;
-    if (config.header) url += `&header=${encodeURIComponent(config.header)}`;
-    if (config.hidePricing) url += `&hideprice=1`;
-    if (config.hideWinePairing) url += `&hidepairing=1`;
-    if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
-    if (config.showImages) url += `&showimages=1`;
+    if (config3.groupGuids) url += `&groupGuid=${encodeURIComponent(config3.groupGuids)}`;
+    if (config3.scale && config3.scale !== 100) url += `&scale=${config3.scale}`;
+    if (config3.pages && config3.pages > 0) url += `&pages=${config3.pages}`;
+    if (config3.footer) url += `&footer=${encodeURIComponent(config3.footer)}`;
+    if (config3.pageBreaks) url += `&pagebreaks=${encodeURIComponent(config3.pageBreaks)}`;
+    if (config3.customPrintLines) url += `&customlines=${encodeURIComponent(config3.customPrintLines)}`;
+    if (config3.hideDescriptions) url += `&hidedesc=1`;
+    if (config3.header) url += `&header=${encodeURIComponent(config3.header)}`;
+    if (config3.hidePricing) url += `&hideprice=1`;
+    if (config3.hideWinePairing) url += `&hidepairing=1`;
+    if (config3.customTitle) url += `&title=${encodeURIComponent(config3.customTitle)}`;
+    if (config3.showImages) url += `&showimages=1`;
     const embedRes = await fetch(url);
     if (!embedRes.ok) {
       return res.status(embedRes.status).send(`<html><body><p>Failed to load menu embed (${embedRes.status})</p></body></html>`);
@@ -35666,6 +35923,7 @@ router9.get("/public/embed-config/:slug", async (req, res) => {
 });
 router9.get("/embed-configs", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const menuGuid = req.query.menuGuid;
     let configs;
     if (menuGuid) {
@@ -35680,6 +35938,7 @@ router9.get("/embed-configs", isAuthenticated, async (req, res) => {
 });
 router9.post("/embed-configs", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const { randomBytes: randomBytes2 } = await import("crypto");
     const slug = randomBytes2(6).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
     const result = await db.insert(toastMenuEmbedConfigs).values({
@@ -35702,6 +35961,8 @@ router9.post("/embed-configs", isAuthenticated, async (req, res) => {
       showImages: req.body.showImages ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks || null,
+      printAdditionalMenuGuids: req.body.printAdditionalMenuGuids || null,
+      customPrintLines: req.body.customPrintLines || null,
       customTitle: req.body.customTitle || null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false
     }).returning();
@@ -35712,6 +35973,7 @@ router9.post("/embed-configs", isAuthenticated, async (req, res) => {
 });
 router9.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     const result = await db.update(toastMenuEmbedConfigs).set({
@@ -35733,6 +35995,8 @@ router9.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       showImages: req.body.showImages ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks ?? null,
+      printAdditionalMenuGuids: req.body.printAdditionalMenuGuids ?? null,
+      customPrintLines: req.body.customPrintLines ?? null,
       customTitle: req.body.customTitle ?? null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
       updatedAt: /* @__PURE__ */ new Date()
@@ -35745,6 +36009,7 @@ router9.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
 });
 router9.patch("/embed-configs/:id", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     const updates = { updatedAt: /* @__PURE__ */ new Date() };
@@ -35760,6 +36025,7 @@ router9.patch("/embed-configs/:id", isAuthenticated, async (req, res) => {
 });
 router9.delete("/embed-configs/:id", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     await db.delete(toastMenuEmbedConfigs).where(eq10(toastMenuEmbedConfigs.id, id));
@@ -36375,7 +36641,7 @@ router11.post("/customers/sync", isAuthenticated3, async (_req, res) => {
         let result;
         if (pageInfo) {
           const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
-          const SHOPIFY_API_VERSION2 = "2026-01";
+          const SHOPIFY_API_VERSION2 = process.env.SHOPIFY_API_VERSION || "2025-10";
           const { getShopifyToken: getToken } = await Promise.resolve().then(() => (init_shopify_api(), shopify_api_exports));
           const token = await getToken();
           const url = `https://${storeDomain}/admin/api/${SHOPIFY_API_VERSION2}/orders.json?limit=250&page_info=${pageInfo}&fields=id,customer,line_items,financial_status,cancelled_at`;
@@ -40296,17 +40562,25 @@ var media_music_routes_default = router20;
 // server/media-food-truck-routes.ts
 init_db();
 init_schema();
+init_rbac();
 import { Router as Router21 } from "express";
 import { eq as eq18, and as and13, desc as desc13, asc as asc4, gte as gte5, isNotNull as isNotNull3, ne as ne2 } from "drizzle-orm";
+import { z as z9 } from "zod";
 var router21 = Router21();
-function requireAuth4(req, res, next) {
-  const sess = req.session;
-  if (!sess.platformAuth?.platformUserId) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-  next();
-}
-router21.get("/api/media/food-trucks", requireAuth4, async (_req, res) => {
+var requireFoodTruckAccess = requireModuleAccess("media_center");
+var foodTruckReviewPayloadSchema = z9.object({
+  foodTruckId: z9.coerce.number().int().positive(),
+  rating: z9.coerce.number().int().min(1).max(5),
+  foodQuality: z9.string().optional().nullable(),
+  serviceQuality: z9.string().optional().nullable(),
+  cleanliness: z9.string().optional().nullable(),
+  professionalism: z9.string().optional().nullable(),
+  overallNotes: z9.string().optional().nullable(),
+  wouldRecommend: z9.boolean().optional(),
+  reviewedBy: z9.string().trim().min(1).max(255),
+  reviewDate: z9.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+});
+router21.get("/api/media/food-trucks", requireFoodTruckAccess, async (_req, res) => {
   try {
     const trucks = await db.select().from(mediaFoodTrucks).orderBy(asc4(mediaFoodTrucks.name));
     res.json(trucks);
@@ -40314,7 +40588,7 @@ router21.get("/api/media/food-trucks", requireAuth4, async (_req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-router21.post("/api/media/food-trucks", requireAuth4, async (req, res) => {
+router21.post("/api/media/food-trucks", requireFoodTruckAccess, async (req, res) => {
   try {
     const data = insertFoodTruckSchema.parse(req.body);
     console.log("Food Truck Creation Data:", {
@@ -40327,7 +40601,7 @@ router21.post("/api/media/food-trucks", requireAuth4, async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
-router21.put("/api/media/food-trucks/:id", requireAuth4, async (req, res) => {
+router21.put("/api/media/food-trucks/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckSchema.partial().parse(req.body);
@@ -40343,7 +40617,7 @@ router21.put("/api/media/food-trucks/:id", requireAuth4, async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
-router21.delete("/api/media/food-trucks/:id", requireAuth4, async (req, res) => {
+router21.delete("/api/media/food-trucks/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckEvents).where(eq18(mediaFoodTruckEvents.foodTruckId, id));
@@ -40353,7 +40627,7 @@ router21.delete("/api/media/food-trucks/:id", requireAuth4, async (req, res) => 
     res.status(500).json({ error: error.message });
   }
 });
-router21.get("/api/media/food-truck-events", requireAuth4, async (_req, res) => {
+router21.get("/api/media/food-truck-events", requireFoodTruckAccess, async (_req, res) => {
   try {
     const events = await db.select().from(mediaFoodTruckEvents).orderBy(desc13(mediaFoodTruckEvents.eventDate));
     res.json(events);
@@ -40361,7 +40635,7 @@ router21.get("/api/media/food-truck-events", requireAuth4, async (_req, res) => 
     res.status(500).json({ error: error.message });
   }
 });
-router21.post("/api/media/food-truck-events", requireAuth4, async (req, res) => {
+router21.post("/api/media/food-truck-events", requireFoodTruckAccess, async (req, res) => {
   try {
     const data = insertFoodTruckEventSchema.parse(req.body);
     const [event] = await db.insert(mediaFoodTruckEvents).values(data).returning();
@@ -40370,7 +40644,7 @@ router21.post("/api/media/food-truck-events", requireAuth4, async (req, res) => 
     res.status(400).json({ error: error.message });
   }
 });
-router21.put("/api/media/food-truck-events/:id", requireAuth4, async (req, res) => {
+router21.put("/api/media/food-truck-events/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckEventSchema.partial().parse(req.body);
@@ -40381,7 +40655,7 @@ router21.put("/api/media/food-truck-events/:id", requireAuth4, async (req, res) 
     res.status(400).json({ error: error.message });
   }
 });
-router21.delete("/api/media/food-truck-events/:id", requireAuth4, async (req, res) => {
+router21.delete("/api/media/food-truck-events/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckEvents).where(eq18(mediaFoodTruckEvents.id, id));
@@ -40390,7 +40664,7 @@ router21.delete("/api/media/food-truck-events/:id", requireAuth4, async (req, re
     res.status(500).json({ error: error.message });
   }
 });
-router21.get("/api/media/food-truck-day-banners", requireAuth4, async (_req, res) => {
+router21.get("/api/media/food-truck-day-banners", requireFoodTruckAccess, async (_req, res) => {
   try {
     const rows = await db.select().from(mediaFoodTruckDayBanners).orderBy(desc13(mediaFoodTruckDayBanners.bannerDate));
     res.json(rows);
@@ -40398,7 +40672,7 @@ router21.get("/api/media/food-truck-day-banners", requireAuth4, async (_req, res
     res.status(500).json({ error: error.message });
   }
 });
-router21.post("/api/media/food-truck-day-banners", requireAuth4, async (req, res) => {
+router21.post("/api/media/food-truck-day-banners", requireFoodTruckAccess, async (req, res) => {
   try {
     const data = insertFoodTruckDayBannerSchema.parse(req.body);
     const [row] = await db.insert(mediaFoodTruckDayBanners).values(data).returning();
@@ -40407,7 +40681,7 @@ router21.post("/api/media/food-truck-day-banners", requireAuth4, async (req, res
     res.status(400).json({ error: error.message });
   }
 });
-router21.put("/api/media/food-truck-day-banners/:id", requireAuth4, async (req, res) => {
+router21.put("/api/media/food-truck-day-banners/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckDayBannerSchema.partial().parse(req.body);
@@ -40418,7 +40692,7 @@ router21.put("/api/media/food-truck-day-banners/:id", requireAuth4, async (req, 
     res.status(400).json({ error: error.message });
   }
 });
-router21.delete("/api/media/food-truck-day-banners/:id", requireAuth4, async (req, res) => {
+router21.delete("/api/media/food-truck-day-banners/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckDayBanners).where(eq18(mediaFoodTruckDayBanners.id, id));
@@ -40427,7 +40701,7 @@ router21.delete("/api/media/food-truck-day-banners/:id", requireAuth4, async (re
     res.status(500).json({ error: error.message });
   }
 });
-router21.get("/api/media/food-truck-submissions", requireAuth4, async (_req, res) => {
+router21.get("/api/media/food-truck-submissions", requireFoodTruckAccess, async (_req, res) => {
   try {
     const submissions = await db.select().from(mediaFoodTruckSubmissions).orderBy(desc13(mediaFoodTruckSubmissions.createdAt));
     res.json(submissions);
@@ -40435,7 +40709,7 @@ router21.get("/api/media/food-truck-submissions", requireAuth4, async (_req, res
     res.status(500).json({ error: error.message });
   }
 });
-router21.put("/api/media/food-truck-submissions/:id", requireAuth4, async (req, res) => {
+router21.put("/api/media/food-truck-submissions/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { status, reviewNotes } = req.body;
@@ -40462,7 +40736,7 @@ router21.put("/api/media/food-truck-submissions/:id", requireAuth4, async (req, 
     res.status(400).json({ error: error.message });
   }
 });
-router21.get("/api/media/food-truck-reviews/:foodTruckId", requireAuth4, async (req, res) => {
+router21.get("/api/media/food-truck-reviews/:foodTruckId", requireFoodTruckAccess, async (req, res) => {
   try {
     const foodTruckId = parseInt(req.params.foodTruckId);
     const reviews = await db.select().from(mediaFoodTruckReviews).where(eq18(mediaFoodTruckReviews.foodTruckId, foodTruckId)).orderBy(desc13(mediaFoodTruckReviews.reviewDate));
@@ -40471,27 +40745,41 @@ router21.get("/api/media/food-truck-reviews/:foodTruckId", requireAuth4, async (
     res.status(500).json({ error: error.message });
   }
 });
-router21.post("/api/media/food-truck-reviews", requireAuth4, async (req, res) => {
+router21.post("/api/media/food-truck-reviews", requireFoodTruckAccess, async (req, res) => {
   try {
-    const data = insertFoodTruckReviewSchema.parse(req.body);
+    const payload = {
+      ...req.body,
+      reviewDate: typeof req.body?.reviewDate === "string" ? req.body.reviewDate.slice(0, 10) : req.body?.reviewDate,
+      reviewedBy: typeof req.body?.reviewedBy === "string" ? req.body.reviewedBy.trim() : req.body?.reviewedBy
+    };
+    const normalized = foodTruckReviewPayloadSchema.parse(payload);
+    const data = insertFoodTruckReviewSchema.parse(normalized);
     const [review] = await db.insert(mediaFoodTruckReviews).values(data).returning();
     res.json(review);
   } catch (error) {
+    console.error("[Food Truck Reviews] Failed to create review:", error);
     res.status(400).json({ error: error.message });
   }
 });
-router21.put("/api/media/food-truck-reviews/:id", requireAuth4, async (req, res) => {
+router21.put("/api/media/food-truck-reviews/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const data = insertFoodTruckReviewSchema.partial().parse(req.body);
+    const payload = {
+      ...req.body,
+      reviewDate: typeof req.body?.reviewDate === "string" ? req.body.reviewDate.slice(0, 10) : req.body?.reviewDate,
+      reviewedBy: typeof req.body?.reviewedBy === "string" ? req.body.reviewedBy.trim() : req.body?.reviewedBy
+    };
+    const normalized = foodTruckReviewPayloadSchema.partial().parse(payload);
+    const data = insertFoodTruckReviewSchema.partial().parse(normalized);
     const [review] = await db.update(mediaFoodTruckReviews).set(data).where(eq18(mediaFoodTruckReviews.id, id)).returning();
     if (!review) return res.status(404).json({ error: "Review not found" });
     res.json(review);
   } catch (error) {
+    console.error("[Food Truck Reviews] Failed to update review:", error);
     res.status(400).json({ error: error.message });
   }
 });
-router21.delete("/api/media/food-truck-reviews/:id", requireAuth4, async (req, res) => {
+router21.delete("/api/media/food-truck-reviews/:id", requireFoodTruckAccess, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckReviews).where(eq18(mediaFoodTruckReviews.id, id));
@@ -40554,7 +40842,7 @@ router21.get("/api/public/food-truck-calendar", async (_req, res) => {
       eventDate: e.eventDate,
       title: e.title,
       truckName: e.truckName,
-      description: e.description?.substring(0, 100) + (e.description?.length > 100 ? "..." : ""),
+      description: e.description ? e.description.substring(0, 100) + (e.description.length > 100 ? "..." : "") : "",
       hasDescription: !!e.description,
       foodTruckId: e.foodTruckId,
       truckId: e.truckName ? "VALID" : "NULL"
@@ -40576,7 +40864,7 @@ router21.get("/api/public/food-truck-day-banners", async (_req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-router21.post("/api/media/food-trucks/permit-upload-test", requireAuth4, async (req, res) => {
+router21.post("/api/media/food-trucks/permit-upload-test", requireFoodTruckAccess, async (req, res) => {
   console.log("=== PERMIT UPLOAD TEST START ===");
   try {
     const multer3 = (await import("multer")).default;
@@ -40628,7 +40916,7 @@ router21.post("/api/media/food-trucks/permit-upload-test", requireAuth4, async (
     res.status(500).json({ message: error.message || "Test upload service unavailable" });
   }
 });
-router21.post("/api/media/food-trucks/permit-upload", requireAuth4, async (req, res) => {
+router21.post("/api/media/food-trucks/permit-upload", requireFoodTruckAccess, async (req, res) => {
   console.log("=== PERMIT UPLOAD START ===");
   console.log("Request headers:", Object.keys(req.headers));
   console.log("Content-Type:", req.headers["content-type"]);
@@ -40777,14 +41065,14 @@ init_schema();
 import { Router as Router22 } from "express";
 import { eq as eq19, and as and14, desc as desc14, asc as asc5, gte as gte6 } from "drizzle-orm";
 var router22 = Router22();
-function requireAuth5(req, res, next) {
+function requireAuth4(req, res, next) {
   const sess = req.session;
   if (!sess.platformAuth?.platformUserId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
   next();
 }
-router22.get("/api/media/special-events", requireAuth5, async (_req, res) => {
+router22.get("/api/media/special-events", requireAuth4, async (_req, res) => {
   try {
     const events = await db.select().from(mediaSpecialEvents).orderBy(desc14(mediaSpecialEvents.eventDate));
     res.json(events);
@@ -40792,7 +41080,7 @@ router22.get("/api/media/special-events", requireAuth5, async (_req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-router22.post("/api/media/special-events", requireAuth5, async (req, res) => {
+router22.post("/api/media/special-events", requireAuth4, async (req, res) => {
   try {
     const data = insertSpecialEventSchema.parse(req.body);
     const [event] = await db.insert(mediaSpecialEvents).values(data).returning();
@@ -40801,7 +41089,7 @@ router22.post("/api/media/special-events", requireAuth5, async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
-router22.put("/api/media/special-events/:id", requireAuth5, async (req, res) => {
+router22.put("/api/media/special-events/:id", requireAuth4, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertSpecialEventSchema.partial().parse(req.body);
@@ -40812,7 +41100,7 @@ router22.put("/api/media/special-events/:id", requireAuth5, async (req, res) => 
     res.status(400).json({ error: error.message });
   }
 });
-router22.delete("/api/media/special-events/:id", requireAuth5, async (req, res) => {
+router22.delete("/api/media/special-events/:id", requireAuth4, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaSpecialEvents).where(eq19(mediaSpecialEvents.id, id));
@@ -40835,7 +41123,7 @@ router22.get("/api/public/special-events", async (_req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-router22.get("/api/media/special-events-day-banners", requireAuth5, async (_req, res) => {
+router22.get("/api/media/special-events-day-banners", requireAuth4, async (_req, res) => {
   try {
     const rows = await db.select().from(mediaSpecialEventsDayBanners).orderBy(desc14(mediaSpecialEventsDayBanners.bannerDate));
     res.json(rows);
@@ -40843,7 +41131,7 @@ router22.get("/api/media/special-events-day-banners", requireAuth5, async (_req,
     res.status(500).json({ error: error.message });
   }
 });
-router22.post("/api/media/special-events-day-banners", requireAuth5, async (req, res) => {
+router22.post("/api/media/special-events-day-banners", requireAuth4, async (req, res) => {
   try {
     const data = insertSpecialEventsDayBannerSchema.parse(req.body);
     const [row] = await db.insert(mediaSpecialEventsDayBanners).values(data).returning();
@@ -40852,7 +41140,7 @@ router22.post("/api/media/special-events-day-banners", requireAuth5, async (req,
     res.status(400).json({ error: error.message });
   }
 });
-router22.put("/api/media/special-events-day-banners/:id", requireAuth5, async (req, res) => {
+router22.put("/api/media/special-events-day-banners/:id", requireAuth4, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const data = insertSpecialEventsDayBannerSchema.partial().parse(req.body);
@@ -40863,7 +41151,7 @@ router22.put("/api/media/special-events-day-banners/:id", requireAuth5, async (r
     res.status(400).json({ error: error.message });
   }
 });
-router22.delete("/api/media/special-events-day-banners/:id", requireAuth5, async (req, res) => {
+router22.delete("/api/media/special-events-day-banners/:id", requireAuth4, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     await db.delete(mediaSpecialEventsDayBanners).where(eq19(mediaSpecialEventsDayBanners.id, id));
@@ -41313,9 +41601,9 @@ router23.patch("/api/quickbooks/items/:id", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-function parseProductNameFromDescription(desc16) {
-  const beforeParen = desc16.split("(")[0].trim();
-  return beforeParen || desc16.trim();
+function parseProductNameFromDescription(desc17) {
+  const beforeParen = desc17.split("(")[0].trim();
+  return beforeParen || desc17.trim();
 }
 router23.post("/api/quickbooks/descriptions/sync", async (_req, res) => {
   try {
@@ -41419,11 +41707,11 @@ router23.post("/api/quickbooks/descriptions/sync", async (_req, res) => {
     let newMapped = 0;
     let newUnmapped = 0;
     let reMatched = 0;
-    for (const desc16 of descriptions) {
-      const existing = existingMaps.find((m) => m.description === desc16);
+    for (const desc17 of descriptions) {
+      const existing = existingMaps.find((m) => m.description === desc17);
       if (existing) {
         if (!existing.productId && !existing.isIgnored) {
-          const match2 = fuzzyMatch(existing.parsedName || desc16, allProducts);
+          const match2 = fuzzyMatch(existing.parsedName || desc17, allProducts);
           if (match2) {
             await db.update(qbDescriptionMap).set({ productId: match2.id, isAutoMatched: true }).where(eq20(qbDescriptionMap.id, existing.id));
             reMatched++;
@@ -41431,10 +41719,10 @@ router23.post("/api/quickbooks/descriptions/sync", async (_req, res) => {
         }
         continue;
       }
-      const parsedName = parseProductNameFromDescription(desc16);
+      const parsedName = parseProductNameFromDescription(desc17);
       const match = fuzzyMatch(parsedName, allProducts);
       await db.insert(qbDescriptionMap).values({
-        description: desc16,
+        description: desc17,
         parsedName,
         productId: match?.id || null,
         isAutoMatched: !!match
@@ -42131,6 +42419,24 @@ function buildFontsLink(els) {
   const all = [...base, ...customParts];
   return `https://fonts.googleapis.com/css2?${all.map((p) => `family=${p}`).join("&")}&display=swap`;
 }
+function sanitizeMenuHeaderHtml(str) {
+  const safeTags = ["br", "b", "strong", "i", "em", "u"];
+  const saved = [];
+  let result = str;
+  safeTags.forEach((tag) => {
+    const re = new RegExp(`</?${tag}\\b[^>]*>`, "gi");
+    result = result.replace(re, (m) => {
+      const p = `___HTAG${saved.length}___`;
+      saved.push(m);
+      return p;
+    });
+  });
+  result = result.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  saved.forEach((tag, i) => {
+    result = result.split(`___HTAG${i}___`).join(tag);
+  });
+  return result;
+}
 router24.get("/api/media/flyer/embed", async (req, res) => {
   try {
     const {
@@ -42308,7 +42614,7 @@ function renderFlyerHtml(events, opts) {
     const name = mode === "music" || mode === "food-trucks" ? ev.musician_name || ev.title : ev.title;
     const genre = mode === "music" || mode === "food-trucks" ? ev.musician_genre : ev.category;
     const imgUrl = ev.image_url || ev.musician_image_url;
-    const desc16 = ev.description;
+    const desc17 = ev.description;
     const date2 = formatDate(ev.event_date);
     const time = formatTime12(ev.start_time) + (ev.end_time ? ` - ${formatTime12(ev.end_time)}` : "");
     const location = ev.location;
@@ -42318,7 +42624,7 @@ function renderFlyerHtml(events, opts) {
            <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(name)}" style="width:100%;height:100%;object-fit:cover;" />
          </div>` : "";
     const genreHtml = genre ? `<span style="${tStyle(tyDetail)}color:${c.accent};text-transform:uppercase;letter-spacing:1px;">${escapeHtml(genre === "cooking-demo" ? "Cooking Demo" : genre)}</span>` : "";
-    const descHtml = !hideDescriptions && desc16 ? `<div style="${tStyle(tyDesc)}color:${c.secondary};line-height:1.4;margin-top:2px;">${escapeHtml(desc16)}</div>` : "";
+    const descHtml = !hideDescriptions && desc17 ? `<div style="${tStyle(tyDesc)}color:${c.secondary};line-height:1.4;margin-top:2px;">${escapeHtml(desc17)}</div>` : "";
     const priceHtml = !hidePrices && price ? ` | ${escapeHtml(price)}` : "";
     const featuredBadge = featured ? `<span style="font-size:7pt;background:${c.accent};color:#fff;padding:1px 6px;border-radius:3px;margin-left:6px;font-weight:600;">Featured</span>` : "";
     return `
@@ -42629,6 +42935,7 @@ router24.post("/api/media/flight-cards/configs", async (req, res) => {
       productIds: body.productIds || "",
       template: body.template || "classic",
       paperSize: body.paperSize || "a6",
+      printOrientation: body.printOrientation === "landscape" ? "landscape" : "portrait",
       showPrice: body.showPrice !== false,
       showDescription: body.showDescription !== false,
       showVintage: body.showVintage !== false,
@@ -42636,7 +42943,8 @@ router24.post("/api/media/flight-cards/configs", async (req, res) => {
       showAlcohol: body.showAlcohol === true,
       showTastingLines: body.showTastingLines === true,
       fontScale: body.fontScale || 100,
-      showOnStaffBoard: body.showOnStaffBoard === true
+      showOnStaffBoard: body.showOnStaffBoard === true,
+      itemOverrides: typeof body.itemOverrides === "string" ? body.itemOverrides : JSON.stringify(body.itemOverrides ?? {})
     }).returning();
     res.status(201).json(created);
   } catch (err) {
@@ -42654,6 +42962,7 @@ router24.put("/api/media/flight-cards/configs/:id", async (req, res) => {
       productIds: body.productIds || "",
       template: body.template || "classic",
       paperSize: body.paperSize || "a6",
+      printOrientation: body.printOrientation === "landscape" ? "landscape" : "portrait",
       showPrice: body.showPrice !== false,
       showDescription: body.showDescription !== false,
       showVintage: body.showVintage !== false,
@@ -42662,6 +42971,7 @@ router24.put("/api/media/flight-cards/configs/:id", async (req, res) => {
       showTastingLines: body.showTastingLines === true,
       fontScale: body.fontScale || 100,
       showOnStaffBoard: body.showOnStaffBoard === true,
+      itemOverrides: typeof body.itemOverrides === "string" ? body.itemOverrides : JSON.stringify(body.itemOverrides ?? {}),
       updatedAt: /* @__PURE__ */ new Date()
     }).where(eq21(flightCardConfigs.id, id)).returning();
     res.json(updated);
@@ -42678,53 +42988,104 @@ router24.delete("/api/media/flight-cards/configs/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+function stringifyParamsForTypo(p) {
+  const out = {};
+  for (const [k, v] of Object.entries(p)) {
+    if (v === null || v === void 0) continue;
+    out[k] = typeof v === "string" ? v : String(v);
+  }
+  return out;
+}
+function parseItemOverridesFromBody(val) {
+  if (!val) return {};
+  if (typeof val === "string") {
+    try {
+      const o = JSON.parse(val);
+      return o && typeof o === "object" && !Array.isArray(o) ? o : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof val === "object" && !Array.isArray(val)) return val;
+  return {};
+}
+async function buildFlightCardPrintHtml(p) {
+  const q = stringifyParamsForTypo(p);
+  const {
+    ids = "",
+    template = "classic",
+    size = "a6",
+    scale = "100",
+    header = "",
+    footer = ""
+  } = q;
+  const showprice = q.showprice;
+  const showdesc = q.showdesc;
+  const showvintage = q.showvintage;
+  const showvarietal = q.showvarietal;
+  const showalcohol = q.showalcohol;
+  const showtasting = q.showtasting;
+  const itemOverrides = parseItemOverridesFromBody(p.itemOverrides);
+  let paperKey = String(size);
+  let orientation = String(q.orientation || "portrait").toLowerCase() === "landscape" ? "landscape" : "portrait";
+  if (paperKey === "2p5x3p5-land") {
+    paperKey = "2p5x3p5";
+    orientation = "landscape";
+  }
+  const fontScale = parseInt(String(scale), 10) || 100;
+  const show = {
+    price: showprice !== "0",
+    description: showdesc !== "0",
+    vintage: showvintage !== "0",
+    varietal: showvarietal !== "0",
+    alcohol: showalcohol === "1",
+    tastingLines: showtasting === "1"
+  };
+  let products2 = [];
+  const idList = String(ids).split(",").map((s) => s.trim()).filter(Boolean);
+  if (idList.length > 0) {
+    const pgArray = `{${idList.map((id) => `"${id}"`).join(",")}}`;
+    const result = await db.execute(sql23`
+      SELECT id, name, category, type, varietal, vintage_year, price,
+             description, tasting_notes, alcohol_content, image_url, staff_pick
+      FROM products
+      WHERE id = ANY(${pgArray}::text[])
+        AND is_archived = false
+    `);
+    const rows = result.rows;
+    products2 = idList.map((id) => rows.find((r) => r.id === id)).filter(Boolean);
+  }
+  const fcTypo = {
+    name: pTypo(q, "name", "Playfair Display", 9.5),
+    desc: pTypo(q, "desc", "Playfair Display", 7.5),
+    meta: pTypo(q, "meta", "Playfair Display", 7.5),
+    header: pTypo(q, "header", "Playfair Display", 15)
+  };
+  return renderFlightCardHtml(products2, {
+    template: String(template),
+    fontScale,
+    paperSize: paperKey,
+    orientation,
+    header: String(header),
+    footer: String(footer),
+    show,
+    typo: fcTypo,
+    itemOverrides
+  });
+}
 router24.get("/api/media/flight-cards/print", async (req, res) => {
   try {
-    const {
-      ids = "",
-      template = "classic",
-      size = "a6",
-      scale = "100",
-      header,
-      footer,
-      showprice,
-      showdesc,
-      showvintage,
-      showvarietal,
-      showalcohol,
-      showtasting
-    } = req.query;
-    const fontScale = parseInt(scale) || 100;
-    const show = {
-      price: showprice !== "0",
-      description: showdesc !== "0",
-      vintage: showvintage !== "0",
-      varietal: showvarietal !== "0",
-      alcohol: showalcohol === "1",
-      tastingLines: showtasting === "1"
-    };
-    let products2 = [];
-    const idList = ids.split(",").map((s) => s.trim()).filter(Boolean);
-    if (idList.length > 0) {
-      const pgArray = `{${idList.map((id) => `"${id}"`).join(",")}}`;
-      const result = await db.execute(sql23`
-        SELECT id, name, category, type, varietal, vintage_year, price,
-               description, tasting_notes, alcohol_content, image_url, staff_pick
-        FROM products
-        WHERE id = ANY(${pgArray}::text[])
-          AND is_archived = false
-      `);
-      const rows = result.rows;
-      products2 = idList.map((id) => rows.find((r) => r.id === id)).filter(Boolean);
-    }
-    const fq = req.query;
-    const fcTypo = {
-      name: pTypo(fq, "name", "Playfair Display", 9.5),
-      desc: pTypo(fq, "desc", "Playfair Display", 7.5),
-      meta: pTypo(fq, "meta", "Playfair Display", 7.5),
-      header: pTypo(fq, "header", "Playfair Display", 15)
-    };
-    const html = renderFlightCardHtml(products2, { template, fontScale, paperSize: size, header: header || "", footer: footer || "", show, typo: fcTypo });
+    const html = await buildFlightCardPrintHtml(req.query);
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
+  } catch (err) {
+    console.error("Flight card render error:", err);
+    res.status(500).send("Error generating flight card");
+  }
+});
+router24.post("/api/media/flight-cards/print", async (req, res) => {
+  try {
+    const html = await buildFlightCardPrintHtml(req.body || {});
     res.setHeader("Content-Type", "text/html");
     res.send(html);
   } catch (err) {
@@ -42737,11 +43098,26 @@ var FLIGHT_PAPER_SIZES = {
   "4x6": { width: "4in", height: "6in", label: '4\xD76" Postcard' },
   "a5": { width: "5.83in", height: "8.27in", label: 'A5 (5.83\xD78.27")' },
   "5x7": { width: "5in", height: "7in", label: '5\xD77" Photo Card' },
-  "half": { width: "5.5in", height: "8.5in", label: 'Half Sheet (5.5\xD78.5")' }
+  "half": { width: "5.5in", height: "8.5in", label: 'Half Sheet (5.5\xD78.5")' },
+  /** Physical card 2.5\" × 3.5\" — use Print orientation to choose portrait (tall) or landscape (wide) */
+  "2p5x3p5": { width: "2.5in", height: "3.5in", label: '2.5\xD73.5" index / mini', compact: true },
+  /** @deprecated use 2p5x3p5 + landscape — kept for old saved URLs/configs */
+  "2p5x3p5-land": { width: "2.5in", height: "3.5in", label: "2.5\xD73.5 (legacy key)", compact: true }
 };
 function renderFlightCardHtml(products2, opts) {
-  const { template, fontScale, paperSize, header, footer, show, typo } = opts;
+  const { template, fontScale, paperSize, header, footer, show, typo, itemOverrides = {} } = opts;
   const sz = FLIGHT_PAPER_SIZES[paperSize] || FLIGHT_PAPER_SIZES["a6"];
+  const orientation = opts.orientation === "landscape" ? "landscape" : "portrait";
+  let pageW = sz.width;
+  let pageH = sz.height;
+  if (orientation === "landscape") {
+    [pageW, pageH] = [pageH, pageW];
+  }
+  const compact = sz.compact === true;
+  const cardPad = compact ? "7px 8px" : "18px 16px";
+  const rowPadV = compact ? 4 : 7;
+  const numPx = compact ? 16 : 20;
+  const headerMb = compact ? 6 : 10;
   const themes = {
     classic: {
       pageBg: "#fdfaf4",
@@ -42796,14 +43172,14 @@ function renderFlightCardHtml(products2, opts) {
   const tyDesc = typo?.desc ?? { font: "Playfair Display", sz: 7.5, bold: false, italic: false };
   const tyMeta = typo?.meta ?? { font: "Playfair Display", sz: 7.5, bold: false, italic: false };
   const fcFontsLink = buildFontsLink([tyHdr, tyName, tyDesc, tyMeta]);
-  const headerHtml = header ? `<div style="text-align:center;margin-bottom:10px;">
-        <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:0.5px;line-height:1.2;">${esc(header)}</div>
+  const headerHtml = header ? `<div style="text-align:center;margin-bottom:${headerMb}px;">
+        <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:0.5px;line-height:1.2;">${sanitizeMenuHeaderHtml(header)}</div>
         <div style="width:50px;height:2px;background:${t.divider};margin:5px auto 0;"></div>
-       </div>` : `<div style="text-align:center;margin-bottom:10px;">
+       </div>` : `<div style="text-align:center;margin-bottom:${headerMb}px;">
         <div style="${tStyle(tyHdr)}color:${t.accent};letter-spacing:1px;text-transform:uppercase;">Tasting Flight</div>
         <div style="width:50px;height:2px;background:${t.divider};margin:5px auto 0;"></div>
        </div>`;
-  const footerHtml = footer ? `<div style="text-align:center;${tStyle(tyMeta)}color:${t.muted};margin-top:auto;padding-top:8px;border-top:1px solid ${t.divider};font-style:italic;">${esc(footer)}</div>` : "";
+  const footerHtml = footer ? `<div style="text-align:center;${tStyle(tyMeta)}color:${t.muted};margin-top:auto;padding-top:${compact ? 4 : 8}px;border-top:1px solid ${t.divider};font-style:italic;">${sanitizeMenuHeaderHtml(footer)}</div>` : "";
   const emptyHtml = `<div style="text-align:center;color:${t.muted};font-size:10pt;padding:20px 0;">No products selected.</div>`;
   const itemRows = products2.length === 0 ? emptyHtml : products2.map((p, i) => {
     const num = i + 1;
@@ -42812,10 +43188,12 @@ function renderFlightCardHtml(products2, opts) {
     const varietal = show.varietal && p.varietal ? esc(p.varietal) : "";
     const alcohol = show.alcohol && p.alcohol_content ? esc(p.alcohol_content) + " ABV" : "";
     const price = show.price && p.price ? `$${Number(p.price).toFixed(2)}` : "";
-    const desc16 = show.description && p.description ? `<div style="${tStyle(tyDesc)}color:${t.secondary};line-height:1.4;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${esc(p.description)}</div>` : "";
+    const ovr = itemOverrides[p.id];
+    const rawDesc = ovr && "description" in ovr ? ovr.description ?? "" : p.description || "";
+    const desc17 = show.description && String(rawDesc).trim() ? `<div style="${tStyle(tyDesc)}color:${t.secondary};line-height:1.4;margin-top:${compact ? 1 : 3}px;${compact ? "max-height:3.2em;overflow:hidden;" : "max-height:5.5em;overflow:hidden;"}">${sanitizeMenuHeaderHtml(String(rawDesc))}</div>` : "";
     const metaParts = [varietal, alcohol].filter(Boolean);
     const meta = metaParts.length ? `<div style="${tStyle(tyMeta)}color:${t.muted};margin-top:1px;">${metaParts.join(" \xB7 ")}</div>` : "";
-    const tastingLines = show.tastingLines ? `<div style="margin-top:5px;">
+    const tastingLines = show.tastingLines ? `<div style="margin-top:${compact ? 3 : 5}px;">
            <div style="font-size:6pt;color:${t.muted};letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">My Notes</div>
            <div style="height:1px;background:${t.divider};margin-bottom:4px;opacity:0.6;"></div>
            <div style="height:1px;background:${t.divider};margin-bottom:4px;opacity:0.6;"></div>
@@ -42823,15 +43201,15 @@ function renderFlightCardHtml(products2, opts) {
          </div>` : "";
     const isLast = i === products2.length - 1;
     return `
-      <div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;${!isLast ? `border-bottom:1px solid ${t.divider};` : ""}">
-        <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:${t.numberBg};color:${t.numberFg};font-size:9pt;font-weight:700;font-family:${t.bodyFont};display:flex;align-items:center;justify-content:center;margin-top:1px;">${num}</div>
+      <div style="display:flex;align-items:flex-start;gap:${compact ? 5 : 8}px;padding:${rowPadV}px 0;${!isLast ? `border-bottom:1px solid ${t.divider};` : ""}">
+        <div style="flex-shrink:0;width:${numPx}px;height:${numPx}px;border-radius:50%;background:${t.numberBg};color:${t.numberFg};font-size:${compact ? "8pt" : "9pt"};font-weight:700;font-family:${t.bodyFont};display:flex;align-items:center;justify-content:center;margin-top:1px;">${num}</div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:4px;">
             <div style="${tStyle(tyName)}color:${t.text};line-height:1.2;">${vintage ? `${name} <span style="font-weight:400;font-size:8pt;color:${t.muted};">${vintage}</span>` : name}</div>
             ${price ? `<div style="${tStyle(tyName)}color:${t.accent};white-space:nowrap;flex-shrink:0;">${price}</div>` : ""}
           </div>
           ${meta}
-          ${desc16}
+          ${desc17}
           ${tastingLines}
         </div>
       </div>`;
@@ -42840,6 +43218,7 @@ function renderFlightCardHtml(products2, opts) {
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flight Card - Nashoba Valley</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="${fcFontsLink}" rel="stylesheet">
@@ -42854,18 +43233,19 @@ function renderFlightCardHtml(products2, opts) {
       align-items: center;
       justify-content: center;
       min-height: 100vh;
+      min-height: 100dvh;
     }
     @media print {
-      @page { margin: 0; size: ${sz.width} ${sz.height}; }
+      @page { margin: 0; size: ${pageW} ${pageH}; }
       body { margin: 0; min-height: unset; }
-      .card { box-shadow: none !important; }
+      .card { box-shadow: none !important; overflow: hidden !important; }
     }
   </style>
 </head>
 <body>
-  <div class="card" style="width:${sz.width};min-height:${sz.height};background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:18px 16px;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
+    <div class="card" style="width:${pageW};height:${pageH};max-width:${pageW};max-height:${pageH};overflow:auto;box-sizing:border-box;-webkit-overflow-scrolling:touch;background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;min-height:0;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
     ${headerHtml}
-    <div style="flex:1;">
+    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
       ${itemRows}
     </div>
     ${footerHtml}
@@ -44350,12 +44730,41 @@ Reference: #${ticketId.slice(0, 8)}`,
 });
 var email_delivery_routes_default = router25;
 
+// server/ensure-media-day-banner-tables.ts
+init_db();
+async function ensureMediaDayBannerTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media_music_day_banners (
+      id SERIAL PRIMARY KEY,
+      banner_date VARCHAR(10) NOT NULL UNIQUE,
+      label VARCHAR(255) NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_music_day_banner_date ON media_music_day_banners(banner_date);`
+  );
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media_special_events_day_banners (
+      id SERIAL PRIMARY KEY,
+      banner_date VARCHAR(10) NOT NULL UNIQUE,
+      label VARCHAR(255) NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_special_events_day_banner_date ON media_special_events_day_banners(banner_date);`
+  );
+}
+
 // server/routes.ts
 init_rbac();
 init_syncRegistry();
 init_schema();
-import { z as z9 } from "zod";
-import { eq as eq23, sql as sql31 } from "drizzle-orm";
+import { z as z10 } from "zod";
+import { and as and17, desc as desc16, eq as eq23, ilike as ilike3, sql as sql31 } from "drizzle-orm";
 import OpenAI6 from "openai";
 import bcrypt3 from "bcrypt";
 
@@ -44516,16 +44925,43 @@ init_email();
 import sgMail7 from "@sendgrid/mail";
 var pdfParse2 = pdfParseModule.default || pdfParseModule;
 function getStorageBucket() {
-  const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
+  const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID || process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) {
-    console.error("[ObjectStorage] REPLIT_DEFAULT_BUCKET_ID not set");
+    console.error("[ObjectStorage] Storage bucket env var not set");
     return null;
   }
   return objectStorageClient.bucket(bucketId);
 }
 async function registerRoutes(app2) {
+  try {
+    await ensureMediaDayBannerTables();
+  } catch (err) {
+    console.error("[DB] ensureMediaDayBannerTables failed:", err);
+    throw err;
+  }
+  const isAdmin5 = requirePlatformRole(["super_admin"]);
   app2.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  });
+  app2.get("/api/admin/storage/health", isAdmin5, async (_req, res) => {
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || process.env.REPLIT_DEFAULT_BUCKET_ID;
+    if (!bucketId) {
+      return res.status(500).json({ ok: false, message: "No storage bucket configured" });
+    }
+    try {
+      const bucket = objectStorageClient.bucket(bucketId);
+      const [exists] = await bucket.exists();
+      const [files] = await bucket.getFiles({ maxResults: 5 });
+      res.json({
+        ok: exists,
+        bucketId,
+        sampleCount: files.length,
+        sampleObjects: files.map((f) => f.name)
+      });
+    } catch (error) {
+      console.error("Storage health check failed:", error);
+      res.status(500).json({ ok: false, bucketId, message: "Storage health check failed" });
+    }
   });
   app2.use(b2b_routes_default);
   try {
@@ -44568,8 +45004,8 @@ async function registerRoutes(app2) {
     if (!req.session?.userId) {
       return res.status(401).json({ error: "Not authenticated" });
     }
-    const { z: z10 } = await import("zod");
-    const bodySchema = z10.object({ query: z10.string().min(2) });
+    const { z: z11 } = await import("zod");
+    const bodySchema = z11.object({ query: z11.string().min(2) });
     let parsed;
     try {
       parsed = bodySchema.parse(req.body);
@@ -44782,7 +45218,6 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
   const syncValidation = validateSyncRegistry(schemaTables);
   logSyncRegistryStatus(syncValidation);
   const unifiedIsAuthenticated = isPlatformAuthenticated;
-  const isAdmin5 = requirePlatformRole(["super_admin"]);
   app2.get("/api/auth/user", unifiedIsAuthenticated, async (req, res) => {
     try {
       const sess = req.session;
@@ -44801,7 +45236,7 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
         console.log(`[Auth] User not found in database`);
         return res.status(401).json({ message: "User not found" });
       }
-      const permissions = await getUserPermissions(userId);
+      const permissions = await getUserPermissions(req);
       console.log(`[Auth] User permissions:`, permissions);
       const response = {
         id: user.id,
@@ -44809,6 +45244,7 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
         firstName: user.firstName,
         lastName: user.lastName,
         globalRole: user.globalRole,
+        rbac: permissions,
         permissions
       };
       console.log(`[Auth] Response data:`, response);
@@ -44821,25 +45257,29 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
   app2.post("/api/b2b/bridge-login", unifiedIsAuthenticated, async (req, res) => {
     try {
       const sess = req.session;
-      const userEmail = sess.platformAuth?.email;
+      const userEmail = sess.platformAuth?.email?.toLowerCase?.();
       if (!userEmail) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const admin = await storage.getB2bAdminByEmail(userEmail);
-      if (!admin) {
-        return res.status(403).json({ error: "No B2B admin account found for this email" });
+      const permissions = await getUserPermissions(req);
+      if (!isGlobalAdmin(permissions) && !hasModuleAccess(permissions, "b2b")) {
+        return res.status(403).json({ error: "B2B access is not enabled for this platform account" });
       }
-      req.session.b2bUserId = admin.id;
-      req.session.b2bUserType = "admin";
-      req.session.b2bUserEmail = admin.email;
-      res.json({
-        success: true,
-        user: {
-          id: admin.id,
-          name: `${admin.firstName} ${admin.lastName}`,
-          email: admin.email,
-          type: "admin"
-        }
+      const bridgeUser = await establishB2bBridgeSession(req, userEmail);
+      if (bridgeUser) {
+        return req.session.save((err) => {
+          if (err) {
+            console.error("Bridge login session save error:", err);
+            return res.status(500).json({ error: "Failed to save B2B session" });
+          }
+          res.json({
+            success: true,
+            user: bridgeUser
+          });
+        });
+      }
+      return res.status(403).json({
+        error: "No active B2B admin or sales rep account found for this email"
       });
     } catch (error) {
       console.error("Bridge login error:", error);
@@ -44926,7 +45366,7 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
       }
       res.json(product);
     } catch (error) {
-      if (error instanceof z9.ZodError) {
+      if (error instanceof z10.ZodError) {
         return res.status(400).json({
           message: "Validation error",
           errors: error.errors
@@ -45154,8 +45594,8 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
   });
   app2.post("/api/trivia/questions/bulk-delete", isAdmin5, async (req, res) => {
     try {
-      const bulkDeleteSchema = z9.object({
-        ids: z9.array(z9.string().uuid()).min(1, "At least one ID is required")
+      const bulkDeleteSchema = z10.object({
+        ids: z10.array(z10.string().uuid()).min(1, "At least one ID is required")
       });
       const { ids } = bulkDeleteSchema.parse(req.body);
       const deletedCount = await storage.deleteTriviaQuestions(ids);
@@ -46052,7 +46492,7 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
       let accessCreated = 0;
       for (const group of prodGroups) {
         const groupName = group.name;
-        const isGlobalAdmin3 = groupName === "Global Admin";
+        const isGlobalAdmin2 = groupName === "Global Admin";
         for (const pMod of prodModules) {
           const existing = await prodSql`
             SELECT id FROM group_module_access 
@@ -46061,7 +46501,7 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
           if (existing.length === 0) {
             await prodSql`
               INSERT INTO group_module_access (group_id, module_id, has_access)
-              VALUES (${group.id}, ${pMod.id}, ${isGlobalAdmin3})
+              VALUES (${group.id}, ${pMod.id}, ${isGlobalAdmin2})
             `;
             accessCreated++;
           }
@@ -46159,10 +46599,10 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
             const hasAccess = (await db.execute(sql31`
               SELECT name FROM user_groups WHERE id = ${groupId}
             `)).rows[0];
-            const isGlobalAdmin3 = hasAccess?.name === "Global Admin";
+            const isGlobalAdmin2 = hasAccess?.name === "Global Admin";
             await db.execute(sql31`
               INSERT INTO group_module_access (group_id, module_id, has_access)
-              VALUES (${groupId}, ${moduleId}, ${isGlobalAdmin3})
+              VALUES (${groupId}, ${moduleId}, ${isGlobalAdmin2})
               ON CONFLICT (group_id, module_id) DO NOTHING
             `);
           }
@@ -47964,6 +48404,54 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
     const files = await storage.getMediaLibraryFiles(category);
     res.json(files);
   });
+  app2.get("/api/media-hub/assets", async (req, res) => {
+    try {
+      const q = req.query.q?.trim();
+      const category = req.query.category;
+      const mimePrefix = req.query.mimePrefix;
+      const limit = Math.min(Number(req.query.limit ?? 100), 250);
+      const offset = Math.max(Number(req.query.offset ?? 0), 0);
+      const whereConditions = [];
+      if (category && category !== "all") {
+        whereConditions.push(eq23(mediaLibrary.category, category));
+      }
+      if (mimePrefix) {
+        whereConditions.push(ilike3(mediaLibrary.mimeType, `${mimePrefix}%`));
+      }
+      if (q) {
+        whereConditions.push(
+          sql31`(
+            ${mediaLibrary.filename} ILIKE ${`%${q}%`} OR
+            ${mediaLibrary.originalFilename} ILIKE ${`%${q}%`} OR
+            ${mediaLibrary.description} ILIKE ${`%${q}%`} OR
+            ${mediaLibrary.altText} ILIKE ${`%${q}%`} OR
+            EXISTS (
+              SELECT 1 FROM unnest(${mediaLibrary.tags}) tag
+              WHERE tag ILIKE ${`%${q}%`}
+            )
+          )`
+        );
+      }
+      const whereClause = whereConditions.length > 0 ? and17(...whereConditions) : void 0;
+      const assets = await db.select().from(mediaLibrary).where(whereClause).orderBy(desc16(mediaLibrary.createdAt)).limit(limit).offset(offset);
+      res.json(assets);
+    } catch (error) {
+      console.error("Error searching media assets:", error);
+      res.status(500).json({ message: "Failed to search media assets" });
+    }
+  });
+  app2.get("/api/media-hub/folders", async (_req, res) => {
+    try {
+      const rows = await db.select({ objectPath: mediaLibrary.objectPath }).from(mediaLibrary);
+      const folders = Array.from(new Set(
+        rows.map((r) => r.objectPath.split("/").slice(0, -1).join("/")).filter(Boolean)
+      )).sort((a, b) => a.localeCompare(b));
+      res.json({ folders });
+    } catch (error) {
+      console.error("Error loading media folders:", error);
+      res.status(500).json({ message: "Failed to load media folders" });
+    }
+  });
   app2.get("/api/media-library/:id", async (req, res) => {
     const file = await storage.getMediaLibraryFile(req.params.id);
     if (!file) {
@@ -48015,6 +48503,42 @@ ${JSON.stringify(featureCatalog.map((f) => ({ name: f.name, path: f.path, descri
       res.json(file);
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+  app2.get("/api/media-hub/assets/:id/usages", async (req, res) => {
+    try {
+      const usages = await db.select().from(mediaUsage).where(eq23(mediaUsage.mediaId, req.params.id)).orderBy(desc16(mediaUsage.createdAt));
+      res.json(usages);
+    } catch (error) {
+      console.error("Error loading media usages:", error);
+      res.status(500).json({ message: "Failed to load media usages" });
+    }
+  });
+  app2.post("/api/media-hub/assets/:id/usages", isAdmin5, async (req, res) => {
+    try {
+      const media = await storage.getMediaLibraryFile(req.params.id);
+      if (!media) return res.status(404).json({ message: "Media not found" });
+      const payload = insertMediaUsageSchema.parse({
+        ...req.body,
+        mediaId: req.params.id
+      });
+      const [created] = await db.insert(mediaUsage).values(payload).returning();
+      res.status(201).json(created);
+    } catch (error) {
+      console.error("Error creating media usage:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+  app2.delete("/api/media-hub/usages/:usageId", isAdmin5, async (req, res) => {
+    try {
+      const result = await db.delete(mediaUsage).where(eq23(mediaUsage.id, req.params.usageId));
+      if (!result.rowCount) {
+        return res.status(404).json({ message: "Usage not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting media usage:", error);
+      res.status(500).json({ message: "Failed to delete media usage" });
     }
   });
   app2.delete("/api/media-library/:id", isAdmin5, async (req, res) => {
@@ -60649,6 +61173,64 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
       res.status(500).json({ message: "Failed to fetch daily revenue" });
     }
   });
+  app2.get("/api/rcc/daily-revenue/ytd-discount-void", isPlatformAuthenticated, async (req, res) => {
+    try {
+      const dateParam = typeof req.query.date === "string" ? req.query.date : "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return res.status(400).json({ message: "date query param is required in YYYY-MM-DD format" });
+      }
+      const yearStart = `${dateParam.slice(0, 4)}-01-01`;
+      const result = await db.execute(sql31`
+        SELECT
+          date,
+          COALESCE(toast_gross_sales, 0) AS toast_gross_sales,
+          COALESCE(toast_discount_amount, 0) AS toast_discount_amount,
+          COALESCE(toast_void_amount, 0) AS toast_void_amount,
+          COALESCE(toast_discount_pct, 0) AS toast_discount_pct
+        FROM rcc_daily_revenue
+        WHERE date >= ${yearStart}
+          AND date <= ${dateParam}
+          AND COALESCE(toast_gross_sales, 0) > 0
+        ORDER BY date ASC
+      `);
+      const rows = result.rows.map((row) => {
+        const gross = parseFloat(row.toast_gross_sales || "0");
+        const discountAmount = parseFloat(row.toast_discount_amount || "0");
+        const voidAmount = parseFloat(row.toast_void_amount || "0");
+        const discountPct = parseFloat(row.toast_discount_pct || "0") || (gross > 0 ? discountAmount / gross * 100 : 0);
+        const voidPct = gross > 0 ? voidAmount / gross * 100 : 0;
+        return { gross, discountAmount, voidAmount, discountPct, voidPct };
+      });
+      const daysWithSales = rows.length;
+      const totalGross = rows.reduce((sum, row) => sum + row.gross, 0);
+      const totalDiscountAmount = rows.reduce((sum, row) => sum + row.discountAmount, 0);
+      const totalVoidAmount = rows.reduce((sum, row) => sum + row.voidAmount, 0);
+      const discountPctWeighted = totalGross > 0 ? totalDiscountAmount / totalGross * 100 : 0;
+      const voidPctWeighted = totalGross > 0 ? totalVoidAmount / totalGross * 100 : 0;
+      const calcStdDev = (values) => {
+        if (values.length < 2) return 0;
+        const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+        const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+        return Math.sqrt(variance);
+      };
+      const discountPctStdDev = calcStdDev(rows.map((row) => row.discountPct));
+      const voidPctStdDev = calcStdDev(rows.map((row) => row.voidPct));
+      res.json({
+        throughDate: dateParam,
+        daysWithSales,
+        totalGross,
+        totalDiscountAmount,
+        totalVoidAmount,
+        discountPctWeighted,
+        voidPctWeighted,
+        discountPctStdDev,
+        voidPctStdDev
+      });
+    } catch (error) {
+      console.error("Error fetching YTD discount/void analysis:", error);
+      res.status(500).json({ message: "Failed to fetch YTD discount/void analysis" });
+    }
+  });
   app2.post("/api/rcc/daily-revenue", isPlatformAuthenticated, async (req, res) => {
     try {
       const dailyRevenue = await storage.upsertRccDailyRevenue(req.body);
@@ -60902,8 +61484,11 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         results
       });
     } catch (error) {
+      if (error instanceof ShopifyNotInstalledError) {
+        return res.status(503).json({ message: error.message, code: "SHOPIFY_UNAVAILABLE" });
+      }
       console.error("Error syncing Shopify revenue:", error);
-      res.status(500).json({ message: "Failed to sync Shopify revenue" });
+      res.status(500).json({ message: error?.message || "Failed to sync Shopify revenue" });
     }
   });
   app2.post("/api/rcc/daily-revenue/sync-shopify-date", isPlatformAuthenticated, async (req, res) => {
@@ -60932,7 +61517,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         return res.status(503).json({ message: error.message, code: "SHOPIFY_UNAVAILABLE" });
       }
       console.error("Error syncing Shopify revenue for date:", error);
-      res.status(500).json({ message: "Failed to sync Shopify revenue" });
+      res.status(500).json({ message: error?.message || "Failed to sync Shopify revenue" });
     }
   });
   app2.post("/api/rcc/daily-revenue/sync-wholesale-date", isPlatformAuthenticated, async (req, res) => {
@@ -61510,6 +62095,7 @@ function serveStatic(app2) {
 }
 
 // server/index.ts
+config2();
 process.env.TZ = "America/New_York";
 var app = express4();
 app.use(compression());
@@ -61566,8 +62152,7 @@ app.use(express4.static(path3.join(process.cwd(), "public")));
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen({
     port,
-    host: "0.0.0.0",
-    reusePort: true
+    host: "0.0.0.0"
   }, () => {
     log(`serving on port ${port}`);
   });

@@ -15,9 +15,19 @@ const fromPhone = rawFromPhone ? rawFromPhone.replace(/^\++/, '+') : undefined;
 
 let twilioClient: twilio.Twilio | null = null;
 
-if (accountSid && authToken) {
-  twilioClient = twilio(accountSid, authToken);
-  console.log("[SMS] Twilio client initialized");
+if (accountSid && authToken && accountSid.startsWith("AC")) {
+  try {
+    twilioClient = twilio(accountSid, authToken);
+    console.log("[SMS] Twilio client initialized");
+  } catch (error: any) {
+    console.warn("[SMS] Twilio credentials are invalid - SMS will be disabled:", error.message);
+  }
+} else if (accountSid || authToken) {
+  console.warn("[SMS] Twilio credentials are incomplete or invalid - SMS will be disabled", {
+    hasAccountSid: !!accountSid,
+    accountSidPrefix: accountSid ? accountSid.substring(0, 2) : "none",
+    hasAuthToken: !!authToken,
+  });
 } else {
   console.warn("[SMS] Twilio credentials not configured - SMS will be disabled");
 }
