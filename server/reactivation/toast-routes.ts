@@ -1130,6 +1130,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const scale = Math.min(120, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
+    const columnCount = pages > 0 ? pages : 1;
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
@@ -1426,7 +1427,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
         .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
         .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
-        .menu-group { margin-bottom: 40px; }
+        .menu-groups-container { column-count: ${columnCount}; column-gap: 32px; }
+        .menu-group { break-inside: avoid; margin-bottom: 40px; }
         .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 20px; }
@@ -1454,7 +1456,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
         @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name--in-menu-section { color: #6b5a3a; font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
+        @media (max-width: 600px) { .menu-groups-container { column-count: 1; } .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
         @import url('${gFontsUrl}');
@@ -1463,7 +1465,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-container { max-width: 850px; margin: 0 auto; padding: 32px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; border-bottom: 2px solid #1c1917; padding-bottom: 8px; }
         .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 24px; }
-        .bev-groups-container { column-count: 2; column-gap: 32px; }
+        .bev-groups-container { column-count: ${columnCount}; column-gap: 32px; }
         .bev-group { break-inside: avoid; margin-bottom: 20px; }
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
         .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
@@ -1495,7 +1497,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-container { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; margin-bottom: 4px; }
         .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 32px; }
-        .menu-group { margin-bottom: 32px; }
+        .menu-groups-container { column-count: ${columnCount}; column-gap: 32px; }
+        .menu-group { break-inside: avoid; margin-bottom: 32px; }
         .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
         .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
         .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
@@ -1525,7 +1528,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a8a29e; }
         @page { size: letter; margin: 0.3in 0.4in; }
         @media print { html { font-size: ${scale}%; } body { display: block; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 16px; } .menu-group { margin-bottom: 14px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; } .group-divider { margin-bottom: 8px; } .menu-item { padding: 4px 0; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .item-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .item-description { font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; margin-top: 2px; } .item-pairing { font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 12px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
+        @media (max-width: 600px) { .menu-groups-container { column-count: 1; } .menu-container { padding: 20px 16px; } }`;
     }
 
     const html = `<!DOCTYPE html>
@@ -1542,7 +1545,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
-    ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
+    <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
     <div class="footer">
       ${!hideAllergyFooter ? `
         <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
@@ -1626,6 +1629,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const scale = Math.min(120, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
+    const columnCount = pages > 0 ? pages : 1;
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
@@ -1894,7 +1898,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
         .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
         .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
-        .menu-group { margin-bottom: 40px; }
+        .menu-groups-container { column-count: ${columnCount}; column-gap: 32px; }
+        .menu-group { break-inside: avoid; margin-bottom: 40px; }
         .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 20px; }
@@ -1922,7 +1927,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.3in 0.4in; }
         @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: block; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; color: #444; margin-bottom: 16px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; color: #1a1a18; } .item-name--in-menu-section { color: #6b5a3a; font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; } .item-description { color: #444; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; } .item-price { color: #222; font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #555; font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: auto; padding-top: 12px; color: #555; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #444; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
+        @media (max-width: 600px) { .menu-groups-container { column-count: 1; } .menu-container { padding: 24px 16px; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.7).toFixed(3)}rem; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.7).toFixed(3)}rem; } }`;
     } else if (template === "beverage") {
       css = `
         @import url('${gFontsUrl}');
@@ -1931,7 +1936,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-container { max-width: 850px; margin: 0 auto; padding: 32px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; border-bottom: 2px solid #1c1917; padding-bottom: 8px; }
         .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 24px; }
-        .bev-groups-container { column-count: 2; column-gap: 32px; }
+        .bev-groups-container { column-count: ${columnCount}; column-gap: 32px; }
         .bev-group { break-inside: avoid; margin-bottom: 20px; }
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
         .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
@@ -1963,7 +1968,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-container { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; margin-bottom: 4px; }
         .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 32px; }
-        .menu-group { margin-bottom: 32px; }
+        .menu-groups-container { column-count: ${columnCount}; column-gap: 32px; }
+        .menu-group { break-inside: avoid; margin-bottom: 32px; }
         .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
         .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
         .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
@@ -1993,7 +1999,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #a8a29e; }
         @page { size: letter; margin: 0.3in 0.4in; }
         @media print { html { font-size: ${scale}%; } body { display: block; } .menu-container { padding: 8px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 16px; } .menu-group { margin-bottom: 14px; } .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; } .group-divider { margin-bottom: 8px; } .menu-item { padding: 4px 0; } .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .item-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .item-description { font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.8).toFixed(3)}rem; margin-top: 2px; } .item-pairing { font-size: ${(parseFloat(ptRem(typo.pairing.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 12px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
-        @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
+        @media (max-width: 600px) { .menu-groups-container { column-count: 1; } .menu-container { padding: 20px 16px; } }`;
     }
 
     const html = `<!DOCTYPE html>
@@ -2010,7 +2016,7 @@ router.get("/public/menus/embed", async (req, res) => {
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
-    ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
+    <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
     <div class="footer">
       ${!hideAllergyFooter ? `
         <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>

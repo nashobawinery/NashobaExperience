@@ -663,9 +663,6 @@ export function ToastMenuBrowser() {
         pendingNavAction();
         setPendingNavAction(null);
         setShowUnsavedWarning(false);
-      } else {
-        setStaffSaveIsDirectEntry(false);
-        setShowStaffSavePrompt(true);
       }
     },
     onError: (err: Error) => {
@@ -1436,7 +1433,7 @@ export function ToastMenuBrowser() {
               idPrefix="browser"
               title="Typography"
               rows={BROWSER_TYPO_ROWS}
-              values={printTypo as Record<string, TypoElem>}
+              values={printTypo as unknown as Record<string, TypoElem>}
               onChange={(key, field, value) => setPrintTypo(prev => ({ ...prev, [key]: { ...prev[key as keyof BrowserTypoSettings], [field]: value } }))}
               onReset={() => setPrintTypo(DEFAULT_BROWSER_TYPO)}
             />
@@ -1722,19 +1719,20 @@ export function ToastMenuBrowser() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium">Number of Pages / Columns</label>
-                <p className="text-xs text-muted-foreground">Splits the menu across multiple columns or pages.</p>
+                <label className="text-sm font-medium">Columns on Page</label>
+                <p className="text-xs text-muted-foreground">Choose how many columns the menu body should flow into on one printed page.</p>
                 <Select value={String(printPages)} onValueChange={(v) => setPrintPages(Number(v))}>
                   <SelectTrigger data-testid="select-print-pages">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Single column (default)</SelectItem>
-                    <SelectItem value="2">2 Pages / Columns</SelectItem>
-                    <SelectItem value="3">3 Pages</SelectItem>
-                    <SelectItem value="4">4 Pages</SelectItem>
-                    <SelectItem value="5">5 Pages</SelectItem>
-                    <SelectItem value="6">6 Pages</SelectItem>
+                    <SelectItem value="0">1 column (default)</SelectItem>
+                    <SelectItem value="1">1 column</SelectItem>
+                    <SelectItem value="2">2 columns</SelectItem>
+                    <SelectItem value="3">3 columns</SelectItem>
+                    <SelectItem value="4">4 columns</SelectItem>
+                    <SelectItem value="5">5 columns</SelectItem>
+                    <SelectItem value="6">6 columns</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2340,20 +2338,20 @@ export function ToastMenuBrowser() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Target Pages: {printPages === 0 ? "Auto" : printPages}</label>
-            <p className="text-xs text-muted-foreground">Set the number of pages the menu should print on. Use with font size to fit content.</p>
+            <label className="text-sm font-medium">Columns on Page: {printPages === 0 ? "1" : printPages}</label>
+            <p className="text-xs text-muted-foreground">Set how many columns the menu body should flow into on one printed page.</p>
             <Select value={String(printPages)} onValueChange={(v) => setPrintPages(Number(v))}>
               <SelectTrigger data-testid="select-print-pages">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">Auto</SelectItem>
-                <SelectItem value="1">1 Page</SelectItem>
-                <SelectItem value="2">2 Pages</SelectItem>
-                <SelectItem value="3">3 Pages</SelectItem>
-                <SelectItem value="4">4 Pages</SelectItem>
-                <SelectItem value="5">5 Pages</SelectItem>
-                <SelectItem value="6">6 Pages</SelectItem>
+                <SelectItem value="0">1 column (default)</SelectItem>
+                <SelectItem value="1">1 column</SelectItem>
+                <SelectItem value="2">2 columns</SelectItem>
+                <SelectItem value="3">3 columns</SelectItem>
+                <SelectItem value="4">4 columns</SelectItem>
+                <SelectItem value="5">5 columns</SelectItem>
+                <SelectItem value="6">6 columns</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -2365,7 +2363,7 @@ export function ToastMenuBrowser() {
               idPrefix="browser-print"
               title="Typography"
               rows={BROWSER_TYPO_ROWS}
-              values={printTypo as Record<string, TypoElem>}
+              values={printTypo as unknown as Record<string, TypoElem>}
               onChange={(key, field, value) => setPrintTypo(prev => ({ ...prev, [key]: { ...prev[key as keyof BrowserTypoSettings], [field]: value } }))}
               onReset={() => setPrintTypo(DEFAULT_BROWSER_TYPO)}
             />
