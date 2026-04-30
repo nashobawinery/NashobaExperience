@@ -31,6 +31,11 @@ type CustomPrintLine = {
   kind: "banner" | "header" | "note";
   text: string;
   placement: string;
+  align: "left" | "center" | "right";
+  font: string;
+  size: number;
+  bold: boolean;
+  italic: boolean;
 };
 
 type ItemPrintStyles = Record<string, number>;
@@ -72,6 +77,11 @@ function parseCustomPrintLines(value: unknown): CustomPrintLine[] {
         kind: ["banner", "header", "note"].includes(line?.kind) ? line.kind : "banner",
         text: typeof line?.text === "string" ? line.text.trim() : "",
         placement: typeof line?.placement === "string" ? line.placement : "after-title",
+        align: ["left", "center", "right"].includes(line?.align) ? line.align : "center",
+        font: typeof line?.font === "string" ? line.font.replace(/[^a-zA-Z0-9 ]/g, "").trim().slice(0, 60) || "Jost" : "Jost",
+        size: typeof line?.size === "number" ? Math.min(72, Math.max(8, line.size)) : 14,
+        bold: !!line?.bold,
+        italic: !!line?.italic,
       }))
       .filter((line) => line.text.length > 0 && line.text.length <= 1000 && line.placement.length <= 160)
       .slice(0, 25);
@@ -83,7 +93,16 @@ function parseCustomPrintLines(value: unknown): CustomPrintLine[] {
 function renderCustomPrintLines(lines: CustomPrintLine[], placement: string): string {
   return lines
     .filter((line) => line.placement === placement)
-    .map((line) => `<div class="custom-print-line custom-print-line--${line.kind}">${sanitizeMenuDescriptionHtml(line.text)}</div>`)
+    .map((line) => {
+      const style = [
+        `text-align:${line.align}`,
+        `font-family:'${line.font}', sans-serif`,
+        `font-size:${(line.size / 12).toFixed(3)}rem`,
+        `font-weight:${line.bold ? "700" : "400"}`,
+        `font-style:${line.italic ? "italic" : "normal"}`,
+      ].join(";");
+      return `<div class="custom-print-line custom-print-line--${line.kind}" style="${style}">${sanitizeMenuDescriptionHtml(line.text)}</div>`;
+    })
     .join("");
 }
 
@@ -131,7 +150,8 @@ function ensureEmbedConfigColumns(): Promise<void> {
       ALTER TABLE toast_menu_embed_configs
       ADD COLUMN IF NOT EXISTS custom_print_lines text,
       ADD COLUMN IF NOT EXISTS custom_title text,
-      ADD COLUMN IF NOT EXISTS item_print_styles text
+      ADD COLUMN IF NOT EXISTS item_print_styles text,
+      ADD COLUMN IF NOT EXISTS hide_course_headings boolean DEFAULT false
     `).then(() => undefined);
   }
   return ensureEmbedConfigColumnsPromise;
@@ -1144,6 +1164,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const hideWinePairing = req.query.hidepairing === "1";
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
+    const hideGroupHeadings = req.query.hidegroups === "1";
     /** When the Toast group name matches the page title, hide the duplicate cursive/secondary heading (pass hidedupgroup=0 to show). */
     const hidedupgroup = req.query.hidedupgroup !== "0";
     const nosectionrows = req.query.nosectionrows === "1";
@@ -1163,7 +1184,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
     const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -1386,7 +1407,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
-      const showGroupSubheading = !shouldHideGroupHeading;
+      const showGroupSubheading = !hideGroupHeadings && !shouldHideGroupHeading;
       const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
@@ -1642,6 +1663,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const hideWinePairing = req.query.hidepairing === "1";
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
+    const hideGroupHeadings = req.query.hidegroups === "1";
     const customTitle = (req.query.title as string) || "";
     const hidedupgroup = req.query.hidedupgroup !== "0";
     const nosectionrows = req.query.nosectionrows === "1";
@@ -1663,7 +1685,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
     const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -1856,7 +1878,7 @@ router.get("/public/menus/embed", async (req, res) => {
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
-      const showGroupSubheading = !shouldHideGroupHeading;
+      const showGroupSubheading = !hideGroupHeadings && !shouldHideGroupHeading;
       const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
@@ -2177,6 +2199,7 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.hideWinePairing) url += `&hidepairing=1`;
     if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
     if (config.itemPrintStyles) url += `&itemstyles=${encodeURIComponent(config.itemPrintStyles)}`;
+    if (config.hideCourseHeadings) url += `&hidegroups=1`;
     if (config.showImages) url += `&showimages=1`;
 
     // Serve the HTML directly (not a redirect) so the short slug URL stays in the browser bar
@@ -2235,6 +2258,7 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       hidePricing: req.body.hidePricing ?? false,
       hideWinePairing: req.body.hideWinePairing ?? false,
       showImages: req.body.showImages ?? false,
+      hideCourseHeadings: req.body.hideCourseHeadings ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks || null,
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids || null,
@@ -2271,6 +2295,7 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       hidePricing: req.body.hidePricing ?? false,
       hideWinePairing: req.body.hideWinePairing ?? false,
       showImages: req.body.showImages ?? false,
+      hideCourseHeadings: req.body.hideCourseHeadings ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks ?? null,
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids ?? null,

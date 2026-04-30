@@ -6339,6 +6339,7 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
   hidePricing: boolean("hide_pricing").default(false),
   hideWinePairing: boolean("hide_wine_pairing").default(false),
   showImages: boolean("show_images").default(false),
+  hideCourseHeadings: boolean("hide_course_headings").default(false),
   pages: integer("pages").default(0),
   pageBreaks: text("page_breaks"),
   printAdditionalMenuGuids: text("print_additional_menu_guids"),

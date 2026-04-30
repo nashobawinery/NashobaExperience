@@ -157,13 +157,21 @@ interface SyncStatus {
 }
 
 type PrintCustomLineKind = "banner" | "header" | "note";
+type PrintCustomLineAlign = "left" | "center" | "right";
 
 interface PrintCustomLine {
   id: string;
   kind: PrintCustomLineKind;
   text: string;
   placement: string;
+  align: PrintCustomLineAlign;
+  font: string;
+  size: number;
+  bold: boolean;
+  italic: boolean;
 }
+
+const PRINT_LINE_FONT_OPTIONS = ["Cinzel", "Jost", "Allura", "Georgia", "Arial", "Times New Roman"];
 
 function formatPrice(price: string | null): string {
   if (!price) return "";
@@ -223,6 +231,7 @@ export function ToastMenuBrowser() {
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
   const [printShowImages, setPrintShowImages] = useState(false);
   const [printHideAllergyFooter, setPrintHideAllergyFooter] = useState(false);
+  const [printHideCourseHeadings, setPrintHideCourseHeadings] = useState(false);
   const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
   const [printCustomTitle, setPrintCustomTitle] = useState("");
   const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
@@ -256,6 +265,11 @@ export function ToastMenuBrowser() {
         kind: "banner",
         text: "",
         placement: "after-title",
+        align: "center",
+        font: "Jost",
+        size: 14,
+        bold: false,
+        italic: false,
       },
     ]);
   };
@@ -270,7 +284,16 @@ export function ToastMenuBrowser() {
 
   const serializePrintCustomLines = () => {
     const lines = printCustomLines
-      .map(({ kind, text, placement }) => ({ kind, text: text.trim(), placement }))
+      .map(({ kind, text, placement, align, font, size, bold, italic }) => ({
+        kind,
+        text: text.trim(),
+        placement,
+        align,
+        font,
+        size,
+        bold,
+        italic,
+      }))
       .filter(line => line.text && line.placement);
     return lines.length > 0 ? JSON.stringify(lines) : "";
   };
@@ -286,6 +309,11 @@ export function ToastMenuBrowser() {
           kind: ["banner", "header", "note"].includes(line?.kind) ? line.kind as PrintCustomLineKind : "banner",
           text: typeof line?.text === "string" ? line.text : "",
           placement: typeof line?.placement === "string" ? line.placement : "after-title",
+          align: ["left", "center", "right"].includes(line?.align) ? line.align as PrintCustomLineAlign : "center",
+          font: typeof line?.font === "string" && line.font.trim() ? line.font : "Jost",
+          size: typeof line?.size === "number" ? Math.min(72, Math.max(8, line.size)) : 14,
+          bold: !!line?.bold,
+          italic: !!line?.italic,
         }))
         .filter(line => line.text.trim());
     } catch {
@@ -424,6 +452,7 @@ export function ToastMenuBrowser() {
     hidePricing: boolean | null;
     hideWinePairing: boolean | null;
     showImages: boolean | null;
+    hideCourseHeadings: boolean | null;
     pages: number | null;
     pageBreaks: string | null;
     printAdditionalMenuGuids: string | null;
@@ -475,6 +504,7 @@ export function ToastMenuBrowser() {
     hidePricing: printHidePricing,
     hideWinePairing: printHideWinePairing,
     showImages: printShowImages,
+    hideCourseHeadings: printHideCourseHeadings,
     pages: printPages,
     pageBreaks: printPageBreaks.length > 0 ? printPageBreaks.join(",") : null,
     customPrintLines: serializePrintCustomLines() || null,
@@ -530,6 +560,7 @@ export function ToastMenuBrowser() {
         hidePricing: config.hidePricing,
         hideWinePairing: config.hideWinePairing,
         showImages: config.showImages,
+        hideCourseHeadings: config.hideCourseHeadings,
         pages: config.pages,
         pageBreaks: config.pageBreaks,
         customPrintLines: config.customPrintLines,
@@ -726,6 +757,7 @@ export function ToastMenuBrowser() {
     if (hideWinePairing) url += `&hidepairing=1`;
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
+    if (printHideCourseHeadings) url += `&hidegroups=1`;
     if (header) url += `&header=${encodeURIComponent(header)}`;
     if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
     const itemStyles = serializeItemPrintStyles();
@@ -747,6 +779,7 @@ export function ToastMenuBrowser() {
     if (hideWinePairing) url += `&hidepairing=1`;
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
+    if (printHideCourseHeadings) url += `&hidegroups=1`;
     if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
     const itemStyles = serializeItemPrintStyles();
     if (itemStyles) url += `&itemstyles=${encodeURIComponent(itemStyles)}`;
@@ -820,6 +853,7 @@ export function ToastMenuBrowser() {
       setPrintHidePricing(params.get("hideprice") === "1");
       setPrintHideWinePairing(params.get("hidepairing") === "1");
       setPrintShowImages(params.get("showimages") === "1");
+      setPrintHideCourseHeadings(params.get("hidegroups") === "1");
       setPrintPages(parseInt(params.get("pages") || "0") || 0);
       setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintCustomLines(parsePrintCustomLines(params.get("customlines")));
@@ -851,6 +885,7 @@ export function ToastMenuBrowser() {
     setPrintHidePricing(config.hidePricing || false);
     setPrintHideWinePairing(config.hideWinePairing || false);
     setPrintShowImages(config.showImages || false);
+    setPrintHideCourseHeadings(config.hideCourseHeadings || false);
     setPrintPages(config.pages || 0);
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
     setPrintCustomLines(parsePrintCustomLines(config.customPrintLines));
@@ -885,6 +920,7 @@ export function ToastMenuBrowser() {
       setPrintCustomLines([]);
       setPrintCustomTitle("");
       setPrintItemFontScales({});
+      setPrintHideCourseHeadings(false);
       setLoadedEmbedConfigId(null);
       setLoadedEmbedConfigName("");
       setSaveName("");
@@ -1423,6 +1459,14 @@ export function ToastMenuBrowser() {
                 />
                 <span className="font-medium">Hide Allergy Footer</span>
               </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={printHideCourseHeadings}
+                  onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
+                  data-testid="checkbox-detail-hide-course-headings"
+                />
+                <span className="font-medium">Hide Course Headings</span>
+              </label>
             </div>
           </CardContent>
         </Card>
@@ -1809,6 +1853,62 @@ export function ToastMenuBrowser() {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
+                        <div className="grid gap-3 sm:grid-cols-5">
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Justification</label>
+                            <Select value={line.align} onValueChange={(v) => updatePrintCustomLine(line.id, { align: v as PrintCustomLineAlign })}>
+                              <SelectTrigger data-testid={`select-print-line-align-${index}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="left">Left</SelectItem>
+                                <SelectItem value="center">Center</SelectItem>
+                                <SelectItem value="right">Right</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Font</label>
+                            <Select value={line.font} onValueChange={(v) => updatePrintCustomLine(line.id, { font: v })}>
+                              <SelectTrigger data-testid={`select-print-line-font-${index}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PRINT_LINE_FONT_OPTIONS.map(font => (
+                                  <SelectItem key={font} value={font}>{font}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Font Size</label>
+                            <input
+                              type="number"
+                              min={8}
+                              max={72}
+                              value={line.size}
+                              onChange={(e) => updatePrintCustomLine(line.id, { size: Number(e.target.value) || 14 })}
+                              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                              data-testid={`input-print-line-size-${index}`}
+                            />
+                          </div>
+                          <label className="flex items-center gap-2 text-sm cursor-pointer pt-6">
+                            <Checkbox
+                              checked={line.bold}
+                              onCheckedChange={(checked) => updatePrintCustomLine(line.id, { bold: !!checked })}
+                              data-testid={`checkbox-print-line-bold-${index}`}
+                            />
+                            <span className="font-medium">Bold</span>
+                          </label>
+                          <label className="flex items-center gap-2 text-sm cursor-pointer pt-6">
+                            <Checkbox
+                              checked={line.italic}
+                              onCheckedChange={(checked) => updatePrintCustomLine(line.id, { italic: !!checked })}
+                              data-testid={`checkbox-print-line-italic-${index}`}
+                            />
+                            <span className="font-medium">Italic</span>
+                          </label>
+                        </div>
                         <Textarea
                           value={line.text}
                           onChange={(e) => updatePrintCustomLine(line.id, { text: e.target.value })}
@@ -2042,6 +2142,16 @@ export function ToastMenuBrowser() {
           </div>
         </div>
 
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <Checkbox
+            checked={printHideCourseHeadings}
+            onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
+            data-testid="checkbox-print-hide-course-headings"
+          />
+          <span className="font-medium">Hide Course Headings</span>
+          <span className="text-xs text-muted-foreground">Keep the menu items, but do not print the Toast course/group titles.</span>
+        </label>
+
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -2269,6 +2379,23 @@ export function ToastMenuBrowser() {
             </p>
           </div>
         </div>
+
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <label className="text-sm font-semibold">Top Menu Title</label>
+            <p className="text-xs text-muted-foreground">
+              This replaces the Toast title at the very top of the printed menu. Leave blank to use "{menuDetail?.menu?.name || "Toast menu title"}".
+            </p>
+            <input
+              type="text"
+              value={printCustomTitle}
+              onChange={(e) => setPrintCustomTitle(e.target.value)}
+              placeholder="e.g., Caroline's Bridal Shower"
+              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+              data-testid="input-print-custom-menu-title"
+            />
+          </CardContent>
+        </Card>
 
         {sortedOtherMenus.length > 0 && (
           <div className="space-y-2">
@@ -2759,7 +2886,7 @@ export function ToastMenuBrowser() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="outline"
                           title="Duplicate"
                           disabled={duplicateEmbedConfigMutation.isPending}
                           onClick={() => duplicateEmbedConfigMutation.mutate(config)}
@@ -2770,7 +2897,7 @@ export function ToastMenuBrowser() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="outline"
                           title="Rename"
                           onClick={() => setEditingSavedConfig({ id: config.id, name: config.name, description: config.description || "" })}
                           data-testid={`button-rename-config-${config.id}`}
