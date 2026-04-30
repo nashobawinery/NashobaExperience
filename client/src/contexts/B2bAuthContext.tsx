@@ -35,7 +35,22 @@ export function B2bAuthProvider({ children }: { children: ReactNode }) {
           credentials: "include",
         });
         if (!response.ok) {
-          if (response.status === 401 || response.status === 404) {
+          if (response.status === 401) {
+            const bridgeResponse = await fetch("/api/b2b/bridge-login", {
+              method: "POST",
+              credentials: "include",
+            });
+            if (bridgeResponse.ok) {
+              const retryResponse = await fetch("/api/b2b/me", {
+                credentials: "include",
+              });
+              if (retryResponse.ok) {
+                return retryResponse.json();
+              }
+            }
+            return null;
+          }
+          if (response.status === 404) {
             return null;
           }
           throw new Error("Failed to fetch user");

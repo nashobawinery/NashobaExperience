@@ -21,6 +21,7 @@ function getStorageBucket() {
   return objectStorageClient.bucket(bucketId);
 }
 import b2bRouter from "./b2b-routes";
+import { establishB2bBridgeSession } from "./b2b-auth";
 import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
@@ -412,7 +413,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         return res.status(401).json({ message: "User not found" });
       }
 
-      const permissions = await getUserPermissions(userId);
+      const permissions = await getUserPermissions(req);
       console.log(`[Auth] User permissions:`, permissions);
 
       const response = {
@@ -421,6 +422,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         firstName: user.firstName,
         lastName: user.lastName,
         globalRole: user.globalRole,
+        rbac: permissions,
         permissions: permissions
       };
       
@@ -443,39 +445,13 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      // Prefer B2B admin match first, then fall back to sales rep match.
-      const admin = await storage.getB2bAdminByEmail(userEmail);
-      if (admin) {
-        // Create B2B session as admin
-        req.session.b2bUserId = admin.id;
-        req.session.b2bUserType = 'admin';
-        req.session.b2bUserEmail = admin.email;
-
-        return req.session.save((err: any) => {
-          if (err) {
-            console.error('Bridge login session save error:', err);
-            return res.status(500).json({ error: 'Failed to save B2B session' });
-          }
-
-          res.json({
-            success: true,
-            user: {
-              id: admin.id,
-              name: `${admin.firstName} ${admin.lastName}`,
-              email: admin.email,
-              type: 'admin',
-            },
-          });
-        });
+      const permissions = await getUserPermissions(req);
+      if (!isGlobalAdmin(permissions) && !hasModuleAccess(permissions, 'b2b')) {
+        return res.status(403).json({ error: 'B2B access is not enabled for this platform account' });
       }
 
-      const salesRep = await storage.getSalesRepByEmail(userEmail);
-      if (salesRep && salesRep.active) {
-        // Create B2B session as sales rep
-        req.session.b2bUserId = salesRep.id;
-        req.session.b2bUserType = 'sales_rep';
-        req.session.b2bUserEmail = salesRep.email;
-
+      const bridgeUser = await establishB2bBridgeSession(req, userEmail);
+      if (bridgeUser) {
         return req.session.save((err: any) => {
           if (err) {
             console.error('Bridge login session save error:', err);
@@ -484,12 +460,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
 
           res.json({
             success: true,
-            user: {
-              id: salesRep.id,
-              name: `${salesRep.firstName} ${salesRep.lastName}`,
-              email: salesRep.email,
-              type: 'sales_rep',
-            },
+            user: bridgeUser,
           });
         });
       }

@@ -537,6 +537,7 @@ export interface IStorage {
   getAllB2bAdmins(activeOnly?: boolean): Promise<B2bAdmin[]>;
   getB2bAdmin(id: string): Promise<B2bAdmin | undefined>;
   getB2bAdminByEmail(email: string): Promise<B2bAdmin | undefined>;
+  getB2bAdminByEmailNormalized(email: string): Promise<B2bAdmin | undefined>;
   createB2bAdmin(data: InsertB2bAdmin): Promise<B2bAdmin>;
   updateB2bAdmin(id: string, data: Partial<InsertB2bAdmin>): Promise<B2bAdmin | undefined>;
   deleteB2bAdmin(id: string): Promise<boolean>;
@@ -2314,6 +2315,14 @@ export class DatabaseStorage implements IStorage {
   async getB2bAdminByEmail(email: string): Promise<B2bAdmin | undefined> {
     const [admin] = await db.select().from(b2bAdmins).where(eq(b2bAdmins.email, email));
     return admin;
+  }
+
+  async getB2bAdminByEmailNormalized(email: string): Promise<B2bAdmin | undefined> {
+    const normalized = email?.trim();
+    if (!normalized) return undefined;
+    const result = await db.select().from(b2bAdmins)
+      .where(buildLowerTrimEquals(b2bAdmins.email, normalized));
+    return result[0];
   }
 
   async createB2bAdmin(data: InsertB2bAdmin): Promise<B2bAdmin> {

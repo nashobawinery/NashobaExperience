@@ -102,6 +102,17 @@ function sanitizeMenuDescriptionHtml(str: string): string {
 const router = Router();
 const isAuthenticated = isPlatformAuthenticated;
 const isAdmin = requirePlatformRole(['super_admin']);
+let ensureEmbedConfigColumnsPromise: Promise<void> | null = null;
+
+function ensureEmbedConfigColumns(): Promise<void> {
+  if (!ensureEmbedConfigColumnsPromise) {
+    ensureEmbedConfigColumnsPromise = db.execute(sql`
+      ALTER TABLE toast_menu_embed_configs
+      ADD COLUMN IF NOT EXISTS custom_print_lines text
+    `).then(() => undefined);
+  }
+  return ensureEmbedConfigColumnsPromise;
+}
 
 router.get("/status", isAuthenticated, async (_req, res) => {
   try {
@@ -1278,7 +1289,6 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
             </div>`;
           }
           itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
-          itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
           if (pagebreakGuids.includes(item.itemGuid)) {
             itemsHtml += `<div class="item-page-break"></div>`;
           }
@@ -2098,6 +2108,7 @@ router.delete("/staff-print-menus/:id", isAuthenticated, async (req, res) => {
 
 router.get("/public/embed-config/:slug", async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const [config] = await db.select().from(toastMenuEmbedConfigs)
       .where(eq(toastMenuEmbedConfigs.slug, req.params.slug))
       .limit(1);
@@ -2145,6 +2156,7 @@ router.get("/public/embed-config/:slug", async (req, res) => {
 
 router.get("/embed-configs", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const menuGuid = req.query.menuGuid as string | undefined;
     let configs;
     if (menuGuid) {
@@ -2163,6 +2175,7 @@ router.get("/embed-configs", isAuthenticated, async (req, res) => {
 
 router.post("/embed-configs", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const { randomBytes } = await import("crypto");
     const slug = randomBytes(6).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
     const result = await db.insert(toastMenuEmbedConfigs).values({
@@ -2198,6 +2211,7 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
 
 router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     const result = await db.update(toastMenuEmbedConfigs).set({
@@ -2234,6 +2248,7 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
 
 router.patch("/embed-configs/:id", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     const updates: Record<string, any> = { updatedAt: new Date() };
@@ -2251,6 +2266,7 @@ router.patch("/embed-configs/:id", isAuthenticated, async (req, res) => {
 
 router.delete("/embed-configs/:id", isAuthenticated, async (req, res) => {
   try {
+    await ensureEmbedConfigColumns();
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     await db.delete(toastMenuEmbedConfigs).where(eq(toastMenuEmbedConfigs.id, id));

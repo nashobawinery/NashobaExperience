@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import NashobatvAdmin from "@/components/NashobatvAdmin";
 import { ToastMenuBrowser } from "@/pages/command-center/ToastMenuBrowser";
 import MusicManager from "@/components/MusicManager";
@@ -59,9 +60,22 @@ const CHANNEL_TYPES: Record<string, string> = {
   iframe_embed: "Website Embed",
 };
 
+type MediaSection = "nashobatv" | "menu-printer" | "live-music" | "food-trucks" | "special-events" | "shelf-talkers" | "flight-cards";
+
+const MEDIA_SECTION_FEATURES: Record<MediaSection, string> = {
+  nashobatv: "nashobatv",
+  "menu-printer": "menu_printer",
+  "live-music": "live_music",
+  "food-trucks": "food_trucks",
+  "special-events": "special_events",
+  "shelf-talkers": "shelf_talkers",
+  "flight-cards": "flight_cards",
+};
+
 export default function MediaCenter() {
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "food-trucks" | "special-events" | "shelf-talkers" | "flight-cards">("nashobatv");
+  const { isAdmin, rbac, canView } = useAuth();
+  const [activeSection, setActiveSection] = useState<MediaSection>("nashobatv");
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -94,6 +108,19 @@ export default function MediaCenter() {
       localStorage.setItem("media-center-channel", String(selectedChannelId));
     }
   }, [selectedChannelId]);
+
+  const hasMediaFeaturePermissions = Object.entries(rbac?.featurePermissions || {}).some(
+    ([key, level]) => key.startsWith("media_center.") && level !== "none"
+  );
+  const canAccessSection = (section: MediaSection) =>
+    isAdmin || !hasMediaFeaturePermissions || canView("media_center", MEDIA_SECTION_FEATURES[section]);
+
+  useEffect(() => {
+    if (!canAccessSection(activeSection)) {
+      const fallback = (Object.keys(MEDIA_SECTION_FEATURES) as MediaSection[]).find(canAccessSection);
+      if (fallback) setActiveSection(fallback);
+    }
+  }, [activeSection, hasMediaFeaturePermissions, isAdmin, rbac]);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -243,98 +270,112 @@ export default function MediaCenter() {
       </div>
 
       <div className="flex items-center gap-2 border-b pb-1">
-        <Button
-          variant={activeSection === "nashobatv" ? "default" : "ghost"}
-          onClick={() => setActiveSection("nashobatv")}
-          className="flex items-center gap-2"
-          data-testid="button-section-nashobatv"
-        >
-          <Tv className="w-4 h-4" />
-          NashobaTV
-        </Button>
-        <Button
-          variant={activeSection === "menu-printer" ? "default" : "ghost"}
-          onClick={() => setActiveSection("menu-printer")}
-          className="flex items-center gap-2"
-          data-testid="button-section-menu-printer"
-        >
-          <Printer className="w-4 h-4" />
-          Toast Menu Printer
-        </Button>
-        <Button
-          variant={activeSection === "live-music" ? "default" : "ghost"}
-          onClick={() => setActiveSection("live-music")}
-          className="flex items-center gap-2"
-          data-testid="button-section-live-music"
-        >
-          <Music className="w-4 h-4" />
-          Live Music
-        </Button>
-        <Button
-          variant={activeSection === "food-trucks" ? "default" : "ghost"}
-          onClick={() => setActiveSection("food-trucks")}
-          className="flex items-center gap-2"
-          data-testid="button-section-food-trucks"
-        >
-          <UtensilsCrossed className="w-4 h-4" />
-          Food Trucks
-        </Button>
-        <Button
-          variant={activeSection === "special-events" ? "default" : "ghost"}
-          onClick={() => setActiveSection("special-events")}
-          className="flex items-center gap-2"
-          data-testid="button-section-special-events"
-        >
-          <CalendarDays className="w-4 h-4" />
-          Special Events
-        </Button>
-        <Button
-          variant={activeSection === "shelf-talkers" ? "default" : "ghost"}
-          onClick={() => setActiveSection("shelf-talkers")}
-          className="flex items-center gap-2"
-          data-testid="button-section-shelf-talkers"
-        >
-          <Tag className="w-4 h-4" />
-          Shelf Talkers
-        </Button>
-        <Button
-          variant={activeSection === "flight-cards" ? "default" : "ghost"}
-          onClick={() => setActiveSection("flight-cards")}
-          className="flex items-center gap-2"
-          data-testid="button-section-flight-cards"
-        >
-          <Printer className="w-4 h-4" />
-          Flight Cards
-        </Button>
+        {canAccessSection("nashobatv") && (
+          <Button
+            variant={activeSection === "nashobatv" ? "default" : "ghost"}
+            onClick={() => setActiveSection("nashobatv")}
+            className="flex items-center gap-2"
+            data-testid="button-section-nashobatv"
+          >
+            <Tv className="w-4 h-4" />
+            NashobaTV
+          </Button>
+        )}
+        {canAccessSection("menu-printer") && (
+          <Button
+            variant={activeSection === "menu-printer" ? "default" : "ghost"}
+            onClick={() => setActiveSection("menu-printer")}
+            className="flex items-center gap-2"
+            data-testid="button-section-menu-printer"
+          >
+            <Printer className="w-4 h-4" />
+            Toast Menu Printer
+          </Button>
+        )}
+        {canAccessSection("live-music") && (
+          <Button
+            variant={activeSection === "live-music" ? "default" : "ghost"}
+            onClick={() => setActiveSection("live-music")}
+            className="flex items-center gap-2"
+            data-testid="button-section-live-music"
+          >
+            <Music className="w-4 h-4" />
+            Live Music
+          </Button>
+        )}
+        {canAccessSection("food-trucks") && (
+          <Button
+            variant={activeSection === "food-trucks" ? "default" : "ghost"}
+            onClick={() => setActiveSection("food-trucks")}
+            className="flex items-center gap-2"
+            data-testid="button-section-food-trucks"
+          >
+            <UtensilsCrossed className="w-4 h-4" />
+            Food Trucks
+          </Button>
+        )}
+        {canAccessSection("special-events") && (
+          <Button
+            variant={activeSection === "special-events" ? "default" : "ghost"}
+            onClick={() => setActiveSection("special-events")}
+            className="flex items-center gap-2"
+            data-testid="button-section-special-events"
+          >
+            <CalendarDays className="w-4 h-4" />
+            Special Events
+          </Button>
+        )}
+        {canAccessSection("shelf-talkers") && (
+          <Button
+            variant={activeSection === "shelf-talkers" ? "default" : "ghost"}
+            onClick={() => setActiveSection("shelf-talkers")}
+            className="flex items-center gap-2"
+            data-testid="button-section-shelf-talkers"
+          >
+            <Tag className="w-4 h-4" />
+            Shelf Talkers
+          </Button>
+        )}
+        {canAccessSection("flight-cards") && (
+          <Button
+            variant={activeSection === "flight-cards" ? "default" : "ghost"}
+            onClick={() => setActiveSection("flight-cards")}
+            className="flex items-center gap-2"
+            data-testid="button-section-flight-cards"
+          >
+            <Printer className="w-4 h-4" />
+            Flight Cards
+          </Button>
+        )}
       </div>
 
-      {activeSection === "live-music" && (
+      {activeSection === "live-music" && canAccessSection("live-music") && (
         <MusicManager />
       )}
 
-      {activeSection === "food-trucks" && (
+      {activeSection === "food-trucks" && canAccessSection("food-trucks") && (
         <FoodTruckManager />
       )}
 
-      {activeSection === "menu-printer" && (
+      {activeSection === "menu-printer" && canAccessSection("menu-printer") && (
         <div className="-m-6">
           <ToastMenuBrowser />
         </div>
       )}
 
-      {activeSection === "special-events" && (
+      {activeSection === "special-events" && canAccessSection("special-events") && (
         <SpecialEventsManager />
       )}
 
-      {activeSection === "shelf-talkers" && (
+      {activeSection === "shelf-talkers" && canAccessSection("shelf-talkers") && (
         <ShelfTalkerPrinter />
       )}
 
-      {activeSection === "flight-cards" && (
+      {activeSection === "flight-cards" && canAccessSection("flight-cards") && (
         <FlightCardPrinter />
       )}
 
-      {activeSection === "nashobatv" && ((!channels || channels.length === 0) ? (
+      {activeSection === "nashobatv" && canAccessSection("nashobatv") && ((!channels || channels.length === 0) ? (
         <Card className="p-8 text-center">
           <Tv className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">No Channels Yet</h3>

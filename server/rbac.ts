@@ -1218,6 +1218,34 @@ export async function seedPlatformModules(): Promise<void> {
       // Ignore errors for individual modules
     }
   }
+
+  const defaultFeatures = [
+    { moduleKey: 'media_center', featureKey: 'nashobatv', featureName: 'NashobaTV', description: 'Manage TV display channels and content', sortOrder: 1 },
+    { moduleKey: 'media_center', featureKey: 'menu_printer', featureName: 'Toast Menu Printer', description: 'Prepare Toast menus for print and web display', sortOrder: 2 },
+    { moduleKey: 'media_center', featureKey: 'live_music', featureName: 'Live Music', description: 'Manage live music listings and calendar content', sortOrder: 3 },
+    { moduleKey: 'media_center', featureKey: 'food_trucks', featureName: 'Food Trucks', description: 'Manage food truck vendors, scheduling, permits, and reviews', sortOrder: 4 },
+    { moduleKey: 'media_center', featureKey: 'special_events', featureName: 'Special Events', description: 'Manage special events listings and calendar content', sortOrder: 5 },
+    { moduleKey: 'media_center', featureKey: 'shelf_talkers', featureName: 'Shelf Talkers', description: 'Print retail shelf talkers', sortOrder: 6 },
+    { moduleKey: 'media_center', featureKey: 'flight_cards', featureName: 'Flight Cards', description: 'Print tasting flight cards', sortOrder: 7 },
+  ];
+
+  for (const feature of defaultFeatures) {
+    try {
+      await db.execute(sql`
+        INSERT INTO module_features (module_id, feature_key, feature_name, description, sort_order, active)
+        SELECT id, ${feature.featureKey}, ${feature.featureName}, ${feature.description}, ${feature.sortOrder}, true
+        FROM platform_modules
+        WHERE module_key = ${feature.moduleKey}
+        ON CONFLICT (module_id, feature_key) DO UPDATE SET
+          feature_name = EXCLUDED.feature_name,
+          description = EXCLUDED.description,
+          sort_order = EXCLUDED.sort_order,
+          active = EXCLUDED.active
+      `);
+    } catch (err) {
+      // Ignore errors for individual features
+    }
+  }
   
   const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM platform_modules`);
   const count = (countResult.rows[0] as any)?.count || 0;

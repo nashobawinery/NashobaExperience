@@ -5,6 +5,10 @@ import connectPgSimple from 'connect-pg-simple';
 import { db, databaseUrl } from './db';
 import { storage } from './storage';
 
+type B2bBridgeUser =
+  | { id: string; name: string; email: string; type: 'admin' }
+  | { id: string; name: string; email: string; type: 'sales_rep' };
+
 const SALT_ROUNDS = 10;
 
 // Password hashing utilities
@@ -92,6 +96,40 @@ export function requireB2bAdminOrSalesRep(req: Request, res: Response, next: Nex
     return res.status(403).json({ error: 'Admin or Sales Rep access required' });
   }
   next();
+}
+
+export async function establishB2bBridgeSession(req: Request, platformEmail: string): Promise<B2bBridgeUser | null> {
+  const email = platformEmail?.trim().toLowerCase();
+  if (!email) return null;
+
+  // Prefer B2B admin match first, then fall back to active sales rep match.
+  const admin = await storage.getB2bAdminByEmailNormalized(email);
+  if (admin?.active) {
+    req.session.b2bUserId = admin.id;
+    req.session.b2bUserType = 'admin';
+    req.session.b2bUserEmail = admin.email;
+    return {
+      id: admin.id,
+      name: `${admin.firstName} ${admin.lastName}`,
+      email: admin.email,
+      type: 'admin',
+    };
+  }
+
+  const salesRep = await storage.getSalesRepByEmailNormalized(email);
+  if (salesRep?.active) {
+    req.session.b2bUserId = salesRep.id;
+    req.session.b2bUserType = 'sales_rep';
+    req.session.b2bUserEmail = salesRep.email;
+    return {
+      id: salesRep.id,
+      name: `${salesRep.firstName} ${salesRep.lastName}`,
+      email: salesRep.email,
+      type: 'sales_rep',
+    };
+  }
+
+  return null;
 }
 
 // Admin authentication

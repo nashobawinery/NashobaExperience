@@ -298,10 +298,12 @@ async function setupPlatformAuth(app: Express) {
   // Middleware to populate req.user from session
   app.use((req, _res, next) => {
     const sess = req.session as any;
-    if (sess.platformAuth?.userId) {
+    const platformUserId = sess.platformAuth?.platformUserId || sess.platformAuth?.userId;
+    if (platformUserId) {
       (req as any).user = {
+        platformUserId,
         claims: {
-          sub: sess.platformAuth.userId,
+          sub: platformUserId,
           email: sess.platformAuth.email,
           first_name: sess.platformAuth.firstName,
           last_name: sess.platformAuth.lastName,

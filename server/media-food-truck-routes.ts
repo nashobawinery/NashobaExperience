@@ -15,9 +15,10 @@ import {
   insertFoodTruckReviewSchema,
 } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
-import { computeUserPermissions, hasModuleAccess, isGlobalAdmin } from "./rbac";
+import { requireModuleAccess } from "./rbac";
 
 const router = Router();
+const requireFoodTruckAccess = requireModuleAccess("media_center");
 
 const foodTruckReviewPayloadSchema = z.object({
   foodTruckId: z.coerce.number().int().positive(),
@@ -32,34 +33,9 @@ const foodTruckReviewPayloadSchema = z.object({
   reviewDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
-function requireAuth(req: Request, res: Response, next: Function) {
-  const sess = req.session as any;
-  const platformUserId = sess.platformAuth?.platformUserId;
-  if (!platformUserId) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-  const userRole = sess.platformAuth?.globalRole;
-  if (userRole === "super_admin") {
-    return next();
-  }
-
-  computeUserPermissions(platformUserId)
-    .then((permissions) => {
-      if (isGlobalAdmin(permissions) || hasModuleAccess(permissions, "media_center")) {
-        return next();
-      }
-
-      return res.status(403).json({ error: "Access denied. Media Center access required." });
-    })
-    .catch((error) => {
-      console.error("[Food Truck Auth] Failed RBAC check:", error);
-      return res.status(500).json({ error: "Failed to validate access permissions" });
-    });
-}
-
 // ==================== Food Trucks CRUD ====================
 
-router.get("/api/media/food-trucks", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/media/food-trucks", requireFoodTruckAccess, async (_req: Request, res: Response) => {
   try {
     const trucks = await db.select().from(mediaFoodTrucks).orderBy(asc(mediaFoodTrucks.name));
     res.json(trucks);
@@ -68,7 +44,7 @@ router.get("/api/media/food-trucks", requireAuth, async (_req: Request, res: Res
   }
 });
 
-router.post("/api/media/food-trucks", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/media/food-trucks", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const data = insertFoodTruckSchema.parse(req.body);
     console.log('Food Truck Creation Data:', {
@@ -82,7 +58,7 @@ router.post("/api/media/food-trucks", requireAuth, async (req: Request, res: Res
   }
 });
 
-router.put("/api/media/food-trucks/:id", requireAuth, async (req: Request, res: Response) => {
+router.put("/api/media/food-trucks/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckSchema.partial().parse(req.body);
@@ -99,7 +75,7 @@ router.put("/api/media/food-trucks/:id", requireAuth, async (req: Request, res: 
   }
 });
 
-router.delete("/api/media/food-trucks/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/api/media/food-trucks/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     
@@ -117,7 +93,7 @@ router.delete("/api/media/food-trucks/:id", requireAuth, async (req: Request, re
 
 // ==================== Food Truck Events CRUD ====================
 
-router.get("/api/media/food-truck-events", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/media/food-truck-events", requireFoodTruckAccess, async (_req: Request, res: Response) => {
   try {
     const events = await db.select().from(mediaFoodTruckEvents).orderBy(desc(mediaFoodTruckEvents.eventDate));
     res.json(events);
@@ -126,7 +102,7 @@ router.get("/api/media/food-truck-events", requireAuth, async (_req: Request, re
   }
 });
 
-router.post("/api/media/food-truck-events", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/media/food-truck-events", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const data = insertFoodTruckEventSchema.parse(req.body);
     const [event] = await db.insert(mediaFoodTruckEvents).values(data).returning();
@@ -136,7 +112,7 @@ router.post("/api/media/food-truck-events", requireAuth, async (req: Request, re
   }
 });
 
-router.put("/api/media/food-truck-events/:id", requireAuth, async (req: Request, res: Response) => {
+router.put("/api/media/food-truck-events/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckEventSchema.partial().parse(req.body);
@@ -148,7 +124,7 @@ router.put("/api/media/food-truck-events/:id", requireAuth, async (req: Request,
   }
 });
 
-router.delete("/api/media/food-truck-events/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/api/media/food-truck-events/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckEvents).where(eq(mediaFoodTruckEvents.id, id));
@@ -160,7 +136,7 @@ router.delete("/api/media/food-truck-events/:id", requireAuth, async (req: Reque
 
 // ==================== Food truck day banners (public calendar labels only) ====================
 
-router.get("/api/media/food-truck-day-banners", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/media/food-truck-day-banners", requireFoodTruckAccess, async (_req: Request, res: Response) => {
   try {
     const rows = await db
       .select()
@@ -172,7 +148,7 @@ router.get("/api/media/food-truck-day-banners", requireAuth, async (_req: Reques
   }
 });
 
-router.post("/api/media/food-truck-day-banners", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/media/food-truck-day-banners", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const data = insertFoodTruckDayBannerSchema.parse(req.body);
     const [row] = await db.insert(mediaFoodTruckDayBanners).values(data).returning();
@@ -182,7 +158,7 @@ router.post("/api/media/food-truck-day-banners", requireAuth, async (req: Reques
   }
 });
 
-router.put("/api/media/food-truck-day-banners/:id", requireAuth, async (req: Request, res: Response) => {
+router.put("/api/media/food-truck-day-banners/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const data = insertFoodTruckDayBannerSchema.partial().parse(req.body);
@@ -198,7 +174,7 @@ router.put("/api/media/food-truck-day-banners/:id", requireAuth, async (req: Req
   }
 });
 
-router.delete("/api/media/food-truck-day-banners/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/api/media/food-truck-day-banners/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckDayBanners).where(eq(mediaFoodTruckDayBanners.id, id));
@@ -210,7 +186,7 @@ router.delete("/api/media/food-truck-day-banners/:id", requireAuth, async (req: 
 
 // ==================== Food Truck Submissions ====================
 
-router.get("/api/media/food-truck-submissions", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/media/food-truck-submissions", requireFoodTruckAccess, async (_req: Request, res: Response) => {
   try {
     const submissions = await db.select().from(mediaFoodTruckSubmissions).orderBy(desc(mediaFoodTruckSubmissions.createdAt));
     res.json(submissions);
@@ -219,7 +195,7 @@ router.get("/api/media/food-truck-submissions", requireAuth, async (_req: Reques
   }
 });
 
-router.put("/api/media/food-truck-submissions/:id", requireAuth, async (req: Request, res: Response) => {
+router.put("/api/media/food-truck-submissions/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const { status, reviewNotes } = req.body;
@@ -258,7 +234,7 @@ router.put("/api/media/food-truck-submissions/:id", requireAuth, async (req: Req
 
 // ==================== Food Truck Reviews CRUD ====================
 
-router.get("/api/media/food-truck-reviews/:foodTruckId", requireAuth, async (req: Request, res: Response) => {
+router.get("/api/media/food-truck-reviews/:foodTruckId", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const foodTruckId = parseInt(req.params.foodTruckId);
     const reviews = await db
@@ -272,7 +248,7 @@ router.get("/api/media/food-truck-reviews/:foodTruckId", requireAuth, async (req
   }
 });
 
-router.post("/api/media/food-truck-reviews", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/media/food-truck-reviews", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const payload = {
       ...req.body,
@@ -289,7 +265,7 @@ router.post("/api/media/food-truck-reviews", requireAuth, async (req: Request, r
   }
 });
 
-router.put("/api/media/food-truck-reviews/:id", requireAuth, async (req: Request, res: Response) => {
+router.put("/api/media/food-truck-reviews/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const payload = {
@@ -312,7 +288,7 @@ router.put("/api/media/food-truck-reviews/:id", requireAuth, async (req: Request
   }
 });
 
-router.delete("/api/media/food-truck-reviews/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/api/media/food-truck-reviews/:id", requireFoodTruckAccess, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(mediaFoodTruckReviews).where(eq(mediaFoodTruckReviews.id, id));
@@ -389,7 +365,7 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
       eventDate: e.eventDate,
       title: e.title,
       truckName: e.truckName,
-      description: e.description?.substring(0, 100) + (e.description?.length > 100 ? '...' : ''),
+      description: e.description ? e.description.substring(0, 100) + (e.description.length > 100 ? '...' : '') : '',
       hasDescription: !!e.description,
       foodTruckId: e.foodTruckId,
       truckId: e.truckName ? 'VALID' : 'NULL'
@@ -421,7 +397,7 @@ router.get("/api/public/food-truck-day-banners", async (_req: Request, res: Resp
 // ==================== Food Truck Permit File Upload ====================
 
 // Test endpoint - simplified without Google Cloud Storage
-router.post("/api/media/food-trucks/permit-upload-test", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/media/food-trucks/permit-upload-test", requireFoodTruckAccess, async (req: Request, res: Response) => {
   console.log('=== PERMIT UPLOAD TEST START ===');
   
   try {
@@ -488,7 +464,7 @@ router.post("/api/media/food-trucks/permit-upload-test", requireAuth, async (req
   }
 });
 
-router.post("/api/media/food-trucks/permit-upload", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/media/food-trucks/permit-upload", requireFoodTruckAccess, async (req: Request, res: Response) => {
   console.log('=== PERMIT UPLOAD START ===');
   console.log('Request headers:', Object.keys(req.headers));
   console.log('Content-Type:', req.headers['content-type']);
