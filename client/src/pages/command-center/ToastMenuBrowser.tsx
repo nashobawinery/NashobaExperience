@@ -224,6 +224,8 @@ export function ToastMenuBrowser() {
   const [printShowImages, setPrintShowImages] = useState(false);
   const [printHideAllergyFooter, setPrintHideAllergyFooter] = useState(false);
   const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
+  const [printCustomTitle, setPrintCustomTitle] = useState("");
+  const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
   const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
@@ -288,6 +290,37 @@ export function ToastMenuBrowser() {
         .filter(line => line.text.trim());
     } catch {
       return [];
+    }
+  };
+
+  const setPrintItemFontScale = (itemGuid: string, scale: number) => {
+    setPrintItemFontScales(prev => {
+      const next = { ...prev };
+      if (!itemGuid || scale === 1) {
+        delete next[itemGuid];
+      } else {
+        next[itemGuid] = scale;
+      }
+      return next;
+    });
+  };
+
+  const serializeItemPrintStyles = () => (
+    Object.keys(printItemFontScales).length > 0 ? JSON.stringify(printItemFontScales) : ""
+  );
+
+  const parseItemPrintStyles = (value: string | null | undefined): Record<string, number> => {
+    if (!value) return {};
+    try {
+      const parsed = JSON.parse(value);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .map(([key, raw]) => [key, Number(raw)] as const)
+          .filter(([key, scale]) => key && !Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8)
+      );
+    } catch {
+      return {};
     }
   };
 
@@ -396,6 +429,7 @@ export function ToastMenuBrowser() {
     printAdditionalMenuGuids: string | null;
     customPrintLines: string | null;
     customTitle: string | null;
+    itemPrintStyles: string | null;
     showOnStaffBoard: boolean | null;
     createdAt: string;
     updatedAt: string;
@@ -444,7 +478,8 @@ export function ToastMenuBrowser() {
     pages: printPages,
     pageBreaks: printPageBreaks.length > 0 ? printPageBreaks.join(",") : null,
     customPrintLines: serializePrintCustomLines() || null,
-    customTitle: null,
+    customTitle: printCustomTitle.trim() || null,
+    itemPrintStyles: serializeItemPrintStyles() || null,
   });
 
   const createEmbedConfigMutation = useMutation({
@@ -477,6 +512,38 @@ export function ToastMenuBrowser() {
       toast({ title: "Menu updated", description: "Your changes have been saved." });
     },
     onError: () => toast({ title: "Error", description: "Failed to update saved menu.", variant: "destructive" }),
+  });
+
+  const duplicateEmbedConfigMutation = useMutation({
+    mutationFn: async (config: EmbedConfig) => {
+      const res = await apiRequest("POST", "/api/toast/embed-configs", {
+        name: `${config.name} Copy`,
+        description: config.description,
+        menuGuids: config.menuGuids,
+        printAdditionalMenuGuids: config.printAdditionalMenuGuids,
+        template: config.template,
+        header: config.header,
+        footer: config.footer,
+        scale: config.scale,
+        groupGuids: config.groupGuids,
+        hideDescriptions: config.hideDescriptions,
+        hidePricing: config.hidePricing,
+        hideWinePairing: config.hideWinePairing,
+        showImages: config.showImages,
+        pages: config.pages,
+        pageBreaks: config.pageBreaks,
+        customPrintLines: config.customPrintLines,
+        customTitle: config.customTitle,
+        itemPrintStyles: config.itemPrintStyles,
+        showOnStaffBoard: false,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidateAllConfigs();
+      toast({ title: "Saved menu duplicated", description: "Rename the copy for the private event." });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to duplicate saved menu.", variant: "destructive" }),
   });
 
   const patchEmbedConfigMutation = useMutation({
@@ -663,6 +730,9 @@ export function ToastMenuBrowser() {
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
     if (header) url += `&header=${encodeURIComponent(header)}`;
+    if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
+    const itemStyles = serializeItemPrintStyles();
+    if (itemStyles) url += `&itemstyles=${encodeURIComponent(itemStyles)}`;
     return url;
   };
 
@@ -680,6 +750,9 @@ export function ToastMenuBrowser() {
     if (hideWinePairing) url += `&hidepairing=1`;
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
+    if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
+    const itemStyles = serializeItemPrintStyles();
+    if (itemStyles) url += `&itemstyles=${encodeURIComponent(itemStyles)}`;
     return url;
   };
 
@@ -753,6 +826,8 @@ export function ToastMenuBrowser() {
       setPrintPages(parseInt(params.get("pages") || "0") || 0);
       setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintCustomLines(parsePrintCustomLines(params.get("customlines")));
+      setPrintCustomTitle(params.get("title") || "");
+      setPrintItemFontScales(parseItemPrintStyles(params.get("itemstyles")));
       setAdditionalMenuGuids(extraMenuGuids);
 
       clearPendingChanges();
@@ -782,6 +857,8 @@ export function ToastMenuBrowser() {
     setPrintPages(config.pages || 0);
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
     setPrintCustomLines(parsePrintCustomLines(config.customPrintLines));
+    setPrintCustomTitle(config.customTitle || "");
+    setPrintItemFontScales(parseItemPrintStyles(config.itemPrintStyles));
     setSelectedPrintGroups(config.groupGuids ? config.groupGuids.split(",").filter(Boolean) : []);
     // Use dedicated print additional guids if available, otherwise fall back to legacy multi-guid format
     if (config.printAdditionalMenuGuids) {
@@ -809,6 +886,8 @@ export function ToastMenuBrowser() {
       setAdditionalMenuGuids([]);
       setSelectedPrintGroups([]);
       setPrintCustomLines([]);
+      setPrintCustomTitle("");
+      setPrintItemFontScales({});
       setLoadedEmbedConfigId(null);
       setLoadedEmbedConfigName("");
       setSaveName("");
@@ -1160,6 +1239,20 @@ export function ToastMenuBrowser() {
               <p className="text-xs text-muted-foreground mt-0.5">These settings control how the menu looks on the web share link and on print.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-sm font-medium">Private Event Title (optional)</label>
+                <p className="text-xs text-muted-foreground">
+                  Replaces the Toast menu name at the top of web and print menus. Leave blank to use "{menuDetail?.menu?.name || "Toast menu title"}".
+                </p>
+                <input
+                  type="text"
+                  value={printCustomTitle}
+                  onChange={(e) => setPrintCustomTitle(e.target.value)}
+                  placeholder="e.g., Carolin's Bridal Shower"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-custom-menu-title"
+                />
+              </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Template Style</label>
                 <Select value={printTemplate} onValueChange={setPrintTemplate}>
@@ -1459,6 +1552,24 @@ export function ToastMenuBrowser() {
                             {formatPrice(item.price)}
                           </span>
                         ) : null}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-[11px] font-medium text-muted-foreground">Print line size</span>
+                        <Select
+                          value={String(printItemFontScales[item.itemGuid] || 1)}
+                          onValueChange={(value) => setPrintItemFontScale(item.itemGuid, Number(value))}
+                        >
+                          <SelectTrigger className="h-7 w-32 text-xs" data-testid={`select-print-font-scale-${item.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0.8">Smaller</SelectItem>
+                            <SelectItem value="0.9">Slightly smaller</SelectItem>
+                            <SelectItem value="1">Normal</SelectItem>
+                            <SelectItem value="1.15">Larger</SelectItem>
+                            <SelectItem value="1.3">Very large</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="mt-1">
                         <Textarea
@@ -2649,13 +2760,25 @@ export function ToastMenuBrowser() {
                           {config.showOnStaffBoard ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                         </Button>
                         <Button
-                          size="icon"
+                          size="sm"
+                          variant="ghost"
+                          title="Duplicate"
+                          disabled={duplicateEmbedConfigMutation.isPending}
+                          onClick={() => duplicateEmbedConfigMutation.mutate(config)}
+                          data-testid={`button-duplicate-config-${config.id}`}
+                        >
+                          {duplicateEmbedConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
+                          Duplicate
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="ghost"
                           title="Rename"
                           onClick={() => setEditingSavedConfig({ id: config.id, name: config.name, description: config.description || "" })}
                           data-testid={`button-rename-config-${config.id}`}
                         >
-                          <BookMarked className="w-4 h-4" />
+                          <BookMarked className="w-4 h-4 mr-1" />
+                          Rename
                         </Button>
                         <Button
                           size="icon"

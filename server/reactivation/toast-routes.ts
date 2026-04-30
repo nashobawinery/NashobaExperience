@@ -33,6 +33,8 @@ type CustomPrintLine = {
   placement: string;
 };
 
+type ItemPrintStyles = Record<string, number>;
+
 function normalizeMenuLabel(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -85,6 +87,25 @@ function renderCustomPrintLines(lines: CustomPrintLine[], placement: string): st
     .join("");
 }
 
+function parseItemPrintStyles(value: unknown): ItemPrintStyles {
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const styles: ItemPrintStyles = {};
+    for (const [itemGuid, rawScale] of Object.entries(parsed)) {
+      if (typeof itemGuid !== "string" || itemGuid.length > 160) continue;
+      const scale = Number(rawScale);
+      if (!Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8) {
+        styles[itemGuid] = scale;
+      }
+    }
+    return styles;
+  } catch {
+    return {};
+  }
+}
+
 /** Descriptions: allow the same light HTML as custom headers (incl. <i> / <em>), plus <br>. */
 function sanitizeMenuDescriptionHtml(str: string): string {
   const safeTags = ['br', 'b', 'strong', 'i', 'em', 'u'];
@@ -108,7 +129,9 @@ function ensureEmbedConfigColumns(): Promise<void> {
   if (!ensureEmbedConfigColumnsPromise) {
     ensureEmbedConfigColumnsPromise = db.execute(sql`
       ALTER TABLE toast_menu_embed_configs
-      ADD COLUMN IF NOT EXISTS custom_print_lines text
+      ADD COLUMN IF NOT EXISTS custom_print_lines text,
+      ADD COLUMN IF NOT EXISTS custom_title text,
+      ADD COLUMN IF NOT EXISTS item_print_styles text
     `).then(() => undefined);
   }
   return ensureEmbedConfigColumnsPromise;
@@ -1110,6 +1133,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
+    const customTitle = (req.query.title as string) || "";
+    const itemPrintStyles = parseItemPrintStyles(req.query.itemstyles);
 
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -1194,14 +1219,14 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
     }));
 
-    const embedTitle = groupGuids.length === 1 && groups.length === 1
+    const embedTitle = customTitle || (groupGuids.length === 1 && groups.length === 1
       ? groups[0].name
-      : menuData.name;
+      : menuData.name);
     const shouldHideGroupHeading = hidedupgroup && (() => {
       const withItems = groupsWithItems.filter((g) => g.items.length > 0);
       if (withItems.length !== 1) return false;
       const gn = withItems[0].name;
-      return normalizeMenuLabel(gn) === normalizeMenuLabel(embedTitle) || normalizeMenuLabel(gn) === normalizeMenuLabel(menuData.name);
+      return normalizeMenuLabel(gn) === normalizeMenuLabel(embedTitle) || (!customTitle && normalizeMenuLabel(gn) === normalizeMenuLabel(menuData.name));
     })();
 
     const formatPrice = (price: string | null) => {
@@ -1266,25 +1291,28 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
+        const itemFontScale = itemPrintStyles[item.itemGuid] || 1;
+        const itemScaleStyle = itemFontScale !== 1 ? ` style="--item-scale:${itemFontScale.toFixed(2)}"` : "";
+        const itemNameStyle = itemFontScale !== 1 ? ` style="font-size:${(parseFloat(ptRem(typo.item.size)) * itemFontScale).toFixed(3)}rem"` : "";
         const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
         if (isInMenuSection) {
           if (template === "beverage") {
             itemsHtml += `
-            <div class="bev-item-row bev-item-row--in-menu-section">
+            <div class="bev-item-row bev-item-row--in-menu-section"${itemScaleStyle}>
               <div class="bev-item bev-item--in-menu-section">
-                <span class="bev-name bev-name--in-menu-section">${escapeHtml(cleanName)}</span>
+                <span class="bev-name bev-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
               </div>
             </div>`;
           } else if (template === "fine-dining") {
             itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section">
-              <h3 class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</h3>
+            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
+              <h3 class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</h3>
             </div>`;
           } else {
             itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section">
+            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
               <div class="item-header item-header--in-menu-section">
-                <span class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</span>
+                <span class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
               </div>
             </div>`;
           }
@@ -1323,28 +1351,28 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 
         if (template === "beverage") {
           itemsHtml += `
-            <div class="bev-item-row${item.isSpecial ? " item-special" : ""}">
+            <div class="bev-item-row${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
               ${bevImgHtml}
               <div class="bev-item">
-                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
+                <span class="bev-name"${itemNameStyle}>${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="bev-price">${price}</span>` : sizePriceHtml ? `<span class="bev-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
-            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
               ${itemImageHtml}
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name"${itemNameStyle}>${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
               ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
           itemsHtml += `
-            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
               ${itemImageHtml}
               <div class="item-header">
-                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
+                <span class="item-name"${itemNameStyle}>${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
@@ -1601,6 +1629,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
+    const itemPrintStyles = parseItemPrintStyles(req.query.itemstyles);
 
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -1730,25 +1759,28 @@ router.get("/public/menus/embed", async (req, res) => {
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
+        const itemFontScale = itemPrintStyles[item.itemGuid] || 1;
+        const itemScaleStyle = itemFontScale !== 1 ? ` style="--item-scale:${itemFontScale.toFixed(2)}"` : "";
+        const itemNameStyle = itemFontScale !== 1 ? ` style="font-size:${(parseFloat(ptRem(typo.item.size)) * itemFontScale).toFixed(3)}rem"` : "";
         const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
         if (isInMenuSection) {
           if (template === "beverage") {
             itemsHtml += `
-            <div class="bev-item-row bev-item-row--in-menu-section">
+            <div class="bev-item-row bev-item-row--in-menu-section"${itemScaleStyle}>
               <div class="bev-item bev-item--in-menu-section">
-                <span class="bev-name bev-name--in-menu-section">${escapeHtml(cleanName)}</span>
+                <span class="bev-name bev-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
               </div>
             </div>`;
           } else if (template === "fine-dining") {
             itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section">
-              <h3 class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</h3>
+            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
+              <h3 class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</h3>
             </div>`;
           } else {
             itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section">
+            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
               <div class="item-header item-header--in-menu-section">
-                <span class="item-name item-name--in-menu-section">${escapeHtml(cleanName)}</span>
+                <span class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
               </div>
             </div>`;
           }
@@ -1786,28 +1818,28 @@ router.get("/public/menus/embed", async (req, res) => {
 
         if (template === "beverage") {
           itemsHtml += `
-            <div class="bev-item-row${item.isSpecial ? " item-special" : ""}">
+            <div class="bev-item-row${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
               ${bevImgHtml}
               <div class="bev-item">
-                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
+                <span class="bev-name"${itemNameStyle}>${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="bev-price">${price}</span>` : sizePriceHtml ? `<span class="bev-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
-            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
               ${itemImageHtml}
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name"${itemNameStyle}>${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
               ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
           itemsHtml += `
-            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
               ${itemImageHtml}
               <div class="item-header">
-                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
+                <span class="item-name"${itemNameStyle}>${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
@@ -2138,6 +2170,7 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.hidePricing) url += `&hideprice=1`;
     if (config.hideWinePairing) url += `&hidepairing=1`;
     if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
+    if (config.itemPrintStyles) url += `&itemstyles=${encodeURIComponent(config.itemPrintStyles)}`;
     if (config.showImages) url += `&showimages=1`;
 
     // Serve the HTML directly (not a redirect) so the short slug URL stays in the browser bar
@@ -2201,6 +2234,7 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids || null,
       customPrintLines: req.body.customPrintLines || null,
       customTitle: req.body.customTitle || null,
+      itemPrintStyles: req.body.itemPrintStyles || null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
     }).returning();
     res.json(result[0]);
@@ -2236,6 +2270,7 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids ?? null,
       customPrintLines: req.body.customPrintLines ?? null,
       customTitle: req.body.customTitle ?? null,
+      itemPrintStyles: req.body.itemPrintStyles ?? null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
       updatedAt: new Date(),
     }).where(eq(toastMenuEmbedConfigs.id, id)).returning();
