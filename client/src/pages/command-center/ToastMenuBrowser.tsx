@@ -57,7 +57,7 @@ const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
 };
 
 const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
-  { key: "title",    label: "Header" },
+  { key: "title",    label: "Private Event Title (optional)" },
   { key: "subtitle", label: "Sub-header" },
   { key: "group",    label: "Section header" },
   { key: "item",     label: "Item name" },
