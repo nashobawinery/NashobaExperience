@@ -1369,6 +1369,7 @@ function Router() {
         <Route path="/spot-inventory/staff" component={SpotInventoryStaffRoute} />
         <Route path="/staff-dashboard" component={StaffDashboardRoute} />
         <Route path="/staff-dashboard/admin" component={StaffDashboardAdminRoute} />
+        <Route path="/staff-reporting/procedures/templates/:id" component={StaffReportingRoute} />
         <Route path="/staff-reporting" component={StaffReportingRoute} />
         <Route path="/staff-reporting/admin" component={StaffReportingRoute} />
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />

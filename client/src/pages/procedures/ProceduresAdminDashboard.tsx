@@ -18,7 +18,15 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import QRCodeLib from "qrcode";
 
-export default function ProceduresAdminDashboard() {
+type ProceduresAdminDashboardProps = {
+  embeddedInStaffReporting?: boolean;
+  basePath?: string;
+};
+
+export default function ProceduresAdminDashboard({
+  embeddedInStaffReporting = false,
+  basePath = "/procedures",
+}: ProceduresAdminDashboardProps) {
   const [, setLocation] = useLocation();
   const [selectedDepartment, setSelectedDepartment] = useState<string>("__all__");
   const [selectedType, setSelectedType] = useState<string>("__all__");
@@ -34,6 +42,8 @@ export default function ProceduresAdminDashboard() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const staffLoginUrl = `${window.location.origin}/staff`;
+  const newTemplatePath = `${basePath}/templates/new`;
+  const getTemplatePath = (templateId: string) => `${basePath}/templates/${templateId}`;
 
   const { data: templates, isLoading: templatesLoading } = useQuery<ProceduresTemplate[]>({
     queryKey: ["/api/procedures/templates"],
@@ -101,7 +111,7 @@ export default function ProceduresAdminDashboard() {
         title: "Procedure copied", 
         description: `Created "${newTemplate.procedureName}". The copy is set to inactive so you can review it.` 
       });
-      setLocation(`/procedures/templates/${newTemplate.id}`);
+      setLocation(getTemplatePath(newTemplate.id));
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to copy procedure", variant: "destructive" });
@@ -300,15 +310,17 @@ export default function ProceduresAdminDashboard() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setLocation("/")}
-            data-testid="button-return-hub"
-          >
-            <Home className="w-4 h-4 mr-2" />
-            Return to Hub
-          </Button>
+          {!embeddedInStaffReporting && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setLocation("/")}
+              data-testid="button-return-hub"
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Return to Hub
+            </Button>
+          )}
           <div>
             <h1 className="text-3xl font-bold">Opening and Closing Procedures</h1>
             <p className="text-muted-foreground mt-1">
@@ -316,7 +328,7 @@ export default function ProceduresAdminDashboard() {
             </p>
           </div>
         </div>
-        <Link href="/procedures/templates/new">
+        <Link href={newTemplatePath}>
           <Button data-testid="button-create-procedure">
             <Plus className="w-4 h-4 mr-2" />
             New Procedure
@@ -446,7 +458,7 @@ export default function ProceduresAdminDashboard() {
           ) : filteredTemplates && filteredTemplates.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredTemplates.map((template) => (
-                <Card key={template.id} className="hover-elevate cursor-pointer" onClick={() => setLocation(`/procedures/templates/${template.id}`)}>
+                <Card key={template.id} className="hover-elevate cursor-pointer" onClick={() => setLocation(getTemplatePath(template.id))}>
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
@@ -511,7 +523,7 @@ export default function ProceduresAdminDashboard() {
                     Get started by creating your first procedure checklist
                   </p>
                 </div>
-                <Link href="/procedures/templates/new">
+                <Link href={newTemplatePath}>
                   <Button data-testid="button-create-first-procedure">
                     <Plus className="w-4 h-4 mr-2" />
                     Create Procedure

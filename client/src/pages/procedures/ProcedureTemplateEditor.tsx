@@ -59,7 +59,11 @@ interface StaffReportingUser {
   }[];
 }
 
-export default function ProcedureTemplateEditor() {
+type ProcedureTemplateEditorProps = {
+  returnPath?: string;
+};
+
+export default function ProcedureTemplateEditor({ returnPath = "/procedures" }: ProcedureTemplateEditorProps) {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -298,7 +302,7 @@ export default function ProcedureTemplateEditor() {
 
     queryClient.invalidateQueries({ queryKey: ["/api/staff-reporting/users"] });
     queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates", id] });
-    setLocation("/procedures");
+    setLocation(returnPath);
   };
 
   const addItem = () => {
@@ -388,7 +392,7 @@ export default function ProcedureTemplateEditor() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/procedures")} data-testid="button-back">
+        <Button variant="ghost" size="icon" onClick={() => setLocation(returnPath)} data-testid="button-back">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">

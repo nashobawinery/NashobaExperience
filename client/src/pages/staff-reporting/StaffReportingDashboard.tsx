@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ClipboardList, FileText, Plus, Printer, RefreshCw, Save, Settings, Trash2, Users } from "lucide-react";
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DailyReportsAdminDashboard from "@/pages/daily-reports/DailyReportsAdminDashboard";
 import ProceduresAdminDashboard from "@/pages/procedures/ProceduresAdminDashboard";
+import ProcedureTemplateEditor from "@/pages/procedures/ProcedureTemplateEditor";
 
 type StaffReportingAssignment = {
   id?: string;
@@ -67,9 +68,10 @@ const emptyForm = {
 };
 
 export default function StaffReportingDashboard() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("daily-reports");
+  const isProcedureEditorRoute = location.startsWith("/staff-reporting/procedures/templates/");
+  const [activeTab, setActiveTab] = useState(isProcedureEditorRoute ? "procedures" : "daily-reports");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<StaffReportingUser | null>(null);
   const [formData, setFormData] = useState(emptyForm);
@@ -81,6 +83,12 @@ export default function StaffReportingDashboard() {
   const { data: options } = useQuery<StaffReportingOptions>({
     queryKey: ["/api/staff-reporting/options"],
   });
+
+  useEffect(() => {
+    if (isProcedureEditorRoute) {
+      setActiveTab("procedures");
+    }
+  }, [isProcedureEditorRoute]);
 
   const assignmentCount = useMemo(() => {
     return users.reduce((total, user) => total + user.assignments.filter((a) => a.isEnabled).length, 0);
@@ -188,6 +196,13 @@ export default function StaffReportingDashboard() {
     return user.assignments.filter((assignment) => assignment.reportType === reportType && assignment.isEnabled);
   };
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (isProcedureEditorRoute) {
+      setLocation("/staff-reporting");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="space-y-6 p-6">
@@ -210,7 +225,7 @@ export default function StaffReportingDashboard() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="flex h-auto flex-wrap justify-start">
             <TabsTrigger value="daily-reports">
               <FileText className="h-4 w-4 mr-2" />
@@ -231,7 +246,11 @@ export default function StaffReportingDashboard() {
           </TabsContent>
 
           <TabsContent value="procedures">
-            <ProceduresAdminDashboard />
+            {isProcedureEditorRoute ? (
+              <ProcedureTemplateEditor returnPath="/staff-reporting" />
+            ) : (
+              <ProceduresAdminDashboard embeddedInStaffReporting basePath="/staff-reporting/procedures" />
+            )}
           </TabsContent>
 
           <TabsContent value="administration" className="space-y-6">
