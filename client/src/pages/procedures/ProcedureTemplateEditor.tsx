@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Plus, Trash2, Save, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { ProceduresTemplateWithItems, ProceduresItem, ProceduresStaff } from "@shared/schema";
+import type { ProceduresTemplateWithItems, ProceduresItem } from "@shared/schema";
 
 const DAYS_OF_WEEK = [
   { key: "monday", label: "Mon" },
@@ -44,6 +44,19 @@ interface ProcedureItemForm {
   responseType: string;
   dropdownOptions: string[];
   sortOrder: number;
+}
+
+interface StaffReportingUser {
+  id: string;
+  displayName: string;
+  accessCode: string;
+  homeDepartment?: string | null;
+  isActive: boolean;
+  assignments: {
+    reportType: string;
+    assignmentKey: string;
+    isEnabled: boolean;
+  }[];
 }
 
 export default function ProcedureTemplateEditor() {
@@ -80,8 +93,8 @@ export default function ProcedureTemplateEditor() {
     queryKey: ["/api/procedures/departments"],
   });
 
-  const { data: allStaff } = useQuery<ProceduresStaff[]>({
-    queryKey: ["/api/procedures/staff"],
+  const { data: allStaff } = useQuery<StaffReportingUser[]>({
+    queryKey: ["/api/staff-reporting/users"],
   });
 
   useEffect(() => {
@@ -115,6 +128,21 @@ export default function ProcedureTemplateEditor() {
     }
   }, [template]);
 
+  useEffect(() => {
+    if (!template || !allStaff) return;
+    setAssignedStaffIds(
+      allStaff
+        .filter((staff) =>
+          staff.assignments?.some((assignment) =>
+            assignment.reportType === "procedure" &&
+            assignment.assignmentKey === template.procedureCode &&
+            assignment.isEnabled
+          )
+        )
+        .map((staff) => staff.id)
+    );
+  }, [template, allStaff]);
+
   const createTemplateMutation = useMutation({
     mutationFn: async (data: any) => {
       const response = await apiRequest("POST", "/api/procedures/templates", data);
@@ -123,7 +151,6 @@ export default function ProcedureTemplateEditor() {
     onSuccess: () => {
       toast({ title: "Procedure created successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates"] });
-      setLocation("/procedures");
     },
     onError: (error: any) => {
       toast({ title: "Error creating procedure", description: error.message, variant: "destructive" });
@@ -138,7 +165,6 @@ export default function ProcedureTemplateEditor() {
     onSuccess: () => {
       toast({ title: "Procedure updated successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates"] });
-      setLocation("/procedures");
     },
     onError: (error: any) => {
       toast({ title: "Error updating procedure", description: error.message, variant: "destructive" });
@@ -189,9 +215,10 @@ export default function ProcedureTemplateEditor() {
       finalEmailsCc = [...finalEmailsCc, ...pendingCcEmails.filter(e => !finalEmailsCc.includes(e))];
     }
     
+    const normalizedProcedureCode = procedureCode.toUpperCase().replace(/\s+/g, "_");
     const templateData = {
       procedureName,
-      procedureCode: procedureCode.toUpperCase().replace(/\s+/g, "_"),
+      procedureCode: normalizedProcedureCode,
       department,
       procedureType,
       description: description || null,
@@ -200,8 +227,7 @@ export default function ProcedureTemplateEditor() {
       isMandatory,
       completionTime: completionTime || null,
       emailRecipientsTo: finalEmailsTo,
-      emailRecipientsCc: finalEmailsCc,
-      assignedStaffIds
+      emailRecipientsCc: finalEmailsCc
     };
 
     if (isNew) {
@@ -221,8 +247,18 @@ export default function ProcedureTemplateEditor() {
           }
         });
       }
+      await apiRequest("PUT", `/api/staff-reporting/procedures/${normalizedProcedureCode}/staff`, {
+        assignedStaffIds,
+        assignmentLabel: procedureName
+      });
     } else {
       await updateTemplateMutation.mutateAsync(templateData);
+      if (template?.procedureCode && template.procedureCode !== normalizedProcedureCode) {
+        await apiRequest("PUT", `/api/staff-reporting/procedures/${template.procedureCode}/staff`, {
+          assignedStaffIds: [],
+          assignmentLabel: template.procedureName
+        });
+      }
       for (const item of items) {
         if (item.id) {
           await updateItemMutation.mutateAsync({
@@ -254,7 +290,15 @@ export default function ProcedureTemplateEditor() {
           });
         }
       }
+      await apiRequest("PUT", `/api/staff-reporting/procedures/${normalizedProcedureCode}/staff`, {
+        assignedStaffIds,
+        assignmentLabel: procedureName
+      });
     }
+
+    queryClient.invalidateQueries({ queryKey: ["/api/staff-reporting/users"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates", id] });
+    setLocation("/procedures");
   };
 
   const addItem = () => {
@@ -706,7 +750,7 @@ export default function ProcedureTemplateEditor() {
             </CardHeader>
             <CardContent>
               {!allStaff || allStaff.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No staff members available. Add staff in the Users section first.</p>
+                <p className="text-sm text-muted-foreground">No staff members available. Add staff in Staff Reporting Administration first.</p>
               ) : (
                 <div className="space-y-2">
                   {allStaff.filter(s => s.isActive).map((staff) => (
@@ -718,12 +762,12 @@ export default function ProcedureTemplateEditor() {
                         data-testid={`checkbox-staff-${staff.id}`}
                       />
                       <Label htmlFor={`staff-${staff.id}`} className="flex-1 cursor-pointer">
-                        {staff.staffName}
-                        {staff.department && (
-                          <span className="text-xs text-muted-foreground ml-2">({staff.department})</span>
+                        {staff.displayName}
+                        {staff.homeDepartment && (
+                          <span className="text-xs text-muted-foreground ml-2">({staff.homeDepartment})</span>
                         )}
                       </Label>
-                      <Badge variant="outline" className="text-xs">{staff.code}</Badge>
+                      <Badge variant="outline" className="text-xs">{staff.accessCode}</Badge>
                     </div>
                   ))}
                 </div>

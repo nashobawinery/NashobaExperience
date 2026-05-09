@@ -211,6 +211,43 @@ async function replaceAssignments(staffId: string, assignments: StaffReportingAs
   );
 }
 
+async function getProcedureStaffAssignments(procedureCode: string) {
+  await ensureStaffReportingAccessModel();
+  const users = await getUsersWithAssignments();
+  return users.map((user) => ({
+    ...user,
+    isAssigned: user.assignments.some((assignment: any) =>
+      assignment.reportType === "procedure" &&
+      assignment.assignmentKey === procedureCode &&
+      assignment.isEnabled
+    ),
+  }));
+}
+
+async function syncLegacyProcedureStaffIds(procedureCode: string, selectedStaffIds: string[]) {
+  const selectedStaff = selectedStaffIds.length > 0
+    ? await db.select().from(staffReportingStaff).where(inArray(staffReportingStaff.id, selectedStaffIds))
+    : [];
+
+  const legacyStaffIds: string[] = [];
+  for (const staff of selectedStaff) {
+    const legacyMatch = await db.execute(sql`
+      SELECT id
+      FROM procedures_staff
+      WHERE lower(trim(staff_name)) = lower(trim(${staff.displayName}))
+        AND code = ${staff.accessCode}
+      LIMIT 1
+    `);
+    const legacyId = legacyMatch.rows[0]?.id;
+    if (typeof legacyId === "string") legacyStaffIds.push(legacyId);
+  }
+
+  await db
+    .update(proceduresTemplates)
+    .set({ assignedStaffIds: legacyStaffIds, updatedAt: new Date() } as any)
+    .where(eq(proceduresTemplates.procedureCode, procedureCode));
+}
+
 export async function getSharedStaffPortalAccess(code: string) {
   await ensureStaffReportingAccessModel();
   const staffRows = await db
@@ -315,6 +352,65 @@ router.get("/options", isAdmin, async (_req: Request, res: Response) => {
   } catch (error) {
     console.error("[Staff Reporting] Failed to fetch options:", error);
     res.status(500).json({ message: "Failed to fetch staff reporting options" });
+  }
+});
+
+router.get("/procedures/:procedureCode/staff", isAdmin, async (req: Request, res: Response) => {
+  try {
+    res.json(await getProcedureStaffAssignments(req.params.procedureCode));
+  } catch (error) {
+    console.error("[Staff Reporting] Failed to fetch procedure staff assignments:", error);
+    res.status(500).json({ message: "Failed to fetch procedure staff assignments" });
+  }
+});
+
+router.put("/procedures/:procedureCode/staff", isAdmin, async (req: Request, res: Response) => {
+  try {
+    await ensureStaffReportingAccessModel();
+    const procedureCode = req.params.procedureCode;
+    const selectedStaffIds = Array.isArray(req.body?.assignedStaffIds) ? req.body.assignedStaffIds as string[] : [];
+    const assignmentLabel = typeof req.body?.assignmentLabel === "string" && req.body.assignmentLabel.trim()
+      ? req.body.assignmentLabel.trim()
+      : procedureCode;
+
+    await db
+      .update(staffReportingAssignments)
+      .set({ isEnabled: false, updatedAt: new Date() })
+      .where(and(
+        eq(staffReportingAssignments.reportType, "procedure"),
+        eq(staffReportingAssignments.assignmentKey, procedureCode),
+      ));
+
+    if (selectedStaffIds.length > 0) {
+      await db
+        .insert(staffReportingAssignments)
+        .values(selectedStaffIds.map((staffId) => ({
+          staffId,
+          reportType: "procedure",
+          assignmentKey: procedureCode,
+          assignmentLabel,
+          isEnabled: true,
+          legacySource: "staff_reporting",
+        })))
+        .onConflictDoUpdate({
+          target: [
+            staffReportingAssignments.staffId,
+            staffReportingAssignments.reportType,
+            staffReportingAssignments.assignmentKey,
+          ],
+          set: {
+            assignmentLabel,
+            isEnabled: true,
+            updatedAt: new Date(),
+          },
+        });
+    }
+
+    await syncLegacyProcedureStaffIds(procedureCode, selectedStaffIds);
+    res.json(await getProcedureStaffAssignments(procedureCode));
+  } catch (error) {
+    console.error("[Staff Reporting] Failed to update procedure staff assignments:", error);
+    res.status(500).json({ message: "Failed to update procedure staff assignments" });
   }
 });
 
