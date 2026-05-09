@@ -349,7 +349,7 @@ export default function ProceduresAdminDashboard({
                   <h3 className="text-lg font-semibold">Staff Portal</h3>
                 </div>
                 <p className="text-muted-foreground text-sm">
-                  Share this link or QR code with your staff to access both Daily Reports and Procedures.
+                  Share this link or QR code with your staff to access Daily Reports and Opening and Closing Procedures.
                   Staff will need their access code to log in.
                 </p>
               </div>
@@ -364,7 +364,7 @@ export default function ProceduresAdminDashboard({
                 >
                   {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                 </Button>
-                <Link href="/procedures/staff" target="_blank">
+                <Link href="/staff" target="_blank">
                   <Button variant="ghost" size="icon" data-testid="button-open-staff-login">
                     <ExternalLink className="w-4 h-4" />
                   </Button>

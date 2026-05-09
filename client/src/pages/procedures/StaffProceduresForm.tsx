@@ -73,7 +73,12 @@ export default function StaffProceduresForm() {
     const urlCode = params.get("code");
     const procedureId = params.get("procedureId");
     const urlDraftId = params.get("draftId");
-    
+
+    if (!urlCode) {
+      navigate("/staff");
+      return;
+    }
+
     if (urlCode) {
       setCode(urlCode);
       setCameFromPortal(true);

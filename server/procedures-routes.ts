@@ -4,7 +4,7 @@ import { insertProceduresTemplateSchema, insertProceduresItemSchema, insertProce
 import { z } from "zod";
 import { sendEmail } from "./email";
 import { scheduleMandatoryCheck } from "./proceduresMandatoryChecker";
-import { getSharedStaffPortalAccess } from "./staff-reporting-routes";
+import { getSharedStaffPortalAccess, syncStaffReportingAssignmentOptions } from "./staff-reporting-routes";
 
 const router = Router();
 
@@ -227,6 +227,7 @@ router.post("/templates", async (req: Request, res: Response) => {
   try {
     const validated = insertProceduresTemplateSchema.parse(req.body);
     const template = await storage.createProceduresTemplate(validated);
+    await syncStaffReportingAssignmentOptions();
     res.status(201).json(template);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -271,7 +272,7 @@ router.post("/templates/:id/copy", async (req: Request, res: Response) => {
     }
     
     // Create a copy of the template with a new name
-    const copyData = {
+    const copyData: any = {
       procedureName: `${original.procedureName} (Copy)`,
       procedureCode: `${original.procedureCode}_COPY_${Date.now().toString(36).toUpperCase()}`,
       department: original.department,
@@ -286,6 +287,7 @@ router.post("/templates/:id/copy", async (req: Request, res: Response) => {
     };
     
     const newTemplate = await storage.createProceduresTemplate(copyData);
+    await syncStaffReportingAssignmentOptions();
     
     // Copy all items
     if (original.items && original.items.length > 0) {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ClipboardList, FileText, Plus, Printer, RefreshCw, Save, Settings, Trash2, Users } from "lucide-react";
+import { ArrowLeft, Check, ClipboardList, Copy, ExternalLink, FileText, Plus, Printer, QrCode, RefreshCw, Save, Settings, Trash2, Users } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,8 @@ export default function StaffReportingDashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<StaffReportingUser | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const [copiedStaffUrl, setCopiedStaffUrl] = useState(false);
+  const staffPortalUrl = `${window.location.origin}/staff`;
 
   const { data: users = [], isLoading: usersLoading } = useQuery<StaffReportingUser[]>({
     queryKey: ["/api/staff-reporting/users"],
@@ -203,6 +205,13 @@ export default function StaffReportingDashboard() {
     }
   };
 
+  const copyStaffPortalUrl = async () => {
+    await navigator.clipboard.writeText(staffPortalUrl);
+    setCopiedStaffUrl(true);
+    toast({ title: "Staff portal URL copied" });
+    setTimeout(() => setCopiedStaffUrl(false), 2000);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="space-y-6 p-6">
@@ -213,7 +222,7 @@ export default function StaffReportingDashboard() {
               Return to Hub
             </Button>
             <div>
-              <h1 className="text-3xl font-bold">Staff Reporting</h1>
+              <h1 className="text-3xl font-bold">Staff Daily Report Center</h1>
               <p className="text-muted-foreground mt-1">
                 Daily Reports, Opening and Closing Procedures, and shared staff access in one module.
               </p>
@@ -224,6 +233,44 @@ export default function StaffReportingDashboard() {
             <Badge variant="outline">{assignmentCount} active assignments</Badge>
           </div>
         </div>
+
+        <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-primary/10 via-background to-amber-500/10">
+          <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-xl bg-white p-2 shadow-sm">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=104x104&data=${encodeURIComponent(staffPortalUrl)}`}
+                  alt="Staff portal QR code"
+                  className="h-24 w-24"
+                  data-testid="img-staff-daily-report-center-qr"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Staff Daily Report Center Login</CardTitle>
+                </div>
+                <CardDescription>
+                  Share this one link with staff for Daily Reports, Opening and Closing Procedures, and approved Print Menus.
+                </CardDescription>
+                <div className="flex max-w-xl items-center gap-2 rounded-lg border bg-background p-2">
+                  <span className="flex-1 truncate font-mono text-sm" data-testid="text-staff-daily-report-center-url">
+                    {staffPortalUrl}
+                  </span>
+                  <Button variant="ghost" size="icon" onClick={copyStaffPortalUrl} data-testid="button-copy-staff-daily-report-center-url">
+                    {copiedStaffUrl ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <Link href="/staff" target="_blank">
+              <Button data-testid="button-open-staff-daily-report-center">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open Staff Login
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="flex h-auto flex-wrap justify-start">
@@ -297,6 +344,12 @@ export default function StaffReportingDashboard() {
                                   {user.isActive ? "Active" : "Inactive"}
                                 </Badge>
                               </div>
+                              <div>
+                                <div className="text-sm font-semibold">Employee Authorized Procedures and Reports</div>
+                                <p className="text-xs text-muted-foreground">
+                                  Checked items are available to this employee from the staff login.
+                                </p>
+                              </div>
                               <div className="grid gap-3 text-sm md:grid-cols-3">
                                 <div>
                                   <div className="font-medium flex items-center gap-2">
@@ -354,7 +407,7 @@ export default function StaffReportingDashboard() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  if (window.confirm(`Remove ${user.displayName} from Staff Reporting?`)) {
+                                  if (window.confirm(`Remove ${user.displayName} from Staff Daily Report Center?`)) {
                                     deleteMutation.mutate(user.id);
                                   }
                                 }}
@@ -380,7 +433,7 @@ export default function StaffReportingDashboard() {
           <DialogHeader>
             <DialogTitle>{editingUser ? "Edit Staff User" : "Add Staff User"}</DialogTitle>
             <DialogDescription>
-              Assign Daily Report departments and procedure checklists from one shared staff profile.
+              Manage Employee Authorized Procedures and Reports from one shared staff profile.
             </DialogDescription>
           </DialogHeader>
 
@@ -423,7 +476,7 @@ export default function StaffReportingDashboard() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Department is managed here in Staff Reporting Administration.
+                  Department is managed here in Staff Daily Report Center Administration.
                 </p>
               </div>
               <div className="flex items-center gap-2 md:col-span-3">
@@ -436,7 +489,14 @@ export default function StaffReportingDashboard() {
               </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="space-y-3">
+              <div>
+                <h3 className="font-semibold">Employee Authorized Procedures and Reports</h3>
+                <p className="text-sm text-muted-foreground">
+                  New reports and procedures are added here unchecked until a manager authorizes them.
+                </p>
+              </div>
+              <div className="grid gap-6 lg:grid-cols-3">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Daily Reports</CardTitle>
@@ -515,6 +575,7 @@ export default function StaffReportingDashboard() {
                   )}
                 </CardContent>
               </Card>
+              </div>
             </div>
           </div>
 

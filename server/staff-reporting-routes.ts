@@ -173,11 +173,76 @@ export async function ensureStaffReportingAccessModel() {
       updated_at = now();
   `);
 
+  await syncMissingStaffReportingAssignments();
+
   prepared = true;
+}
+
+async function syncMissingStaffReportingAssignments() {
+  await db.execute(sql`
+    INSERT INTO staff_reporting_assignments (staff_id, report_type, assignment_key, assignment_label, is_enabled, legacy_source)
+    SELECT s.id, 'daily_report', drt.department, drt.department_label, false, 'staff_reporting_options'
+    FROM staff_reporting_staff s
+    CROSS JOIN daily_report_templates drt
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM staff_reporting_assignments a
+      WHERE a.staff_id = s.id
+        AND a.report_type = 'daily_report'
+        AND a.assignment_key = drt.department
+    )
+    ON CONFLICT (staff_id, report_type, assignment_key) DO UPDATE SET
+      assignment_label = EXCLUDED.assignment_label,
+      updated_at = now();
+
+    INSERT INTO staff_reporting_assignments (staff_id, report_type, assignment_key, assignment_label, is_enabled, legacy_source)
+    SELECT s.id, 'procedure', pt.procedure_code, pt.procedure_name, false, 'staff_reporting_options'
+    FROM staff_reporting_staff s
+    CROSS JOIN procedures_templates pt
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM staff_reporting_assignments a
+      WHERE a.staff_id = s.id
+        AND a.report_type = 'procedure'
+        AND a.assignment_key = pt.procedure_code
+    )
+    ON CONFLICT (staff_id, report_type, assignment_key) DO UPDATE SET
+      assignment_label = EXCLUDED.assignment_label,
+      updated_at = now();
+
+    INSERT INTO staff_reporting_assignments (staff_id, report_type, assignment_key, assignment_label, is_enabled, legacy_source)
+    SELECT s.id, 'print_menu', menu.assignment_key, menu.assignment_label, false, 'staff_reporting_options'
+    FROM staff_reporting_staff s
+    CROSS JOIN (
+      SELECT id::text AS assignment_key, name AS assignment_label
+      FROM staff_print_menus
+      WHERE is_active = true
+      UNION ALL
+      SELECT 'cfg-' || id::text AS assignment_key, name AS assignment_label
+      FROM toast_menu_embed_configs
+      WHERE show_on_staff_board = true
+    ) menu
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM staff_reporting_assignments a
+      WHERE a.staff_id = s.id
+        AND a.report_type = 'print_menu'
+        AND a.assignment_key = menu.assignment_key
+    )
+    ON CONFLICT (staff_id, report_type, assignment_key) DO UPDATE SET
+      assignment_label = EXCLUDED.assignment_label,
+      updated_at = now();
+  `);
+}
+
+export async function syncStaffReportingAssignmentOptions() {
+  await ensureStaffReportingAccessModel();
+  await syncMissingStaffReportingAssignments();
 }
 
 async function getUsersWithAssignments() {
   await ensureStaffReportingAccessModel();
+  await syncMissingStaffReportingAssignments();
   const rows = await db
     .select()
     .from(staffReportingStaff)
@@ -382,6 +447,7 @@ router.get("/users", isAdmin, async (_req: Request, res: Response) => {
 router.get("/options", isAdmin, async (_req: Request, res: Response) => {
   try {
     await ensureStaffReportingAccessModel();
+    await syncMissingStaffReportingAssignments();
     const departments = await db
       .select({
         department: dailyReportTemplates.department,
@@ -510,6 +576,7 @@ router.post("/users", isAdmin, async (req: Request, res: Response) => {
       .returning();
 
     await replaceAssignments(user.id, payload.assignments);
+    await syncMissingStaffReportingAssignments();
     res.status(201).json((await getUsersWithAssignments()).find((u) => u.id === user.id));
   } catch (error) {
     console.error("[Staff Reporting] Failed to create user:", error);
@@ -535,6 +602,7 @@ router.patch("/users/:id", isAdmin, async (req: Request, res: Response) => {
 
     if (!user) return res.status(404).json({ message: "Staff reporting user not found" });
     if (payload.assignments) await replaceAssignments(user.id, payload.assignments);
+    await syncMissingStaffReportingAssignments();
     res.json((await getUsersWithAssignments()).find((u) => u.id === user.id));
   } catch (error) {
     console.error("[Staff Reporting] Failed to update user:", error);

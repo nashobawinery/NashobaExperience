@@ -2918,7 +2918,7 @@ export default function DailyReportsAdminDashboard() {
                   <div>
                     <CardTitle className="text-base">Staff Portal</CardTitle>
                     <CardDescription>
-                      Unified portal for both Daily Reports and Daily Procedures
+                      Unified portal for Daily Reports and Opening and Closing Procedures
                     </CardDescription>
                   </div>
                 </div>
@@ -4611,7 +4611,7 @@ export default function DailyReportsAdminDashboard() {
           <DialogHeader>
             <DialogTitle className="text-center">Staff Portal</DialogTitle>
             <DialogDescription className="text-center">
-              Staff scan this code to access both Daily Reports and Daily Procedures
+              Staff scan this code to access Daily Reports and Opening and Closing Procedures
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -4628,7 +4628,7 @@ export default function DailyReportsAdminDashboard() {
             <div className="text-center space-y-2">
               <div className="font-medium text-lg">Staff Portal</div>
               <div className="text-sm text-muted-foreground">
-                Access both Daily Reports and Procedures
+                Access Daily Reports and Opening and Closing Procedures
               </div>
             </div>
             <div className="flex justify-center gap-2">

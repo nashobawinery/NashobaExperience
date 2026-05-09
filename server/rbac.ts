@@ -1120,7 +1120,7 @@ export async function seedPlatformModules(): Promise<void> {
     },
     {
       moduleKey: 'staff_reporting',
-      moduleName: 'Staff Reports',
+      moduleName: 'Staff Daily Report Center',
       description: 'Unified Daily Reports, Opening and Closing Procedures, and shared staff access administration',
       icon: 'ClipboardList',
       color: 'bg-slate-600',

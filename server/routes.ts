@@ -24,7 +24,7 @@ import b2bRouter from "./b2b-routes";
 import { establishB2bBridgeSession } from "./b2b-auth";
 import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
-import staffReportingRouter, { getApprovedStaffPrintMenus, getSharedStaffPortalAccess } from "./staff-reporting-routes";
+import staffReportingRouter, { getApprovedStaffPrintMenus, getSharedStaffPortalAccess, syncStaffReportingAssignmentOptions } from "./staff-reporting-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
@@ -11115,6 +11115,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         }
       }
       
+      await syncStaffReportingAssignmentOptions();
       res.json(template);
     } catch (error) {
       console.error('Error creating daily report template:', error);
@@ -11170,6 +11171,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         metrics: sourceTemplate.metrics || [],
         sortOrder: (sourceTemplate.sortOrder || 0) + 1
       });
+      await syncStaffReportingAssignmentOptions();
       
       // Copy field assignments from source template
       const sourceAssignments = await storage.getDepartmentFieldAssignments(id);

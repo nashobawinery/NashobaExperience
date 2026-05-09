@@ -418,7 +418,7 @@ export default function PublicProceduresForm() {
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <ClipboardCheck className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Daily Procedures</CardTitle>
+            <CardTitle className="text-2xl">Opening and Closing Procedures</CardTitle>
             <CardDescription>Enter your PIN to access today's procedures</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, LogIn, LogOut, ChevronRight, FileText, ClipboardCheck, Clock, Wrench, Printer, CalendarDays, ShieldCheck } from "lucide-react";
+import { LogIn, LogOut, ChevronRight, FileText, ClipboardCheck, Clock, Wrench, Printer, CalendarDays, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -278,51 +278,104 @@ export default function StaffPortal() {
   // Login screen
   if (!staffAccess) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-              <ClipboardList className="w-8 h-8 text-primary" />
+      <div className="min-h-screen overflow-hidden bg-slate-950 text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(124,45,58,0.5),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.25),transparent_30%)]" />
+        <div className="relative flex min-h-screen items-center justify-center p-4">
+          <Card className="w-full max-w-5xl overflow-hidden border-white/10 bg-white/95 shadow-2xl dark:bg-slate-900">
+            <div className="grid md:grid-cols-[1.05fr_0.95fr]">
+              <div className="relative hidden bg-gradient-to-br from-[#4b1724] via-[#7c2d3a] to-[#c07a2d] p-8 text-white md:block">
+                <div className="absolute inset-0 bg-black/10" />
+                <div className="relative flex h-full min-h-[520px] flex-col justify-between">
+                  <div>
+                    <img
+                      src="/nvw-logo.png"
+                      alt="Nashoba Valley Winery"
+                      className="h-20 w-auto rounded-xl bg-white/95 p-3 shadow-lg"
+                    />
+                    <Badge className="mt-6 border-white/20 bg-white/15 text-white">
+                      New Release 05092026
+                    </Badge>
+                  </div>
+                  <div className="space-y-4">
+                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-amber-100">
+                      Nashoba Staff Portal
+                    </p>
+                    <h1 className="text-4xl font-bold leading-tight">
+                      Daily reports, procedures, and print menus in one place.
+                    </h1>
+                    <p className="max-w-md text-sm text-white/85">
+                      Use your assigned access code to reach the tools approved for your role.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 md:p-10">
+                <CardHeader className="px-0 text-center md:text-left">
+                  <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 md:mx-0">
+                    <img src="/nvw-logo.png" alt="Nashoba Valley Winery" className="h-14 w-14 object-contain" />
+                  </div>
+                  <div className="flex justify-center md:justify-start">
+                    <Badge variant="outline" className="mb-3">
+                      Staff Daily Report Center
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-3xl">Welcome Back</CardTitle>
+                  <CardDescription className="text-base">
+                    Enter your access code to view Daily Reports, Opening and Closing Procedures, and approved Print Menus.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5 px-0">
+                  <div className="space-y-2">
+                    <Label htmlFor="code">Access Code</Label>
+                    <Input
+                      id="code"
+                      type="text"
+                      placeholder="Enter your code"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.toUpperCase())}
+                      onKeyPress={handleKeyPress}
+                      className="h-14 text-center text-2xl tracking-widest font-mono"
+                      autoComplete="off"
+                      data-testid="input-staff-code"
+                    />
+                  </div>
+                  <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                    <div className="rounded-lg border bg-background p-3">
+                      <FileText className="mb-2 h-4 w-4 text-primary" />
+                      Daily Reports
+                    </div>
+                    <div className="rounded-lg border bg-background p-3">
+                      <ClipboardCheck className="mb-2 h-4 w-4 text-primary" />
+                      Procedures
+                    </div>
+                    <div className="rounded-lg border bg-background p-3">
+                      <Printer className="mb-2 h-4 w-4 text-primary" />
+                      Print Menus
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="px-0">
+                  <Button
+                    className="h-12 w-full text-base"
+                    onClick={handleLogin}
+                    disabled={!code.trim() || validateMutation.isPending}
+                    data-testid="button-staff-login"
+                  >
+                    {validateMutation.isPending ? (
+                      "Validating..."
+                    ) : (
+                      <>
+                        <LogIn className="w-4 h-4 mr-2" />
+                        Continue
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </div>
             </div>
-            <CardTitle className="text-2xl">Staff Portal</CardTitle>
-            <CardDescription>
-              Enter your access code to view Daily Reports, Opening and Closing Procedures, and approved Print Menus
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="code">Access Code</Label>
-              <Input
-                id="code"
-                type="text"
-                placeholder="Enter your code"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                onKeyPress={handleKeyPress}
-                className="text-center text-2xl tracking-widest font-mono"
-                autoComplete="off"
-                data-testid="input-staff-code"
-              />
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button
-              className="w-full"
-              onClick={handleLogin}
-              disabled={!code.trim() || validateMutation.isPending}
-              data-testid="button-staff-login"
-            >
-              {validateMutation.isPending ? (
-                "Validating..."
-              ) : (
-                <>
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Continue
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
+          </Card>
+        </div>
       </div>
     );
   }
