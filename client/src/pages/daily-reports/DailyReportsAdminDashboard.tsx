@@ -4657,233 +4657,332 @@ export default function DailyReportsAdminDashboard() {
       </Dialog>
 
       <Dialog open={isDepartmentDialogOpen} onOpenChange={setIsDepartmentDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {editingDepartment && (() => {
-                const Icon = departmentIcons[editingDepartment.department] || Building;
-                return <Icon className="h-5 w-5 text-amber-500" />;
-              })()}
-              {editingDepartment?.departmentLabel || "Department"} Settings
-            </DialogTitle>
-            <DialogDescription>
-              Configure notification emails and staff access codes for this department.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-6 py-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="departmentLabel" className="flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Department Name
-                </Label>
-                <Input
-                  id="departmentLabel"
-                  placeholder="Enter department name"
-                  value={departmentFormData.departmentLabel}
-                  onChange={(e) => setDepartmentFormData({ ...departmentFormData, departmentLabel: e.target.value })}
-                  data-testid="input-department-label"
-                />
-                <p className="text-xs text-muted-foreground">
-                  The display name for this department in reports and notifications.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sortOrder" className="flex items-center gap-2">
-                  <ArrowUpDown className="h-4 w-4" />
-                  Sort Order
-                </Label>
-                <Input
-                  id="sortOrder"
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  value={departmentFormData.sortOrder}
-                  onChange={(e) => setDepartmentFormData({ ...departmentFormData, sortOrder: parseInt(e.target.value) || 0 })}
-                  data-testid="input-department-sort-order"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Lower numbers appear first.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Availability Window
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Optionally restrict when this department is visible to staff. Leave blank for always available.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="availableFromTime" className="text-xs">Available From</Label>
-                  <Input
-                    id="availableFromTime"
-                    type="time"
-                    value={departmentFormData.availableFromTime}
-                    onChange={(e) => setDepartmentFormData({ ...departmentFormData, availableFromTime: e.target.value })}
-                    data-testid="input-available-from-time"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="availableUntilTime" className="text-xs">Available Until</Label>
-                  <Input
-                    id="availableUntilTime"
-                    type="time"
-                    value={departmentFormData.availableUntilTime}
-                    onChange={(e) => setDepartmentFormData({ ...departmentFormData, availableUntilTime: e.target.value })}
-                    data-testid="input-available-until-time"
-                  />
-                </div>
-              </div>
-              {departmentFormData.availableFromTime && departmentFormData.availableUntilTime && (
-                <p className="text-xs text-muted-foreground">
-                  Staff will only see this department between {departmentFormData.availableFromTime} and {departmentFormData.availableUntilTime}.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notificationEmails" className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                Notification Emails
-              </Label>
-              <Textarea
-                id="notificationEmails"
-                placeholder="Enter email addresses separated by commas&#10;e.g., manager@company.com, supervisor@company.com"
-                value={departmentFormData.notificationEmailsText}
-                onChange={(e) => setDepartmentFormData({ ...departmentFormData, notificationEmailsText: e.target.value })}
-                className="min-h-[80px] resize-none"
-                data-testid="input-notification-emails"
-              />
-              <p className="text-xs text-muted-foreground">
-                Recipients will receive notifications when reports are submitted for this department.
-              </p>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">
-                  <QrCode className="h-4 w-4" />
-                  Staff Access Codes
-                </Label>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => {
-                    setEditingAccessCode(null);
-                    resetAccessCodeForm();
-                    if (editingDepartment) {
-                      setAccessCodeFormData(prev => ({ ...prev, department: editingDepartment.department }));
-                    }
-                    setIsAccessCodeDialogOpen(true);
-                  }}
-                  data-testid="button-add-dept-access-code"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Code
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Staff can scan QR codes or enter their code to submit reports without logging in.
-              </p>
-              
-              {(() => {
-                const deptCodes = accessCodes.filter(c => c.department === editingDepartment?.department);
-                if (deptCodes.length === 0) {
-                  return (
-                    <div className="text-center py-4 text-muted-foreground border rounded-lg bg-muted/30">
-                      <QrCode className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No access codes for this department</p>
-                      <p className="text-xs">Add codes to allow staff to submit reports via QR code</p>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          {editingDepartment && (() => {
+            const Icon = departmentIcons[editingDepartment.department] || Building;
+            const assignments = (allFieldAssignments[editingDepartment.id] || []).sort((a, b) => a.sortOrder - b.sortOrder);
+            const enabledFieldCount = assignments.filter((assignment) => assignment.isEnabled).length;
+            const deptCodes = accessCodes.filter(c => c.department === editingDepartment.department);
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <Button variant="ghost" size="icon" onClick={() => setIsDepartmentDialogOpen(false)}>
+                        <ArrowLeft className="h-5 w-5" />
+                      </Button>
+                      <div>
+                        <DialogTitle className="flex items-center gap-2 text-2xl">
+                          <Icon className="h-6 w-6 text-amber-500" />
+                          Edit Daily Report Template
+                        </DialogTitle>
+                        <DialogDescription>
+                          Editing {editingDepartment.departmentLabel}
+                        </DialogDescription>
+                      </div>
                     </div>
-                  );
-                }
-                return (
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                    {deptCodes.map(code => (
-                      <div 
-                        key={code.id} 
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="font-mono text-lg font-bold bg-background px-2 py-1 rounded border">
-                            {code.code}
+                    <Button
+                      onClick={handleSaveDepartment}
+                      disabled={updateDepartmentMutation.isPending}
+                      data-testid="button-save-department"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {updateDepartmentMutation.isPending ? "Saving..." : "Save Report Template"}
+                    </Button>
+                  </div>
+                </DialogHeader>
+
+                <div className="grid gap-6 py-4 lg:grid-cols-3">
+                  <div className="space-y-6 lg:col-span-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Basic Information</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="departmentLabel" className="flex items-center gap-2">
+                              <Building className="h-4 w-4" />
+                              Report Name
+                            </Label>
+                            <Input
+                              id="departmentLabel"
+                              placeholder="Enter report name"
+                              value={departmentFormData.departmentLabel}
+                              onChange={(e) => setDepartmentFormData({ ...departmentFormData, departmentLabel: e.target.value })}
+                              data-testid="input-department-label"
+                            />
                           </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="sortOrder" className="flex items-center gap-2">
+                              <ArrowUpDown className="h-4 w-4" />
+                              Sort Order
+                            </Label>
+                            <Input
+                              id="sortOrder"
+                              type="number"
+                              min={0}
+                              placeholder="0"
+                              value={departmentFormData.sortOrder}
+                              onChange={(e) => setDepartmentFormData({ ...departmentFormData, sortOrder: parseInt(e.target.value) || 0 })}
+                              data-testid="input-department-sort-order"
+                            />
+                          </div>
+                        </div>
+                        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                          <div className="font-medium">Report Code</div>
+                          <div className="mt-1 font-mono text-muted-foreground">{editingDepartment.department}</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <div className="font-medium text-sm">{code.staffName}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {code.isActive ? (
-                                <span className="text-green-600">Active</span>
-                              ) : (
-                                <span className="text-red-600">Inactive</span>
+                            <CardTitle>Daily Report Template</CardTitle>
+                            <CardDescription>Choose the fields that appear on this daily report.</CardDescription>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => batchToggleMetricsMutation.mutate({ templateId: editingDepartment.id, enableAll: false })}
+                              disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || assignments.every(a => !a.isEnabled)}
+                              data-testid={`button-clear-all-fields-${editingDepartment.department}`}
+                            >
+                              Clear All
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => batchToggleMetricsMutation.mutate({ templateId: editingDepartment.id, enableAll: true })}
+                              disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || assignments.every(a => a.isEnabled)}
+                              data-testid={`button-enable-all-fields-${editingDepartment.department}`}
+                            >
+                              Enable All
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="mb-3 text-sm text-muted-foreground">
+                          {enabledFieldCount} of {assignments.length} fields enabled
+                        </div>
+                        <div className="space-y-2">
+                          {assignments.map(assignment => (
+                            <div
+                              key={assignment.fieldDefinitionId}
+                              className="flex items-center gap-3 rounded-lg border p-3"
+                              data-testid={`metric-toggle-${editingDepartment.department}-${assignment.fieldDefinition?.key}`}
+                            >
+                              <Checkbox
+                                checked={assignment.isEnabled}
+                                onCheckedChange={(checked) => {
+                                  toggleMetricMutation.mutate({
+                                    templateId: editingDepartment.id,
+                                    fieldDefinitionId: assignment.fieldDefinitionId,
+                                    isEnabled: !!checked
+                                  });
+                                }}
+                                disabled={toggleMetricMutation.isPending}
+                                data-testid={`checkbox-metric-${assignment.fieldDefinition?.key}`}
+                              />
+                              <div className="flex-1">
+                                <div className={`font-medium ${!assignment.isEnabled ? 'text-muted-foreground line-through' : ''}`}>
+                                  {assignment.fieldDefinition?.label || 'Unknown Field'}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {assignment.fieldDefinition?.description || assignment.fieldDefinition?.key}
+                                </div>
+                              </div>
+                              {assignment.isEnabled && (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={
+                                    editingSortOrder?.fieldId === assignment.fieldDefinitionId &&
+                                    editingSortOrder?.templateId === editingDepartment.id
+                                      ? editingSortOrder.value
+                                      : assignment.sortOrder
+                                  }
+                                  onChange={(e) => {
+                                    setEditingSortOrder({
+                                      fieldId: assignment.fieldDefinitionId,
+                                      templateId: editingDepartment.id,
+                                      value: e.target.value
+                                    });
+                                  }}
+                                  onFocus={(e) => {
+                                    e.target.select();
+                                    setEditingSortOrder({
+                                      fieldId: assignment.fieldDefinitionId,
+                                      templateId: editingDepartment.id,
+                                      value: String(assignment.sortOrder)
+                                    });
+                                  }}
+                                  onBlur={() => {
+                                    if (
+                                      editingSortOrder &&
+                                      editingSortOrder.fieldId === assignment.fieldDefinitionId &&
+                                      editingSortOrder.templateId === editingDepartment.id
+                                    ) {
+                                      const newOrder = parseInt(editingSortOrder.value) || 0;
+                                      if (newOrder !== assignment.sortOrder) {
+                                        updateFieldSortOrderMutation.mutate({
+                                          templateId: editingDepartment.id,
+                                          fieldDefinitionId: assignment.fieldDefinitionId,
+                                          sortOrder: newOrder
+                                        });
+                                      }
+                                      setEditingSortOrder(null);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.currentTarget.blur();
+                                    } else if (e.key === 'Escape') {
+                                      setEditingSortOrder(null);
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  className="w-20 text-center"
+                                  disabled={updateFieldSortOrderMutation.isPending}
+                                  data-testid={`input-sort-order-${assignment.fieldDefinition?.key}`}
+                                />
                               )}
                             </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Email Notifications</CardTitle>
+                        <CardDescription>Recipients are notified when this report is submitted.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <Label htmlFor="notificationEmails" className="flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          Recipients
+                        </Label>
+                        <Textarea
+                          id="notificationEmails"
+                          placeholder="manager@company.com, supervisor@company.com"
+                          value={departmentFormData.notificationEmailsText}
+                          onChange={(e) => setDepartmentFormData({ ...departmentFormData, notificationEmailsText: e.target.value })}
+                          className="min-h-[96px] resize-none"
+                          data-testid="input-notification-emails"
+                        />
+                        <p className="text-xs text-muted-foreground">Separate multiple emails with commas.</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Availability Window</CardTitle>
+                        <CardDescription>Optional staff visibility window.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label htmlFor="availableFromTime" className="text-xs">Available From</Label>
+                            <Input
+                              id="availableFromTime"
+                              type="time"
+                              value={departmentFormData.availableFromTime}
+                              onChange={(e) => setDepartmentFormData({ ...departmentFormData, availableFromTime: e.target.value })}
+                              data-testid="input-available-from-time"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="availableUntilTime" className="text-xs">Available Until</Label>
+                            <Input
+                              id="availableUntilTime"
+                              type="time"
+                              value={departmentFormData.availableUntilTime}
+                              onChange={(e) => setDepartmentFormData({ ...departmentFormData, availableUntilTime: e.target.value })}
+                              data-testid="input-available-until-time"
+                            />
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        {departmentFormData.availableFromTime && departmentFormData.availableUntilTime && (
+                          <p className="text-xs text-muted-foreground">
+                            Staff will only see this report between {departmentFormData.availableFromTime} and {departmentFormData.availableUntilTime}.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">Staff Access Codes</CardTitle>
+                            <CardDescription>QR and code access for this report.</CardDescription>
+                          </div>
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleShowQrCode(code)}
-                            title="Show QR Code"
-                            data-testid={`button-show-qr-${code.id}`}
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingAccessCode(null);
+                              resetAccessCodeForm();
+                              setAccessCodeFormData(prev => ({ ...prev, department: editingDepartment.department }));
+                              setIsAccessCodeDialogOpen(true);
+                            }}
+                            data-testid="button-add-dept-access-code"
                           >
-                            <QrCode className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => copyCodeToClipboard(code.code)}
-                            title="Copy Code"
-                            data-testid={`button-copy-code-${code.id}`}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditAccessCode(code)}
-                            title="Edit"
-                            data-testid={`button-edit-code-${code.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteAccessCode(code.id)}
-                            title="Delete"
-                            data-testid={`button-delete-code-${code.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
                           </Button>
                         </div>
-                      </div>
-                    ))}
+                      </CardHeader>
+                      <CardContent>
+                        {deptCodes.length === 0 ? (
+                          <div className="text-center py-4 text-muted-foreground border rounded-lg bg-muted/30">
+                            <QrCode className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No access codes for this report</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                            {deptCodes.map(code => (
+                              <div key={code.id} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="font-mono text-sm font-bold bg-background px-2 py-1 rounded border">
+                                    {code.code}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-sm">{code.staffName}</div>
+                                    <div className={`text-xs ${code.isActive ? "text-green-600" : "text-red-600"}`}>
+                                      {code.isActive ? "Active" : "Inactive"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button variant="ghost" size="icon" onClick={() => handleShowQrCode(code)} title="Show QR Code" data-testid={`button-show-qr-${code.id}`}>
+                                    <QrCode className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => copyCodeToClipboard(code.code)} title="Copy Code" data-testid={`button-copy-code-${code.id}`}>
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => handleEditAccessCode(code)} title="Edit" data-testid={`button-edit-code-${code.id}`}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDepartmentDialogOpen(false)}>
-              Close
-            </Button>
-            <Button 
-              onClick={handleSaveDepartment}
-              disabled={updateDepartmentMutation.isPending}
-              data-testid="button-save-department"
-            >
-              {updateDepartmentMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
