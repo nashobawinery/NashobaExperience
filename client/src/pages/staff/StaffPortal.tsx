@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { LogIn, LogOut, ChevronRight, FileText, ClipboardCheck, Clock, Wrench, Printer, CalendarDays, ShieldCheck } from "lucide-react";
+import { LogIn, LogOut, ChevronRight, FileText, ClipboardCheck, Clock, Wrench, Printer, CalendarDays, ShieldCheck, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -60,6 +60,50 @@ interface StaffPrintMenu {
   name: string;
   description: string | null;
   printUrl: string;
+}
+
+const staffDailySlogans = [
+  "Make every guest say wow before they leave.",
+  "A warm smile is part of the experience we pour.",
+  "Details matter. The clean table, kind greeting, and quick follow-up all count.",
+  "Great service starts with noticing what a guest needs next.",
+  "Today, be the reason someone plans their next visit.",
+  "Hospitality is teamwork in motion.",
+  "Every interaction is a chance to make Nashoba memorable.",
+  "Serve with pride, move with purpose, and make it feel effortless.",
+  "A friendly welcome sets the tone for the whole visit.",
+  "Guests remember how we made them feel.",
+  "Small courtesies create big loyalty.",
+  "A smile brings better energy, better service, and better tips.",
+  "Keep the operation polished so the guest experience shines.",
+  "Ask one more helpful question and create one more great moment.",
+  "Today's goal: professional, prepared, and genuinely welcoming.",
+];
+
+function getStaffDailySlogan() {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / 86400000);
+  return staffDailySlogans[dayOfYear % staffDailySlogans.length];
+}
+
+function SloganOfTheDayCard({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-4 text-white shadow-lg ${compact ? "" : "mt-5"}`}>
+      <div className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-amber-300/25" />
+      <div className="absolute right-12 top-4 h-12 w-12 rounded-full bg-pink-300/25" />
+      <div className="absolute bottom-2 right-4 h-16 w-16 rounded-full bg-sky-300/20" />
+      <div className="relative">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-amber-100">
+          <Sparkles className="h-4 w-4" />
+          AI Slogan of the Day
+        </div>
+        <p className={`${compact ? "mt-2 text-base" : "mt-3 text-xl"} font-semibold leading-snug`}>
+          {getStaffDailySlogan()}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function StaffPortal() {
@@ -306,6 +350,7 @@ export default function StaffPortal() {
                     <p className="max-w-md text-sm text-white/85">
                       Use your assigned access code to reach the tools approved for your role.
                     </p>
+                    <SloganOfTheDayCard />
                   </div>
                 </div>
               </div>
@@ -398,6 +443,7 @@ export default function StaffPortal() {
               <p className="mt-2 text-sm text-slate-300">
                 We updated this page to make staff tools easier to find. Choose where to go next.
               </p>
+              <SloganOfTheDayCard compact />
             </div>
             <Button variant="secondary" size="sm" onClick={handleLogout} data-testid="button-staff-logout">
               <LogOut className="w-4 h-4 mr-2" />
