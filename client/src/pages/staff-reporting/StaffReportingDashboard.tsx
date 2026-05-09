@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ClipboardList, FileText, Plus, RefreshCw, Save, Settings, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ClipboardList, FileText, Plus, Printer, RefreshCw, Save, Settings, Trash2, Users } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DailyReportsAdminDashboard from "@/pages/daily-reports/DailyReportsAdminDashboard";
 import ProceduresAdminDashboard from "@/pages/procedures/ProceduresAdminDashboard";
 
 type StaffReportingAssignment = {
   id?: string;
-  reportType: "daily_report" | "procedure";
+  reportType: "daily_report" | "procedure" | "print_menu";
   assignmentKey: string;
   assignmentLabel: string;
   isEnabled: boolean;
@@ -48,6 +49,12 @@ type StaffReportingOptions = {
     department: string;
     procedureType: string;
     isActive: boolean;
+  }[];
+  printMenus: {
+    id: string;
+    name: string;
+    description?: string | null;
+    source: string;
   }[];
 };
 
@@ -258,6 +265,7 @@ export default function StaffReportingDashboard() {
                   users.map((user) => {
                     const reportAssignments = getAssignmentsByType(user, "daily_report");
                     const procedureAssignments = getAssignmentsByType(user, "procedure");
+                    const printMenuAssignments = getAssignmentsByType(user, "print_menu");
                     return (
                       <Card key={user.id} className="border-muted">
                         <CardContent className="p-4">
@@ -270,7 +278,7 @@ export default function StaffReportingDashboard() {
                                   {user.isActive ? "Active" : "Inactive"}
                                 </Badge>
                               </div>
-                              <div className="grid gap-3 text-sm md:grid-cols-2">
+                              <div className="grid gap-3 text-sm md:grid-cols-3">
                                 <div>
                                   <div className="font-medium flex items-center gap-2">
                                     <FileText className="h-4 w-4" />
@@ -299,6 +307,21 @@ export default function StaffReportingDashboard() {
                                           </Badge>
                                         ))
                                       : "No procedure assignments"}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="font-medium flex items-center gap-2">
+                                    <Printer className="h-4 w-4" />
+                                    Print Menus
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap gap-1 text-muted-foreground">
+                                    {printMenuAssignments.length > 0
+                                      ? printMenuAssignments.map((assignment) => (
+                                          <Badge key={assignment.assignmentKey} variant="secondary">
+                                            {assignment.assignmentLabel}
+                                          </Badge>
+                                        ))
+                                      : "No print menu access"}
                                   </div>
                                 </div>
                               </div>
@@ -362,6 +385,28 @@ export default function StaffReportingDashboard() {
                   placeholder="1234"
                 />
               </div>
+              <div className="space-y-2 md:col-span-3">
+                <Label htmlFor="homeDepartment">Department</Label>
+                <Select
+                  value={formData.homeDepartment || "__none__"}
+                  onValueChange={(value) => setFormData({ ...formData, homeDepartment: value === "__none__" ? "" : value })}
+                >
+                  <SelectTrigger id="homeDepartment">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No primary department</SelectItem>
+                    {options?.departments.map((department) => (
+                      <SelectItem key={department.department} value={department.department}>
+                        {department.departmentLabel}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Department is managed here in Staff Reporting Administration.
+                </p>
+              </div>
               <div className="flex items-center gap-2 md:col-span-3">
                 <Checkbox
                   id="isActive"
@@ -372,7 +417,7 @@ export default function StaffReportingDashboard() {
               </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-3">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Daily Reports</CardTitle>
@@ -418,6 +463,37 @@ export default function StaffReportingDashboard() {
                       </span>
                     </label>
                   ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Print Menus</CardTitle>
+                  <CardDescription>Toggle approved Media Center menus this person can print.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {options?.printMenus?.length ? (
+                    options.printMenus.map((menu) => (
+                      <label key={menu.id} className="flex items-start gap-3 rounded-lg border p-3">
+                        <Checkbox
+                          checked={hasAssignment("print_menu", menu.id)}
+                          onCheckedChange={(checked) =>
+                            toggleAssignment(checked === true, "print_menu", menu.id, menu.name)
+                          }
+                        />
+                        <span>
+                          <span className="block font-medium">{menu.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {menu.description || (menu.source === "saved_config" ? "Saved menu configuration" : "Staff board menu")}
+                          </span>
+                        </span>
+                      </label>
+                    ))
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      No approved staff print menus found in Media Center.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

@@ -6,8 +6,10 @@ import { storage } from "./storage";
 import {
   dailyReportTemplates,
   proceduresTemplates,
+  staffPrintMenus,
   staffReportingAssignments,
   staffReportingStaff,
+  toastMenuEmbedConfigs,
 } from "@shared/schema";
 
 const router = Router();
@@ -15,7 +17,7 @@ const isAdmin = requirePlatformRole(["super_admin"]);
 let prepared = false;
 
 type StaffReportingAssignmentInput = {
-  reportType: "daily_report" | "procedure";
+  reportType: "daily_report" | "procedure" | "print_menu";
   assignmentKey: string;
   assignmentLabel?: string;
   isEnabled?: boolean;
@@ -312,7 +314,60 @@ export async function getSharedStaffPortalAccess(code: string) {
       department: staffRows[0].homeDepartment,
       templates: procedureTemplates,
     },
+    printMenus: {
+      enabled: assignments.some((assignment) => assignment.reportType === "print_menu"),
+    },
   };
+}
+
+export async function getApprovedStaffPrintMenus(code: string, origin: string) {
+  await ensureStaffReportingAccessModel();
+  const staffRows = await db
+    .select()
+    .from(staffReportingStaff)
+    .where(and(eq(staffReportingStaff.accessCode, code), eq(staffReportingStaff.isActive, true)));
+
+  if (staffRows.length === 0) return [];
+
+  const assignments = await db
+    .select()
+    .from(staffReportingAssignments)
+    .where(and(
+      inArray(staffReportingAssignments.staffId, staffRows.map((s) => s.id)),
+      eq(staffReportingAssignments.reportType, "print_menu"),
+      eq(staffReportingAssignments.isEnabled, true),
+    ));
+  const approvedKeys = new Set(assignments.map((assignment) => assignment.assignmentKey));
+  if (approvedKeys.size === 0) return [];
+
+  const legacyMenus = await db.select().from(staffPrintMenus)
+    .where(eq(staffPrintMenus.isActive, true))
+    .orderBy(staffPrintMenus.sortOrder, staffPrintMenus.name);
+
+  const savedConfigs = await db.select().from(toastMenuEmbedConfigs)
+    .where(eq(toastMenuEmbedConfigs.showOnStaffBoard, true))
+    .orderBy(toastMenuEmbedConfigs.name);
+
+  const legacyMenuDtos = legacyMenus.map((menu) => ({
+    ...menu,
+    id: String(menu.id),
+  })).filter((menu) => approvedKeys.has(menu.id));
+
+  const configMenuDtos = savedConfigs.map((config) => ({
+    id: `cfg-${config.id}`,
+    name: config.name,
+    description: config.description,
+    printUrl: `${origin}/api/toast/public/embed-config/${config.slug}`,
+    menuGuid: config.menuGuids.split(",")[0] || null,
+    isActive: true,
+    sortOrder: 999,
+    createdAt: config.createdAt,
+    updatedAt: config.updatedAt,
+    _source: "saved-config",
+    slug: config.slug,
+  })).filter((menu) => approvedKeys.has(menu.id));
+
+  return [...legacyMenuDtos, ...configMenuDtos];
 }
 
 router.get("/users", isAdmin, async (_req: Request, res: Response) => {
@@ -348,7 +403,28 @@ router.get("/options", isAdmin, async (_req: Request, res: Response) => {
       .from(proceduresTemplates)
       .orderBy(proceduresTemplates.department, proceduresTemplates.procedureName);
 
-    res.json({ departments, procedures });
+    const legacyMenus = await db.select().from(staffPrintMenus)
+      .where(eq(staffPrintMenus.isActive, true))
+      .orderBy(staffPrintMenus.sortOrder, staffPrintMenus.name);
+    const savedConfigs = await db.select().from(toastMenuEmbedConfigs)
+      .where(eq(toastMenuEmbedConfigs.showOnStaffBoard, true))
+      .orderBy(toastMenuEmbedConfigs.name);
+    const printMenus = [
+      ...legacyMenus.map((menu) => ({
+        id: String(menu.id),
+        name: menu.name,
+        description: menu.description,
+        source: "staff_board",
+      })),
+      ...savedConfigs.map((config) => ({
+        id: `cfg-${config.id}`,
+        name: config.name,
+        description: config.description,
+        source: "saved_config",
+      })),
+    ];
+
+    res.json({ departments, procedures, printMenus });
   } catch (error) {
     console.error("[Staff Reporting] Failed to fetch options:", error);
     res.status(500).json({ message: "Failed to fetch staff reporting options" });

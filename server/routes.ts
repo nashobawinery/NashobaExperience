@@ -24,7 +24,7 @@ import b2bRouter from "./b2b-routes";
 import { establishB2bBridgeSession } from "./b2b-auth";
 import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
-import staffReportingRouter, { getSharedStaffPortalAccess } from "./staff-reporting-routes";
+import staffReportingRouter, { getApprovedStaffPrintMenus, getSharedStaffPortalAccess } from "./staff-reporting-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
@@ -12880,6 +12880,20 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     } catch (error) {
       console.error('Staff portal validation error:', error);
       res.status(500).json({ message: 'Failed to validate access code' });
+    }
+  });
+
+  app.get('/api/public/staff-portal/print-menus', async (req, res) => {
+    try {
+      const { code } = req.query;
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ message: 'Access code is required' });
+      }
+      const origin = `${req.protocol}://${req.get("host")}`;
+      res.json(await getApprovedStaffPrintMenus(code, origin));
+    } catch (error) {
+      console.error('Staff portal print menu error:', error);
+      res.status(500).json({ message: 'Failed to fetch print menus' });
     }
   });
 

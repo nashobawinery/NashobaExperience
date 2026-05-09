@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText, ClipboardCheck, Clock, AlertCircle, Wrench, Printer, BookMarked } from "lucide-react";
+import { ClipboardList, LogIn, LogOut, ChevronRight, FileText, ClipboardCheck, Clock, Wrench, Printer, CalendarDays, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -31,6 +31,9 @@ interface StaffAccess {
     department: string | null;
     templates: ProcedureTemplate[];
   };
+  printMenus?: {
+    enabled: boolean;
+  };
 }
 
 interface ProcedureDraft {
@@ -53,7 +56,7 @@ interface DailyReportDraft {
 }
 
 interface StaffPrintMenu {
-  id: number;
+  id: number | string;
   name: string;
   description: string | null;
   printUrl: string;
@@ -93,7 +96,14 @@ export default function StaffPortal() {
   const hasDrafts = procedureDrafts.length > 0 || reportDrafts.length > 0;
 
   const { data: printMenus = [] } = useQuery<StaffPrintMenu[]>({
-    queryKey: ['/api/toast/public/staff-print-menus'],
+    queryKey: ['/api/public/staff-portal/print-menus', verifiedCode],
+    queryFn: async () => {
+      if (!verifiedCode) return [];
+      const response = await fetch(`/api/public/staff-portal/print-menus?code=${encodeURIComponent(verifiedCode)}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!verifiedCode,
     staleTime: 30000,
   });
 
@@ -147,6 +157,124 @@ export default function StaffPortal() {
     }
   };
 
+  const dashboardCards = staffAccess ? [
+    {
+      key: "daily-reports",
+      title: "Daily Reports",
+      description: staffAccess.dailyReports.enabled
+        ? "Manager daily summaries for sales, customer notes, staffing, and operations."
+        : "Not assigned.",
+      icon: FileText,
+      accent: "bg-blue-500",
+      enabled: staffAccess.dailyReports.enabled,
+      content: staffAccess.dailyReports.enabled ? (
+        <div className="space-y-2">
+          {staffAccess.dailyReports.departments.map((dept) => (
+            <Button
+              key={dept.department}
+              variant="secondary"
+              className="w-full justify-between bg-white/10 hover:bg-white/20 text-white border-white/10"
+              onClick={() => navigate(`/daily-report/${dept.code}?department=${encodeURIComponent(dept.department)}`)}
+              data-testid={`button-daily-report-${dept.department}`}
+            >
+              <span>{dept.departmentLabel}</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          ))}
+        </div>
+      ) : null,
+    },
+    {
+      key: "procedures",
+      title: "Opening and Closing Procedures",
+      description: staffAccess.procedures.enabled
+        ? "Complete the operational checklists assigned for today."
+        : "Not assigned.",
+      icon: ClipboardCheck,
+      accent: "bg-emerald-500",
+      enabled: staffAccess.procedures.enabled && staffAccess.procedures.templates.length > 0,
+      content: staffAccess.procedures.enabled && staffAccess.procedures.templates.length > 0 ? (
+        <div className="space-y-2">
+          {staffAccess.procedures.templates.map((proc) => (
+            <Button
+              key={proc.id}
+              variant="secondary"
+              className="w-full justify-between bg-white/10 hover:bg-white/20 text-white border-white/10"
+              onClick={() => navigate(`/procedures/staff?code=${verifiedCode}&procedureId=${proc.id}`)}
+              data-testid={`button-procedure-${proc.id}`}
+            >
+              <span>{proc.procedureName}</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          ))}
+        </div>
+      ) : null,
+    },
+    {
+      key: "print-menus",
+      title: "Print Menus",
+      description: printMenus.length > 0
+        ? "Open approved Media Center menus in print-ready format."
+        : "Not approved.",
+      icon: Printer,
+      accent: "bg-purple-500",
+      enabled: printMenus.length > 0,
+      content: printMenus.length > 0 ? (
+        <div className="space-y-2">
+          {printMenus.map((menu) => (
+            <Button
+              key={menu.id}
+              variant="secondary"
+              className="w-full justify-between bg-white/10 hover:bg-white/20 text-white border-white/10"
+              onClick={() => openPrintMenu(menu.printUrl)}
+              data-testid={`button-print-menu-${menu.id}`}
+            >
+              <span className="truncate">{menu.name}</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          ))}
+        </div>
+      ) : null,
+    },
+    {
+      key: "maintenance",
+      title: "Maintenance Request",
+      description: "Submit a work order for repairs or maintenance needs.",
+      icon: Wrench,
+      accent: "bg-orange-500",
+      enabled: true,
+      content: (
+        <Button
+          variant="secondary"
+          className="w-full justify-between bg-white/10 hover:bg-white/20 text-white border-white/10"
+          onClick={() => navigate(`/staff/work-order?staffName=${encodeURIComponent(staffAccess.staffName)}`)}
+          data-testid="button-submit-work-order"
+        >
+          <span>Submit Work Order</span>
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+      ),
+    },
+    {
+      key: "schedule",
+      title: "Staff Schedule",
+      description: "Coming soon: shifts, time off, and team calendar.",
+      icon: CalendarDays,
+      accent: "bg-cyan-500",
+      enabled: false,
+      content: null,
+    },
+    {
+      key: "resources",
+      title: "Operating Procedures",
+      description: "Coming soon: references, training documents, and operating resources.",
+      icon: ShieldCheck,
+      accent: "bg-amber-500",
+      enabled: false,
+      content: null,
+    },
+  ] : [];
+
   // Login screen
   if (!staffAccess) {
     return (
@@ -158,7 +286,7 @@ export default function StaffPortal() {
             </div>
             <CardTitle className="text-2xl">Staff Portal</CardTitle>
             <CardDescription>
-              Enter your access code to view your Daily Reports and Opening and Closing Procedures
+              Enter your access code to view Daily Reports, Opening and Closing Procedures, and approved Print Menus
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -199,38 +327,75 @@ export default function StaffPortal() {
     );
   }
 
-  // Dashboard showing both modules
+  // Dashboard showing staff features
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-primary" />
-            </div>
+        <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-purple-950/40 p-6 shadow-2xl">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-xl font-semibold">Welcome, {staffAccess.staffName}</h1>
-              <p className="text-sm text-muted-foreground">Staff Portal</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-300">Staff Home</p>
+                <Badge className="bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+                  New Release 05092026
+                </Badge>
+              </div>
+              <h1 className="mt-2 text-3xl md:text-4xl font-bold">Welcome, {staffAccess.staffName}</h1>
+              <p className="mt-2 text-sm text-slate-300">
+                We updated this page to make staff tools easier to find. Choose where to go next.
+              </p>
             </div>
+            <Button variant="secondary" size="sm" onClick={handleLogout} data-testid="button-staff-logout">
+              <LogOut className="w-4 h-4 mr-2" />
+              Log Out
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-staff-logout">
-            <LogOut className="w-4 h-4 mr-2" />
-            Log Out
-          </Button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {dashboardCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Card
+                key={card.key}
+                className={`min-h-[220px] overflow-hidden border-white/10 bg-slate-900/90 text-white shadow-xl ${!card.enabled ? "opacity-70" : ""}`}
+              >
+                <CardContent className="flex h-full flex-col p-0">
+                  <div className="flex-1 p-5">
+                    <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${card.accent}`}>
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <CardTitle className="text-xl">{card.title}</CardTitle>
+                    <CardDescription className="mt-2 text-slate-300">
+                      {card.description}
+                    </CardDescription>
+                    <div className="mt-4">
+                      {card.content}
+                    </div>
+                  </div>
+                  {!card.content && (
+                    <div className="border-t border-white/10 bg-white/5 px-5 py-3 text-sm text-slate-300">
+                      {card.enabled ? "Open" : "Coming soon"}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Saved Drafts Section - Only show if there are drafts */}
         {hasDrafts && (
-          <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+          <Card className="border-amber-300/30 bg-amber-400/10 text-white">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-amber-600" />
+                <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-amber-300" />
                 </div>
                 <div>
                   <CardTitle className="text-lg">Saved Drafts</CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-amber-100/80">
                     You have {procedureDrafts.length + reportDrafts.length} saved draft{procedureDrafts.length + reportDrafts.length !== 1 ? 's' : ''} to complete
                   </CardDescription>
                 </div>
@@ -288,168 +453,8 @@ export default function StaffPortal() {
           </Card>
         )}
 
-        {/* Module Cards */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Daily Reports Section */}
-          <Card className={!staffAccess.dailyReports.enabled ? "opacity-50" : ""}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                  <FileText className="w-6 h-6 text-blue-500" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Daily Reports</CardTitle>
-                  <CardDescription>
-                    {staffAccess.dailyReports.enabled 
-                      ? `${staffAccess.dailyReports.departments.length} department${staffAccess.dailyReports.departments.length !== 1 ? 's' : ''} available`
-                      : "Not assigned"
-                    }
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {staffAccess.dailyReports.enabled ? (
-                <div className="space-y-2">
-                  {staffAccess.dailyReports.departments.map((dept) => (
-                    <Button
-                      key={dept.department}
-                      variant="outline"
-                      className="w-full justify-between"
-                      onClick={() => navigate(`/daily-report/${dept.code}?department=${encodeURIComponent(dept.department)}`)}
-                      data-testid={`button-daily-report-${dept.department}`}
-                    >
-                      <span>{dept.departmentLabel}</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  You are not assigned to any Daily Report departments.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Opening and Closing Procedures Section */}
-          <Card className={!staffAccess.procedures.enabled ? "opacity-50" : ""}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
-                  <ClipboardCheck className="w-6 h-6 text-green-500" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Opening and Closing Procedures</CardTitle>
-                  <CardDescription>
-                    {staffAccess.procedures.enabled 
-                      ? `${staffAccess.procedures.templates.length} procedure${staffAccess.procedures.templates.length !== 1 ? 's' : ''} available`
-                      : "Not assigned"
-                    }
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {staffAccess.procedures.enabled && staffAccess.procedures.templates.length > 0 ? (
-                <div className="space-y-2">
-                  {staffAccess.procedures.templates.map((proc) => (
-                    <Button
-                      key={proc.id}
-                      variant="outline"
-                      className="w-full justify-between"
-                      onClick={() => navigate(`/procedures/staff?code=${verifiedCode}&procedureId=${proc.id}`)}
-                      data-testid={`button-procedure-${proc.id}`}
-                    >
-                      <span>{proc.procedureName}</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  ))}
-                </div>
-              ) : staffAccess.procedures.enabled ? (
-                <p className="text-sm text-muted-foreground">
-                  No procedures available for today.
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  You are not assigned to any procedures.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Print Menus Section - shown when menus are configured */}
-        {printMenus.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                  <Printer className="w-6 h-6 text-purple-500" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Print Menus</CardTitle>
-                  <CardDescription>
-                    {printMenus.length} print-ready menu{printMenus.length !== 1 ? 's' : ''} available
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {printMenus.map((menu) => (
-                <Button
-                  key={menu.id}
-                  variant="outline"
-                  className="w-full justify-between"
-                  onClick={() => openPrintMenu(menu.printUrl)}
-                  data-testid={`button-print-menu-${menu.id}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <BookMarked className="w-4 h-4 text-purple-500" />
-                    <div className="text-left">
-                      <div className="font-medium">{menu.name}</div>
-                      {menu.description && (
-                        <div className="text-xs text-muted-foreground">{menu.description}</div>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Work Order Section - Always available */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
-                <Wrench className="w-6 h-6 text-orange-500" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Maintenance Request</CardTitle>
-                <CardDescription>
-                  Submit a work order for repairs or maintenance needs
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Button
-              variant="outline"
-              className="w-full justify-between"
-              onClick={() => navigate(`/staff/work-order?staffName=${encodeURIComponent(staffAccess.staffName)}`)}
-              data-testid="button-submit-work-order"
-            >
-              <span>Submit Work Order</span>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </CardContent>
-        </Card>
-
         {/* Access Summary */}
-        <Card>
+        <Card className="border-white/10 bg-slate-900/80 text-white">
           <CardContent className="pt-6">
             <div className="flex items-center justify-center gap-4">
               <Badge variant={staffAccess.dailyReports.enabled ? "default" : "secondary"}>
@@ -457,6 +462,9 @@ export default function StaffPortal() {
               </Badge>
               <Badge variant={staffAccess.procedures.enabled ? "default" : "secondary"}>
                 {staffAccess.procedures.enabled ? "Procedures Active" : "No Procedures"}
+              </Badge>
+              <Badge variant={printMenus.length > 0 ? "default" : "secondary"}>
+                {printMenus.length > 0 ? "Print Menus Active" : "No Print Menus"}
               </Badge>
             </div>
           </CardContent>

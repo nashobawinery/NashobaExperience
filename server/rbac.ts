@@ -1115,12 +1115,12 @@ export async function seedPlatformModules(): Promise<void> {
       icon: 'ClipboardList',
       color: 'bg-amber-500',
       routePrefix: '/daily-reports',
-      status: 'active',
+      status: 'inactive',
       sortOrder: 12
     },
     {
       moduleKey: 'staff_reporting',
-      moduleName: 'Staff Reporting',
+      moduleName: 'Staff Reports',
       description: 'Unified Daily Reports, Opening and Closing Procedures, and shared staff access administration',
       icon: 'ClipboardList',
       color: 'bg-slate-600',
@@ -1155,7 +1155,7 @@ export async function seedPlatformModules(): Promise<void> {
       icon: 'CheckSquare',
       color: 'bg-cyan-500',
       routePrefix: '/procedures',
-      status: 'active',
+      status: 'inactive',
       sortOrder: 15
     },
     {

@@ -1082,12 +1082,12 @@ export default function DailyReportsAdminDashboard() {
   
   const { data: allProcedureTemplates = [] } = useQuery<DailyProcedureTemplate[]>({
     queryKey: ['/api/daily-reports/procedures'],
-    enabled: activeTab === 'departments'
+    enabled: activeTab === 'overview' || activeTab === 'departments'
   });
 
   const { data: allFieldAssignments = {} } = useQuery<Record<string, DepartmentFieldAssignment[]>>({
     queryKey: ['/api/daily-reports/field-assignments'],
-    enabled: activeTab === 'departments' || isReportDialogOpen || isViewReportDialogOpen
+    enabled: activeTab === 'overview' || activeTab === 'departments' || isReportDialogOpen || isViewReportDialogOpen
   });
 
   // Query for unresolved incidents (for the Incidents tab)
@@ -2334,10 +2334,10 @@ export default function DailyReportsAdminDashboard() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
+            <TabsTrigger value="overview" data-testid="tab-overview">Daily Reports</TabsTrigger>
+            <TabsTrigger value="reports" data-testid="tab-reports">Filed Reports</TabsTrigger>
             <TabsTrigger value="incidents" data-testid="tab-incidents">Incidents</TabsTrigger>
-            <TabsTrigger value="departments" data-testid="tab-departments">Departments</TabsTrigger>
+            <TabsTrigger value="departments" data-testid="tab-departments">Configuration</TabsTrigger>
             <TabsTrigger value="fields" data-testid="tab-fields">
               <FileSpreadsheet className="h-4 w-4 mr-2" />
               Report Fields
@@ -2349,83 +2349,110 @@ export default function DailyReportsAdminDashboard() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="date-filter">Date</Label>
-                <Input
-                  id="date-filter"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-40"
-                  data-testid="input-date-filter"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="dept-filter">Department</Label>
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger className="w-48" data-testid="select-department-filter">
-                    <SelectValue placeholder="All Departments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {sortedTemplates.map(t => (
-                      <SelectItem key={t.department} value={t.department}>
-                        {t.departmentLabel}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
+            <Card>
+              <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Daily Report Configurations</CardTitle>
+                  <CardDescription>
+                    Select a report configuration to view fields, procedures, notification recipients, and staff access.
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setIsNewDepartmentDialogOpen(true)} data-testid="button-create-report-configuration">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Report Configuration
+                </Button>
+              </CardHeader>
+            </Card>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedTemplates.map(template => {
-                const report = filteredReports.find(r => r.department === template.department);
                 const Icon = departmentIcons[template.department] || Building;
+                const procedures = getProceduresForDepartment(template.department);
+                const openingProcs = procedures.filter(p => p.procedureType === 'opening');
+                const closingProcs = procedures.filter(p => p.procedureType === 'closing');
+                const generalProcs = procedures.filter(p => p.procedureType === 'general');
+                const enabledFields = (allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length;
+                const configuredFields = allFieldAssignments[template.id]?.length || 0;
+                const deptAccessCodes = accessCodes.filter(c => c.department === template.department);
                 
                 return (
                   <Card 
                     key={template.id} 
-                    className={`cursor-pointer hover-elevate ${report ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}`}
-                    onClick={() => report ? handleViewReport(report) : handleCreateReport()}
-                    data-testid={`card-department-${template.department}`}
+                    className="cursor-pointer hover-elevate"
+                    onClick={() => setPreviewingTemplate(template)}
+                    data-testid={`card-report-config-${template.department}`}
                   >
                     <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                       <div className="flex items-center gap-2">
                         <Icon className="h-5 w-5 text-amber-500" />
-                        <CardTitle className="text-sm font-medium">{template.departmentLabel}</CardTitle>
+                        <div>
+                          <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
+                          <CardDescription className="text-xs">{template.department}</CardDescription>
+                        </div>
                       </div>
-                      {report && (
-                        <Badge className={statusColors[report.status]}>
-                          {statusLabels[report.status] || report.status}
-                        </Badge>
-                      )}
+                      <Badge variant={template.isActive ? "default" : "secondary"}>
+                        {template.isActive ? "Active" : "Inactive"}
+                      </Badge>
                     </CardHeader>
-                    <CardContent>
-                      {report ? (
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            {template.metrics.slice(0, 4).map(m => (
-                              <div key={m.key}>
-                                <span className="text-muted-foreground">{m.label}:</span>{" "}
-                                <span className="font-medium">{report.metrics ? (report.metrics as any)[m.key] || 0 : 0}</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <AlertTriangle className="h-3 w-3" />
-                            {report.incidentsCount} incidents
-                            <span className="mx-1">|</span>
-                            <CheckCircle className="h-3 w-3" />
-                            {report.proceduresCompletedCount}/{report.proceduresTotalCount} procedures
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-md border p-3">
+                          <div className="text-lg font-semibold">{enabledFields}</div>
+                          <div className="text-xs text-muted-foreground">
+                            of {configuredFields} fields
                           </div>
                         </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">
-                          No report submitted for {format(new Date(selectedDate), "MMM d, yyyy")}
+                        <div className="rounded-md border p-3">
+                          <div className="text-lg font-semibold">{procedures.length}</div>
+                          <div className="text-xs text-muted-foreground">procedures</div>
+                        </div>
+                        <div className="rounded-md border p-3">
+                          <div className="text-lg font-semibold">{deptAccessCodes.length}</div>
+                          <div className="text-xs text-muted-foreground">access codes</div>
+                        </div>
+                        <div className="rounded-md border p-3">
+                          <div className="text-lg font-semibold">{template.notificationEmails?.length || 0}</div>
+                          <div className="text-xs text-muted-foreground">recipients</div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {openingProcs.length > 0 && <Badge className={procedureTypeColors.opening}>{openingProcs.length} Opening</Badge>}
+                        {closingProcs.length > 0 && <Badge className={procedureTypeColors.closing}>{closingProcs.length} Closing</Badge>}
+                        {generalProcs.length > 0 && <Badge className={procedureTypeColors.general}>{generalProcs.length} General</Badge>}
+                        {procedures.length === 0 && <Badge variant="outline">No procedures</Badge>}
+                      </div>
+
+                      {((template as any).availableFromTime || (template as any).availableUntilTime) && (
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Available {(template as any).availableFromTime || '...'} - {(template as any).availableUntilTime || '...'}
                         </div>
                       )}
+
+                      <div className="flex items-center justify-end gap-2 pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPreviewingTemplate(template);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleEditDepartment(template);
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 );
