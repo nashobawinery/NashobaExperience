@@ -158,7 +158,7 @@ export default function StaffPortal() {
             </div>
             <CardTitle className="text-2xl">Staff Portal</CardTitle>
             <CardDescription>
-              Enter your access code to view your Daily Reports and Procedures
+              Enter your access code to view your Daily Reports and Opening and Closing Procedures
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -332,7 +332,7 @@ export default function StaffPortal() {
             </CardContent>
           </Card>
 
-          {/* Daily Procedures Section */}
+          {/* Opening and Closing Procedures Section */}
           <Card className={!staffAccess.procedures.enabled ? "opacity-50" : ""}>
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -340,7 +340,7 @@ export default function StaffPortal() {
                   <ClipboardCheck className="w-6 h-6 text-green-500" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Daily Procedures</CardTitle>
+                  <CardTitle className="text-lg">Opening and Closing Procedures</CardTitle>
                   <CardDescription>
                     {staffAccess.procedures.enabled 
                       ? `${staffAccess.procedures.templates.length} procedure${staffAccess.procedures.templates.length !== 1 ? 's' : ''} available`

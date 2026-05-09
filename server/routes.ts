@@ -24,6 +24,7 @@ import b2bRouter from "./b2b-routes";
 import { establishB2bBridgeSession } from "./b2b-auth";
 import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
+import staffReportingRouter, { getSharedStaffPortalAccess } from "./staff-reporting-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
@@ -181,6 +182,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Mount Daily Procedures routes
   app.use("/api/procedures", proceduresRouter);
+
+  // Mount unified Staff Reporting routes
+  app.use("/api/staff-reporting", staffReportingRouter);
   
   // Mount Spot Inventory routes
   app.use("/api/spot-inventory", spotInventoryRouter);
@@ -12778,6 +12782,11 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       const { code } = req.body;
       if (!code || typeof code !== 'string') {
         return res.status(400).json({ message: 'Access code is required' });
+      }
+
+      const sharedStaffAccess = await getSharedStaffPortalAccess(code);
+      if (sharedStaffAccess && (sharedStaffAccess.dailyReports.enabled || sharedStaffAccess.procedures.enabled)) {
+        return res.json(sharedStaffAccess);
       }
 
       // Check Daily Reports access codes

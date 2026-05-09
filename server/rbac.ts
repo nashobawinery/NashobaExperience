@@ -1119,6 +1119,16 @@ export async function seedPlatformModules(): Promise<void> {
       sortOrder: 12
     },
     {
+      moduleKey: 'staff_reporting',
+      moduleName: 'Staff Reporting',
+      description: 'Unified Daily Reports, Opening and Closing Procedures, and shared staff access administration',
+      icon: 'ClipboardList',
+      color: 'bg-slate-600',
+      routePrefix: '/staff-reporting',
+      status: 'active',
+      sortOrder: 12
+    },
+    {
       moduleKey: 'reservations',
       moduleName: 'Reservations',
       description: 'Dining reservation system with experience booking, payments, and customer management',

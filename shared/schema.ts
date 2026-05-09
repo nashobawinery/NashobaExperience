@@ -3958,6 +3958,57 @@ export const insertProceduresStaffSchema = createInsertSchema(proceduresStaff).o
 export type InsertProceduresStaff = z.infer<typeof insertProceduresStaffSchema>;
 export type ProceduresStaff = typeof proceduresStaff.$inferSelect;
 
+// Staff Reporting - shared staff access for Daily Reports and Opening/Closing Procedures
+export const staffReportingStaff = pgTable("staff_reporting_staff", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  displayName: varchar("display_name").notNull(),
+  accessCode: varchar("access_code", { length: 10 }).notNull(),
+  homeDepartment: varchar("home_department"),
+  isActive: boolean("is_active").notNull().default(true),
+  legacySources: jsonb("legacy_sources").notNull().default([]),
+  lastUsedAt: timestamp("last_used_at"),
+  createdById: varchar("created_by_id"),
+  createdByName: varchar("created_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_staff_reporting_staff_code").on(table.accessCode),
+  index("idx_staff_reporting_staff_active").on(table.isActive),
+]);
+
+export const staffReportingAssignments = pgTable("staff_reporting_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffId: varchar("staff_id").notNull().references(() => staffReportingStaff.id, { onDelete: "cascade" }),
+  reportType: varchar("report_type", { length: 30 }).notNull(), // daily_report or procedure
+  assignmentKey: varchar("assignment_key", { length: 120 }).notNull(), // department key or procedure code
+  assignmentLabel: text("assignment_label").notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  legacySource: varchar("legacy_source", { length: 40 }),
+  legacyId: varchar("legacy_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_staff_reporting_assignments_staff").on(table.staffId),
+  index("idx_staff_reporting_assignments_type").on(table.reportType),
+  unique("uq_staff_reporting_assignment").on(table.staffId, table.reportType, table.assignmentKey),
+]);
+
+export const insertStaffReportingStaffSchema = createInsertSchema(staffReportingStaff).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastUsedAt: true,
+});
+export const insertStaffReportingAssignmentSchema = createInsertSchema(staffReportingAssignments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertStaffReportingStaff = z.infer<typeof insertStaffReportingStaffSchema>;
+export type StaffReportingStaff = typeof staffReportingStaff.$inferSelect;
+export type InsertStaffReportingAssignment = z.infer<typeof insertStaffReportingAssignmentSchema>;
+export type StaffReportingAssignment = typeof staffReportingAssignments.$inferSelect;
+
 // Type for procedure template with items and staff
 export type ProceduresTemplateWithItems = ProceduresTemplate & {
   items: ProceduresItem[];

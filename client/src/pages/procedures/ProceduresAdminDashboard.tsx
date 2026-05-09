@@ -251,7 +251,7 @@ export default function ProceduresAdminDashboard() {
             </style>
           </head>
           <body>
-            <h1>Daily Procedures</h1>
+            <h1>Opening and Closing Procedures</h1>
             <p>Scan to access your assigned procedures</p>
             <img src="${imageUrl}" alt="QR Code" />
             <div class="url">${staffLoginUrl}</div>
@@ -310,9 +310,9 @@ export default function ProceduresAdminDashboard() {
             Return to Hub
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Daily Procedures</h1>
+            <h1 className="text-3xl font-bold">Opening and Closing Procedures</h1>
             <p className="text-muted-foreground mt-1">
-              Manage opening, closing, and general task checklists for your team
+              Manage opening, closing, and general procedure checklists for your team
             </p>
           </div>
         </div>

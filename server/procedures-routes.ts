@@ -4,6 +4,7 @@ import { insertProceduresTemplateSchema, insertProceduresItemSchema, insertProce
 import { z } from "zod";
 import { sendEmail } from "./email";
 import { scheduleMandatoryCheck } from "./proceduresMandatoryChecker";
+import { getSharedStaffPortalAccess } from "./staff-reporting-routes";
 
 const router = Router();
 
@@ -467,6 +468,17 @@ router.post("/staff-login", async (req: Request, res: Response) => {
     
     const staff = await storage.getProceduresStaffByCode(code);
     if (!staff) {
+      const sharedAccess = await getSharedStaffPortalAccess(code);
+      if (sharedAccess?.procedures.enabled) {
+        return res.json({
+          id: `staff-reporting:${code}`,
+          staffName: sharedAccess.staffName,
+          code,
+          department: sharedAccess.procedures.department,
+          isActive: true,
+          lastUsedAt: new Date(),
+        });
+      }
       return res.status(401).json({ error: "Invalid access code" });
     }
     
@@ -482,6 +494,11 @@ router.post("/staff-login", async (req: Request, res: Response) => {
 // Get procedures assigned to a staff member
 router.get("/staff-procedures/:staffId", async (req: Request, res: Response) => {
   try {
+    if (req.params.staffId.startsWith("staff-reporting:")) {
+      const code = req.params.staffId.replace("staff-reporting:", "");
+      const sharedAccess = await getSharedStaffPortalAccess(code);
+      return res.json(sharedAccess?.procedures.templates || []);
+    }
     const procedures = await storage.getProceduresForStaff(req.params.staffId);
     res.json(procedures);
   } catch (error) {
