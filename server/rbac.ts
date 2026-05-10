@@ -1170,9 +1170,9 @@ export async function seedPlatformModules(): Promise<void> {
     },
     {
       moduleKey: 'staff_dashboard',
-      moduleName: 'Staff Dashboard',
-      description: 'Staff resource hub with quick links to customer-facing pages and operational tools',
-      icon: 'LayoutDashboard',
+      moduleName: 'Staff Management',
+      description: 'Staff listings, evaluations, incidents, onboarding, termination, broadcasts, benefits, and related employee operations',
+      icon: 'Users',
       color: 'bg-sky-500',
       routePrefix: '/staff-dashboard',
       status: 'active',

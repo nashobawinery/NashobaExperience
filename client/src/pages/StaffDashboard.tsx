@@ -111,8 +111,8 @@ export default function StaffDashboard() {
               <Home className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold">Staff Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Quick access to staff resources</p>
+              <h1 className="text-lg font-semibold">Staff Management</h1>
+              <p className="text-xs text-muted-foreground">Staff listings, evaluations, incidents, onboarding, benefits, and more</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
