@@ -110,6 +110,7 @@ const SpotInventoryStaffApp = lazy(() => import("@/pages/spot-inventory/SpotInve
 const StaffDashboard = lazy(() => import("@/pages/StaffDashboard"));
 const StaffDashboardAdmin = lazy(() => import("@/pages/StaffDashboardAdmin"));
 const StaffManagementSegmentPage = lazy(() => import("@/pages/staff-management/StaffManagementSegmentPage"));
+const StaffDirectoryPage = lazy(() => import("@/pages/staff-management/staff-directory/StaffDirectoryPage"));
 
 // Lazy load Customer Support module
 const SupportAdminDashboard = lazy(() => import("@/pages/support/SupportAdminDashboard"));
@@ -872,6 +873,41 @@ function StaffDashboardAdminRoute() {
   );
 }
 
+function StaffDirectoryRoute() {
+  const { isLoading, isAuthenticated, canAccessStaffDashboard } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAuthenticated) {
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    window.location.href = `/api/login?returnTo=${encodeURIComponent(returnTo)}`;
+    return <PageLoader />;
+  }
+
+  if (!canAccessStaffDashboard()) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center bg-background">
+        <p className="font-semibold text-lg">Staff Management access required</p>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Ask an administrator to grant the Staff Management module in Access Control, or use an account with Manager,
+          Admin, or Super Admin platform role.
+        </p>
+        <Button variant="outline" type="button" onClick={() => { window.location.href = "/"; }} data-testid="staff-dashboard-access-denied-home">
+          Back to hub
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <StaffDirectoryPage />
+    </Suspense>
+  );
+}
+
 function StaffManagementSegmentRoute() {
   const { isLoading, isAuthenticated, canAccessStaffDashboard } = useAuth();
 
@@ -1430,6 +1466,7 @@ function Router() {
         <Route path="/spot-inventory/admin" component={SpotInventoryAdminRoute} />
         <Route path="/spot-inventory/staff" component={SpotInventoryStaffRoute} />
         <Route path="/staff-dashboard/admin" component={StaffDashboardAdminRoute} />
+        <Route path="/staff-dashboard/directory" component={StaffDirectoryRoute} />
         <Route path="/staff-dashboard/:segment" component={StaffManagementSegmentRoute} />
         <Route path="/staff-dashboard" component={StaffDashboardRoute} />
         <Route path="/staff-reporting/procedures/templates/:id" component={StaffReportingRoute} />
