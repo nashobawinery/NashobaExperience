@@ -5253,8 +5253,10 @@ export class DatabaseStorage implements IStorage {
       // Check if entry exists
       const existing = await this.getStaffDashboardModule(module.id);
       if (!existing) {
-        // Create default entry
-        const linkUrl = defaultUrls[module.moduleKey] || `/${module.moduleKey}`;
+        // Prefer explicit aliases (e.g. tasting → reservations), then canonical route_prefix
+        // from platform_modules — module_key does not match URL paths (e.g. staff_dashboard → /staff-dashboard).
+        const linkUrl =
+          defaultUrls[module.moduleKey] ?? module.routePrefix ?? `/${module.moduleKey}`;
         await db.insert(staffDashboardModules).values({
           moduleId: module.id,
           isEnabled: false,

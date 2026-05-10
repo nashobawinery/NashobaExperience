@@ -8,7 +8,11 @@ export interface B2bProduct {
   price: number;
   tierPrice?: number;
   caseSize: number;
-  currentStock: number;
+  /** Legacy / alternate naming from some payloads */
+  currentStock?: number;
+  stockQuantity?: number;
+  ignoreInventory?: boolean;
+  isDistributed?: boolean;
   imageUrl?: string;
   description?: string;
 }

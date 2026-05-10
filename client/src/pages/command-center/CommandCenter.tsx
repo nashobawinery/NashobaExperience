@@ -735,7 +735,7 @@ export default function CommandCenter() {
         break;
       case "tasks":
         sectionContent = activeWeekId ? (
-          <TasksPanel weekId={activeWeekId} tasks={tasks || []} ideas={ideas || []} teams={teams || []} />
+          <TasksPanel weekId={activeWeekId} tasks={tasks || []} ideas={ideas || []} teams={teams || []} campaigns={campaigns || []} />
         ) : null;
         break;
       case "rcc-campaigns":

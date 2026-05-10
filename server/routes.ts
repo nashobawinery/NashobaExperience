@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import crypto, { randomUUID } from "crypto";
 import { storage } from "./storage";
@@ -386,6 +386,27 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
 
   // Platform authentication middleware only
   const unifiedIsAuthenticated = isPlatformAuthenticated;
+
+  /** Staff launcher: operational leadership roles or explicit RBAC module staff_dashboard */
+  const requireStaffDashboardRead: RequestHandler = async (req: any, res, next) => {
+    try {
+      const role = req.user?.globalRole as string | undefined;
+      if (role === "super_admin" || role === "admin" || role === "manager") {
+        return next();
+      }
+      const perms = await getUserPermissions(req);
+      if (isGlobalAdmin(perms) || hasModuleAccess(perms, "staff_dashboard")) {
+        return next();
+      }
+      return res.status(403).json({
+        message:
+          "Access denied: Staff Management requires the Staff Management module or Manager (or higher) platform role.",
+      });
+    } catch (err) {
+      console.error("[StaffDashboard] RBAC check failed:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  };
 
   // Authentication routes
   app.get('/api/auth/user', unifiedIsAuthenticated, async (req: any, res) => {
@@ -13782,8 +13803,8 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
-  // Public/Staff: Get enabled staff dashboard modules
-  app.get('/api/staff-dashboard', async (req, res) => {
+  // Authenticated launcher; tiles still point into each module's own auth.
+  app.get('/api/staff-dashboard', unifiedIsAuthenticated, requireStaffDashboardRead, async (req, res) => {
     try {
       const modules = await storage.getEnabledStaffDashboardModules();
       res.json(modules);

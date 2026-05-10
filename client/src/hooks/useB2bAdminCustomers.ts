@@ -24,6 +24,8 @@ export interface B2bCustomer {
   businessType?: string;
   taxId?: string;
   approvedAt?: string;
+  /** e.g. distributor — used for admin manual order UX */
+  customerType?: string;
 }
 
 export function useB2bAdminCustomers(status?: string) {

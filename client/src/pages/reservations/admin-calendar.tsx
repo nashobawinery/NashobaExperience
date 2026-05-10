@@ -106,7 +106,7 @@ export default function AdminCalendar() {
               onMonthChange={setViewMonth}
               className="rounded-md"
               modifiers={{
-                hasReservations: (date, _displayMonth) => {
+                hasReservations: (date: Date) => {
                   const dateStr = format(date, "yyyy-MM-dd");
                   return datesWithReservations.has(dateStr);
                 },

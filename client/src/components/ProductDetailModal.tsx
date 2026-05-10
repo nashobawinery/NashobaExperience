@@ -24,7 +24,7 @@ interface ProductDetailModalProps {
     price: string;
     tierPrice?: string;
     caseSize?: number;
-    stockQuantity?: number;
+    stockQuantity?: number | null;
     ignoreInventory?: boolean;
     description: string;
     tastingNotes?: string | null;
@@ -46,6 +46,7 @@ interface ProductDetailModalProps {
     featured?: boolean;
     staffPick?: boolean;
     wineOfMonth?: boolean;
+    isDistributed?: boolean;
   } | null;
   isOpen: boolean;
   isFavorite?: boolean;

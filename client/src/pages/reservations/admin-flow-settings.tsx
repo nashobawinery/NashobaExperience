@@ -100,16 +100,18 @@ function MealPeriodsTab() {
   });
 
   const groupedPeriods = mealPeriods?.reduce((acc, period) => {
-    if (!acc[period.locationId]) {
-      acc[period.locationId] = [];
+    const locId = period.locationId;
+    if (!locId) return acc;
+    if (!acc[locId]) {
+      acc[locId] = [];
     }
-    acc[period.locationId].push(period);
+    acc[locId].push(period);
     return acc;
   }, {} as Record<string, MealPeriod[]>) || {};
 
   const handleEdit = (period: MealPeriod) => {
     setEditingPeriod(period);
-    setSelectedLocationId(period.locationId);
+    setSelectedLocationId(period.locationId ?? "");
     setIsDialogOpen(true);
   };
 
@@ -505,16 +507,18 @@ function OperatingHoursTab() {
   });
 
   const groupedHours = operatingHours?.reduce((acc, hours) => {
-    if (!acc[hours.mealPeriodId]) {
-      acc[hours.mealPeriodId] = [];
+    const mealId = hours.mealPeriodId;
+    if (!mealId) return acc;
+    if (!acc[mealId]) {
+      acc[mealId] = [];
     }
-    acc[hours.mealPeriodId].push(hours);
+    acc[mealId].push(hours);
     return acc;
   }, {} as Record<string, OperatingHours[]>) || {};
 
   const handleEdit = (hours: OperatingHours) => {
     setEditingHours(hours);
-    setSelectedMealPeriodId(hours.mealPeriodId);
+    setSelectedMealPeriodId(hours.mealPeriodId ?? "");
     setIsDialogOpen(true);
   };
 

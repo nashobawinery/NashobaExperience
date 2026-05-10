@@ -36,14 +36,15 @@ export default function Landing() {
 
   const activeExperiences = experiences?.filter(exp => exp.isActive) || [];
   
-  const getSetting = (key: string, defaultValue: string = "") => {
-    const setting = settingsArray.find(s => s.key === key);
-    return setting?.value || defaultValue;
-  };
-  
-  const headerImage = getSetting("headerImageUrl", "") || heroImageDefault;
-  const headerTitle = getSetting("headerTitle", "Welcome to Nashoba Valley Winery, Distillery and Brewery Reservation Page");
-  const headerSubtitle = getSetting("headerSubtitle", "Experience the finest wines, spirits, and cuisine at our multi-location destination");
+  const siteRow = settingsArray[0];
+
+  const headerImage = siteRow?.headerImageUrl?.trim() ? siteRow.headerImageUrl : heroImageDefault;
+  const headerTitle =
+    siteRow?.headerTitle?.trim() ||
+    "Welcome to Nashoba Valley Winery, Distillery and Brewery Reservation Page";
+  const headerSubtitle =
+    siteRow?.headerSubtitle?.trim() ||
+    "Experience the finest wines, spirits, and cuisine at our multi-location destination";
 
   return (
     <div className="min-h-screen bg-background">

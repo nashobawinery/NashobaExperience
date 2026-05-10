@@ -352,8 +352,8 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       description: "",
       price: "0",
       sku: "",
-      stock: 50,
-      inventoryTracking: "ignored",
+      stockQuantity: 50,
+      ignoreInventory: true,
     });
     setSelectedCharacteristics([]);
     setMainImageMode('url');

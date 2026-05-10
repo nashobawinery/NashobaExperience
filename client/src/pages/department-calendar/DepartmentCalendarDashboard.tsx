@@ -842,7 +842,12 @@ export default function DepartmentCalendarDashboard() {
                                     <Button
                                       variant="default"
                                       size="sm"
-                                      onClick={() => completeTaskMutation.mutate(task.id)}
+                                      onClick={() =>
+                                        completeTaskMutation.mutate({
+                                          id: task.id,
+                                          completionNotes: "",
+                                        })
+                                      }
                                       data-testid={`button-complete-delinquent-${task.id}`}
                                     >
                                       <Check className="h-4 w-4 mr-1" />

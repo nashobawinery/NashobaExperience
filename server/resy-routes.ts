@@ -838,23 +838,63 @@ class ResyStorage {
     await db.delete(resyTimeSlots).where(eq(resyTimeSlots.id, id));
   }
 
-  async getSiteSettings() {
-    const settings = await db.select().from(resySiteSettings);
+  async listSiteSettingsRows() {
+    return await db.select().from(resySiteSettings).orderBy(resySiteSettings.createdAt);
+  }
+
+  /** Flat record shape expected by Reservation admin-settings (`SiteSettings`). */
+  async getSiteSettingsRecord(): Promise<Record<string, string | null>> {
+    const rows = await this.listSiteSettingsRows();
+    const row = rows[0];
+    if (!row) return {};
     const result: Record<string, string | null> = {};
-    settings.forEach((s) => {
-      result[s.key] = s.value;
-    });
+    for (const [key, val] of Object.entries(row) as [string, unknown][]) {
+      if (key === "createdAt" || key === "updatedAt") continue;
+      if (val === null || val === undefined) result[key] = null;
+      else if (typeof val === "boolean") result[key] = val ? "true" : "false";
+      else if (val instanceof Date) result[key] = val.toISOString();
+      else result[key] = String(val);
+    }
     return result;
   }
 
   async updateSiteSetting(key: string, value: string) {
+    const allowedColumns = [
+      "value",
+      "description",
+      "headerTitle",
+      "headerSubtitle",
+      "logoUrl",
+      "accentColor",
+      "backgroundImageUrl",
+      "headerImageUrl",
+      "companyName",
+      "primaryColor",
+      "secondaryColor",
+      "companyAddress",
+      "companyPhone",
+      "companyEmail",
+      "companyCity",
+      "companyState",
+      "companyZip",
+      "companyZipCode",
+      "companyWebsite",
+      "showPoweredBy",
+    ] as const;
+    const allowedLookup: readonly string[] = allowedColumns;
+    if (!allowedLookup.includes(key)) {
+      throw new Error("Invalid site setting key");
+    }
+    const [row] = await db.select({ id: resySiteSettings.id }).from(resySiteSettings).limit(1);
+    if (!row) {
+      throw new Error("Site settings row missing; seed resy_site_settings first");
+    }
+    const parsedValue =
+      key === "showPoweredBy" ? value === "true" || value === "1" : value;
     await db
-      .insert(resySiteSettings)
-      .values({ key, value })
-      .onConflictDoUpdate({
-        target: resySiteSettings.key,
-        set: { value, updatedAt: new Date() },
-      });
+      .update(resySiteSettings)
+      .set({ [key]: parsedValue as never, updatedAt: new Date() })
+      .where(eq(resySiteSettings.id, row.id));
   }
 }
 
@@ -2816,8 +2856,18 @@ router.get("/api/timeslots/:id/availability", async (req, res) => {
 
 router.get("/api/resy/site-settings", async (req, res) => {
   try {
-    const settings = await resyStorage.getSiteSettings();
+    const settings = await resyStorage.getSiteSettingsRecord();
     res.json(settings);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch site settings: " + error.message });
+  }
+});
+
+// Alias for Reservation landing (`ResySiteSetting[]`; same rows as DB).
+router.get("/api/resy/settings", async (req, res) => {
+  try {
+    const rows = await resyStorage.listSiteSettingsRows();
+    res.json(rows);
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch site settings: " + error.message });
   }

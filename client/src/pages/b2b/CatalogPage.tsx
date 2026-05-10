@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useB2bProducts } from "@/hooks/useB2bProducts";
+import { useB2bProducts, type B2bProduct } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +32,14 @@ function getCart(): Record<string, CartItem | number> {
 
 function saveCart(cart: Record<string, CartItem | number>) {
   localStorage.setItem("b2b_cart", JSON.stringify(cart));
+}
+
+function cartEntryQuantity(entry: CartItem | number): number {
+  return typeof entry === 'number' ? entry : entry.quantity;
+}
+
+function b2bStockQty(product: Pick<B2bProduct, "stockQuantity" | "currentStock">): number {
+  return product.stockQuantity ?? product.currentStock ?? 0;
 }
 
 type ViewType = "detailed" | "listing" | "past-orders";
@@ -170,10 +178,10 @@ export default function CatalogPage() {
     });
   };
 
-  const cartItemCount = Object.values(cart).reduce((sum, item) => {
-    if (typeof item === 'number') return sum + item;
-    return sum + item.quantity;
-  }, 0);
+  const cartItemCount = Object.values(cart).reduce<number>(
+    (sum, item) => sum + cartEntryQuantity(item),
+    0
+  );
 
   // Calculate discount percentage for a product
   const getDiscountInfo = (product: any) => {
@@ -298,7 +306,7 @@ export default function CatalogPage() {
                                   setQuantityInputs({ ...quantityInputs, [`${product.id}-bottle`]: 0 });
                                 }
                               }}
-                              disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                              disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
                               style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                               className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                               data-testid={`button-add-bottles-${product.id}`}
@@ -340,7 +348,7 @@ export default function CatalogPage() {
                                   setQuantityInputs({ ...quantityInputs, [`${product.id}-case`]: 0 });
                                 }
                               }}
-                              disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                              disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
                               style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                               className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                               data-testid={`button-add-cases-${product.id}`}
@@ -352,12 +360,12 @@ export default function CatalogPage() {
                       </div>
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
-                      {product.ignoreInventory ? (
+                      {(product.ignoreInventory ?? true) ? (
                         "In stock"
-                      ) : product.stockQuantity >= product.caseSize
-                        ? `${Math.floor(product.stockQuantity / product.caseSize)} cases available`
-                        : product.stockQuantity > 0
-                        ? `${product.stockQuantity} bottle(s) available`
+                      ) : b2bStockQty(product) >= product.caseSize
+                        ? `${Math.floor(b2bStockQty(product) / product.caseSize)} cases available`
+                        : b2bStockQty(product) > 0
+                        ? `${b2bStockQty(product)} bottle(s) available`
                         : "Out of Stock"}
                     </p>
                   </>
@@ -401,7 +409,7 @@ export default function CatalogPage() {
                                 setQuantityInputs({ ...quantityInputs, [product.id]: 0 });
                               }
                             }}
-                            disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
+                            disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < product.caseSize || (quantityInputs[product.id] || 0) === 0}
                             style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                             className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                             data-testid={`button-add-cases-qty-${product.id}`}
@@ -412,10 +420,10 @@ export default function CatalogPage() {
                       </div>
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
-                      {product.ignoreInventory ? (
+                      {(product.ignoreInventory ?? true) ? (
                         "In stock"
-                      ) : product.stockQuantity >= product.caseSize
-                        ? `${Math.floor(product.stockQuantity / product.caseSize)} cases available`
+                      ) : b2bStockQty(product) >= product.caseSize
+                        ? `${Math.floor(b2bStockQty(product) / product.caseSize)} cases available`
                         : "Out of Stock"}
                     </p>
                   </>
@@ -524,7 +532,7 @@ export default function CatalogPage() {
                               setQuantityInputs({ ...quantityInputs, [`${product.id}-bottle`]: 0 });
                             }
                           }}
-                          disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                          disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
                           style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                           className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid={`button-add-bottles-listing-${product.id}`}
@@ -563,7 +571,7 @@ export default function CatalogPage() {
                               setQuantityInputs({ ...quantityInputs, [`${product.id}-case`]: 0 });
                             }
                           }}
-                          disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                          disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
                           style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                           className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid={`button-add-cases-listing-${product.id}`}
@@ -604,7 +612,7 @@ export default function CatalogPage() {
                             setQuantityInputs({ ...quantityInputs, [product.id]: 0 });
                           }
                         }}
-                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
+                        disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < product.caseSize || (quantityInputs[product.id] || 0) === 0}
                         style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                         className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                         data-testid={`button-add-cases-listing-qty-${product.id}`}
@@ -718,7 +726,7 @@ export default function CatalogPage() {
                                   setQuantityInputs({ ...quantityInputs, [`${product.id}-bottle`]: 0 });
                                 }
                               }}
-                              disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                              disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
                               style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                               className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                               data-testid={`button-add-bottles-past-${product.id}`}
@@ -754,7 +762,7 @@ export default function CatalogPage() {
                                   setQuantityInputs({ ...quantityInputs, [`${product.id}-case`]: 0 });
                                 }
                               }}
-                              disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                              disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
                               style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                               className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                               data-testid={`button-add-cases-past-${product.id}`}
@@ -792,7 +800,7 @@ export default function CatalogPage() {
                                 setQuantityInputs({ ...quantityInputs, [product.id]: 0 });
                               }
                             }}
-                            disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
+                            disabled={!(product.ignoreInventory ?? true) && b2bStockQty(product) < product.caseSize || (quantityInputs[product.id] || 0) === 0}
                             style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                             className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                             data-testid={`button-add-past-order-${product.id}`}
@@ -867,7 +875,7 @@ export default function CatalogPage() {
           <div>
             <h1 className="text-3xl font-serif font-semibold mb-2">Wholesale Catalog</h1>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary">{typeof tier === 'string' ? tier : tier?.tierName || "No Tier"} Pricing</Badge>
+              <Badge variant="secondary">{tier ?? "No Tier"} Pricing</Badge>
               <span className="text-sm text-muted-foreground">
                 {products.length} Products Available
               </span>
@@ -963,7 +971,7 @@ export default function CatalogPage() {
       <ProductDetailModal
         product={selectedProduct}
         isOpen={isDetailModalOpen}
-        tier={typeof tier === 'string' ? tier : tier?.tierName}
+        tier={tier ?? "Standard"}
         onClose={() => {
           setIsDetailModalOpen(false);
           setSelectedProduct(null);

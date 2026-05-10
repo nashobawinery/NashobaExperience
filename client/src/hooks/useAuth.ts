@@ -1,6 +1,6 @@
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "@/lib/queryClient";
-import type { User } from "@shared/schema";
+import { getQueryFn } from "@/lib/queryClient";import type { User } from "@shared/schema";
 
 export type PermissionLevel = 'none' | 'view' | 'edit' | 'admin';
 
@@ -36,11 +36,23 @@ export function useAuth() {
 
   const rbac = user?.rbac;
 
-  const hasModuleAccess = (moduleKey: string): boolean => {
-    if (!rbac) return user?.globalRole === 'super_admin';
-    if (rbac.isGlobalAdmin || user?.globalRole === 'super_admin') return true;
+  const hasModuleAccess = useCallback((moduleKey: string): boolean => {
+    if (!rbac) {
+      const r = user?.globalRole;
+      return r === "super_admin" || r === "admin" || r === "manager";
+    }
+    if (rbac.isGlobalAdmin || user?.globalRole === "super_admin") return true;
+    if (user?.globalRole === "admin" || user?.globalRole === "manager") return true;
     return rbac.moduleAccess[moduleKey] === true;
-  };
+  }, [rbac, user]);
+
+  const canAccessStaffDashboard = useCallback((): boolean => {
+    if (!user) return false;
+    const role = user.globalRole;
+    if (role === "super_admin" || role === "admin" || role === "manager") return true;
+    if (rbac?.isGlobalAdmin) return true;
+    return rbac?.moduleAccess?.staff_dashboard === true;
+  }, [user, rbac]);
 
   const hasFeaturePermission = (
     moduleKey: string, 
@@ -82,5 +94,6 @@ export function useAuth() {
     canEdit,
     canAdmin,
     groups: rbac?.groups || [],
+    canAccessStaffDashboard,
   };
 }

@@ -1,4 +1,5 @@
 import AdminProductManager from '../AdminProductManager';
+import type { ProductWithMedia } from '@/lib/productImageUtils';
 
 export default function AdminProductManagerExample() {
   const mockProducts = [
@@ -32,7 +33,7 @@ export default function AdminProductManagerExample() {
       isStaffPick: true,
       isFeatured: false,
     },
-  ];
+  ] as unknown as ProductWithMedia[];
 
   return (
     <div className="p-6">

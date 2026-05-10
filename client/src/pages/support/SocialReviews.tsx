@@ -337,7 +337,7 @@ function ReviewDetailView({
               </p>
               {review.reviewUrl && (
                 <Button
-                  variant="link"
+                  variant="ghost"
                   size="sm"
                   asChild
                   className="p-0 h-auto mt-3"

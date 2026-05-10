@@ -820,6 +820,32 @@ function SpotInventoryStaffRoute() {
 }
 
 function StaffDashboardRoute() {
+  const { isLoading, isAuthenticated, canAccessStaffDashboard } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAuthenticated) {
+    window.location.href = "/api/login?returnTo=/staff-dashboard";
+    return <PageLoader />;
+  }
+
+  if (!canAccessStaffDashboard()) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center bg-background">
+        <p className="font-semibold text-lg">Staff Management access required</p>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Ask an administrator to grant the Staff Management module in Access Control, or use an account with Manager,
+          Admin, or Super Admin platform role.
+        </p>
+        <Button variant="outline" type="button" onClick={() => { window.location.href = "/"; }} data-testid="staff-dashboard-access-denied-home">
+          Back to hub
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <Suspense fallback={<PageLoader />}>
       <StaffDashboard />

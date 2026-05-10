@@ -778,7 +778,10 @@ export default function PublicDailyReportForm() {
                     <div key={metric.key} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                       <Checkbox
                         id={`metric-${metric.key}`}
-                        checked={metricsData[metric.key] === 'true' || metricsData[metric.key] === true}
+                        checked={
+                          metricsData[metric.key] === "true" ||
+                          metricsData[metric.key] === "1"
+                        }
                         onCheckedChange={(checked) => setMetricsData({ 
                           ...metricsData, 
                           [metric.key]: checked ? 'true' : 'false' 

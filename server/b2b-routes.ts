@@ -639,7 +639,7 @@ router.post('/api/b2b/reset-password', async (req: Request, res: Response) => {
       await db
         .update(b2bCustomers)
         .set({ passwordHash })
-        .where(eq(b2bCustomers.email_address, email));
+        .where(eq(b2bCustomers.emailAddress, email));
     } else if (userType === 'sales_rep') {
       await db
         .update(salesReps)
@@ -4444,6 +4444,7 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
       
       for (const item of orderItems) {
         // Get product details (for category and base price)
+        if (!item.productId) continue;
         const productResults = await db.select()
           .from(products)
           .where(eq(products.id, item.productId))
@@ -6350,7 +6351,10 @@ router.post('/api/b2b/admin/customers/:id/change-password', requireB2bAdmin, asy
     const newPasswordHash = await hashPassword(newPassword);
     
     // Update customer password
-    await storage.updateB2bCustomer(id, { passwordHash: newPasswordHash });
+    await db
+      .update(b2bCustomers)
+      .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
+      .where(eq(b2bCustomers.id, id));
 
     res.json({ success: true, message: `Password updated for ${customer.accountName}` });
   } catch (error) {
@@ -6904,10 +6908,10 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
               product: {
                 id: '1',
                 name: 'Nashoba Valley Chardonnay',
-                category: 'Wine',
+                category: 'wine',
                 description: 'A crisp, refreshing white wine with notes of apple and citrus.',
                 price: '18.99',
-                enabled: true,
+                available: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 abvMin: null,
@@ -6917,7 +6921,7 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
                 imageId: null,
                 unitCount: null,
                 unitVolume: null,
-              }
+              } as any,
             }
           ]
         });
@@ -6939,10 +6943,10 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
               product: {
                 id: '1',
                 name: 'Nashoba Valley Chardonnay',
-                category: 'Wine',
+                category: 'wine',
                 description: 'A crisp white wine',
                 price: '18.99',
-                enabled: true,
+                available: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 abvMin: null,
@@ -6952,7 +6956,7 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
                 imageId: null,
                 unitCount: null,
                 unitVolume: null,
-              }
+              } as any,
             }
           ],
           subtotal: 37.98,

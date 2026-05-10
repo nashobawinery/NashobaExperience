@@ -21,6 +21,13 @@ function saveCart(cart: Record<string, number>) {
   localStorage.setItem("b2b_cart", JSON.stringify(cart));
 }
 
+function reorderAvailableStock(product: {
+  stockQuantity?: number;
+  currentStock?: number;
+}): number {
+  return product.stockQuantity ?? product.currentStock ?? 0;
+}
+
 export default function ReorderPage() {
   const [, setLocation] = useLocation();
   const { data, isLoading } = useB2bPreviousProducts();
@@ -122,7 +129,7 @@ export default function ReorderPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => addToCart(product.id, 1)}
-                        disabled={product.currentStock < product.caseSize}
+                        disabled={reorderAvailableStock(product) < product.caseSize}
                         className="flex-1"
                         data-testid={`button-reorder-1-${product.id}`}
                       >
@@ -133,7 +140,7 @@ export default function ReorderPage() {
                         variant="default"
                         size="sm"
                         onClick={() => addToCart(product.id, 3)}
-                        disabled={product.currentStock < product.caseSize * 3}
+                        disabled={reorderAvailableStock(product) < product.caseSize * 3}
                         className="flex-1"
                         data-testid={`button-reorder-3-${product.id}`}
                       >
@@ -143,8 +150,8 @@ export default function ReorderPage() {
                     </div>
 
                     <p className="text-xs text-center text-muted-foreground">
-                      {product.currentStock >= product.caseSize
-                        ? `${Math.floor(product.currentStock / product.caseSize)} cases available`
+                      {reorderAvailableStock(product) >= product.caseSize
+                        ? `${Math.floor(reorderAvailableStock(product) / product.caseSize)} cases available`
                         : "Out of stock"}
                     </p>
                   </div>
