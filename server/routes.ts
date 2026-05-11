@@ -11583,7 +11583,18 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       const templates = await storage.getDailyReportTemplates();
       const templateByDepartment = new Map(templates.map(t => [t.department, t.id]));
 
-      const notationMap = await buildNotationMapForYmds(db, reports.map(r => calendarYmdEastern(r.reportDate)));
+      let notationMap = new Map<string, string[]>();
+      try {
+        notationMap = await buildNotationMapForYmds(
+          db,
+          reports.map((r) => calendarYmdEastern(r.reportDate)),
+        );
+      } catch (e) {
+        console.warn(
+          '[daily-reports] calendarNotations enrichment failed; returning reports without labels:',
+          (e as Error)?.message ?? e,
+        );
+      }
 
       const reportsWithCounts = await Promise.all(reports.map(async (report) => {
         const incidents = await storage.getDailyReportIncidents(report.id);
@@ -11853,8 +11864,13 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       }
       // Look up templateId from department
       const template = await storage.getDailyReportTemplateByDepartment(report.department);
-      const ymd = calendarYmdEastern(report.reportDate);
-      const calendarNotations = await getCalendarNotationLabels(db, ymd);
+      let calendarNotations: string[] = [];
+      try {
+        const ymd = calendarYmdEastern(report.reportDate);
+        calendarNotations = await getCalendarNotationLabels(db, ymd);
+      } catch (_) {
+        /* non-fatal */
+      }
       res.json({
         ...transformReportForFrontend(report),
         templateId: template?.id || null,
@@ -11894,8 +11910,13 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       // Get full details
       const reportWithDetails = await storage.getDailyReportWithDetails(report.id);
       const front = transformReportForFrontend(reportWithDetails);
-      const ymd = calendarYmdEastern(front.reportDate);
-      const calendarNotations = await getCalendarNotationLabels(db, ymd);
+      let calendarNotations: string[] = [];
+      try {
+        const ymd = calendarYmdEastern(front.reportDate);
+        calendarNotations = await getCalendarNotationLabels(db, ymd);
+      } catch (_) {
+        /* non-fatal */
+      }
       res.json({ ...front, calendarNotations });
     } catch (error) {
       console.error('Error fetching today\'s report:', error);

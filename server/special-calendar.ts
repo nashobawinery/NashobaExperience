@@ -3,22 +3,46 @@
  */
 
 import { resySpecialDates, RECURRING_HOLIDAYS } from "@shared/schema";
-import { and, eq, ilike, isNotNull } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNotNull } from "drizzle-orm";
 
 import { db } from "./db";
 
+type DbExec = typeof db;
+
 /** Eastern US calendar YYYY-MM-DD for business-day alignment with operations. */
-export function calendarYmdEastern(inst: Date | string): string {
-  const d = typeof inst === "string" ? new Date(inst) : inst;
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d);
+export function calendarYmdEastern(inst: Date | string | null | undefined): string {
+  if (inst == null) return "invalid";
+  const d =
+    typeof inst === "string"
+      ? new Date(inst)
+      : inst instanceof Date
+        ? inst
+        : new Date(String(inst));
+  if (Number.isNaN(d.getTime())) {
+    if (typeof inst === "string") {
+      const m = /^(\d{4}-\d{2}-\d{2})/.exec(inst);
+      if (m) return m[1];
+    }
+    return "invalid";
+  }
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  } catch {
+    const y = d.getUTCFullYear();
+    const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const da = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${mo}-${da}`;
+  }
 }
 
-type DbExec = typeof db;
+function isValidCalendarYmd(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
 
 function recurringLabelsForYmd(targetYmd: string): string[] {
   const y = Number(targetYmd.slice(0, 4));
@@ -37,33 +61,41 @@ function recurringLabelsForYmd(targetYmd: string): string[] {
   return out;
 }
 
-export async function getCalendarNotationLabels(db: DbExec, ymd: string): Promise<string[]> {
-  const specialRows = await db
-    .select({ name: resySpecialDates.name })
-    .from(resySpecialDates)
-    .where(and(eq(resySpecialDates.date, ymd), isNotNull(resySpecialDates.name)));
-
-  const recurring = recurringLabelsForYmd(ymd);
-
+function mergeDedupedStrings(values: Iterable<string>): string[] {
   const seen = new Set<string>();
   const merged: string[] = [];
-  const pushTrimmed = (s: string | null | undefined) => {
-    const t = s?.trim();
-    if (!t) return;
-    const key = t.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
+  for (const raw of values) {
+    const t = raw?.trim();
+    if (!t) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
     merged.push(t);
-  };
-
-  for (const row of specialRows) {
-    pushTrimmed(row.name ?? undefined);
   }
-  for (const name of recurring) {
-    pushTrimmed(name);
-  }
-
   return merged;
+}
+
+export async function getCalendarNotationLabels(db: DbExec, ymd: string): Promise<string[]> {
+  if (!isValidCalendarYmd(ymd)) {
+    return [];
+  }
+
+  let specialRows: { name: string | null }[] = [];
+  try {
+    specialRows = await db
+      .select({ name: resySpecialDates.name })
+      .from(resySpecialDates)
+      .where(and(eq(resySpecialDates.date, ymd), isNotNull(resySpecialDates.name)));
+  } catch (err) {
+    console.warn(
+      "[special-calendar] resy_special_dates lookup skipped:",
+      (err as Error)?.message ?? err,
+    );
+  }
+
+  const specialNames = specialRows.map((r) => r.name).filter((n): n is string => !!n?.trim());
+  const recurring = recurringLabelsForYmd(ymd);
+  return mergeDedupedStrings([...specialNames, ...recurring]);
 }
 
 export type SpecialDaySearchHit = {
@@ -87,11 +119,16 @@ export async function searchSpecialCalendarDays(
 
   const pattern = `%${escapeIlikePattern(q)}%`;
 
-  const dbRows = await db
-    .selectDistinct({ date: resySpecialDates.date, name: resySpecialDates.name })
-    .from(resySpecialDates)
-    .where(and(isNotNull(resySpecialDates.name), ilike(resySpecialDates.name, pattern)))
-    .limit(limit);
+  let dbRows: { date: string; name: string | null }[] = [];
+  try {
+    dbRows = await db
+      .selectDistinct({ date: resySpecialDates.date, name: resySpecialDates.name })
+      .from(resySpecialDates)
+      .where(and(isNotNull(resySpecialDates.name), ilike(resySpecialDates.name, pattern)))
+      .limit(limit);
+  } catch (err) {
+    console.warn("[special-calendar] special-days DB search skipped:", (err as Error)?.message ?? err);
+  }
 
   const hits: SpecialDaySearchHit[] = [];
   const seen = new Set<string>();
@@ -127,16 +164,51 @@ export async function searchSpecialCalendarDays(
   return hits.slice(0, limit);
 }
 
+/**
+ * Resolve holiday/special labels for many calendar days with one batched DB read.
+ */
 export async function buildNotationMapForYmds(
   db: DbExec,
-  ymds: string[],
+  rawYmds: string[],
 ): Promise<Map<string, string[]>> {
-  const unique = [...new Set(ymds.filter(Boolean))];
+  const uniqueDates = [
+    ...new Set(
+      rawYmds
+        .map((y) => (typeof y === "string" ? y.trim() : ""))
+        .filter(isValidCalendarYmd),
+    ),
+  ];
+
+  const specialByDate = new Map<string, string[]>();
+
+  if (uniqueDates.length > 0) {
+    try {
+      const rows = await db
+        .select({ date: resySpecialDates.date, name: resySpecialDates.name })
+        .from(resySpecialDates)
+        .where(and(inArray(resySpecialDates.date, uniqueDates), isNotNull(resySpecialDates.name)));
+
+      for (const row of rows) {
+        const n = row.name?.trim();
+        if (!n) continue;
+        const list = specialByDate.get(row.date) ?? [];
+        list.push(n);
+        specialByDate.set(row.date, list);
+      }
+    } catch (err) {
+      console.warn(
+        "[special-calendar] batched resy_special_dates lookup skipped:",
+        (err as Error)?.message ?? err,
+      );
+    }
+  }
+
   const map = new Map<string, string[]>();
-  await Promise.all(
-    unique.map(async (ymd) => {
-      map.set(ymd, await getCalendarNotationLabels(db, ymd));
-    }),
-  );
+  for (const ymd of uniqueDates) {
+    const specials = specialByDate.get(ymd) ?? [];
+    const recurring = recurringLabelsForYmd(ymd);
+    map.set(ymd, mergeDedupedStrings([...specials, ...recurring]));
+  }
+
   return map;
 }

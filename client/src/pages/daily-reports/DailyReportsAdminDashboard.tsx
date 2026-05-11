@@ -2131,6 +2131,7 @@ export default function DailyReportsAdminDashboard() {
         return (
           notationHit ||
           !!template?.departmentLabel?.toLowerCase().includes(query) ||
+          !!(report.performanceSummary && report.performanceSummary.toLowerCase().includes(query)) ||
           !!(report.customerServiceSummary && report.customerServiceSummary.toLowerCase().includes(query)) ||
           !!(report.operationalNotes && report.operationalNotes.toLowerCase().includes(query)) ||
           !!(report.submittedByName && report.submittedByName.toLowerCase().includes(query)) ||
