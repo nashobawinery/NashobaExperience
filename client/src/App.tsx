@@ -1438,6 +1438,9 @@ function Router() {
         <Route path="/music" component={MusicCalendarRoute} />
         <Route path="/food-trucks" component={FoodTruckCalendarRoute} />
         <Route path="/media-center" component={MediaCenterRoute} />
+        <Route path="/media">
+          <Redirect to="/media-center" />
+        </Route>
         <Route path="/media-library" component={MediaLibraryRoute} />
         <Route path="/events" component={SpecialEventsPublicRoute} />
         <Route path="/toast-connect" component={ToastConnectRoute} />
