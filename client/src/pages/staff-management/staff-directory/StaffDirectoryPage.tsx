@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
-  ChevronUpDown,
+  ChevronsUpDown,
   FileWarning,
   MoreVertical,
   Plus,
@@ -280,22 +280,22 @@ export default function StaffDirectoryPage() {
                 <TableRow className="border-zinc-800 hover:bg-transparent">
                   <TableHead className="text-zinc-400 font-medium">
                     <span className="inline-flex items-center gap-1">
-                      Name <ChevronUpDown className="h-3.5 w-3.5 opacity-50" />
+                      Name <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
                     </span>
                   </TableHead>
                   <TableHead className="text-zinc-400 font-medium">
                     <span className="inline-flex items-center gap-1">
-                      Status <ChevronUpDown className="h-3.5 w-3.5 opacity-50" />
+                      Status <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
                     </span>
                   </TableHead>
                   <TableHead className="text-zinc-400 font-medium">
                     <span className="inline-flex items-center gap-1">
-                      Role <ChevronUpDown className="h-3.5 w-3.5 opacity-50" />
+                      Role <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
                     </span>
                   </TableHead>
                   <TableHead className="text-zinc-400 font-medium">
                     <span className="inline-flex items-center gap-1">
-                      Department <ChevronUpDown className="h-3.5 w-3.5 opacity-50" />
+                      Department <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
                     </span>
                   </TableHead>
                   <TableHead className="text-zinc-400 font-medium hidden lg:table-cell">Permission Group</TableHead>

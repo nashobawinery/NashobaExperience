@@ -78,6 +78,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { format, formatDistanceToNow, isToday, isSameDay, startOfDay, endOfDay, subDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface NotificationEmail {
   email: string;
@@ -247,6 +248,17 @@ const fieldTypeOptions = [
   { value: "checkbox", label: "Checkbox", description: "Simple yes/no check mark" },
   { value: "dropdown", label: "Dropdown", description: "Select from predefined options" }
 ];
+
+/** Short label for procedure completion footer (Submission Details–style "Initials:" badge). */
+function initialsFromStaffName(name: string | null | undefined): string | null {
+  if (!name?.trim()) return null;
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return parts.map((p) => p[0]).join("").toUpperCase().slice(0, 6);
+  }
+  const w = parts[0];
+  return w.length <= 4 ? w.toUpperCase() : w.slice(0, 3).toUpperCase();
+}
 
 function ReportFieldsTab() {
   const { toast } = useToast();
@@ -3619,25 +3631,21 @@ export default function DailyReportsAdminDashboard() {
       </Dialog>
 
       <Dialog open={isViewReportDialogOpen} onOpenChange={setIsViewReportDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto gap-0">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {selectedReport && <DepartmentIcon department={selectedReport.department} />}
-              {templates.find(t => t.id === selectedReport?.templateId)?.departmentLabel} - Daily Report
-            </DialogTitle>
-            <DialogDescription>
-              {selectedReport && format(new Date(selectedReport.reportDate), "EEEE, MMMM d, yyyy")}
+            <DialogTitle>Report Details</DialogTitle>
+            <DialogDescription className="sr-only">
+              View daily report submission and metrics
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedReport && (
-            <div className="space-y-6 py-4">
-              <div className="flex items-center justify-between">
-                <Badge className={statusColors[selectedReport.status]}>
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Badge className={cn("shrink-0", statusColors[selectedReport.status])}>
                   {statusLabels[selectedReport.status] || selectedReport.status}
                 </Badge>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Edit button for draft, submitted, needs_revision */}
+                <div className="flex flex-wrap items-center gap-2 justify-end">
                   {(selectedReport.status === "draft" || selectedReport.status === "submitted" || selectedReport.status === "needs_revision") && (
                     <Button size="sm" variant="outline" onClick={() => {
                       setIsViewReportDialogOpen(false);
@@ -3647,8 +3655,6 @@ export default function DailyReportsAdminDashboard() {
                       Edit
                     </Button>
                   )}
-                  
-                  {/* Submit for draft */}
                   {selectedReport.status === "draft" && (
                     <Button size="sm" onClick={() => {
                       submitReportMutation.mutate(selectedReport.id);
@@ -3658,8 +3664,6 @@ export default function DailyReportsAdminDashboard() {
                       Submit
                     </Button>
                   )}
-                  
-                  {/* Resubmit for needs_revision */}
                   {selectedReport.status === "needs_revision" && (
                     <Button size="sm" onClick={() => {
                       submitReportMutation.mutate(selectedReport.id);
@@ -3669,8 +3673,6 @@ export default function DailyReportsAdminDashboard() {
                       Resubmit
                     </Button>
                   )}
-                  
-                  {/* Approve for submitted or needs_revision */}
                   {(selectedReport.status === "submitted" || selectedReport.status === "needs_revision") && (
                     <Button size="sm" onClick={() => {
                       reviewReportMutation.mutate({ id: selectedReport.id, approved: true });
@@ -3680,8 +3682,6 @@ export default function DailyReportsAdminDashboard() {
                       Approve
                     </Button>
                   )}
-                  
-                  {/* Request revision for submitted */}
                   {selectedReport.status === "submitted" && (
                     <Button size="sm" variant="outline" onClick={() => {
                       setReportForRevision(selectedReport);
@@ -3691,8 +3691,6 @@ export default function DailyReportsAdminDashboard() {
                       Request Revision
                     </Button>
                   )}
-                  
-                  {/* Resend notification for submitted/reviewed */}
                   {(selectedReport.status === "submitted" || selectedReport.status === "reviewed") && (
                     <Button
                       size="sm"
@@ -3705,8 +3703,6 @@ export default function DailyReportsAdminDashboard() {
                       Resend Notification
                     </Button>
                   )}
-
-                  {/* Reopen for reviewed */}
                   {selectedReport.status === "reviewed" && (
                     <Button size="sm" variant="outline" onClick={() => {
                       if (confirm("Reopen this report for editing?")) {
@@ -3721,94 +3717,191 @@ export default function DailyReportsAdminDashboard() {
                 </div>
               </div>
 
-              {/* Report metadata - submitted by, source, rating */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-b pb-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="text-sm text-muted-foreground">Submitted By</div>
-                  <div className="font-medium">{selectedReport.submittedByName || "—"}</div>
+                  <span className="text-muted-foreground">Report:</span>
+                  <p className="font-medium flex items-center gap-2 mt-0.5">
+                    <DepartmentIcon department={selectedReport.department} />
+                    Daily Report
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {templates.find(t => t.id === selectedReport.templateId)?.departmentLabel ?? selectedReport.department}
+                  </p>
                 </div>
                 <div>
-                  <div className="text-sm text-muted-foreground">Source</div>
-                  <div className="font-medium">
-                    {selectedReport.source === 'qr_form' ? (
-                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">QR Form</Badge>
+                  <span className="text-muted-foreground">Report date:</span>
+                  <p className="font-medium mt-0.5">{format(new Date(selectedReport.reportDate), "EEEE, MMMM d, yyyy")}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Submitted by:</span>
+                  <p className="font-medium mt-0.5">{selectedReport.submittedByName || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Submitted at:</span>
+                  <p className="font-medium mt-0.5">
+                    {selectedReport.submittedAt
+                      ? format(new Date(selectedReport.submittedAt), "MMM d, yyyy h:mm a")
+                      : "—"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Source:</span>
+                  <p className="font-medium mt-0.5">
+                    {selectedReport.source === "qr_form" ? (
+                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-200">
+                        QR Form
+                      </Badge>
                     ) : (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Admin</Badge>
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-200">
+                        Admin
+                      </Badge>
                     )}
-                  </div>
+                  </p>
                 </div>
-                {selectedReport.overallRating && (
+                {selectedReport.overallRating != null && selectedReport.overallRating > 0 && (
                   <div>
-                    <div className="text-sm text-muted-foreground">Overall Rating</div>
-                    <div className="font-medium flex items-center gap-1">
+                    <span className="text-muted-foreground">Overall rating:</span>
+                    <p className="font-medium flex items-center gap-0.5 mt-0.5">
                       {[1, 2, 3, 4, 5].map((star) => (
-                        <span key={star} className={star <= selectedReport.overallRating! ? "text-yellow-500" : "text-gray-300"}>
+                        <span key={star} className={star <= selectedReport.overallRating! ? "text-yellow-500" : "text-muted-foreground/30"}>
                           ★
                         </span>
                       ))}
-                    </div>
-                  </div>
-                )}
-                {selectedReport.hasCustomerConcerns && (
-                  <div>
-                    <div className="text-sm text-muted-foreground">Customer Concerns</div>
-                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Yes</Badge>
+                    </p>
                   </div>
                 )}
               </div>
 
-              {/* Metrics grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {(allFieldAssignments[selectedReport.templateId] || [])
-                  .filter(a => a.isEnabled && a.fieldDefinition?.isActive)
-                  .sort((a, b) => a.sortOrder - b.sortOrder)
-                  .map(assignment => {
-                    const metric = assignment.fieldDefinition;
-                    if (!metric) return null;
-                    return (
-                      <div key={metric.key} className="bg-muted rounded-lg p-3">
-                        <div className="text-sm text-muted-foreground">{metric.label}</div>
-                        <div className="text-2xl font-bold">
-                          {selectedReport.metricsData ? (selectedReport.metricsData as any)[metric.key] || (metric.type === 'text' ? '—' : 0) : (metric.type === 'text' ? '—' : 0)}
+              {selectedReport.hasCustomerConcerns && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/25">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                      Customer concerns
+                    </Badge>
+                  </div>
+                  {selectedReport.customerConcernsSummary ? (
+                    <>
+                      <span className="text-sm text-muted-foreground">Details:</span>
+                      <p className="mt-1 text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap">{selectedReport.customerConcernsSummary}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-amber-900 dark:text-amber-200">Flagged — no additional notes were provided.</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <h4 className="mb-3 font-medium">Report fields</h4>
+                <div className="space-y-2">
+                  {(allFieldAssignments[selectedReport.templateId] || [])
+                    .filter((a) => a.isEnabled && a.fieldDefinition?.isActive)
+                    .sort((a, b) => a.sortOrder - b.sortOrder)
+                    .map((assignment) => {
+                      const metric = assignment.fieldDefinition;
+                      if (!metric) return null;
+                      const raw = selectedReport.metricsData
+                        ? (selectedReport.metricsData as Record<string, unknown>)[metric.key]
+                        : undefined;
+                      const empty =
+                        raw === undefined || raw === null || raw === "";
+                      const display =
+                        metric.type === "text"
+                          ? empty
+                            ? "—"
+                            : String(raw)
+                          : empty
+                            ? "—"
+                            : String(raw);
+                      const isCheckbox = metric.type === "checkbox";
+                      const checked = raw === true || raw === "true" || raw === 1 || raw === "1";
+
+                      return (
+                        <div key={metric.key} className="rounded-md border bg-background p-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium leading-snug">{metric.label}</p>
+                              {metric.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5">{metric.description}</p>
+                              )}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {isCheckbox ? (
+                                checked ? (
+                                  <CheckCircle className="h-5 w-5 text-green-600" aria-label="Checked" />
+                                ) : (
+                                  <span className="text-muted-foreground text-xs font-normal">No</span>
+                                )
+                              ) : metric.type === "text" ? (
+                                <span
+                                  className={cn(
+                                    "text-sm font-medium text-right max-w-[min(280px,50vw)] line-clamp-6 whitespace-pre-wrap",
+                                    empty ? "text-muted-foreground italic font-normal" : ""
+                                  )}
+                                >
+                                  {display}
+                                </span>
+                              ) : (
+                                <span className="text-lg font-semibold tabular-nums">{display}</span>
+                              )}
+                            </div>
+                          </div>
+                          {!empty && metric.type !== "checkbox" && (
+                            <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-dashed pt-3 text-xs text-muted-foreground">
+                              <span>Value recorded with this daily report.</span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  {(allFieldAssignments[selectedReport.templateId] || []).filter(
+                    (a) => a.isEnabled && a.fieldDefinition?.isActive
+                  ).length === 0 && (
+                    <p className="text-sm text-muted-foreground">No report fields configured for this department.</p>
+                  )}
+                </div>
               </div>
 
-              {/* Summary sections - shows both admin fields and QR form fields */}
-              {(selectedReport.performanceSummary || selectedReport.customerServiceSummary || selectedReport.customerConcernsSummary || selectedReport.operationalNotes || selectedReport.staffingNotes) && (
-                <div className="space-y-4">
+              {/* Narrative notes (avoid duplicating customer concerns callout above) */}
+              {(selectedReport.performanceSummary ||
+                (selectedReport.customerServiceSummary &&
+                  selectedReport.customerServiceSummary !== selectedReport.performanceSummary) ||
+                selectedReport.operationalNotes ||
+                selectedReport.staffingNotes ||
+                (selectedReport.customerConcernsSummary && !selectedReport.hasCustomerConcerns)) && (
+                <div>
+                  <h4 className="mb-3 font-medium">Notes & summaries</h4>
+                  <div className="space-y-3">
                   {selectedReport.performanceSummary && (
                     <div>
-                      <Label className="text-sm font-medium">Performance Summary</Label>
-                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.performanceSummary}</p>
+                      <span className="text-sm text-muted-foreground">Performance summary:</span>
+                      <p className="mt-1 rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">{selectedReport.performanceSummary}</p>
                     </div>
                   )}
-                  {selectedReport.customerConcernsSummary && (
+                  {selectedReport.customerConcernsSummary && !selectedReport.hasCustomerConcerns && (
                     <div>
-                      <Label className="text-sm font-medium">Customer Concerns Details</Label>
-                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.customerConcernsSummary}</p>
+                      <span className="text-sm text-muted-foreground">Customer concerns:</span>
+                      <p className="mt-1 rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">{selectedReport.customerConcernsSummary}</p>
                     </div>
                   )}
                   {selectedReport.customerServiceSummary && selectedReport.customerServiceSummary !== selectedReport.performanceSummary && (
                     <div>
-                      <Label className="text-sm font-medium">Customer Service Summary</Label>
-                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.customerServiceSummary}</p>
+                      <span className="text-sm text-muted-foreground">Customer service summary:</span>
+                      <p className="mt-1 rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">{selectedReport.customerServiceSummary}</p>
                     </div>
                   )}
                   {selectedReport.operationalNotes && (
                     <div>
-                      <Label className="text-sm font-medium">Operational Notes</Label>
-                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.operationalNotes}</p>
+                      <span className="text-sm text-muted-foreground">Operational notes:</span>
+                      <p className="mt-1 rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">{selectedReport.operationalNotes}</p>
                     </div>
                   )}
                   {selectedReport.staffingNotes && (
                     <div>
-                      <Label className="text-sm font-medium">Staffing Notes</Label>
-                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.staffingNotes}</p>
+                      <span className="text-sm text-muted-foreground">Staffing notes:</span>
+                      <p className="mt-1 rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">{selectedReport.staffingNotes}</p>
                     </div>
                   )}
+                  </div>
                 </div>
               )}
 
@@ -3854,11 +3947,13 @@ export default function DailyReportsAdminDashboard() {
                   <p className="text-sm text-muted-foreground">No incidents logged for this report</p>
                 ) : (
                   <div className="space-y-2">
-                    {selectedReportIncidents.map(incident => (
-                      <Card key={incident.id}>
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div>
+                    {selectedReportIncidents.map((incident) => (
+                      <div
+                        key={incident.id}
+                        className="rounded-md border bg-background p-3"
+                      >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <Badge className={severityColors[incident.severity]}>
                                   {incident.severity}
@@ -3872,7 +3967,7 @@ export default function DailyReportsAdminDashboard() {
                                 <p className="text-sm mt-1"><strong>Action:</strong> {incident.actionTaken}</p>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex shrink-0 items-center gap-2">
                               {incident.requiresFollowUp && (
                                 <Badge variant="outline" className="text-orange-600">
                                   Follow-up Required
@@ -3927,8 +4022,7 @@ export default function DailyReportsAdminDashboard() {
                               </DropdownMenu>
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -3936,7 +4030,7 @@ export default function DailyReportsAdminDashboard() {
 
               <div className="border-t pt-4">
                 <Label className="text-base font-medium">
-                  Procedures ({selectedReport.proceduresCompletedCount}/{selectedReport.proceduresTotalCount})
+                  Checklist ({selectedReport.proceduresCompletedCount}/{selectedReport.proceduresTotalCount})
                 </Label>
                 {procedureTemplates.length === 0 ? (
                   <p className="text-sm text-muted-foreground mt-2">No procedure checklist for this department</p>
@@ -3962,30 +4056,77 @@ export default function DailyReportsAdminDashboard() {
                                 {completedCount}/{procs.length} completed
                               </span>
                             </div>
-                            <div className="space-y-1 pl-1">
-                              {procs.map(proc => {
-                                const completion = selectedReportProcedures.find(c => c.procedureTemplateId === proc.id);
+                            <div className="space-y-2 pl-0 sm:pl-1">
+                              {procs.map((proc) => {
+                                const completion = selectedReportProcedures.find((c) => c.procedureTemplateId === proc.id);
+                                const done = completion?.completed || false;
+                                const completedLabel =
+                                  done && completion?.completedAt
+                                    ? (() => {
+                                        try {
+                                          const d = new Date(completion.completedAt);
+                                          return Number.isNaN(d.getTime()) ? null : format(d, "h:mm:ss a");
+                                        } catch {
+                                          return null;
+                                        }
+                                      })()
+                                    : null;
+                                const initials = initialsFromStaffName(completion?.completedByName);
                                 return (
-                                  <div key={proc.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted" data-testid={`procedure-item-${proc.id}`}>
-                                    <Checkbox
-                                      checked={completion?.completed || false}
-                                      onCheckedChange={(checked) => {
-                                        updateProceduresMutation.mutate({
-                                          reportId: selectedReport.id,
-                                          completions: [{ procedureId: proc.id, completed: checked === true }]
-                                        });
-                                      }}
-                                      data-testid={`checkbox-procedure-${proc.id}`}
-                                    />
-                                    <div className="flex-1">
-                                      <div className="font-medium text-sm">{proc.procedureName}</div>
-                                      {proc.description && (
-                                        <div className="text-xs text-muted-foreground">{proc.description}</div>
+                                  <div
+                                    key={proc.id}
+                                    className="rounded-md border bg-background p-3"
+                                    data-testid={`procedure-item-${proc.id}`}
+                                  >
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                                        <Checkbox
+                                          checked={done}
+                                          className="mt-0.5"
+                                          onCheckedChange={(checked) => {
+                                            updateProceduresMutation.mutate({
+                                              reportId: selectedReport.id,
+                                              completions: [{ procedureId: proc.id, completed: checked === true }],
+                                            });
+                                          }}
+                                          data-testid={`checkbox-procedure-${proc.id}`}
+                                        />
+                                        <div className="min-w-0">
+                                          <div className="font-medium text-sm">{proc.procedureName}</div>
+                                          {proc.description && (
+                                            <div className="mt-0.5 text-xs text-muted-foreground">{proc.description}</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex shrink-0 items-center gap-2">
+                                        {proc.isRequired && (
+                                          <Badge variant="outline" className="text-xs">
+                                            Required
+                                          </Badge>
+                                        )}
+                                        {done ? (
+                                          <CheckCircle className="h-5 w-5 shrink-0 text-green-600" aria-label="Completed" />
+                                        ) : (
+                                          <span className="text-xs text-muted-foreground whitespace-nowrap">Pending</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap items-center gap-4 border-t border-dashed pt-2">
+                                      <div className="flex items-center gap-1.5 text-xs">
+                                        <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                        <span className="text-muted-foreground">Completed:</span>
+                                        {completedLabel ? (
+                                          <span className="font-medium">{completedLabel}</span>
+                                        ) : (
+                                          <span className="italic text-muted-foreground">Not recorded</span>
+                                        )}
+                                      </div>
+                                      {initials && (
+                                        <Badge variant="outline" className="text-xs">
+                                          Initials: {initials}
+                                        </Badge>
                                       )}
                                     </div>
-                                    {proc.isRequired && (
-                                      <Badge variant="outline" className="text-xs">Required</Badge>
-                                    )}
                                   </div>
                                 );
                               })}
@@ -4012,9 +4153,12 @@ export default function DailyReportsAdminDashboard() {
                     Revision Requests ({selectedReportRevisionRequests.length})
                   </Label>
                   <div className="space-y-3 mt-3">
-                    {selectedReportRevisionRequests.map(request => (
-                      <Card key={request.id} data-testid={`revision-request-${request.id}`}>
-                        <CardContent className="p-3">
+                    {selectedReportRevisionRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        className="rounded-md border bg-background p-3"
+                        data-testid={`revision-request-${request.id}`}
+                      >
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="flex items-center gap-2">
                               <RotateCcw className="h-4 w-4 text-muted-foreground" />
@@ -4056,8 +4200,7 @@ export default function DailyReportsAdminDashboard() {
                               </div>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
+                      </div>
                     ))}
                   </div>
                 </div>
