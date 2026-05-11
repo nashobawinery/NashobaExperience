@@ -1,27 +1,44 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Users, ClipboardList, FileText, Search, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ArrowLeft, Users, ClipboardList, FileText, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProceduresSubmission, ProceduresTemplate, ProceduresItem } from "@shared/schema";
 import { format } from "date-fns";
+import {
+  WordOrHolidayDateFilter,
+  type SearchModeWordsOrDate,
+} from "@/components/WordOrHolidayDateFilter";
 
 export default function ProceduresSubmissions() {
   const [, setLocation] = useLocation();
   const [selectedDepartment, setSelectedDepartment] = useState<string>("__all__");
   const [searchQuery, setSearchQuery] = useState("");
+  const [submissionSearchMode, setSubmissionSearchMode] =
+    useState<SearchModeWordsOrDate>("words");
+  const [submissionHolidayYmd, setSubmissionHolidayYmd] = useState("");
   const [viewingSubmission, setViewingSubmission] = useState<ProceduresSubmission | null>(null);
 
+  const submissionQueryFilters = useMemo(() => {
+    const params: Record<string, string> = {};
+    if (selectedDepartment !== "__all__") {
+      params.department = selectedDepartment;
+    }
+    if (submissionSearchMode === "date" && submissionHolidayYmd) {
+      params.dateOnEt = submissionHolidayYmd;
+    }
+    return params;
+  }, [selectedDepartment, submissionSearchMode, submissionHolidayYmd]);
+
   const { data: submissions, isLoading } = useQuery<ProceduresSubmission[]>({
-    queryKey: ["/api/procedures/submissions"],
+    queryKey: ["/api/procedures/submissions", submissionQueryFilters],
   });
 
   const { data: departments } = useQuery<{ department: string; departmentLabel: string }[]>({
@@ -44,10 +61,14 @@ export default function ProceduresSubmissions() {
 
   const filteredSubmissions = submissions?.filter((s) => {
     if (selectedDepartment !== "__all__" && s.department !== selectedDepartment) return false;
-    if (searchQuery) {
+    if (submissionSearchMode === "words" && searchQuery) {
       const query = searchQuery.toLowerCase();
       const name = (templateNameMap[s.templateId] ?? s.procedureCode).toLowerCase();
-      if (!s.submittedByName.toLowerCase().includes(query) && !name.includes(query) && !s.procedureCode.toLowerCase().includes(query)) {
+      if (
+        !s.submittedByName.toLowerCase().includes(query) &&
+        !name.includes(query) &&
+        !s.procedureCode.toLowerCase().includes(query)
+      ) {
         return false;
       }
     }
@@ -114,17 +135,22 @@ export default function ProceduresSubmissions() {
         </TabsList>
 
         <TabsContent value="submissions" className="mt-6 space-y-4">
+          <WordOrHolidayDateFilter
+            idPrefix="proc-sub"
+            compact
+            mode={submissionSearchMode}
+            onModeChange={(m) => {
+              setSubmissionSearchMode(m);
+              if (m === "words") setSubmissionHolidayYmd("");
+              if (m === "date") setSearchQuery("");
+            }}
+            wordsValue={searchQuery}
+            onWordsChange={setSearchQuery}
+            wordsPlaceholder="Search by procedure name, code, or submitter..."
+            pickedYmd={submissionHolidayYmd}
+            onPickYmd={setSubmissionHolidayYmd}
+          />
           <div className="flex flex-wrap gap-4">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name or code..."
-                className="pl-9"
-                data-testid="input-search"
-              />
-            </div>
             <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
               <SelectTrigger className="w-[200px]" data-testid="select-department">
                 <SelectValue placeholder="All Departments" />

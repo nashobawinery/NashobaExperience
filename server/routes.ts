@@ -3,6 +3,12 @@ import { createServer, type Server } from "http";
 import crypto, { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
+import {
+  buildNotationMapForYmds,
+  calendarYmdEastern,
+  getCalendarNotationLabels,
+  searchSpecialCalendarDays,
+} from "./special-calendar";
 import { platformUsers } from "@shared/schema";
 import { setupPlatformAuthSystem, isPlatformAuthenticated, isPlatformAuthMode, requirePlatformRole } from "./platformAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
@@ -11533,6 +11539,19 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
+  app.get('/api/calendar/special-days/search', isPlatformAuthenticated, async (req: any, res) => {
+    try {
+      const q = typeof req.query.q === 'string' ? req.query.q : '';
+      const rawLimit = parseInt(String(req.query.limit ?? ''), 10);
+      const limit = Number.isFinite(rawLimit) ? Math.min(80, Math.max(1, rawLimit)) : 40;
+      const hits = await searchSpecialCalendarDays(db, q, limit);
+      res.json(hits);
+    } catch (error) {
+      console.error('Error searching special calendar days:', error);
+      res.status(500).json({ message: 'Failed to search special days' });
+    }
+  });
+
   // Helper function to transform backend report data to frontend format
   const transformReportForFrontend = (report: any) => {
     if (!report) return report;
@@ -11560,18 +11579,20 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       if (hasCustomerConcerns !== undefined) filters.hasCustomerConcerns = hasCustomerConcerns === 'true';
       
       const reports = await storage.getDailyReports(Object.keys(filters).length > 0 ? filters : undefined);
-      
-      // Get all templates to map department -> templateId
+
       const templates = await storage.getDailyReportTemplates();
       const templateByDepartment = new Map(templates.map(t => [t.department, t.id]));
-      
-      // Get incident counts for all reports and add templateId
+
+      const notationMap = await buildNotationMapForYmds(db, reports.map(r => calendarYmdEastern(r.reportDate)));
+
       const reportsWithCounts = await Promise.all(reports.map(async (report) => {
         const incidents = await storage.getDailyReportIncidents(report.id);
+        const ymd = calendarYmdEastern(report.reportDate);
         return {
           ...transformReportForFrontend(report),
           templateId: templateByDepartment.get(report.department) || null,
-          incidentsCount: incidents.length
+          incidentsCount: incidents.length,
+          calendarNotations: notationMap.get(ymd) ?? []
         };
       }));
       
@@ -11832,9 +11853,12 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       }
       // Look up templateId from department
       const template = await storage.getDailyReportTemplateByDepartment(report.department);
+      const ymd = calendarYmdEastern(report.reportDate);
+      const calendarNotations = await getCalendarNotationLabels(db, ymd);
       res.json({
         ...transformReportForFrontend(report),
-        templateId: template?.id || null
+        templateId: template?.id || null,
+        calendarNotations
       });
     } catch (error) {
       console.error('Error fetching daily report:', error);
@@ -11869,7 +11893,10 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       
       // Get full details
       const reportWithDetails = await storage.getDailyReportWithDetails(report.id);
-      res.json(transformReportForFrontend(reportWithDetails));
+      const front = transformReportForFrontend(reportWithDetails);
+      const ymd = calendarYmdEastern(front.reportDate);
+      const calendarNotations = await getCalendarNotationLabels(db, ymd);
+      res.json({ ...front, calendarNotations });
     } catch (error) {
       console.error('Error fetching today\'s report:', error);
       res.status(500).json({ message: 'Failed to fetch today\'s report' });

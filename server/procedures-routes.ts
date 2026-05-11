@@ -589,13 +589,16 @@ router.get("/submissions/staff-drafts", async (req: Request, res: Response) => {
 
 router.get("/submissions", async (req: Request, res: Response) => {
   try {
-    const { department, procedureCode, startDate, endDate, userId } = req.query;
+    const { department, procedureCode, startDate, endDate, userId, dateOnEt } = req.query;
+    const dateOnEastern =
+      typeof dateOnEt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateOnEt) ? dateOnEt : undefined;
     const submissions = await storage.getProceduresSubmissions({
       department: department as string | undefined,
       procedureCode: procedureCode as string | undefined,
-      startDate: startDate ? new Date(startDate as string) : undefined,
-      endDate: endDate ? new Date(endDate as string) : undefined,
-      userId: userId as string | undefined
+      startDate: dateOnEastern ? undefined : startDate ? new Date(startDate as string) : undefined,
+      endDate: dateOnEastern ? undefined : endDate ? new Date(endDate as string) : undefined,
+      userId: userId as string | undefined,
+      dateOnEastern,
     });
     res.json(submissions);
   } catch (error) {

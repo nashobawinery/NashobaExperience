@@ -678,7 +678,7 @@ export interface IStorage {
   updateProceduresUserLastLogin(id: string): Promise<void>;
   
   // Procedure Submissions
-  getProceduresSubmissions(filters?: { department?: string; procedureCode?: string; startDate?: Date; endDate?: Date; userId?: string }): Promise<ProceduresSubmission[]>;
+  getProceduresSubmissions(filters?: { department?: string; procedureCode?: string; startDate?: Date; endDate?: Date; userId?: string; dateOnEastern?: string }): Promise<ProceduresSubmission[]>;
   getProceduresSubmission(id: string): Promise<ProceduresSubmission | undefined>;
   getProceduresSubmissionDraft(templateId: string, staffName: string): Promise<ProceduresSubmission | undefined>;
   createProceduresSubmission(data: InsertProceduresSubmission): Promise<ProceduresSubmission>;
@@ -4989,7 +4989,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Procedure Submissions
-  async getProceduresSubmissions(filters?: { department?: string; procedureCode?: string; startDate?: Date; endDate?: Date; userId?: string }): Promise<ProceduresSubmission[]> {
+  async getProceduresSubmissions(filters?: { department?: string; procedureCode?: string; startDate?: Date; endDate?: Date; userId?: string; dateOnEastern?: string }): Promise<ProceduresSubmission[]> {
     const conditions: SQL<unknown>[] = [];
     if (filters?.department) {
       conditions.push(eq(proceduresSubmissions.department, filters.department));
@@ -5000,11 +5000,17 @@ export class DatabaseStorage implements IStorage {
     if (filters?.userId) {
       conditions.push(eq(proceduresSubmissions.submittedByUserId, filters.userId));
     }
-    if (filters?.startDate) {
-      conditions.push(sql`${proceduresSubmissions.submissionDate} >= ${filters.startDate}`);
-    }
-    if (filters?.endDate) {
-      conditions.push(sql`${proceduresSubmissions.submissionDate} <= ${filters.endDate}`);
+    if (filters?.dateOnEastern && /^\d{4}-\d{2}-\d{2}$/.test(filters.dateOnEastern)) {
+      conditions.push(
+        sql`to_char(${proceduresSubmissions.submissionDate} AT TIME ZONE 'America/New_York', 'YYYY-MM-DD') = ${filters.dateOnEastern}`
+      );
+    } else {
+      if (filters?.startDate) {
+        conditions.push(sql`${proceduresSubmissions.submissionDate} >= ${filters.startDate}`);
+      }
+      if (filters?.endDate) {
+        conditions.push(sql`${proceduresSubmissions.submissionDate} <= ${filters.endDate}`);
+      }
     }
     
     const query = db.select().from(proceduresSubmissions);

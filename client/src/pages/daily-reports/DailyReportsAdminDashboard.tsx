@@ -79,6 +79,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format, formatDistanceToNow, isToday, isSameDay, startOfDay, endOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { WordOrHolidayDateFilter, type SearchModeWordsOrDate } from "@/components/WordOrHolidayDateFilter";
+import { calendarYmdEastern } from "@/lib/calendar-eastern";
 
 interface NotificationEmail {
   email: string;
@@ -131,6 +133,8 @@ interface DailyReport {
   proceduresCompleted: boolean;
   proceduresCompletedCount: number;
   proceduresTotalCount: number;
+  /** Holiday / special-day labels from reservations special dates + recurring definitions (Eastern calendar). */
+  calendarNotations?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -926,6 +930,8 @@ export default function DailyReportsAdminDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [searchQuery, setSearchQuery] = useState("");
+  const [reportsSearchMode, setReportsSearchMode] = useState<SearchModeWordsOrDate>("words");
+  const [pickedReportYmd, setPickedReportYmd] = useState("");
   
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
@@ -2115,14 +2121,20 @@ export default function DailyReportsAdminDashboard() {
         toDate.setHours(23, 59, 59, 999);
         if (reportDate > toDate) return false;
       }
-      if (searchQuery) {
+      if (reportsSearchMode === "date" && pickedReportYmd) {
+        if (calendarYmdEastern(report.reportDate) !== pickedReportYmd) return false;
+      }
+      if (reportsSearchMode === "words" && searchQuery) {
         const query = searchQuery.toLowerCase();
         const template = templates.find(t => t.id === report.templateId);
+        const notationHit = (report.calendarNotations ?? []).some((n) => n.toLowerCase().includes(query));
         return (
-          template?.departmentLabel?.toLowerCase().includes(query) ||
-          report.customerServiceSummary?.toLowerCase().includes(query) ||
-          report.operationalNotes?.toLowerCase().includes(query) ||
-          report.submittedByName?.toLowerCase().includes(query)
+          notationHit ||
+          !!template?.departmentLabel?.toLowerCase().includes(query) ||
+          !!(report.customerServiceSummary && report.customerServiceSummary.toLowerCase().includes(query)) ||
+          !!(report.operationalNotes && report.operationalNotes.toLowerCase().includes(query)) ||
+          !!(report.submittedByName && report.submittedByName.toLowerCase().includes(query)) ||
+          !!(report.staffingNotes && report.staffingNotes.toLowerCase().includes(query))
         );
       }
       return true;
@@ -2183,11 +2195,19 @@ export default function DailyReportsAdminDashboard() {
     setDateFrom("");
     setDateTo("");
     setSearchQuery("");
+    setReportsSearchMode("words");
+    setPickedReportYmd("");
     setSortField('reportDate');
     setSortDirection('desc');
   };
 
-  const hasActiveFilters = selectedDepartment !== "all" || selectedStaff !== "all" || dateFrom || dateTo || searchQuery;
+  const hasActiveFilters =
+    selectedDepartment !== "all" ||
+    selectedStaff !== "all" ||
+    dateFrom ||
+    dateTo ||
+    searchQuery ||
+    pickedReportYmd;
 
   const exportToExcel = () => {
     if (filteredReports.length === 0) {
@@ -2204,6 +2224,8 @@ export default function DailyReportsAdminDashboard() {
         'Source': report.source === 'qr_form' ? 'QR Form' : 'Admin',
         'Incidents': report.incidentsCount || 0,
         'Procedures Completed': `${report.proceduresCompletedCount || 0}/${report.proceduresTotalCount || 0}`,
+        'Holiday / Special (Eastern calendar)':
+          report.calendarNotations?.length ? report.calendarNotations.join('; ') : '-',
         'Submitted By': report.submittedByName || '',
         'Submitted At': report.submittedAt ? format(new Date(report.submittedAt), "yyyy-MM-dd HH:mm") : '-',
         'Performance Summary': report.performanceSummary || '-',
@@ -2494,21 +2516,22 @@ export default function DailyReportsAdminDashboard() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Search</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search reports..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                        data-testid="input-search-reports"
-                      />
-                    </div>
-                  </div>
-                  
+                <div className="space-y-4">
+                  <WordOrHolidayDateFilter
+                    idPrefix="reports"
+                    mode={reportsSearchMode}
+                    onModeChange={(m) => {
+                      setReportsSearchMode(m);
+                      if (m === "words") setPickedReportYmd("");
+                      if (m === "date") setSearchQuery("");
+                    }}
+                    wordsValue={searchQuery}
+                    onWordsChange={setSearchQuery}
+                    wordsPlaceholder="Search department, notes, submitter, or holiday label…"
+                    pickedYmd={pickedReportYmd}
+                    onPickYmd={setPickedReportYmd}
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Department</Label>
                     <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
@@ -2563,7 +2586,8 @@ export default function DailyReportsAdminDashboard() {
                     />
                   </div>
                 </div>
-                
+                </div>
+
                 <div className="text-sm text-muted-foreground">
                   Showing {filteredReports.length} of {reports.length} reports
                   {hasActiveFilters && " (filtered)"}
@@ -2669,7 +2693,25 @@ export default function DailyReportsAdminDashboard() {
                                 </div>
                               </td>
                               <td className="p-3">
-                                {format(new Date(report.reportDate), "MMM d, yyyy")}
+                                <div>{format(new Date(report.reportDate), "MMM d, yyyy")}</div>
+                                {(report.calendarNotations?.length ?? 0) > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1 max-w-[220px]">
+                                    {(report.calendarNotations ?? []).slice(0, 3).map((n) => (
+                                      <Badge
+                                        key={n}
+                                        variant="outline"
+                                        className="font-normal text-[10px] border-amber-300/70 bg-amber-50 text-amber-950 dark:bg-amber-950/35 dark:text-amber-50 dark:border-amber-800"
+                                      >
+                                        {n}
+                                      </Badge>
+                                    ))}
+                                    {(report.calendarNotations?.length ?? 0) > 3 && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        +{(report.calendarNotations?.length ?? 0) - 3}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                               <td className="p-3">
                                 <Badge className={statusColors[report.status]}>
@@ -3771,6 +3813,29 @@ export default function DailyReportsAdminDashboard() {
                   </div>
                 )}
               </div>
+
+              {(selectedReport.calendarNotations?.length ?? 0) > 0 && (
+                <div className="rounded-md border border-violet-200 bg-violet-50 p-3 dark:border-violet-900 dark:bg-violet-950/35">
+                  <div className="mb-2">
+                    <Badge
+                      variant="outline"
+                      className="border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-100"
+                    >
+                      Holiday / special day (Eastern)
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(selectedReport.calendarNotations ?? []).map((n) => (
+                      <span
+                        key={n}
+                        className="inline-flex rounded-full border border-violet-200 bg-white/80 px-2.5 py-0.5 text-xs font-medium text-violet-950 dark:bg-violet-950/50 dark:border-violet-800 dark:text-violet-100"
+                      >
+                        {n}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {selectedReport.hasCustomerConcerns && (
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/25">
