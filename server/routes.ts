@@ -11539,9 +11539,9 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     return {
       ...report,
       metrics: report.metricsData || {},
-      customerServiceSummary: report.performanceSummary || null,
-      operationalNotes: null,
-      staffingNotes: null,
+      customerServiceSummary: report.performanceSummary ?? null,
+      operationalNotes: report.operationalNotes ?? null,
+      staffingNotes: report.staffingNotes ?? null,
       source: report.source || 'admin', // Default to admin for existing reports
     };
   };
@@ -11951,6 +11951,10 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         source: 'admin', // Created from admin dashboard
         metricsData: req.body.metrics || req.body.metricsData || null,
         performanceSummary: req.body.customerServiceSummary || req.body.performanceSummary || null,
+        operationalNotes:
+          req.body.operationalNotes !== undefined ? req.body.operationalNotes : null,
+        staffingNotes:
+          req.body.staffingNotes !== undefined ? req.body.staffingNotes : null,
         hasCustomerConcerns: req.body.hasCustomerConcerns || false,
         customerConcernsSummary: req.body.customerConcernsSummary || null,
         status: req.body.status || 'draft'
@@ -12097,7 +12101,9 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       if (req.body.status !== undefined) bodyData.status = req.body.status;
       // Map staffName to submittedByName (admin can change who is filing)
       if (req.body.staffName !== undefined) bodyData.submittedByName = req.body.staffName;
-      
+      if (req.body.staffingNotes !== undefined) bodyData.staffingNotes = req.body.staffingNotes;
+      if (req.body.operationalNotes !== undefined) bodyData.operationalNotes = req.body.operationalNotes;
+
       console.log(`[Daily Reports] PATCH - mapped bodyData:`, JSON.stringify(bodyData, null, 2));
       
       // If submitting, update status

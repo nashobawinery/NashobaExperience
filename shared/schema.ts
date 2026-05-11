@@ -2301,7 +2301,12 @@ export const dailyReports = pgTable("daily_reports", {
   // Customer service focus
   hasCustomerConcerns: boolean("has_customer_concerns").notNull().default(false),
   customerConcernsSummary: text("customer_concerns_summary"),
-  
+
+  /** Free-form operational notes (manager daily report UI) */
+  operationalNotes: text("operational_notes"),
+  /** Free-form staffing notes (manager daily report UI) */
+  staffingNotes: text("staffing_notes"),
+
   // Status tracking
   status: text("status").notNull().default("draft"), // draft, submitted, reviewed
   submittedAt: timestamp("submitted_at"), // When the report was submitted
