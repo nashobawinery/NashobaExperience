@@ -309,8 +309,16 @@ export default function ProceduresAdminDashboard({
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
-          {!embeddedInStaffReporting && (
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/staff-reporting")}
+              data-testid="button-return-staff-reporting"
+            >
+              Staff Reporting
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 
@@ -320,7 +328,7 @@ export default function ProceduresAdminDashboard({
               <Home className="w-4 h-4 mr-2" />
               Return to Hub
             </Button>
-          )}
+          </div>
           <div>
             <h1 className="text-3xl font-bold">Opening and Closing Procedures</h1>
             <p className="text-muted-foreground mt-1">
@@ -400,6 +408,10 @@ export default function ProceduresAdminDashboard({
         }
       }} className="space-y-6">
         <TabsList>
+          <TabsTrigger value="submissions" data-testid="tab-submissions">
+            <FileText className="w-4 h-4 mr-2" />
+            Submitted Reports
+          </TabsTrigger>
           <TabsTrigger value="procedures" data-testid="tab-procedures">
             <ClipboardList className="w-4 h-4 mr-2" />
             Procedures
@@ -407,10 +419,6 @@ export default function ProceduresAdminDashboard({
           <TabsTrigger value="staff" data-testid="tab-staff">
             <Users className="w-4 h-4 mr-2" />
             Staff
-          </TabsTrigger>
-          <TabsTrigger value="submissions" data-testid="tab-submissions">
-            <FileText className="w-4 h-4 mr-2" />
-            Submissions
           </TabsTrigger>
         </TabsList>
 

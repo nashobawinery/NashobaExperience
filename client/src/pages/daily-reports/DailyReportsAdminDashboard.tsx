@@ -927,7 +927,7 @@ type SortDirection = 'asc' | 'desc';
 export default function DailyReportsAdminDashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("reports");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [reportsSearchMode, setReportsSearchMode] = useState<SearchModeWordsOrDate>("words");
@@ -2284,16 +2284,26 @@ export default function DailyReportsAdminDashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setLocation("/")}
-              data-testid="button-return-hub"
-            >
-              <Home className="h-4 w-4 mr-2" />
-              Return to Hub
-            </Button>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation("/staff-reporting")}
+                data-testid="button-return-staff-reporting"
+              >
+                Staff Reporting
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setLocation("/")}
+                data-testid="button-return-hub"
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Return to Hub
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
               <img src={dailyReportIcon} alt="Daily Reports" className="h-8 w-8 object-contain" />
               <h1 className="text-xl font-semibold">Daily Reports</h1>
@@ -2379,8 +2389,8 @@ export default function DailyReportsAdminDashboard() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
+            <TabsTrigger value="reports" data-testid="tab-reports">Submitted Reports</TabsTrigger>
             <TabsTrigger value="overview" data-testid="tab-overview">Daily Reports</TabsTrigger>
-            <TabsTrigger value="reports" data-testid="tab-reports">Filed Reports</TabsTrigger>
             <TabsTrigger value="incidents" data-testid="tab-incidents">Incidents</TabsTrigger>
             <TabsTrigger value="departments" data-testid="tab-departments">Configuration</TabsTrigger>
             <TabsTrigger value="fields" data-testid="tab-fields">

@@ -1405,12 +1405,12 @@ function Router() {
         <Route path="/modules" component={ModuleDirectoryRoute} />
         <Route path="/access-control" component={AccessControlRoute} />
         <Route path="/module-management" component={ModuleManagementRoute} />
-        <Route path="/procedures" component={ProceduresAdminRoute} />
         <Route path="/procedures/admin" component={ProceduresAdminRoute} />
         <Route path="/procedures/templates/new" component={ProcedureTemplateEditorRoute} />
         <Route path="/procedures/templates/:id" component={ProcedureTemplateEditorRoute} />
         <Route path="/procedures/users" component={ProceduresUsersRoute} />
         <Route path="/procedures/submissions" component={ProceduresSubmissionsRoute} />
+        <Route path="/procedures">{() => <Redirect to="/procedures/submissions" />}</Route>
         <Route path="/procedures/public" component={PublicProceduresRoute} />
         <Route path="/procedures/staff" component={StaffProceduresRoute} />
         <Route path="/staff" component={StaffPortalRoute} />

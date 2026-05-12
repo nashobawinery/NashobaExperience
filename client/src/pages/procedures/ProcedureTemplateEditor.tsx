@@ -63,7 +63,7 @@ type ProcedureTemplateEditorProps = {
   returnPath?: string;
 };
 
-export default function ProcedureTemplateEditor({ returnPath = "/procedures" }: ProcedureTemplateEditorProps) {
+export default function ProcedureTemplateEditor({ returnPath = "/procedures/admin" }: ProcedureTemplateEditorProps) {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();

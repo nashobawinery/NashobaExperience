@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Users, ClipboardList, FileText, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Home, Users, ClipboardList, FileText, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProceduresSubmission, ProceduresTemplate, ProceduresItem } from "@shared/schema";
 import { format } from "date-fns";
@@ -108,13 +108,31 @@ export default function ProceduresSubmissions() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/procedures")} data-testid="button-back">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">Submissions History</h1>
-          <p className="text-muted-foreground">View completed procedure submissions</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/staff-reporting")}
+              data-testid="button-return-staff-reporting"
+            >
+              Staff Reporting
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/")}
+              data-testid="button-return-hub"
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Return to Hub
+            </Button>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Submissions History</h1>
+            <p className="text-muted-foreground">View completed procedure submissions</p>
+          </div>
         </div>
       </div>
 
@@ -122,9 +140,9 @@ export default function ProceduresSubmissions() {
         <TabsList>
           <TabsTrigger value="submissions" data-testid="tab-submissions">
             <FileText className="w-4 h-4 mr-2" />
-            Submissions
+            Submitted Reports
           </TabsTrigger>
-          <TabsTrigger value="procedures" onClick={() => setLocation("/procedures")} data-testid="tab-procedures">
+          <TabsTrigger value="procedures" onClick={() => setLocation("/procedures/admin")} data-testid="tab-procedures">
             <ClipboardList className="w-4 h-4 mr-2" />
             Procedures
           </TabsTrigger>

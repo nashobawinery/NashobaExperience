@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Pencil, Trash2, Users, ClipboardList, FileText, Key } from "lucide-react";
+import { Home, Plus, Pencil, Trash2, Users, ClipboardList, FileText, Key } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ProceduresUser, ProceduresTemplate } from "@shared/schema";
@@ -116,13 +116,31 @@ export default function ProceduresUsers() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/procedures")} data-testid="button-back">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">Procedure Users</h1>
-          <p className="text-muted-foreground">Manage staff access with PIN codes</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/staff-reporting")}
+              data-testid="button-return-staff-reporting"
+            >
+              Staff Reporting
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/")}
+              data-testid="button-return-hub"
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Return to Hub
+            </Button>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold">Procedure Users</h1>
+            <p className="text-muted-foreground">Manage staff access with PIN codes</p>
+          </div>
         </div>
         <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} data-testid="button-add-user">
           <Plus className="w-4 h-4 mr-2" />
@@ -132,17 +150,17 @@ export default function ProceduresUsers() {
 
       <Tabs defaultValue="users">
         <TabsList>
-          <TabsTrigger value="users" data-testid="tab-users">
-            <Users className="w-4 h-4 mr-2" />
-            Users
+          <TabsTrigger value="submissions" onClick={() => setLocation("/procedures/submissions")} data-testid="tab-submissions">
+            <FileText className="w-4 h-4 mr-2" />
+            Submitted Reports
           </TabsTrigger>
-          <TabsTrigger value="procedures" onClick={() => setLocation("/procedures")} data-testid="tab-procedures">
+          <TabsTrigger value="procedures" onClick={() => setLocation("/procedures/admin")} data-testid="tab-procedures">
             <ClipboardList className="w-4 h-4 mr-2" />
             Procedures
           </TabsTrigger>
-          <TabsTrigger value="submissions" onClick={() => setLocation("/procedures/submissions")} data-testid="tab-submissions">
-            <FileText className="w-4 h-4 mr-2" />
-            Submissions
+          <TabsTrigger value="users" data-testid="tab-users">
+            <Users className="w-4 h-4 mr-2" />
+            Users
           </TabsTrigger>
         </TabsList>
 
