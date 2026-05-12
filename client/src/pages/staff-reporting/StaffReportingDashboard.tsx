@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, ClipboardList, Copy, ExternalLink, FileText, Plus, Printer, QrCode, RefreshCw, Save, Settings, Trash2, Users } from "lucide-react";
@@ -72,6 +72,7 @@ export default function StaffReportingDashboard() {
   const { toast } = useToast();
   const isProcedureEditorRoute = location.startsWith("/staff-reporting/procedures/templates/");
   const [activeTab, setActiveTab] = useState(isProcedureEditorRoute ? "procedures" : "daily-reports");
+  const wasProcedureEditorRoute = useRef(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<StaffReportingUser | null>(null);
   const [formData, setFormData] = useState(emptyForm);
@@ -89,7 +90,11 @@ export default function StaffReportingDashboard() {
   useEffect(() => {
     if (isProcedureEditorRoute) {
       setActiveTab("procedures");
+    } else if (wasProcedureEditorRoute.current) {
+      // Returning from template editor URLs: Daily Reports should be the module landing tab.
+      setActiveTab("daily-reports");
     }
+    wasProcedureEditorRoute.current = isProcedureEditorRoute;
   }, [isProcedureEditorRoute]);
 
   const assignmentCount = useMemo(() => {

@@ -1473,8 +1473,8 @@ function Router() {
         <Route path="/staff-dashboard/:segment" component={StaffManagementSegmentRoute} />
         <Route path="/staff-dashboard" component={StaffDashboardRoute} />
         <Route path="/staff-reporting/procedures/templates/:id" component={StaffReportingRoute} />
-        <Route path="/staff-reporting" component={StaffReportingRoute} />
         <Route path="/staff-reporting/admin" component={StaffReportingRoute} />
+        <Route path="/staff-reporting" component={StaffReportingRoute} />
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         {/* Reservation Routes - Customer facing */}
