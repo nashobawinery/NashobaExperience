@@ -182,24 +182,28 @@ export async function buildNotationMapForYmds(
   const specialByDate = new Map<string, string[]>();
 
   if (uniqueDates.length > 0) {
-    try {
-      const rows = await db
-        .select({ date: resySpecialDates.date, name: resySpecialDates.name })
-        .from(resySpecialDates)
-        .where(and(inArray(resySpecialDates.date, uniqueDates), isNotNull(resySpecialDates.name)));
+    const chunkSize = 400;
+    for (let offset = 0; offset < uniqueDates.length; offset += chunkSize) {
+      const chunk = uniqueDates.slice(offset, offset + chunkSize);
+      try {
+        const rows = await db
+          .select({ date: resySpecialDates.date, name: resySpecialDates.name })
+          .from(resySpecialDates)
+          .where(and(inArray(resySpecialDates.date, chunk), isNotNull(resySpecialDates.name)));
 
-      for (const row of rows) {
-        const n = row.name?.trim();
-        if (!n) continue;
-        const list = specialByDate.get(row.date) ?? [];
-        list.push(n);
-        specialByDate.set(row.date, list);
+        for (const row of rows) {
+          const n = row.name?.trim();
+          if (!n) continue;
+          const list = specialByDate.get(row.date) ?? [];
+          list.push(n);
+          specialByDate.set(row.date, list);
+        }
+      } catch (err) {
+        console.warn(
+          "[special-calendar] batched resy_special_dates lookup skipped:",
+          (err as Error)?.message ?? err,
+        );
       }
-    } catch (err) {
-      console.warn(
-        "[special-calendar] batched resy_special_dates lookup skipped:",
-        (err as Error)?.message ?? err,
-      );
     }
   }
 

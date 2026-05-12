@@ -11596,16 +11596,19 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         );
       }
 
-      const reportsWithCounts = await Promise.all(reports.map(async (report) => {
-        const incidents = await storage.getDailyReportIncidents(report.id);
+      const incidentCounts = await storage.getDailyReportIncidentCountsByReportIds(
+        reports.map((r) => r.id),
+      );
+
+      const reportsWithCounts = reports.map((report) => {
         const ymd = calendarYmdEastern(report.reportDate);
         return {
           ...transformReportForFrontend(report),
           templateId: templateByDepartment.get(report.department) || null,
-          incidentsCount: incidents.length,
-          calendarNotations: notationMap.get(ymd) ?? []
+          incidentsCount: incidentCounts.get(report.id) ?? 0,
+          calendarNotations: notationMap.get(ymd) ?? [],
         };
-      }));
+      });
       
       res.json(reportsWithCounts);
     } catch (error) {

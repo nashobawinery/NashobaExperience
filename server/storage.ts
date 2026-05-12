@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, ilike, like, or, sql, inArray, isNull, gt, gte, lt, type SQL } from "drizzle-orm";
+import { eq, and, desc, ilike, like, or, sql, inArray, isNull, gt, gte, lt, count, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 import {
   products,
@@ -4298,6 +4298,28 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(dailyReportIncidents)
       .where(eq(dailyReportIncidents.reportId, reportId))
       .orderBy(desc(dailyReportIncidents.severity), dailyReportIncidents.createdAt);
+  }
+
+  /** Batched incident counts for list endpoints (avoids N+1 queries). */
+  async getDailyReportIncidentCountsByReportIds(reportIds: string[]): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    if (reportIds.length === 0) return map;
+    const chunkSize = 500;
+    for (let i = 0; i < reportIds.length; i += chunkSize) {
+      const chunk = reportIds.slice(i, i + chunkSize);
+      const rows = await db
+        .select({
+          reportId: dailyReportIncidents.reportId,
+          cnt: count(),
+        })
+        .from(dailyReportIncidents)
+        .where(inArray(dailyReportIncidents.reportId, chunk))
+        .groupBy(dailyReportIncidents.reportId);
+      for (const row of rows) {
+        map.set(row.reportId, Number(row.cnt));
+      }
+    }
+    return map;
   }
 
   async getUnresolvedIncidents(limit = 50): Promise<(DailyReportIncident & { department?: string })[]> {

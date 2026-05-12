@@ -80,8 +80,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format, formatDistanceToNow, isToday, isSameDay, startOfDay, endOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
-import { WordOrHolidayDateFilter, type SearchModeWordsOrDate } from "@/components/WordOrHolidayDateFilter";
-import { calendarYmdEastern } from "@/lib/calendar-eastern";
 
 interface NotificationEmail {
   email: string;
@@ -929,13 +927,11 @@ export default function DailyReportsAdminDashboard() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("reports");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [reportsSearchMode, setReportsSearchMode] = useState<SearchModeWordsOrDate>("words");
-  const [pickedReportYmd, setPickedReportYmd] = useState("");
   
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
-  const [selectedStaff, setSelectedStaff] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>('reportDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
@@ -2109,14 +2105,12 @@ export default function DailyReportsAdminDashboard() {
 
   const selectedTemplate = templates.find(t => t.department === reportFormData.department);
 
-  const uniqueStaffMembers = Array.from(new Set(reports.map(r => r.submittedByName).filter((name): name is string => Boolean(name))));
-
   const filteredAndSortedReports = (() => {
     let result = reports.filter(report => {
       if (selectedDepartment !== "all" && report.department !== selectedDepartment) {
         return false;
       }
-      if (selectedStaff !== "all" && report.submittedByName !== selectedStaff) {
+      if (selectedStatus !== "all" && report.status !== selectedStatus) {
         return false;
       }
       if (dateFrom) {
@@ -2131,21 +2125,22 @@ export default function DailyReportsAdminDashboard() {
         toDate.setHours(23, 59, 59, 999);
         if (reportDate > toDate) return false;
       }
-      if (reportsSearchMode === "date" && pickedReportYmd) {
-        if (calendarYmdEastern(report.reportDate) !== pickedReportYmd) return false;
-      }
-      if (reportsSearchMode === "words" && searchQuery) {
-        const query = searchQuery.toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
+      if (q) {
         const template = templates.find(t => t.id === report.templateId);
-        const notationHit = (report.calendarNotations ?? []).some((n) => n.toLowerCase().includes(query));
+        const notationHit = (report.calendarNotations ?? []).some((n) => n.toLowerCase().includes(q));
+        const statusLabel = (statusLabels[report.status] ?? report.status).toLowerCase();
         return (
           notationHit ||
-          !!template?.departmentLabel?.toLowerCase().includes(query) ||
-          !!(report.performanceSummary && report.performanceSummary.toLowerCase().includes(query)) ||
-          !!(report.customerServiceSummary && report.customerServiceSummary.toLowerCase().includes(query)) ||
-          !!(report.operationalNotes && report.operationalNotes.toLowerCase().includes(query)) ||
-          !!(report.submittedByName && report.submittedByName.toLowerCase().includes(query)) ||
-          !!(report.staffingNotes && report.staffingNotes.toLowerCase().includes(query))
+          !!template?.departmentLabel?.toLowerCase().includes(q) ||
+          !!report.department.toLowerCase().includes(q) ||
+          !!(report.performanceSummary && report.performanceSummary.toLowerCase().includes(q)) ||
+          !!(report.customerServiceSummary && report.customerServiceSummary.toLowerCase().includes(q)) ||
+          !!(report.operationalNotes && report.operationalNotes.toLowerCase().includes(q)) ||
+          !!(report.submittedByName && report.submittedByName.toLowerCase().includes(q)) ||
+          !!(report.staffingNotes && report.staffingNotes.toLowerCase().includes(q)) ||
+          report.status.toLowerCase().includes(q) ||
+          statusLabel.includes(q)
         );
       }
       return true;
@@ -2202,23 +2197,20 @@ export default function DailyReportsAdminDashboard() {
 
   const clearFilters = () => {
     setSelectedDepartment("all");
-    setSelectedStaff("all");
+    setSelectedStatus("all");
     setDateFrom("");
     setDateTo("");
     setSearchQuery("");
-    setReportsSearchMode("words");
-    setPickedReportYmd("");
     setSortField('reportDate');
     setSortDirection('desc');
   };
 
   const hasActiveFilters =
     selectedDepartment !== "all" ||
-    selectedStaff !== "all" ||
+    selectedStatus !== "all" ||
     dateFrom ||
     dateTo ||
-    searchQuery ||
-    pickedReportYmd;
+    searchQuery.trim().length > 0;
 
   const exportToExcel = () => {
     if (filteredReports.length === 0) {
@@ -2538,26 +2530,26 @@ export default function DailyReportsAdminDashboard() {
                 </div>
                 
                 <div className="space-y-4">
-                  <WordOrHolidayDateFilter
-                    idPrefix="reports"
-                    mode={reportsSearchMode}
-                    onModeChange={(m) => {
-                      setReportsSearchMode(m);
-                      if (m === "words") setPickedReportYmd("");
-                      if (m === "date") setSearchQuery("");
-                    }}
-                    wordsValue={searchQuery}
-                    onWordsChange={setSearchQuery}
-                    wordsPlaceholder="Search department, notes, submitter, or holiday label…"
-                    pickedYmd={pickedReportYmd}
-                    onPickYmd={setPickedReportYmd}
-                  />
-                  {reportsSearchMode === "date" && !pickedReportYmd && (
+                  <div className="space-y-1">
+                    <Label htmlFor="reports-search" className="text-xs text-muted-foreground">
+                      Search (optional)
+                    </Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="reports-search"
+                        className="pl-9"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Department, notes, submitter, holiday label, status…"
+                        data-testid="input-reports-search"
+                      />
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Pick one Eastern calendar day (calendar or holiday search) only if you want a single-date filter.
-                      Until then, department, staff, and From/To still apply.
+                      Leave empty to show all reports that match the department, status, and date range below.
                     </p>
-                  )}
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Department</Label>
@@ -2575,18 +2567,18 @@ export default function DailyReportsAdminDashboard() {
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Staff Member</Label>
-                    <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                      <SelectTrigger data-testid="select-filter-staff">
-                        <SelectValue placeholder="All Staff" />
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                      <SelectTrigger data-testid="select-filter-status">
+                        <SelectValue placeholder="All statuses" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Staff</SelectItem>
-                        {uniqueStaffMembers.map(name => (
-                          <SelectItem key={name} value={name}>
-                            {name}
+                        <SelectItem value="all">All statuses</SelectItem>
+                        {(Object.entries(statusLabels) as [string, string][]).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
                           </SelectItem>
                         ))}
                       </SelectContent>
