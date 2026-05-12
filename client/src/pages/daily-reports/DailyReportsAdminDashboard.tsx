@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   ArrowLeft, 
   Plus, 
@@ -928,7 +929,6 @@ export default function DailyReportsAdminDashboard() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
-  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [searchQuery, setSearchQuery] = useState("");
   const [reportsSearchMode, setReportsSearchMode] = useState<SearchModeWordsOrDate>("words");
   const [pickedReportYmd, setPickedReportYmd] = useState("");
@@ -1053,12 +1053,22 @@ export default function DailyReportsAdminDashboard() {
     return [...templates].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [templates]);
 
-  const { data: reports = [], isLoading: reportsLoading } = useQuery<DailyReport[]>({
-    queryKey: ['/api/daily-reports', { department: selectedDepartment, date: selectedDate }]
+  const {
+    data: reports = [],
+    isLoading: reportsLoading,
+    isError: reportsQueryFailed,
+    error: reportsFetchError,
+    refetch: refetchReports,
+  } = useQuery<DailyReport[]>({
+    queryKey: ["/api/daily-reports", { department: selectedDepartment }],
+    staleTime: 60_000,
+    retry: 1,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<DailyReportStats>({
-    queryKey: ['/api/daily-reports/stats', { date: selectedDate }]
+    queryKey: ["/api/daily-reports/stats"],
+    staleTime: 60_000,
+    retry: 1,
   });
 
   const { data: selectedReportIncidents = [] } = useQuery<DailyReportIncident[]>({
@@ -2532,6 +2542,12 @@ export default function DailyReportsAdminDashboard() {
                     pickedYmd={pickedReportYmd}
                     onPickYmd={setPickedReportYmd}
                   />
+                  {reportsSearchMode === "date" && !pickedReportYmd && (
+                    <p className="text-xs text-muted-foreground">
+                      Pick one Eastern calendar day (calendar or holiday search) only if you want a single-date filter.
+                      Until then, department, staff, and From/To still apply.
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Department</Label>
@@ -2588,6 +2604,29 @@ export default function DailyReportsAdminDashboard() {
                   </div>
                 </div>
                 </div>
+
+                {reportsQueryFailed && (
+                  <Alert variant="destructive" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <AlertTitle>Could not load reports</AlertTitle>
+                      <AlertDescription>
+                        {reportsFetchError instanceof Error
+                          ? reportsFetchError.message
+                          : "Request failed. Check the browser Network tab for GET /api/daily-reports."}
+                      </AlertDescription>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 border-destructive/50"
+                      onClick={() => refetchReports()}
+                      data-testid="button-retry-reports"
+                    >
+                      Retry
+                    </Button>
+                  </Alert>
+                )}
 
                 <div className="text-sm text-muted-foreground">
                   Showing {filteredReports.length} of {reports.length} reports
