@@ -7,12 +7,6 @@ if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 }
 
-function hasValidPermit(truck: { permitExpiry?: string | null }): boolean {
-  if (!truck.permitExpiry) return false;
-  const today = new Date().toISOString().split("T")[0];
-  return truck.permitExpiry >= today;
-}
-
 function daysUntil(dateStr: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -208,11 +202,10 @@ export async function runFoodTruckPermitReminders(): Promise<void> {
 
   try {
     const today = new Date().toISOString().split("T")[0];
-    const thirtyDaysOut = new Date();
-    thirtyDaysOut.setDate(thirtyDaysOut.getDate() + 30);
-    const thirtyDaysOutStr = thirtyDaysOut.toISOString().split("T")[0];
 
-    // Find all active future events where the truck has no valid permit
+    // Find active future events where the truck still lacks a compliant permit on file.
+    // A permit PDF upload (permit_image_url) satisfies the requirement when no expiry is recorded yet;
+    // if an expiry date is present and in the past, keep reminding until staff renews (image + future expiry).
     const upcomingEvents = await db.execute(sql`
       SELECT
         e.id AS event_id,
@@ -227,7 +220,13 @@ export async function runFoodTruckPermitReminders(): Promise<void> {
       JOIN media_food_trucks t ON e.food_truck_id = t.id
       WHERE e.is_active = true
         AND e.event_date >= ${today}
-        AND (t.permit_expiry IS NULL OR t.permit_expiry < ${today})
+        AND NOT (
+          (t.permit_expiry IS NOT NULL AND t.permit_expiry >= ${today})
+          OR (
+            TRIM(COALESCE(t.permit_image_url, '')) <> ''
+            AND (t.permit_expiry IS NULL OR t.permit_expiry >= ${today})
+          )
+        )
       ORDER BY e.event_date ASC
     `);
 
