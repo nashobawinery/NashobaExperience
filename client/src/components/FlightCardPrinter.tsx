@@ -79,6 +79,7 @@ const PAPER_SIZES = [
   { value: "2p5x3p5", label: "2.5×3.5\" index / mini (business-card size)" },
   { value: "a6",   label: "A6 — 4.13×5.83\" (standard flight card)" },
   { value: "3x5",  label: "3×5\" index card stock" },
+  { value: "avery5388", label: "Avery 5388 — 3×5\", 3 per Letter sheet (identical prints)" },
   { value: "4x6",  label: "4×6\" Postcard" },
   { value: "a5",   label: "A5 — 5.83×8.27\" (6+ selections)" },
   { value: "5x7",  label: "5×7\" Photo Card" },
@@ -96,6 +97,8 @@ const FLIGHT_PAGE_IN: Record<string, { w: number; h: number }> = {
   "2p5x3p5-land": { w: 2.5, h: 3.5 },
   a6: { w: 4.13, h: 5.83 },
   "3x5": { w: 3, h: 5 },
+  /** Letter landscape triple layout — preview aspect only */
+  avery5388: { w: 11, h: 8.5 },
   "4x6": { w: 4, h: 6 },
   a5: { w: 5.83, h: 8.27 },
   "5x7": { w: 5, h: 7 },
@@ -117,6 +120,10 @@ function normalizeFlightDescEdits(raw: Record<string, string>): Record<string, s
 }
 
 function getPreviewPageInches(paper: string, orient: "portrait" | "landscape") {
+  if (paper === "avery5388") {
+    const b = FLIGHT_PAGE_IN.avery5388;
+    return { w: b.w, h: b.h };
+  }
   const k = paper === "2p5x3p5-land" ? "2p5x3p5" : paper;
   const b = FLIGHT_PAGE_IN[k] || FLIGHT_PAGE_IN.a6;
   let w = b.w, h = b.h;
@@ -534,11 +541,14 @@ export default function FlightCardPrinter() {
   };
 
   const buildPrintBody = useCallback((tmpl: string) => {
+    /** Avery 5388 always prints Landscape Letter with 3 duplicated cards across the sheet. */
+    const orientForPrint =
+      paperSize === "avery5388" ? ("landscape" as const) : printOrientation;
     const body: Record<string, unknown> = {
       ids: selectedIds.join(",") || "none",
       template: tmpl,
       size: paperSize,
-      orientation: printOrientation,
+      orientation: orientForPrint,
       scale: String(fontScale),
     };
     if (header) body.header = header;
@@ -629,7 +639,12 @@ export default function FlightCardPrinter() {
       fontScale,
       showOnStaffBoard,
       itemOverrides: buildItemOverridesForSave(),
-      printOrientation: printOrientation === "landscape" ? "landscape" : "portrait",
+      printOrientation:
+        paperSize === "avery5388"
+          ? "landscape"
+          : printOrientation === "landscape"
+            ? "landscape"
+            : "portrait",
     });
   };
 
@@ -639,6 +654,8 @@ export default function FlightCardPrinter() {
     let nextOrient: "portrait" | "landscape" = "portrait";
     if (nextPaper === "2p5x3p5-land") {
       nextPaper = "2p5x3p5";
+      nextOrient = "landscape";
+    } else if (nextPaper === "avery5388") {
       nextOrient = "landscape";
     } else {
       nextOrient = cfg.printOrientation === "landscape" ? "landscape" : "portrait";
@@ -761,7 +778,7 @@ export default function FlightCardPrinter() {
               <Printer className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
               <div>
                 <span className="font-medium block">Choose Size &amp; Template</span>
-                <span className="text-muted-foreground">Use &quot;Print orientation&quot; for wide (landscape) vs tall (portrait). 2.5×3.5&quot; and 3×5&quot; are compact. A6 fits 3–4 wines. Add a header and optional footer.</span>
+                <span className="text-muted-foreground">Use &quot;Print orientation&quot; for wide (landscape) vs tall (portrait). 2.5×3.5&quot; and 3×5&quot; index stock are compact. Avery 5388 is a separate option: three identical 3×5&quot; cards per Letter landscape sheet.</span>
               </div>
             </div>
             <div className="flex gap-2">
@@ -995,12 +1012,18 @@ export default function FlightCardPrinter() {
                   ))}
                 </SelectContent>
               </Select>
+              {paperSize === "avery5388" && (
+                <p className="text-xs text-muted-foreground">
+                  Prints the same tasting flight card three times in a row (3&quot; × 5&quot; each). Use portrait US Letter landscape; margins are approximate — adjust scale or printer margins if perforations drift.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-medium">Print orientation</Label>
               <Select
                 value={printOrientation}
                 onValueChange={v => setPrintOrientation(v as "portrait" | "landscape")}
+                disabled={paperSize === "avery5388"}
               >
                 <SelectTrigger data-testid="select-flight-orientation">
                   <SelectValue />
@@ -1011,7 +1034,11 @@ export default function FlightCardPrinter() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Landscape = wide, portrait = tall on the page.</p>
+              <p className="text-xs text-muted-foreground">
+                {paperSize === "avery5388"
+                  ? "Fixed to Landscape Letter for Avery 5388 (three-card sheet)."
+                  : "Landscape = wide, portrait = tall on the page."}
+              </p>
             </div>
             <div className="space-y-2 sm:col-span-2 lg:col-span-1">
               <Label className="text-sm font-medium">Font Scale: {fontScale}%</Label>
@@ -1145,7 +1172,15 @@ export default function FlightCardPrinter() {
           <CardContent className="p-0 overflow-hidden rounded-md">
             <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b flex items-center justify-between gap-2 flex-wrap">
               <span>
-                Preview (matches print) — {selectedIds.length} product{selectedIds.length !== 1 ? "s" : ""} · {PAPER_SIZES.find(s => s.value === paperSize)?.label.split(" — ")[0] || paperSize} · {printOrientation} · {previewPageIn.w}×{previewPageIn.h}&quot;
+                Preview (matches print) — {selectedIds.length} product{selectedIds.length !== 1 ? "s" : ""} ·{" "}
+                {paperSize === "avery5388"
+                  ? <>Avery 5388 · Landscape Letter · 3× identical 3×5&quot;</>
+                  : (
+                    <>
+                      {PAPER_SIZES.find(s => s.value === paperSize)?.label.split(" — ")[0] || paperSize} · {printOrientation} ·{" "}
+                      {previewPageIn.w}×{previewPageIn.h}&quot;
+                    </>
+                  )}
               </span>
               <Button
                 size="sm"

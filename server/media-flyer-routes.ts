@@ -764,6 +764,9 @@ async function buildFlightCardPrintHtml(p: Record<string, unknown>): Promise<str
     paperKey = "2p5x3p5";
     orientation = "landscape";
   }
+  if (paperKey === "avery5388") {
+    orientation = "landscape";
+  }
 
   const fontScale = parseInt(String(scale), 10) || 100;
   const show = {
@@ -867,14 +870,29 @@ const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label:
 
 function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string {
   const { template, fontScale, paperSize, header, footer, show, typo, itemOverrides = {} } = opts;
-  const sz = FLIGHT_PAPER_SIZES[paperSize] || FLIGHT_PAPER_SIZES["a6"];
+  const isAvery5388 = paperSize === "avery5388";
+
+  /** Avery 5388 = three micro-perfed 3\"×5\" cards per US Letter sheet (same artwork repeated). Use 3×5 compact layout. */
+  const sz = isAvery5388
+    ? FLIGHT_PAPER_SIZES["3x5"]
+    : (FLIGHT_PAPER_SIZES[paperSize] || FLIGHT_PAPER_SIZES["a6"]);
+
   const orientation = opts.orientation === "landscape" ? "landscape" : "portrait";
-  let pageW = sz.width;
-  let pageH = sz.height;
-  if (orientation === "landscape") {
-    [pageW, pageH] = [pageH, pageW];
+
+  let cardW: string;
+  let cardH: string;
+  if (!isAvery5388) {
+    cardW = sz.width;
+    cardH = sz.height;
+    if (orientation === "landscape") {
+      [cardW, cardH] = [cardH, cardW];
+    }
+  } else {
+    cardW = "3in";
+    cardH = "5in";
   }
-  const compact = sz.compact === true;
+
+  const compact = sz.compact === true || isAvery5388;
   const cardPad = compact ? "7px 8px" : "18px 16px";
   const rowPadV = compact ? 4 : 7;
   const numPx = compact ? 16 : 20;
@@ -998,6 +1016,56 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
       </div>`;
   }).join("\n");
 
+  const cardChrome =
+    `overflow:auto;box-sizing:border-box;-webkit-overflow-scrolling:touch;background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;min-height:0;box-shadow:0 2px 8px rgba(0,0,0,0.10)`;
+
+  const oneCardHtml = `
+    <div class="fc-flight-card card" style="width:${cardW};height:${cardH};max-width:${cardW};max-height:${cardH};${cardChrome}">
+    ${headerHtml}
+    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
+      ${itemRows}
+    </div>
+    ${footerHtml}
+  </div>`;
+
+  const bodyInner = isAvery5388
+    ? `<div class="avery5388-row">${oneCardHtml}${oneCardHtml}${oneCardHtml}</div>`
+    : oneCardHtml;
+
+  const attrBodyClass = isAvery5388 ? ' class="sheet-avery5388"' : "";
+
+  const bodyCss = isAvery5388
+    ? `background: ${t.pageBg};-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;flex-direction:row;align-items:center;justify-content:center;flex-wrap:wrap;gap:0.14in;min-height:100vh;min-height:100dvh;padding:0.2in;`
+    : `background: ${t.pageBg};-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;`;
+
+  const printCss = isAvery5388
+    ? `@media print {
+      @page { margin: 0.2in 0.26in; size: letter landscape; }
+      html, body { width: auto !important; height: auto !important; margin: 0 !important; min-height: 0 !important; }
+      body.sheet-avery5388 {
+        gap: 0.1in !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        flex-wrap: nowrap !important;
+        padding: 0 !important;
+      }
+      body.sheet-avery5388 .avery5388-row {
+        gap: 0.1in !important;
+        flex-wrap: nowrap !important;
+      }
+      .fc-flight-card.card { box-shadow: none !important; }
+      .fc-flight-card { overflow: hidden !important; }
+    }`
+    : `@media print {
+      @page { margin: 0; size: ${cardW} ${cardH}; }
+      body { margin: 0; min-height: unset; }
+      .fc-flight-card.card { box-shadow: none !important; }
+      .fc-flight-card { overflow: hidden !important; }
+    }`;
+
+  const averySheetCss =
+    `.avery5388-row{display:flex;flex-direction:row;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:0.14in;}`;
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -1009,31 +1077,13 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { font-size: ${fontScale}%; }
-    body {
-      background: ${t.pageBg};
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      min-height: 100dvh;
-    }
-    @media print {
-      @page { margin: 0; size: ${pageW} ${pageH}; }
-      body { margin: 0; min-height: unset; }
-      .card { box-shadow: none !important; overflow: hidden !important; }
-    }
+    body { ${bodyCss} }
+    ${averySheetCss}
+    ${printCss}
   </style>
 </head>
-<body>
-    <div class="card" style="width:${pageW};height:${pageH};max-width:${pageW};max-height:${pageH};overflow:auto;box-sizing:border-box;-webkit-overflow-scrolling:touch;background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;min-height:0;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
-    ${headerHtml}
-    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
-      ${itemRows}
-    </div>
-    ${footerHtml}
-  </div>
+<body${attrBodyClass}>
+${bodyInner}
 </body>
 </html>`;
 }
