@@ -854,6 +854,7 @@ interface FlightCardOptions {
 
 const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label: string; compact?: boolean }> = {
   "a6":   { width: "4.13in", height: "5.83in",  label: "A6 (4.13×5.83\")" },
+  "3x5":  { width: "3in",    height: "5in",      label: "3×5\" index card", compact: true },
   "4x6":  { width: "4in",    height: "6in",      label: "4×6\" Postcard" },
   "a5":   { width: "5.83in", height: "8.27in",   label: "A5 (5.83×8.27\")" },
   "5x7":  { width: "5in",    height: "7in",      label: "5×7\" Photo Card" },

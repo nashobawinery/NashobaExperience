@@ -78,6 +78,7 @@ const CATEGORIES = [
 const PAPER_SIZES = [
   { value: "2p5x3p5", label: "2.5×3.5\" index / mini (business-card size)" },
   { value: "a6",   label: "A6 — 4.13×5.83\" (standard flight card)" },
+  { value: "3x5",  label: "3×5\" index card stock" },
   { value: "4x6",  label: "4×6\" Postcard" },
   { value: "a5",   label: "A5 — 5.83×8.27\" (6+ selections)" },
   { value: "5x7",  label: "5×7\" Photo Card" },
@@ -94,11 +95,26 @@ const FLIGHT_PAGE_IN: Record<string, { w: number; h: number }> = {
   "2p5x3p5": { w: 2.5, h: 3.5 },
   "2p5x3p5-land": { w: 2.5, h: 3.5 },
   a6: { w: 4.13, h: 5.83 },
+  "3x5": { w: 3, h: 5 },
   "4x6": { w: 4, h: 6 },
   a5: { w: 5.83, h: 8.27 },
   "5x7": { w: 5, h: 7 },
   half: { w: 5.5, h: 8.5 },
 };
+
+/** Stable key for per-product overrides (matches saved item_overrides even if id types differ). */
+function flightProductKey(id: string | number): string {
+  return String(id).trim();
+}
+
+function normalizeFlightDescEdits(raw: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const key = flightProductKey(k);
+    if (key) out[key] = v;
+  }
+  return out;
+}
 
 function getPreviewPageInches(paper: string, orient: "portrait" | "landscape") {
   const k = paper === "2p5x3p5-land" ? "2p5x3p5" : paper;
@@ -468,11 +484,14 @@ export default function FlightCardPrinter() {
   }, [products, categoryFilters, searchQuery]);
 
   const selectedProducts = useMemo(
-    () => selectedIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[],
-    [selectedIds, products]
+    () =>
+      selectedIds
+        .map((id) => products.find((p) => flightProductKey(p.id) === flightProductKey(id)))
+        .filter(Boolean) as Product[],
+    [selectedIds, products],
   );
 
-  const unselectedFiltered = filteredProducts.filter(p => !selectedIds.includes(p.id));
+  const unselectedFiltered = filteredProducts.filter((p) => !selectedIds.includes(flightProductKey(p.id)));
 
   const toggleCategory = (cat: string) => {
     setCategoryFilters(prev =>
@@ -481,17 +500,18 @@ export default function FlightCardPrinter() {
   };
 
   const toggleProduct = (id: string) => {
-    setSelectedIds(prev => {
-      if (prev.includes(id)) {
-        setDescEdits(d => {
-          if (!(id in d)) return d;
+    const idStr = flightProductKey(id);
+    setSelectedIds((prev) => {
+      if (prev.includes(idStr)) {
+        setDescEdits((d) => {
+          if (!(idStr in d)) return d;
           const n = { ...d };
-          delete n[id];
+          delete n[idStr];
           return n;
         });
-        return prev.filter(i => i !== id);
+        return prev.filter((i) => i !== idStr);
       }
-      return [...prev, id];
+      return [...prev, idStr];
     });
   };
 
@@ -537,8 +557,9 @@ export default function FlightCardPrinter() {
     });
     const o: Record<string, { description: string }> = {};
     for (const id of selectedIds) {
-      if (Object.prototype.hasOwnProperty.call(descEdits, id)) {
-        o[id] = { description: descEdits[id] ?? "" };
+      const k = flightProductKey(id);
+      if (Object.prototype.hasOwnProperty.call(descEdits, k)) {
+        o[k] = { description: descEdits[k] ?? "" };
       }
     }
     if (Object.keys(o).length > 0) body.itemOverrides = o;
@@ -581,8 +602,12 @@ export default function FlightCardPrinter() {
   const buildItemOverridesForSave = useCallback(() => {
     const o: Record<string, { description: string }> = {};
     for (const id of selectedIds) {
-      const p = products.find(x => x.id === id);
-      o[id] = { description: (Object.prototype.hasOwnProperty.call(descEdits, id) ? descEdits[id] : p?.description) ?? "" };
+      const k = flightProductKey(id);
+      const p = products.find((x) => flightProductKey(x.id) === k);
+      o[k] = {
+        description:
+          (Object.prototype.hasOwnProperty.call(descEdits, k) ? descEdits[k] : p?.description) ?? "",
+      };
     }
     return o;
   }, [selectedIds, products, descEdits]);
@@ -629,16 +654,20 @@ export default function FlightCardPrinter() {
     setShowVarietal(cfg.showVarietal !== false);
     setShowAlcohol(cfg.showAlcohol === true);
     setShowTastingLines(cfg.showTastingLines === true);
-    const ids = (cfg.productIds || "").split(",").filter(Boolean);
+    const ids = (cfg.productIds || "").split(",").map((s) => s.trim()).filter(Boolean).map(flightProductKey);
     setSelectedIds(ids);
     const next: Record<string, string> = {};
     try {
       const raw = JSON.parse(cfg.itemOverrides || "{}") as Record<string, { description?: string } | undefined>;
       for (const [k, v] of Object.entries(raw)) {
-        if (v && typeof v.description === "string") next[k] = v.description;
+        if (!v || typeof v.description !== "string") continue;
+        const kk = flightProductKey(k);
+        if (kk) next[kk] = v.description;
       }
-    } catch { /* use catalog */ }
-    setDescEdits(next);
+    } catch {
+      /* use catalog */
+    }
+    setDescEdits(normalizeFlightDescEdits(next));
     toast({ title: `Loaded "${cfg.name}"` });
   };
 
@@ -732,7 +761,7 @@ export default function FlightCardPrinter() {
               <Printer className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
               <div>
                 <span className="font-medium block">Choose Size &amp; Template</span>
-                <span className="text-muted-foreground">Use &quot;Print orientation&quot; for wide (landscape) vs tall (portrait). 2.5×3.5&quot; is compact. A6 fits 3–4 wines. Add a header and optional footer.</span>
+                <span className="text-muted-foreground">Use &quot;Print orientation&quot; for wide (landscape) vs tall (portrait). 2.5×3.5&quot; and 3×5&quot; are compact. A6 fits 3–4 wines. Add a header and optional footer.</span>
               </div>
             </div>
             <div className="flex gap-2">
@@ -844,8 +873,14 @@ export default function FlightCardPrinter() {
                 </div>
               )}
               <div className="border rounded-md divide-y" data-testid="flight-selected-list">
-                {selectedProducts.map((p, i) => (
-                  <div key={p.id} className="px-3 py-2 space-y-2" data-testid={`flight-selected-${p.id}`}>
+                {selectedProducts.map((p, i) => {
+                  const pk = flightProductKey(p.id);
+                  const catalogDesc = p.description == null ? "" : String(p.description);
+                  const descValue = Object.prototype.hasOwnProperty.call(descEdits, pk)
+                    ? (descEdits[pk] ?? "")
+                    : catalogDesc;
+                  return (
+                  <div key={pk} className="px-3 py-2 space-y-2" data-testid={`flight-selected-${pk}`}>
                     <div className="flex items-center gap-2">
                       <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0">
                         {i + 1}
@@ -865,7 +900,7 @@ export default function FlightCardPrinter() {
                           onClick={() => moveUp(i)}
                           disabled={i === 0}
                           className="p-0.5 rounded hover-elevate disabled:opacity-30"
-                          data-testid={`button-flight-up-${p.id}`}
+                          data-testid={`button-flight-up-${pk}`}
                         >
                           <ChevronUp className="w-3.5 h-3.5" />
                         </button>
@@ -874,7 +909,7 @@ export default function FlightCardPrinter() {
                           onClick={() => moveDown(i)}
                           disabled={i === selectedProducts.length - 1}
                           className="p-0.5 rounded hover-elevate disabled:opacity-30"
-                          data-testid={`button-flight-down-${p.id}`}
+                          data-testid={`button-flight-down-${pk}`}
                         >
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
@@ -883,22 +918,25 @@ export default function FlightCardPrinter() {
                         size="icon"
                         variant="ghost"
                         onClick={() => toggleProduct(p.id)}
-                        data-testid={`button-flight-remove-${p.id}`}
+                        data-testid={`button-flight-remove-${pk}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                     {showDescription && (
                       <Textarea
-                        value={Object.prototype.hasOwnProperty.call(descEdits, p.id) ? (descEdits[p.id] ?? "") : p.description}
-                        onChange={e => setDescEdits(prev => ({ ...prev, [p.id]: e.target.value }))}
+                        value={descValue}
+                        onChange={(e) =>
+                          setDescEdits((prev) => ({ ...prev, [pk]: e.target.value }))
+                        }
                         placeholder="Card blurb. Use <br> for line breaks; b, i, u tags allowed (like Menu custom header & footer)."
                         className="text-xs min-h-[52px] resize-y font-sans"
-                        data-testid={`input-flight-desc-${p.id}`}
+                        data-testid={`input-flight-desc-${pk}`}
                       />
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
