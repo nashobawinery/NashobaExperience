@@ -764,9 +764,6 @@ async function buildFlightCardPrintHtml(p: Record<string, unknown>): Promise<str
     paperKey = "2p5x3p5";
     orientation = "landscape";
   }
-  if (paperKey === "avery5388") {
-    orientation = "landscape";
-  }
 
   const fontScale = parseInt(String(scale), 10) || 100;
   const show = {
@@ -878,6 +875,8 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
     : (FLIGHT_PAPER_SIZES[paperSize] || FLIGHT_PAPER_SIZES["a6"]);
 
   const orientation = opts.orientation === "landscape" ? "landscape" : "portrait";
+  /** Avery 5388 Portrait/Landscape selects **US Letter** sheet orientation — each panel is swapped so three copies still fit Letter. */
+  const averySheetLandscapeLetter = orientation === "landscape";
 
   let cardW: string;
   let cardH: string;
@@ -888,8 +887,13 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
       [cardW, cardH] = [cardH, cardW];
     }
   } else {
-    cardW = "3in";
-    cardH = "5in";
+    if (averySheetLandscapeLetter) {
+      cardW = "3in";
+      cardH = "5in";
+    } else {
+      cardW = "5in";
+      cardH = "3in";
+    }
   }
 
   const compact = sz.compact === true || isAvery5388;
@@ -1034,18 +1038,23 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
 
   const attrBodyClass = isAvery5388 ? ' class="sheet-avery5388"' : "";
 
+  const averyFlexDir = averySheetLandscapeLetter ? "row" : "column";
   const bodyCss = isAvery5388
-    ? `background: ${t.pageBg};-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;flex-direction:row;align-items:center;justify-content:center;flex-wrap:wrap;gap:0.14in;min-height:100vh;min-height:100dvh;padding:0.2in;`
+    ? `background: ${t.pageBg};-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;flex-direction:${averyFlexDir};align-items:center;justify-content:center;flex-wrap:nowrap;gap:0.14in;min-height:100vh;min-height:100dvh;padding:0.2in;`
     : `background: ${t.pageBg};-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;`;
+
+  const averyPrintPageRule = averySheetLandscapeLetter
+    ? "@page { margin: 0.2in 0.26in; size: letter landscape; }"
+    : "@page { margin: 0.24in 0.22in; size: letter portrait; }";
 
   const printCss = isAvery5388
     ? `@media print {
-      @page { margin: 0.2in 0.26in; size: letter landscape; }
+      ${averyPrintPageRule}
       html, body { width: auto !important; height: auto !important; margin: 0 !important; min-height: 0 !important; }
       body.sheet-avery5388 {
         gap: 0.1in !important;
         justify-content: center !important;
-        align-items: flex-start !important;
+        align-items: center !important;
         flex-wrap: nowrap !important;
         padding: 0 !important;
       }
@@ -1063,8 +1072,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
       .fc-flight-card { overflow: hidden !important; }
     }`;
 
-  const averySheetCss =
-    `.avery5388-row{display:flex;flex-direction:row;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:0.14in;}`;
+  const averySheetCss = `.avery5388-row{display:flex;flex-direction:${averyFlexDir};flex-wrap:nowrap;align-items:center;justify-content:center;gap:0.14in;}`;
 
   return `<!DOCTYPE html>
 <html>
@@ -1078,7 +1086,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { font-size: ${fontScale}%; }
     body { ${bodyCss} }
-    ${averySheetCss}
+    ${isAvery5388 ? averySheetCss : ""}
     ${printCss}
   </style>
 </head>
