@@ -77,6 +77,7 @@ const CATEGORIES = [
 
 const PAPER_SIZES = [
   { value: "2p5x3p5", label: "2.5×3.5\" index / mini (business-card size)" },
+  { value: "3p5x5",  label: "3.5×5\" index card stock" },
   { value: "a6",   label: "A6 — 4.13×5.83\" (standard flight card)" },
   { value: "3x5",  label: "3×5\" index card stock" },
   { value: "avery5388", label: "Avery 5388 — 3×5\", 3 per Letter sheet (identical prints)" },
@@ -95,6 +96,7 @@ const PRINT_ORIENTATIONS = [
 const FLIGHT_PAGE_IN: Record<string, { w: number; h: number }> = {
   "2p5x3p5": { w: 2.5, h: 3.5 },
   "2p5x3p5-land": { w: 2.5, h: 3.5 },
+  "3p5x5": { w: 3.5, h: 5 },
   a6: { w: 4.13, h: 5.83 },
   "3x5": { w: 3, h: 5 },
   "4x6": { w: 4, h: 6 },
@@ -1002,7 +1004,12 @@ export default function FlightCardPrinter() {
               </Select>
               {paperSize === "avery5388" && (
                 <p className="text-xs text-muted-foreground">
-                  Three identical flight cards per US Letter sheet — choose <strong>Landscape</strong> (three 3&quot;×5&quot; panels across) or <strong>Portrait</strong> (stacked 5&quot;×3&quot; panels). Margins are approximate; adjust font scale if perforations don&apos;t line up.
+                  Three identical flight cards per US Letter sheet — choose <strong>Landscape</strong> (three 3&quot;×5&quot; panels across) or <strong>Portrait</strong> (stacked 5&quot;×3&quot; panels). Load a full Avery 5388 sheet, not a loose card.
+                </p>
+              )}
+              {paperSize !== "avery5388" && ["2p5x3p5", "3p5x5", "3x5"].includes(paperSize) && (
+                <p className="text-xs text-muted-foreground">
+                  Single card stock: the print window will show setup tips. In your Canon dialog, set paper size to match this option (not Letter 8.5×11) and disable &quot;Fit to page&quot;.
                 </p>
               )}
             </div>

@@ -861,6 +861,7 @@ const FLIGHT_PAPER_SIZES: Record<string, { width: string; height: string; label:
   "half": { width: "5.5in",  height: "8.5in",    label: "Half Sheet (5.5×8.5\")" },
   /** Physical card 2.5\" × 3.5\" — use Print orientation to choose portrait (tall) or landscape (wide) */
   "2p5x3p5": { width: "2.5in", height: "3.5in", label: "2.5×3.5\" index / mini", compact: true },
+  "3p5x5": { width: "3.5in", height: "5in", label: "3.5×5\" index card", compact: true },
   /** @deprecated use 2p5x3p5 + landscape — kept for old saved URLs/configs */
   "2p5x3p5-land": { width: "2.5in", height: "3.5in", label: "2.5×3.5 (legacy key)", compact: true },
 };
@@ -1067,12 +1068,33 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
     }`
     : `@media print {
       @page { margin: 0; size: ${cardW} ${cardH}; }
-      body { margin: 0; min-height: unset; }
+      html, body {
+        width: ${cardW} !important;
+        height: ${cardH} !important;
+        max-width: ${cardW} !important;
+        max-height: ${cardH} !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+      }
       .fc-flight-card.card { box-shadow: none !important; }
       .fc-flight-card { overflow: hidden !important; }
+      .print-setup-hint { display: none !important; }
     }`;
 
   const averySheetCss = `.avery5388-row{display:flex;flex-direction:${averyFlexDir};flex-wrap:nowrap;align-items:center;justify-content:center;gap:0.14in;}`;
+
+  const printSetupHint = !isAvery5388
+    ? `<div class="print-setup-hint" style="position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:0 auto;padding:12px 14px;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;font-family:system-ui,sans-serif;font-size:11pt;line-height:1.45;color:#78350f;box-shadow:0 2px 8px rgba(0,0,0,0.12);z-index:9999;">
+        <strong>Before you print on a single index card:</strong><br>
+        1. In the print dialog, set <strong>Paper size</strong> to match this card (${cardW.replace("in", '"')} × ${cardH.replace("in", '"')}) — not Letter / 8.5×11.<br>
+        2. Turn off &quot;Fit to page&quot; / scaling — use <strong>100%</strong> or Actual size.<br>
+        3. Set margins to <strong>None</strong> or Minimum.<br>
+        4. Load the card in your Canon rear tray; use the manual feed if available.<br>
+        <span style="font-size:10pt;color:#92400e;">If you use Avery 5388 perforated sheets, choose that paper size in Media Center instead — it prints a full Letter page with three cards.</span>
+      </div>`
+    : "";
 
   return `<!DOCTYPE html>
 <html>
@@ -1091,6 +1113,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
   </style>
 </head>
 <body${attrBodyClass}>
+${printSetupHint}
 ${bodyInner}
 </body>
 </html>`;
