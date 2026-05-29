@@ -899,6 +899,9 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
 
   const compact = sz.compact === true || isAvery5388;
   const cardPad = compact ? "7px 8px" : "18px 16px";
+  /** Inkjets (incl. Canon GX6120) cannot print edge-to-edge. Inset single-card content so the
+   *  title (top) and price column (right) don't fall into the printer's non-printable border. */
+  const safeInset = isAvery5388 ? "0in" : "0.18in";
   const rowPadV = compact ? 4 : 7;
   const numPx = compact ? 16 : 20;
   const headerMb = compact ? 6 : 10;
@@ -998,9 +1001,9 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
 
     const tastingLines = show.tastingLines
       ? `<div style="margin-top:${compact ? 3 : 5}px;">
-           <div style="font-size:6pt;color:${t.muted};letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">My Notes</div>
-           <div style="height:1px;background:${t.divider};margin-bottom:4px;opacity:0.6;"></div>
-           <div style="height:1px;background:${t.divider};margin-bottom:4px;opacity:0.6;"></div>
+           <div style="font-size:6pt;color:${t.muted};letter-spacing:0.5px;text-transform:uppercase;margin-bottom:0.25in;">My Notes</div>
+           <div style="height:1px;background:${t.divider};margin-bottom:0.25in;opacity:0.6;"></div>
+           <div style="height:1px;background:${t.divider};margin-bottom:0.25in;opacity:0.6;"></div>
            <div style="height:1px;background:${t.divider};opacity:0.6;"></div>
          </div>`
       : "";
@@ -1021,17 +1024,21 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
       </div>`;
   }).join("\n");
 
-  const cardChrome =
-    `overflow:auto;box-sizing:border-box;-webkit-overflow-scrolling:touch;background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;min-height:0;box-shadow:0 2px 8px rgba(0,0,0,0.10)`;
-
-  const oneCardHtml = `
-    <div class="fc-flight-card card" style="width:${cardW};height:${cardH};max-width:${cardW};max-height:${cardH};${cardChrome}">
+  const cardInnerContent = `
     ${headerHtml}
-    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
+    <div style="flex:1;min-height:0;overflow:hidden;">
       ${itemRows}
     </div>
-    ${footerHtml}
-  </div>`;
+    ${footerHtml}`;
+
+  const frameChrome =
+    `box-sizing:border-box;background:${t.cardBg};border:1.5px solid ${t.border};border-radius:6px;padding:${cardPad};display:flex;flex-direction:column;min-height:0;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.10)`;
+
+  const oneCardHtml = isAvery5388
+    ? `<div class="fc-flight-card card" style="width:${cardW};height:${cardH};max-width:${cardW};max-height:${cardH};${frameChrome}">${cardInnerContent}</div>`
+    : `<div class="fc-card-page" style="width:${cardW};height:${cardH};max-width:${cardW};max-height:${cardH};box-sizing:border-box;padding:${safeInset};display:flex;background:${t.pageBg};">
+      <div class="fc-flight-card card" style="flex:1;min-width:0;${frameChrome}">${cardInnerContent}</div>
+    </div>`;
 
   const bodyInner = isAvery5388
     ? `<div class="avery5388-row">${oneCardHtml}${oneCardHtml}${oneCardHtml}</div>`
@@ -1078,6 +1085,12 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
         min-height: 0 !important;
         overflow: hidden !important;
       }
+      .fc-card-page {
+        width: ${cardW} !important;
+        height: ${cardH} !important;
+        max-width: ${cardW} !important;
+        max-height: ${cardH} !important;
+      }
       .fc-flight-card.card { box-shadow: none !important; }
       .fc-flight-card { overflow: hidden !important; }
       .print-setup-hint { display: none !important; }
@@ -1090,8 +1103,9 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
         <strong>Before you print on a single index card:</strong><br>
         1. In the print dialog, set <strong>Paper size</strong> to match this card (${cardW.replace("in", '"')} × ${cardH.replace("in", '"')}) — not Letter / 8.5×11.<br>
         2. Turn off &quot;Fit to page&quot; / scaling — use <strong>100%</strong> or Actual size.<br>
-        3. Set margins to <strong>None</strong> or Minimum.<br>
-        4. Load the card in your Canon rear tray; use the manual feed if available.<br>
+        3. Set margins to <strong>None</strong>/Minimum (the card already keeps a safe edge so the title and prices aren&apos;t clipped).<br>
+        4. On the Canon GX6120, enable <strong>Borderless</strong> if listed, and load the card in the rear tray (manual feed if available).<br>
+        5. Set <strong>Copies</strong> here for multiple of the same card.<br>
         <span style="font-size:10pt;color:#92400e;">If you use Avery 5388 perforated sheets, choose that paper size in Media Center instead — it prints a full Letter page with three cards.</span>
       </div>`
     : "";
