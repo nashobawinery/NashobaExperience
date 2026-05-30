@@ -232,6 +232,8 @@ export function ToastMenuBrowser() {
   const [printShowImages, setPrintShowImages] = useState(false);
   const [printHideAllergyFooter, setPrintHideAllergyFooter] = useState(false);
   const [printHideCourseHeadings, setPrintHideCourseHeadings] = useState(false);
+  const [printOrnament, setPrintOrnament] = useState("auto");
+  const [printOrnamentPos, setPrintOrnamentPos] = useState("below-title");
   const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
   const [printCustomTitle, setPrintCustomTitle] = useState("");
   const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
@@ -453,6 +455,8 @@ export function ToastMenuBrowser() {
     hideWinePairing: boolean | null;
     showImages: boolean | null;
     hideCourseHeadings: boolean | null;
+    ornament: string | null;
+    ornamentPosition: string | null;
     pages: number | null;
     pageBreaks: string | null;
     printAdditionalMenuGuids: string | null;
@@ -505,6 +509,8 @@ export function ToastMenuBrowser() {
     hideWinePairing: printHideWinePairing,
     showImages: printShowImages,
     hideCourseHeadings: printHideCourseHeadings,
+    ornament: printOrnament,
+    ornamentPosition: printOrnamentPos,
     pages: printPages,
     pageBreaks: printPageBreaks.length > 0 ? printPageBreaks.join(",") : null,
     customPrintLines: serializePrintCustomLines() || null,
@@ -561,6 +567,8 @@ export function ToastMenuBrowser() {
         hideWinePairing: config.hideWinePairing,
         showImages: config.showImages,
         hideCourseHeadings: config.hideCourseHeadings,
+        ornament: config.ornament,
+        ornamentPosition: config.ornamentPosition,
         pages: config.pages,
         pageBreaks: config.pageBreaks,
         customPrintLines: config.customPrintLines,
@@ -758,6 +766,8 @@ export function ToastMenuBrowser() {
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
     if (printHideCourseHeadings) url += `&hidegroups=1`;
+    if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
+    if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (header) url += `&header=${encodeURIComponent(header)}`;
     if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
     const itemStyles = serializeItemPrintStyles();
@@ -780,6 +790,8 @@ export function ToastMenuBrowser() {
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
     if (printHideCourseHeadings) url += `&hidegroups=1`;
+    if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
+    if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
     const itemStyles = serializeItemPrintStyles();
     if (itemStyles) url += `&itemstyles=${encodeURIComponent(itemStyles)}`;
@@ -854,6 +866,8 @@ export function ToastMenuBrowser() {
       setPrintHideWinePairing(params.get("hidepairing") === "1");
       setPrintShowImages(params.get("showimages") === "1");
       setPrintHideCourseHeadings(params.get("hidegroups") === "1");
+      setPrintOrnament(params.get("ornament") || "auto");
+      setPrintOrnamentPos(params.get("ornamentpos") || "below-title");
       setPrintPages(parseInt(params.get("pages") || "0") || 0);
       setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintCustomLines(parsePrintCustomLines(params.get("customlines")));
@@ -886,6 +900,8 @@ export function ToastMenuBrowser() {
     setPrintHideWinePairing(config.hideWinePairing || false);
     setPrintShowImages(config.showImages || false);
     setPrintHideCourseHeadings(config.hideCourseHeadings || false);
+    setPrintOrnament(config.ornament || "auto");
+    setPrintOrnamentPos(config.ornamentPosition || "below-title");
     setPrintPages(config.pages || 0);
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
     setPrintCustomLines(parsePrintCustomLines(config.customPrintLines));
@@ -921,6 +937,8 @@ export function ToastMenuBrowser() {
       setPrintCustomTitle("");
       setPrintItemFontScales({});
       setPrintHideCourseHeadings(false);
+      setPrintOrnament("auto");
+      setPrintOrnamentPos("below-title");
       setLoadedEmbedConfigId(null);
       setLoadedEmbedConfigName("");
       setSaveName("");
@@ -1465,8 +1483,45 @@ export function ToastMenuBrowser() {
                   onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
                   data-testid="checkbox-detail-hide-course-headings"
                 />
-                <span className="font-medium">Hide Course Headings</span>
+                <span className="font-medium">Hide Courses / Groups</span>
               </label>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Header Scroll / Divider</label>
+                <p className="text-xs text-muted-foreground">Decorative flourish shown with the title. Choose "None" to remove the line under the Private Event Title.</p>
+                <Select value={printOrnament} onValueChange={setPrintOrnament}>
+                  <SelectTrigger data-testid="select-detail-ornament"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Default (line on Fine Dining)</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="line">Simple line —</SelectItem>
+                    <SelectItem value="floral">Floral ❦</SelectItem>
+                    <SelectItem value="floral-trio">Floral trio ❧ ❦ ❧</SelectItem>
+                    <SelectItem value="swirl">Scroll swirl ❞ ❦ ❟</SelectItem>
+                    <SelectItem value="fleur">Fleur-de-lis ⚜</SelectItem>
+                    <SelectItem value="stars">Stars ✦ ✦ ✦</SelectItem>
+                    <SelectItem value="diamonds">Diamonds ❖ ❖ ❖</SelectItem>
+                    <SelectItem value="wave">Wave 〜〜〜</SelectItem>
+                    <SelectItem value="svg-scroll">Engraved: Scroll flourish</SelectItem>
+                    <SelectItem value="svg-filigree">Engraved: Filigree</SelectItem>
+                    <SelectItem value="svg-leaf">Engraved: Vine &amp; leaves</SelectItem>
+                    <SelectItem value="svg-deco">Engraved: Deco rule</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Scroll Position</label>
+                <p className="text-xs text-muted-foreground">Where the scroll appears relative to the title and header text.</p>
+                <Select value={printOrnamentPos} onValueChange={setPrintOrnamentPos}>
+                  <SelectTrigger data-testid="select-detail-ornament-pos"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="above-title">Above title</SelectItem>
+                    <SelectItem value="below-title">Below title</SelectItem>
+                    <SelectItem value="below-header">Below header text</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -2148,7 +2203,7 @@ export function ToastMenuBrowser() {
             onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
             data-testid="checkbox-print-hide-course-headings"
           />
-          <span className="font-medium">Hide Course Headings</span>
+          <span className="font-medium">Hide Courses / Groups</span>
           <span className="text-xs text-muted-foreground">Keep the menu items, but do not print the Toast course/group titles.</span>
         </label>
 

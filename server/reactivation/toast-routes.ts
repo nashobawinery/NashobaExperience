@@ -186,7 +186,9 @@ function ensureEmbedConfigColumns(): Promise<void> {
       ADD COLUMN IF NOT EXISTS custom_print_lines text,
       ADD COLUMN IF NOT EXISTS custom_title text,
       ADD COLUMN IF NOT EXISTS item_print_styles text,
-      ADD COLUMN IF NOT EXISTS hide_course_headings boolean DEFAULT false
+      ADD COLUMN IF NOT EXISTS hide_course_headings boolean DEFAULT false,
+      ADD COLUMN IF NOT EXISTS ornament varchar(30) DEFAULT 'auto',
+      ADD COLUMN IF NOT EXISTS ornament_position varchar(20) DEFAULT 'below-title'
     `).then(() => undefined);
   }
   return ensureEmbedConfigColumnsPromise;
@@ -2274,6 +2276,8 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.itemPrintStyles) url += `&itemstyles=${encodeURIComponent(config.itemPrintStyles)}`;
     if (config.hideCourseHeadings) url += `&hidegroups=1`;
     if (config.showImages) url += `&showimages=1`;
+    if (config.ornament && config.ornament !== "auto") url += `&ornament=${encodeURIComponent(config.ornament)}`;
+    if (config.ornamentPosition && config.ornamentPosition !== "below-title") url += `&ornamentpos=${encodeURIComponent(config.ornamentPosition)}`;
 
     // Serve the HTML directly (not a redirect) so the short slug URL stays in the browser bar
     const embedRes = await fetch(url);
@@ -2332,6 +2336,8 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       hideWinePairing: req.body.hideWinePairing ?? false,
       showImages: req.body.showImages ?? false,
       hideCourseHeadings: req.body.hideCourseHeadings ?? false,
+      ornament: req.body.ornament ?? "auto",
+      ornamentPosition: req.body.ornamentPosition ?? "below-title",
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks || null,
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids || null,
@@ -2369,6 +2375,8 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       hideWinePairing: req.body.hideWinePairing ?? false,
       showImages: req.body.showImages ?? false,
       hideCourseHeadings: req.body.hideCourseHeadings ?? false,
+      ornament: req.body.ornament ?? "auto",
+      ornamentPosition: req.body.ornamentPosition ?? "below-title",
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks ?? null,
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids ?? null,
