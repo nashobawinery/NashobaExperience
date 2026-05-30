@@ -991,7 +991,7 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
       ? (ovr.description ?? "")
       : (p.description || "");
     const desc = show.description && String(rawDesc).trim()
-      ? `<div style="${tStyle(tyDesc)}color:${t.secondary};line-height:1.4;margin-top:${compact ? 1 : 3}px;${compact ? "max-height:3.2em;overflow:hidden;" : "max-height:5.5em;overflow:hidden;"}">${sanitizeMenuHeaderHtml(String(rawDesc))}</div>`
+      ? `<div style="${tStyle(tyDesc)}color:${t.secondary};line-height:1.4;margin-top:${compact ? 1 : 3}px;">${sanitizeMenuHeaderHtml(String(rawDesc))}</div>`
       : "";
 
     const metaParts = [varietal, alcohol].filter(Boolean);
@@ -1001,9 +1001,8 @@ function renderFlightCardHtml(products: any[], opts: FlightCardOptions): string 
 
     const tastingLines = show.tastingLines
       ? `<div style="margin-top:${compact ? 3 : 5}px;">
-           <div style="font-size:6pt;color:${t.muted};letter-spacing:0.5px;text-transform:uppercase;margin-bottom:0.25in;">My Notes</div>
-           <div style="height:1px;background:${t.divider};margin-bottom:0.25in;opacity:0.6;"></div>
-           <div style="height:1px;background:${t.divider};margin-bottom:0.25in;opacity:0.6;"></div>
+           <div style="font-size:6pt;color:${t.muted};letter-spacing:0.5px;text-transform:uppercase;margin-bottom:0.1875in;">My Notes</div>
+           <div style="height:1px;background:${t.divider};margin-bottom:0.1875in;opacity:0.6;"></div>
            <div style="height:1px;background:${t.divider};opacity:0.6;"></div>
          </div>`
       : "";
