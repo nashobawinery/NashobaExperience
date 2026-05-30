@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -141,20 +141,56 @@ function formatDate(dateStr: string): string {
   });
 }
 
+const PRINT_SETTINGS_VERSION = 1;
+
 export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrinterProps) {
   const { toast } = useToast();
-  const [printTemplate, setPrintTemplate] = useState("fine-dining");
-  const [printScale, setPrintScale] = useState(100);
-  const [printPages, setPrintPages] = useState(0);
-  const [printFooter, setPrintFooter] = useState("");
-  const [printHideDescriptions, setPrintHideDescriptions] = useState(false);
+  const storageKey = `nashoba-menu-print-settings:${testIdPrefix}`;
+  const savedSettings = useMemo<Record<string, any>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && parsed.v === PRINT_SETTINGS_VERSION && parsed.data ? parsed.data : {};
+    } catch {
+      return {};
+    }
+  }, [storageKey]);
+
+  const [printTemplate, setPrintTemplate] = useState(savedSettings.printTemplate ?? "fine-dining");
+  const [printScale, setPrintScale] = useState(savedSettings.printScale ?? 100);
+  const [printPages, setPrintPages] = useState(savedSettings.printPages ?? 0);
+  const [printFooter, setPrintFooter] = useState(savedSettings.printFooter ?? "");
+  const [printHideDescriptions, setPrintHideDescriptions] = useState(savedSettings.printHideDescriptions ?? false);
+  const [printHideGroupHeadings, setPrintHideGroupHeadings] = useState(savedSettings.printHideGroupHeadings ?? false);
+  const [printOrnament, setPrintOrnament] = useState(savedSettings.printOrnament ?? "auto");
+  const [printOrnamentPos, setPrintOrnamentPos] = useState(savedSettings.printOrnamentPos ?? "below-title");
   const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
   const [printPageBreaks, setPrintPageBreaks] = useState<string[]>([]);
   const [selectedPrintMenus, setSelectedPrintMenus] = useState<string[]>([]);
   const [printMenuTitle, setPrintMenuTitle] = useState("");
   const [showSyncDialog, setShowSyncDialog] = useState(false);
-  const [printTypo, setPrintTypo] = useState<TypoSettings>(DEFAULT_TYPO);
+  const [printTypo, setPrintTypo] = useState<TypoSettings>(savedSettings.printTypo ?? DEFAULT_TYPO);
   const [showTypo, setShowTypo] = useState(true);
+
+  useEffect(() => {
+    try {
+      const data = {
+        printTemplate,
+        printScale,
+        printPages,
+        printFooter,
+        printHideDescriptions,
+        printHideGroupHeadings,
+        printOrnament,
+        printOrnamentPos,
+        printTypo,
+      };
+      localStorage.setItem(storageKey, JSON.stringify({ v: PRINT_SETTINGS_VERSION, data }));
+    } catch {
+      /* ignore persistence errors (e.g., storage disabled) */
+    }
+  }, [storageKey, printTemplate, printScale, printPages, printFooter, printHideDescriptions, printHideGroupHeadings, printOrnament, printOrnamentPos, printTypo]);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
     configured: boolean;
@@ -256,6 +292,9 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
+    if (printHideGroupHeadings) url += `&hidegroups=1`;
+    if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
+    if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     url += `&${buildTypoParams(printTypo)}`;
     return url;
   };
@@ -268,6 +307,9 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
+    if (printHideGroupHeadings) url += `&hidegroups=1`;
+    if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
+    if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (title && title.trim()) url += `&title=${encodeURIComponent(title.trim())}`;
     url += `&${buildTypoParams(printTypo)}`;
     return url;
@@ -632,6 +674,60 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
           <span className="font-medium">Hide Descriptions</span>
           <span className="text-muted-foreground">- Show only item names and prices (ideal for wine lists or beverage menus)</span>
         </label>
+      </div>
+
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <Checkbox
+            checked={printHideGroupHeadings}
+            onCheckedChange={(checked) => setPrintHideGroupHeadings(!!checked)}
+            data-testid={`${testIdPrefix}-checkbox-hide-group-headings`}
+          />
+          <span className="font-medium">Hide Course / Group Headers</span>
+          <span className="text-muted-foreground">- Hide section headings (e.g., for private events, to keep the focus on the event title)</span>
+        </label>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Header Scroll / Divider</label>
+          <p className="text-xs text-muted-foreground">Decorative flourish shown with the title. Choose "None" to remove the line under the Private Event Title.</p>
+          <Select value={printOrnament} onValueChange={setPrintOrnament}>
+            <SelectTrigger data-testid={`${testIdPrefix}-select-ornament`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Default (line on Fine Dining)</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="line">Simple line —</SelectItem>
+              <SelectItem value="floral">Floral ❦</SelectItem>
+              <SelectItem value="floral-trio">Floral trio ❧ ❦ ❧</SelectItem>
+              <SelectItem value="swirl">Scroll swirl ❞ ❦ ❟</SelectItem>
+              <SelectItem value="fleur">Fleur-de-lis ⚜</SelectItem>
+              <SelectItem value="stars">Stars ✦ ✦ ✦</SelectItem>
+              <SelectItem value="diamonds">Diamonds ❖ ❖ ❖</SelectItem>
+              <SelectItem value="wave">Wave 〜〜〜</SelectItem>
+              <SelectItem value="svg-scroll">Engraved: Scroll flourish</SelectItem>
+              <SelectItem value="svg-filigree">Engraved: Filigree</SelectItem>
+              <SelectItem value="svg-leaf">Engraved: Vine &amp; leaves</SelectItem>
+              <SelectItem value="svg-deco">Engraved: Deco rule</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Scroll Position</label>
+          <p className="text-xs text-muted-foreground">Where the scroll appears relative to the title and header text.</p>
+          <Select value={printOrnamentPos} onValueChange={setPrintOrnamentPos}>
+            <SelectTrigger data-testid={`${testIdPrefix}-select-ornament-pos`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="above-title">Above title</SelectItem>
+              <SelectItem value="below-title">Below title</SelectItem>
+              <SelectItem value="below-header">Below header text</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-2">

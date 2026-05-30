@@ -44,6 +44,41 @@ function normalizeMenuLabel(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+/** Inline engraved (vector) flourishes. They use currentColor so they inherit the ornament color in both screen and print. */
+const ORNAMENT_SVG_STYLE = 'height:auto;display:inline-block;vertical-align:middle';
+const MENU_ORNAMENT_SVGS: Record<string, string> = {
+  "svg-scroll": `<svg viewBox="0 0 260 28" style="width:min(260px,60%);${ORNAMENT_SVG_STYLE}" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M14 14 C 54 14 74 4 98 13 C 110 17 120 17 130 14"/><path d="M246 14 C 206 14 186 4 162 13 C 150 17 140 17 130 14"/></g><path d="M122 14 L130 7 L138 14 L130 21 Z" fill="currentColor"/><circle cx="14" cy="14" r="1.8" fill="currentColor"/><circle cx="246" cy="14" r="1.8" fill="currentColor"/></svg>`,
+  "svg-filigree": `<svg viewBox="0 0 280 30" style="width:min(280px,66%);${ORNAMENT_SVG_STYLE}" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M18 15 C 52 15 60 6 78 10 C 90 13 86 23 76 20 C 68 18 72 10 86 13 C 108 18 120 16 140 15"/><path d="M262 15 C 228 15 220 6 202 10 C 190 13 194 23 204 20 C 212 18 208 10 194 13 C 172 18 160 16 140 15"/></g><path d="M132 15 L140 8 L148 15 L140 22 Z" fill="currentColor"/></svg>`,
+  "svg-leaf": `<svg viewBox="0 0 260 30" style="width:min(260px,62%);${ORNAMENT_SVG_STYLE}" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M16 15 C 56 15 92 15 120 15"/><path d="M244 15 C 204 15 168 15 140 15"/></g><g fill="currentColor"><path d="M86 15 C 88 8 100 6 104 12 C 100 14 92 14 86 15 Z"/><path d="M174 15 C 172 8 160 6 156 12 C 160 14 168 14 174 15 Z"/><path d="M122 15 L130 8 L138 15 L130 22 Z"/></g><circle cx="16" cy="15" r="1.6" fill="currentColor"/><circle cx="244" cy="15" r="1.6" fill="currentColor"/></svg>`,
+  "svg-deco": `<svg viewBox="0 0 260 26" style="width:min(260px,58%);${ORNAMENT_SVG_STYLE}" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><line x1="20" y1="13" x2="104" y2="13"/><line x1="240" y1="13" x2="156" y2="13"/><path d="M104 13 L116 6 L116 20 Z" fill="currentColor" stroke="none"/><path d="M156 13 L144 6 L144 20 Z" fill="currentColor" stroke="none"/></g><circle cx="130" cy="13" r="4"/><circle cx="130" cy="13" r="1.6" fill="currentColor"/></svg>`,
+};
+
+/** Decorative header dividers ("scrolls") that can appear under the title/header. */
+const MENU_ORNAMENTS: Record<string, string> = {
+  none: "",
+  line: "&mdash;",
+  floral: "&#10086;",
+  "floral-trio": "&#10087; &#10086; &#10087;",
+  fleur: "&#9884;",
+  stars: "&#10038; &#10038; &#10038;",
+  diamonds: "&#10070; &#10070; &#10070;",
+  swirl: "&#10078;&nbsp;&#10086;&nbsp;&#10079;",
+  wave: "&#12316;&#12316;&#12316;",
+  ...MENU_ORNAMENT_SVGS,
+};
+
+/**
+ * Resolve the ornament HTML for a menu header.
+ * If no explicit style is provided, fine-dining defaults to a simple line and
+ * other templates default to no ornament (preserving prior behavior).
+ */
+function resolveMenuOrnament(styleParam: string | undefined, template: string): string {
+  const style = (styleParam || "").trim();
+  const resolved = style || (template === "fine-dining" ? "line" : "none");
+  const content = MENU_ORNAMENTS[resolved] ?? MENU_ORNAMENTS.line;
+  return content ? `<div class="ornament">${content}</div>` : "";
+}
+
 function isToastInMenuSectionRow(item: ToastItemLike): boolean {
   if (item.isSpecial) return false;
   const t = (item.type || "").toLowerCase();
@@ -1569,9 +1604,21 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 </head>
 <body>
   <div class="menu-container">
-    <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
-    ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
-    ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
+    ${(() => {
+      const ornamentPos = ((req.query.ornamentpos as string) || "below-title").trim();
+      const ornamentHtml = resolveMenuOrnament(req.query.ornament as string | undefined, template);
+      const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
+      const subtitleHtml = template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : template === "fine-dining" ? "" : `<p class="menu-subtitle">Menu</p>`;
+      const customHeaderHtml = customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : "";
+      const seq: string[] = [];
+      if (ornamentPos === "above-title") seq.push(ornamentHtml);
+      seq.push(titleHtml);
+      if (ornamentPos === "below-title") seq.push(ornamentHtml);
+      if (subtitleHtml) seq.push(subtitleHtml);
+      if (customHeaderHtml) seq.push(customHeaderHtml);
+      if (ornamentPos === "below-header") seq.push(ornamentHtml);
+      return seq.filter(Boolean).join("\n    ");
+    })()}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
     <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
     <div class="footer">
@@ -2048,9 +2095,21 @@ router.get("/public/menus/embed", async (req, res) => {
 </head>
 <body>
   <div class="menu-container">
-    <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
-    ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
-    ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
+    ${(() => {
+      const ornamentPos = ((req.query.ornamentpos as string) || "below-title").trim();
+      const ornamentHtml = resolveMenuOrnament(req.query.ornament as string | undefined, template);
+      const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
+      const subtitleHtml = template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : template === "fine-dining" ? "" : `<p class="menu-subtitle">Menu</p>`;
+      const customHeaderHtml = customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : "";
+      const seq: string[] = [];
+      if (ornamentPos === "above-title") seq.push(ornamentHtml);
+      seq.push(titleHtml);
+      if (ornamentPos === "below-title") seq.push(ornamentHtml);
+      if (subtitleHtml) seq.push(subtitleHtml);
+      if (customHeaderHtml) seq.push(customHeaderHtml);
+      if (ornamentPos === "below-header") seq.push(ornamentHtml);
+      return seq.filter(Boolean).join("\n    ");
+    })()}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
     <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
     <div class="footer">
