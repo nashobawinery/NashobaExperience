@@ -354,7 +354,7 @@ export function ToastMenuBrowser() {
     }
   };
 
-  const [activeDetailTab, setActiveDetailTab] = useState<"web" | "print">("web");
+  const [activeDetailTab, setActiveDetailTab] = useState<"web" | "print">("print");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveDialogTab, setSaveDialogTab] = useState<"update" | "new">("update");
   const [loadedEmbedConfigId, setLoadedEmbedConfigId] = useState<number | null>(null);
@@ -920,7 +920,7 @@ export function ToastMenuBrowser() {
     setSaveOverwriteId(config.id);
     setLoadedEmbedConfigId(config.id);
     setLoadedEmbedConfigName(config.name);
-    setActiveDetailTab("web");
+    setActiveDetailTab("print");
     setSelectedMenu(primaryGuid);
     setViewMode("detail");
     toast({ title: `"${config.name}" loaded`, description: "All settings restored. Edit, then resave." });
@@ -1145,6 +1145,7 @@ export function ToastMenuBrowser() {
     const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
     const sharedUrl = (() => { const u = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages); const tp = buildTypoParams(printTypo); return tp ? `${u}&${tp}` : u; })();
     const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages);
+    const livePreviewUrl = `${buildPrintUrl(printTemplate)}&preview=print`;
 
     // Merge menus helpers for Print tab
     const primaryMenuName = menuDetail?.menu?.name || "";
@@ -1262,32 +1263,32 @@ export function ToastMenuBrowser() {
 
         <div className="flex items-center gap-1 border-b pb-1">
           <Button
-            variant={activeDetailTab === "web" ? "default" : "ghost"}
-            onClick={() => setActiveDetailTab("web")}
-            className="flex items-center gap-2"
-            data-testid="button-tab-web"
-          >
-            <Monitor className="w-4 h-4" />
-            Web
-          </Button>
-          <Button
             variant={activeDetailTab === "print" ? "default" : "ghost"}
             onClick={() => setActiveDetailTab("print")}
             className="flex items-center gap-2"
             data-testid="button-tab-print"
           >
             <Printer className="w-4 h-4" />
-            Print
+            Design &amp; Print
+          </Button>
+          <Button
+            variant={activeDetailTab === "web" ? "default" : "ghost"}
+            onClick={() => setActiveDetailTab("web")}
+            className="flex items-center gap-2"
+            data-testid="button-tab-web"
+          >
+            <Monitor className="w-4 h-4" />
+            Web / Share Link
           </Button>
         </div>
 
-        {activeDetailTab === "web" && (
+        {activeDetailTab === "print" && (
         <>
         <Card>
           <CardContent className="p-4 space-y-4">
             <div>
-              <p className="text-sm font-semibold">Web &amp; Display Options</p>
-              <p className="text-xs text-muted-foreground mt-0.5">These settings control how the menu looks on the web share link and on print.</p>
+              <p className="text-sm font-semibold">Design &amp; Display Options</p>
+              <p className="text-xs text-muted-foreground mt-0.5">These settings control how the menu looks on print and on the web share link. The live print preview at the bottom updates as you change them.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1 sm:col-span-2">
@@ -1706,7 +1707,11 @@ export function ToastMenuBrowser() {
             )}
           </div>
         ))}
+        </>
+        )}
 
+        {activeDetailTab === "web" && (
+        <>
         <Card>
           <CardContent className="p-4 space-y-3">
             <div>
@@ -2119,6 +2124,27 @@ export function ToastMenuBrowser() {
                 </Card>
               </div>
             </div>
+
+            <Card>
+              <CardContent className="p-0 overflow-hidden rounded-md">
+                <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b flex items-center justify-between gap-2 flex-wrap">
+                  <span>Live Print Preview — shows the actual printed result and updates as you edit</span>
+                  <Button size="sm" variant="outline" onClick={() => handlePrint(printTemplate)} data-testid="button-print-current">
+                    <Printer className="w-4 h-4 mr-1" />Print This
+                  </Button>
+                </div>
+                <div className="bg-neutral-300 dark:bg-neutral-800 p-4 flex justify-center">
+                  <iframe
+                    key={livePreviewUrl}
+                    src={livePreviewUrl}
+                    className="bg-white shadow-lg border-0"
+                    style={{ width: "8.5in", maxWidth: "100%", height: "720px" }}
+                    title="Live Print Preview"
+                    data-testid="iframe-live-print-preview"
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </>
         )}
       </>

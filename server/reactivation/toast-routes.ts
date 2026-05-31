@@ -1202,6 +1202,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
     const hideGroupHeadings = req.query.hidegroups === "1";
+    const previewMode = req.query.preview === "print";
     /** When the Toast group name matches the page title, hide the duplicate cursive/secondary heading (pass hidedupgroup=0 to show). */
     const hidedupgroup = req.query.hidedupgroup !== "0";
     const nosectionrows = req.query.nosectionrows === "1";
@@ -1596,6 +1597,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
           .footer { margin-top: 12px !important; break-before: avoid; page-break-before: avoid; }
         }`;
 
+    if (previewMode) {
+      // In-app live preview: apply the print stylesheet on screen so the iframe
+      // shows exactly what will print (fonts, sizes, colors, spacing, layout).
+      css = css.replace(/@media print \{/g, "@media all {");
+    }
+
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1720,6 +1727,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const showImages = req.query.showimages === "1";
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
     const hideGroupHeadings = req.query.hidegroups === "1";
+    const previewMode = req.query.preview === "print";
     const customTitle = (req.query.title as string) || "";
     const hidedupgroup = req.query.hidedupgroup !== "0";
     const nosectionrows = req.query.nosectionrows === "1";
@@ -2086,6 +2094,12 @@ router.get("/public/menus/embed", async (req, res) => {
           .menu-groups-container, .bev-groups-container { break-before: avoid; page-break-before: avoid; column-fill: balance; }
           .footer { margin-top: 12px !important; break-before: avoid; page-break-before: avoid; }
         }`;
+
+    if (previewMode) {
+      // In-app live preview: apply the print stylesheet on screen so the iframe
+      // shows exactly what will print (fonts, sizes, colors, spacing, layout).
+      css = css.replace(/@media print \{/g, "@media all {");
+    }
 
     const html = `<!DOCTYPE html>
 <html lang="en">
