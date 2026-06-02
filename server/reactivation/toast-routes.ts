@@ -1594,6 +1594,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         @media print {
           .menu-container { display: block !important; min-height: auto !important; }
           .menu-groups-container, .bev-groups-container { break-before: avoid; page-break-before: avoid; column-fill: balance; }
+          /* Allow a large group to flow across pages so the menu starts right
+             under the title instead of being pushed entirely onto page 2.
+             Keep individual items intact and keep headings with their items. */
+          .menu-group, .bev-group { break-inside: auto !important; page-break-inside: auto !important; }
+          .menu-item, .bev-item, .menu-item--in-menu-section { break-inside: avoid; page-break-inside: avoid; }
+          .group-name, .bev-group-name { break-after: avoid; page-break-after: avoid; }
           .footer { margin-top: 12px !important; break-before: avoid; page-break-before: avoid; }
         }`;
 
@@ -2092,6 +2098,12 @@ router.get("/public/menus/embed", async (req, res) => {
         @media print {
           .menu-container { display: block !important; min-height: auto !important; }
           .menu-groups-container, .bev-groups-container { break-before: avoid; page-break-before: avoid; column-fill: balance; }
+          /* Allow a large group to flow across pages so the menu starts right
+             under the title instead of being pushed entirely onto page 2.
+             Keep individual items intact and keep headings with their items. */
+          .menu-group, .bev-group { break-inside: auto !important; page-break-inside: auto !important; }
+          .menu-item, .bev-item, .menu-item--in-menu-section { break-inside: avoid; page-break-inside: avoid; }
+          .group-name, .bev-group-name { break-after: avoid; page-break-after: avoid; }
           .footer { margin-top: 12px !important; break-before: avoid; page-break-before: avoid; }
         }`;
 
