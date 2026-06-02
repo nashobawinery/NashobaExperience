@@ -1356,25 +1356,16 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const itemNameStyle = itemFontScale !== 1 ? ` style="font-size:${(parseFloat(ptRem(typo.item.size)) * itemFontScale).toFixed(3)}rem"` : "";
         const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
         if (isInMenuSection) {
+          // Render Toast "section header" rows (e.g. Starters, Mains) as real
+          // course headings so they match the normal course headings instead of
+          // appearing as an underlined sub-item.
           if (template === "beverage") {
             itemsHtml += `
-            <div class="bev-item-row bev-item-row--in-menu-section"${itemScaleStyle}>
-              <div class="bev-item bev-item--in-menu-section">
-                <span class="bev-name bev-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
-              </div>
-            </div>`;
-          } else if (template === "fine-dining") {
-            itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
-              <h3 class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</h3>
-            </div>`;
+            <h2 class="bev-group-name" style="margin-top:0.9em">${escapeHtml(cleanName)}</h2>`;
           } else {
             itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
-              <div class="item-header item-header--in-menu-section">
-                <span class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
-              </div>
-            </div>`;
+            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>
+            <div class="group-divider"></div>`;
           }
           itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
           if (pagebreakGuids.includes(item.itemGuid)) {
@@ -1860,25 +1851,16 @@ router.get("/public/menus/embed", async (req, res) => {
         const itemNameStyle = itemFontScale !== 1 ? ` style="font-size:${(parseFloat(ptRem(typo.item.size)) * itemFontScale).toFixed(3)}rem"` : "";
         const isInMenuSection = !nosectionrows && isToastInMenuSectionRow(item);
         if (isInMenuSection) {
+          // Render Toast "section header" rows (e.g. Starters, Mains) as real
+          // course headings so they match the normal course headings instead of
+          // appearing as an underlined sub-item.
           if (template === "beverage") {
             itemsHtml += `
-            <div class="bev-item-row bev-item-row--in-menu-section"${itemScaleStyle}>
-              <div class="bev-item bev-item--in-menu-section">
-                <span class="bev-name bev-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
-              </div>
-            </div>`;
-          } else if (template === "fine-dining") {
-            itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
-              <h3 class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</h3>
-            </div>`;
+            <h2 class="bev-group-name" style="margin-top:0.9em">${escapeHtml(cleanName)}</h2>`;
           } else {
             itemsHtml += `
-            <div class="menu-item menu-item--in-menu-section"${itemScaleStyle}>
-              <div class="item-header item-header--in-menu-section">
-                <span class="item-name item-name--in-menu-section"${itemNameStyle}>${escapeHtml(cleanName)}</span>
-              </div>
-            </div>`;
+            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>
+            <div class="group-divider"></div>`;
           }
           if (pagebreakGuids.includes(item.itemGuid)) {
             itemsHtml += `<div class="item-page-break"></div>`;
