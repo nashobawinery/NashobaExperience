@@ -46,7 +46,7 @@ interface BrowserTypoSettings {
 const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
   title:    { font: "Cinzel",   size: 30, bold: false, italic: false },
   subtitle: { font: "Cinzel",   size: 26, bold: false, italic: false },
-  group:    { font: "Allura",   size: 36, bold: false, italic: false },
+  group:    { font: "Cinzel",   size: 20, bold: false, italic: false },
   item:     { font: "Cinzel",   size: 17, bold: false, italic: false },
   price:    { font: "Jost",     size: 13, bold: false, italic: false },
   desc:     { font: "Jost",     size: 14, bold: false, italic: false },

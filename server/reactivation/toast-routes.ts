@@ -1236,7 +1236,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const typo = {
       title:    { font: _sf(req.query.titleFont as string,   "Cinzel"), size: _sp(req.query.titleSz as string,   30), bold: req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
       subtitle: { font: _sf(req.query.subFont as string,     "Cinzel"), size: _sp(req.query.subSz as string,     26), bold: req.query.subBold === "1",     italic: req.query.subItalic === "1" },
-      group:    { font: _sf(req.query.groupFont as string,   "Allura"), size: _sp(req.query.groupSz as string,   36), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
+      group:    { font: _sf(req.query.groupFont as string,   "Cinzel"), size: _sp(req.query.groupSz as string,   20), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
       item:     { font: _sf(req.query.itemFont as string,    "Cinzel"), size: _sp(req.query.itemSz as string,    17), bold: req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
       price:    { font: _sf(req.query.priceFont as string,   "Jost"),   size: _sp(req.query.priceSz as string,   13), bold: req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
       desc:     { font: _sf(req.query.descFont as string,    "Jost"),   size: _sp(req.query.descSz as string,    14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
@@ -1759,7 +1759,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const typo = {
       title:    { font: _sf(req.query.titleFont as string,   "Cinzel"), size: _sp(req.query.titleSz as string,   30), bold: req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
       subtitle: { font: _sf(req.query.subFont as string,     "Cinzel"), size: _sp(req.query.subSz as string,     26), bold: req.query.subBold === "1",     italic: req.query.subItalic === "1" },
-      group:    { font: _sf(req.query.groupFont as string,   "Allura"), size: _sp(req.query.groupSz as string,   36), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
+      group:    { font: _sf(req.query.groupFont as string,   "Cinzel"), size: _sp(req.query.groupSz as string,   20), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
       item:     { font: _sf(req.query.itemFont as string,    "Cinzel"), size: _sp(req.query.itemSz as string,    17), bold: req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
       price:    { font: _sf(req.query.priceFont as string,   "Jost"),   size: _sp(req.query.priceSz as string,   13), bold: req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
       desc:     { font: _sf(req.query.descFont as string,    "Jost"),   size: _sp(req.query.descSz as string,    14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
