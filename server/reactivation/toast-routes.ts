@@ -515,10 +515,10 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     console.log(`[Toast Menus] Syncing ${menuList.length} menus`);
     console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
 
-    const existingOverrides = new Map<string, { hidden: boolean | null; hidePrice: boolean | null; isSpecial: boolean | null; suggestedPairing: string | null; description: string | null }>();
+    const existingOverrides = new Map<string, { hidden: boolean | null; hidePrice: boolean | null; isSpecial: boolean | null; suggestedPairing: string | null; description: string | null; sizePrices: string | null }>();
     {
       let existingItems;
-      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, hidePrice: toastMenuItems.hidePrice, isSpecial: toastMenuItems.isSpecial, suggestedPairing: toastMenuItems.suggestedPairing, description: toastMenuItems.description };
+      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, hidePrice: toastMenuItems.hidePrice, isSpecial: toastMenuItems.isSpecial, suggestedPairing: toastMenuItems.suggestedPairing, description: toastMenuItems.description, sizePrices: toastMenuItems.sizePrices };
       if (selectedGuids) {
         existingItems = await db.select(selectFields)
           .from(toastMenuItems)
@@ -530,7 +530,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
       }
       for (const item of existingItems) {
         if (item.hidden || item.hidePrice || item.isSpecial || item.suggestedPairing || item.description) {
-          existingOverrides.set(item.itemGuid, { hidden: item.hidden, hidePrice: item.hidePrice, isSpecial: item.isSpecial, suggestedPairing: item.suggestedPairing, description: item.description });
+          existingOverrides.set(item.itemGuid, { hidden: item.hidden, hidePrice: item.hidePrice, isSpecial: item.isSpecial, suggestedPairing: item.suggestedPairing, description: item.description, sizePrices: item.sizePrices });
         }
       }
       console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/hidePrice/isSpecial/pairing/description)`);
@@ -724,7 +724,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             hidden: overrides?.hidden ?? false,
             hidePrice: overrides?.hidePrice ?? false,
             isSpecial: overrides?.isSpecial ?? false,
-            sizePrices,
+            sizePrices: sizePrices ?? overrides?.sizePrices ?? null,
             suggestedPairing: finalPairing,
             displayOrder: ii,
           });
@@ -1033,7 +1033,7 @@ router.patch("/menu-items/:itemId/overrides", isAuthenticated, async (req, res) 
     const itemId = parseInt(req.params.itemId);
     if (isNaN(itemId)) return res.status(400).json({ error: "Invalid item ID" });
 
-    const { hidden, hidePrice, isSpecial, suggestedPairing, displayOrder, description } = req.body;
+    const { hidden, hidePrice, isSpecial, suggestedPairing, displayOrder, description, sizePrices } = req.body;
     const updates: Record<string, any> = {};
     if (typeof hidden === "boolean") updates.hidden = hidden;
     if (typeof hidePrice === "boolean") updates.hidePrice = hidePrice;
@@ -1041,6 +1041,7 @@ router.patch("/menu-items/:itemId/overrides", isAuthenticated, async (req, res) 
     if (suggestedPairing !== undefined) updates.suggestedPairing = suggestedPairing || null;
     if (displayOrder !== undefined) updates.displayOrder = displayOrder != null ? Number(displayOrder) : null;
     if (description !== undefined) updates.description = description;
+    if (sizePrices !== undefined) updates.sizePrices = sizePrices || null;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });

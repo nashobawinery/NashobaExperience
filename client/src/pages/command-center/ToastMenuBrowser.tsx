@@ -266,6 +266,40 @@ function formatPrice(price: string | null): string {
   return `$${num.toFixed(2)}`;
 }
 
+// Parse a human-typed size/price list (e.g. "Cup $6, Bowl $10" or
+// "Cup - $6 / Bowl - $10") into the [{name, price}] JSON shape used for
+// printing. Returns null when nothing usable was entered.
+function parseSizePricesInput(input: string): string | null {
+  const text = (input || "").trim();
+  if (!text) return null;
+  const entries = text.split(/[,\n;|\/]+/).map((s) => s.trim()).filter(Boolean);
+  const sizes: { name: string; price: string }[] = [];
+  for (const entry of entries) {
+    const m = entry.match(/^(.*?)[\s:\-–—]*\$?\s*(\d+(?:\.\d{1,2})?)\s*$/);
+    if (!m) continue;
+    const name = m[1].replace(/[\s:\-–—]+$/, "").trim();
+    if (!name) continue;
+    sizes.push({ name, price: m[2] });
+  }
+  return sizes.length ? JSON.stringify(sizes) : null;
+}
+
+// Inverse of parseSizePricesInput: turn stored size-price JSON back into an
+// editable "Cup $6.00, Bowl $10.00" string.
+function formatSizePricesForEdit(value: string | null | undefined): string {
+  if (!value) return "";
+  try {
+    const sizes: { name: string; price: string }[] = JSON.parse(value);
+    if (!Array.isArray(sizes)) return "";
+    return sizes
+      .filter((s) => s && s.name)
+      .map((s) => `${s.name} ${formatPrice(s.price)}`)
+      .join(", ");
+  } catch {
+    return "";
+  }
+}
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString("en-US", {
     month: "short",
@@ -324,6 +358,9 @@ export function ToastMenuBrowser() {
   const [printCustomTitle, setPrintCustomTitle] = useState("");
   const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
   const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
+  // Bumped after a successful save so the server-rendered live print preview
+  // iframe reloads and reflects the just-saved item edits (sizes, descriptions, etc.).
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
 
   // Snapshot of all current print/typography settings, used to remember them
   // per menu (see auto-persist effect below).
@@ -518,7 +555,7 @@ export function ToastMenuBrowser() {
   const [saveOverwriteId, setSaveOverwriteId] = useState<number | null>(null);
   const [editingBoardItem, setEditingBoardItem] = useState<{id: number; name: string; description: string} | null>(null);
 
-  const [pendingItemChanges, setPendingItemChanges] = useState<Map<number, { hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string }>>(new Map());
+  const [pendingItemChanges, setPendingItemChanges] = useState<Map<number, { hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string; sizePrices?: string | null }>>(new Map());
   const [pendingGroupChanges, setPendingGroupChanges] = useState<Map<number, { hidden: boolean }>>(new Map());
   const [pendingNavAction, setPendingNavAction] = useState<(() => void) | null>(null);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
@@ -769,7 +806,7 @@ export function ToastMenuBrowser() {
   };
 
   const updateItemOverride = useMutation({
-    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string }) => {
+    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string; sizePrices?: string | null }) => {
       const res = await apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, data);
       return res.json();
     },
@@ -802,7 +839,7 @@ export function ToastMenuBrowser() {
 
   const hasPendingChanges = pendingItemChanges.size > 0 || pendingGroupChanges.size > 0;
 
-  const applyItemChange = useCallback((itemId: number, change: { hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string }) => {
+  const applyItemChange = useCallback((itemId: number, change: { hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string; sizePrices?: string | null }) => {
     setPendingItemChanges(prev => {
       const next = new Map(prev);
       next.set(itemId, { ...(next.get(itemId) || {}), ...change });
@@ -854,6 +891,7 @@ export function ToastMenuBrowser() {
         return key?.startsWith?.("/api/toast/");
       }});
       clearPendingChanges();
+      setPreviewRefreshKey((k) => k + 1);
       toast({ title: "Changes saved" });
       if (pendingNavAction) {
         pendingNavAction();
@@ -1298,7 +1336,7 @@ export function ToastMenuBrowser() {
     const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
     const sharedUrl = (() => { const u = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages); const tp = buildTypoParams(printTypo); return tp ? `${u}&${tp}` : u; })();
     const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printShowImages);
-    const livePreviewUrl = `${buildPrintUrl(printTemplate)}&preview=print`;
+    const livePreviewUrl = `${buildPrintUrl(printTemplate)}&preview=print&_r=${previewRefreshKey}`;
 
     // Merge menus helpers for Print tab
     const primaryMenuName = menuDetail?.menu?.name || "";
@@ -1851,6 +1889,22 @@ export function ToastMenuBrowser() {
                             }
                           }}
                           data-testid={`input-pairing-${item.id}`}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <DollarSign className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <Input
+                          key={`sizes-${item.id}-${item.sizePrices || ""}`}
+                          placeholder="Sizes & prices, e.g. Cup $6, Bowl $10 (leave blank for single price)"
+                          defaultValue={formatSizePricesForEdit(item.sizePrices)}
+                          className="h-7 text-xs"
+                          onBlur={(e) => {
+                            const parsed = parseSizePricesInput(e.target.value);
+                            if ((parsed || "") !== (item.sizePrices || "")) {
+                              applyItemChange(item.id, { sizePrices: parsed });
+                            }
+                          }}
+                          data-testid={`input-sizes-${item.id}`}
                         />
                       </div>
                     </div>
