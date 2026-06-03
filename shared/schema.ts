@@ -6404,6 +6404,7 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
   customPrintLines: text("custom_print_lines"),
   customTitle: text("custom_title"),
   itemPrintStyles: text("item_print_styles"),
+  typography: text("typography"),
   showOnStaffBoard: boolean("show_on_staff_board").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

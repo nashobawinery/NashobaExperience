@@ -85,6 +85,28 @@ function buildTypoParams(t: BrowserTypoSettings): string {
   ].filter(Boolean).join("&");
 }
 
+// Inverse of buildTypoParams: restore saved typography (font/size/bold/italic)
+// from the stored query-param string back into the editor state.
+function parseTypoParams(str?: string | null): BrowserTypoSettings {
+  const base: BrowserTypoSettings = JSON.parse(JSON.stringify(DEFAULT_BROWSER_TYPO));
+  if (!str) return base;
+  const params = new URLSearchParams(str);
+  const map: [keyof BrowserTypoSettings, string][] = [
+    ["title", "title"], ["subtitle", "sub"], ["group", "group"], ["item", "item"],
+    ["price", "price"], ["desc", "desc"], ["pairing", "pair"], ["allergy", "allergy"],
+    ["header", "hdr"], ["footer", "ftr"],
+  ];
+  for (const [key, prefix] of map) {
+    const font = params.get(`${prefix}Font`);
+    const sz = params.get(`${prefix}Sz`);
+    if (font) base[key].font = font;
+    if (sz != null && !isNaN(Number(sz))) base[key].size = Number(sz);
+    base[key].bold = params.get(`${prefix}Bold`) === "1";
+    base[key].italic = params.get(`${prefix}Italic`) === "1";
+  }
+  return base;
+}
+
 
 interface ToastRestaurant {
   guid: string;
@@ -463,6 +485,7 @@ export function ToastMenuBrowser() {
     customPrintLines: string | null;
     customTitle: string | null;
     itemPrintStyles: string | null;
+    typography: string | null;
     showOnStaffBoard: boolean | null;
     createdAt: string;
     updatedAt: string;
@@ -516,6 +539,7 @@ export function ToastMenuBrowser() {
     customPrintLines: serializePrintCustomLines() || null,
     customTitle: printCustomTitle.trim() || null,
     itemPrintStyles: serializeItemPrintStyles() || null,
+    typography: buildTypoParams(printTypo) || null,
   });
 
   const createEmbedConfigMutation = useMutation({
@@ -574,6 +598,7 @@ export function ToastMenuBrowser() {
         customPrintLines: config.customPrintLines,
         customTitle: config.customTitle,
         itemPrintStyles: config.itemPrintStyles,
+        typography: config.typography,
         showOnStaffBoard: false,
       });
       return res.json();
@@ -907,6 +932,7 @@ export function ToastMenuBrowser() {
     setPrintCustomLines(parsePrintCustomLines(config.customPrintLines));
     setPrintCustomTitle(config.customTitle || "");
     setPrintItemFontScales(parseItemPrintStyles(config.itemPrintStyles));
+    setPrintTypo(parseTypoParams(config.typography));
     setSelectedPrintGroups(config.groupGuids ? config.groupGuids.split(",").filter(Boolean) : []);
     // Use dedicated print additional guids if available, otherwise fall back to legacy multi-guid format
     if (config.printAdditionalMenuGuids) {
@@ -936,6 +962,7 @@ export function ToastMenuBrowser() {
       setPrintCustomLines([]);
       setPrintCustomTitle("");
       setPrintItemFontScales({});
+      setPrintTypo(DEFAULT_BROWSER_TYPO);
       setPrintHideCourseHeadings(false);
       setPrintOrnament("auto");
       setPrintOrnamentPos("below-title");

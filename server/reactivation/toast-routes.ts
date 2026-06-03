@@ -211,7 +211,8 @@ function ensureEmbedConfigColumns(): Promise<void> {
       ADD COLUMN IF NOT EXISTS item_print_styles text,
       ADD COLUMN IF NOT EXISTS hide_course_headings boolean DEFAULT false,
       ADD COLUMN IF NOT EXISTS ornament varchar(30) DEFAULT 'auto',
-      ADD COLUMN IF NOT EXISTS ornament_position varchar(20) DEFAULT 'below-title'
+      ADD COLUMN IF NOT EXISTS ornament_position varchar(20) DEFAULT 'below-title',
+      ADD COLUMN IF NOT EXISTS typography text
     `).then(() => undefined);
   }
   return ensureEmbedConfigColumnsPromise;
@@ -1387,8 +1388,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
             <h2 class="bev-group-name" style="margin-top:0.9em">${escapeHtml(cleanName)}</h2>`;
           } else {
             itemsHtml += `
-            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>
-            <div class="group-divider"></div>`;
+            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>`;
           }
           itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
           if (pagebreakGuids.includes(item.itemGuid)) {
@@ -1882,8 +1882,7 @@ router.get("/public/menus/embed", async (req, res) => {
             <h2 class="bev-group-name" style="margin-top:0.9em">${escapeHtml(cleanName)}</h2>`;
           } else {
             itemsHtml += `
-            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>
-            <div class="group-divider"></div>`;
+            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>`;
           }
           if (pagebreakGuids.includes(item.itemGuid)) {
             itemsHtml += `<div class="item-page-break"></div>`;
@@ -2309,6 +2308,7 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.showImages) url += `&showimages=1`;
     if (config.ornament && config.ornament !== "auto") url += `&ornament=${encodeURIComponent(config.ornament)}`;
     if (config.ornamentPosition && config.ornamentPosition !== "below-title") url += `&ornamentpos=${encodeURIComponent(config.ornamentPosition)}`;
+    if (config.typography) url += `&${config.typography}`;
 
     // Serve the HTML directly (not a redirect) so the short slug URL stays in the browser bar
     const embedRes = await fetch(url);
@@ -2375,6 +2375,7 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       customPrintLines: req.body.customPrintLines || null,
       customTitle: req.body.customTitle || null,
       itemPrintStyles: req.body.itemPrintStyles || null,
+      typography: req.body.typography || null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
     }).returning();
     res.json(result[0]);
@@ -2414,6 +2415,7 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       customPrintLines: req.body.customPrintLines ?? null,
       customTitle: req.body.customTitle ?? null,
       itemPrintStyles: req.body.itemPrintStyles ?? null,
+      typography: req.body.typography ?? null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
       updatedAt: new Date(),
     }).where(eq(toastMenuEmbedConfigs.id, id)).returning();
