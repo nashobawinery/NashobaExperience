@@ -107,6 +107,70 @@ function parseTypoParams(str?: string | null): BrowserTypoSettings {
   return base;
 }
 
+// Per-menu print/typography settings are remembered automatically (per Toast
+// menu GUID) so reopening a menu restores its layout, fonts, ornament, page
+// breaks, etc. without having to save a named embed config.
+const PRINT_SETTINGS_KEY_PREFIX = "toast-menu-print-settings:";
+const printSettingsStorageKey = (guid: string) => `${PRINT_SETTINGS_KEY_PREFIX}${guid}`;
+
+interface MenuPrintSettings {
+  template: string;
+  header: string;
+  footer: string;
+  scale: number;
+  groupGuids: string[];
+  hideDescriptions: boolean;
+  hidePricing: boolean;
+  hideWinePairing: boolean;
+  showImages: boolean;
+  hideAllergyFooter: boolean;
+  hideCourseHeadings: boolean;
+  ornament: string;
+  ornamentPos: string;
+  pages: number;
+  pageBreaks: string[];
+  customLines: PrintCustomLine[];
+  customTitle: string;
+  itemFontScales: Record<string, number>;
+  typography: string;
+  additionalMenuGuids: string[];
+}
+
+const DEFAULT_PRINT_SETTINGS: MenuPrintSettings = {
+  template: "fine-dining",
+  header: "",
+  footer: "",
+  scale: 100,
+  groupGuids: [],
+  hideDescriptions: false,
+  hidePricing: false,
+  hideWinePairing: false,
+  showImages: false,
+  hideAllergyFooter: false,
+  hideCourseHeadings: false,
+  ornament: "auto",
+  ornamentPos: "below-title",
+  pages: 0,
+  pageBreaks: [],
+  customLines: [],
+  customTitle: "",
+  itemFontScales: {},
+  typography: buildTypoParams(DEFAULT_BROWSER_TYPO),
+  additionalMenuGuids: [],
+};
+
+function readMenuPrintSettings(guid: string): MenuPrintSettings | null {
+  try {
+    const raw = localStorage.getItem(printSettingsStorageKey(guid));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return { ...DEFAULT_PRINT_SETTINGS, ...parsed };
+  } catch {
+    return null;
+  }
+}
+
 
 interface ToastRestaurant {
   guid: string;
@@ -260,6 +324,74 @@ export function ToastMenuBrowser() {
   const [printCustomTitle, setPrintCustomTitle] = useState("");
   const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
   const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
+
+  // Snapshot of all current print/typography settings, used to remember them
+  // per menu (see auto-persist effect below).
+  const serializePrintSettings = (): MenuPrintSettings => ({
+    template: printTemplate,
+    header: printHeader,
+    footer: printFooter,
+    scale: printScale,
+    groupGuids: selectedPrintGroups,
+    hideDescriptions: printHideDescriptions,
+    hidePricing: printHidePricing,
+    hideWinePairing: printHideWinePairing,
+    showImages: printShowImages,
+    hideAllergyFooter: printHideAllergyFooter,
+    hideCourseHeadings: printHideCourseHeadings,
+    ornament: printOrnament,
+    ornamentPos: printOrnamentPos,
+    pages: printPages,
+    pageBreaks: printPageBreaks,
+    customLines: printCustomLines,
+    customTitle: printCustomTitle,
+    itemFontScales: printItemFontScales,
+    typography: buildTypoParams(printTypo),
+    additionalMenuGuids,
+  });
+
+  const applyPrintSettings = (s: MenuPrintSettings) => {
+    setPrintTemplate(s.template || "fine-dining");
+    setPrintHeader(s.header || "");
+    setPrintFooter(s.footer || "");
+    setPrintScale(s.scale ?? 100);
+    setSelectedPrintGroups(Array.isArray(s.groupGuids) ? s.groupGuids : []);
+    setPrintHideDescriptions(!!s.hideDescriptions);
+    setPrintHidePricing(!!s.hidePricing);
+    setPrintHideWinePairing(!!s.hideWinePairing);
+    setPrintShowImages(!!s.showImages);
+    setPrintHideAllergyFooter(!!s.hideAllergyFooter);
+    setPrintHideCourseHeadings(!!s.hideCourseHeadings);
+    setPrintOrnament(s.ornament || "auto");
+    setPrintOrnamentPos(s.ornamentPos || "below-title");
+    setPrintPages(s.pages ?? 0);
+    setPrintPageBreaks(Array.isArray(s.pageBreaks) ? s.pageBreaks : []);
+    setPrintCustomLines(Array.isArray(s.customLines) ? s.customLines : []);
+    setPrintCustomTitle(s.customTitle || "");
+    setPrintItemFontScales(s.itemFontScales && typeof s.itemFontScales === "object" ? s.itemFontScales : {});
+    setPrintTypo(s.typography ? parseTypoParams(s.typography) : DEFAULT_BROWSER_TYPO);
+    setAdditionalMenuGuids(Array.isArray(s.additionalMenuGuids) ? s.additionalMenuGuids : []);
+  };
+
+  // Remember print/typography settings automatically per menu. Any change to a
+  // design control is written to localStorage keyed by the menu GUID, so the
+  // layout, fonts, ornament, page breaks, etc. are restored next time the menu
+  // is opened (see openMenuDetail) without needing a named saved menu.
+  useEffect(() => {
+    if (!selectedMenu || viewMode !== "detail") return;
+    try {
+      localStorage.setItem(printSettingsStorageKey(selectedMenu), JSON.stringify(serializePrintSettings()));
+    } catch {
+      // ignore quota / unavailable storage
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedMenu, viewMode, printTemplate, printHeader, printFooter, printScale,
+    selectedPrintGroups, printHideDescriptions, printHidePricing, printHideWinePairing,
+    printShowImages, printHideAllergyFooter, printHideCourseHeadings, printOrnament,
+    printOrnamentPos, printPages, printPageBreaks, printCustomLines, printCustomTitle,
+    printItemFontScales, printTypo, additionalMenuGuids,
+  ]);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
   const FOOTER_PRESETS_KEY = "toast-menu-footer-presets";
@@ -957,15 +1089,9 @@ export function ToastMenuBrowser() {
       clearPendingChanges();
       setSelectedMenu(menuGuid);
       setViewMode("detail");
-      setAdditionalMenuGuids([]);
-      setSelectedPrintGroups([]);
-      setPrintCustomLines([]);
-      setPrintCustomTitle("");
-      setPrintItemFontScales({});
-      setPrintTypo(DEFAULT_BROWSER_TYPO);
-      setPrintHideCourseHeadings(false);
-      setPrintOrnament("auto");
-      setPrintOrnamentPos("below-title");
+      // Restore this menu's remembered print/typography settings (or fall back
+      // to defaults for a menu that's never been customized).
+      applyPrintSettings(readMenuPrintSettings(menuGuid) ?? DEFAULT_PRINT_SETTINGS);
       setLoadedEmbedConfigId(null);
       setLoadedEmbedConfigName("");
       setSaveName("");
