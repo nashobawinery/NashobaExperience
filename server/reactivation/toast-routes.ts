@@ -25,7 +25,22 @@ type ToastItemLike = {
   name: string;
   suggestedPairing?: string | null;
   isSpecial?: boolean | null;
+  hidePrice?: boolean | null;
 };
+
+// Names that clearly denote a course/section heading rather than a dish, even
+// if a stray description/pairing/price got attached to the row in Toast.
+const COURSE_LABEL_WORDS = new Set([
+  "starters", "starter", "appetizers", "appetisers", "appetizer", "apps",
+  "mains", "main", "main courses", "main course", "entrees", "entrées", "entree", "entrée",
+  "desserts", "dessert", "sides", "side", "side dishes", "salads", "salad",
+  "soups", "soup", "soups & salads", "soups and salads", "small plates", "large plates",
+  "shareables", "sharables", "specials", "today's specials", "todays specials",
+  "beverages", "drinks", "cocktails", "wine", "wines", "beer", "beers",
+  "sandwiches", "burgers", "pizzas", "pizza", "pasta", "pastas", "flatbreads",
+  "brunch", "lunch", "dinner", "breakfast", "kids", "kids menu",
+  "cheese", "charcuterie", "raw bar", "from the sea", "from the land", "to share",
+]);
 
 type CustomPrintLine = {
   kind: "banner" | "header" | "note";
@@ -88,15 +103,23 @@ function isToastInMenuSectionRow(item: ToastItemLike): boolean {
   }
   const p = item.price;
   const num = p != null && p !== "" ? parseFloat(p) : NaN;
+  // A visible, real (non-hidden) price means this is a dish, never a heading.
+  const hasVisiblePrice = !isNaN(num) && num > 0 && !item.hidePrice;
+  if (hasVisiblePrice) return false;
+  const raw = (item.name || "").trim();
+  const lower = raw.toLowerCase();
+  // Strong heading signals — honored even if a stray description, pairing, or
+  // hidden price got attached to the row (e.g. a "MAINS" course label).
+  const isAllCaps = raw.length >= 2 && raw.length <= 40 && raw === raw.toUpperCase() && /[A-Z]/.test(raw) && !/\d/.test(raw);
+  if (isAllCaps || COURSE_LABEL_WORDS.has(lower)) return true;
+  // Otherwise require a clean, price-less row with no description/extras.
   const noOrZeroPrice = p == null || p === "" || (!isNaN(num) && num === 0);
   if (!noOrZeroPrice) return false;
   if (item.description?.trim()) return false;
   if (item.sizePrices) return false;
   if (item.imageUrl) return false;
   if (item.suggestedPairing?.trim()) return false;
-  const raw = (item.name || "").trim();
   if (raw.length < 2 || raw.length > 100) return false;
-  if (raw === raw.toUpperCase() && /[A-Z]/.test(raw)) return true;
   if (raw.length > 40) return false;
   if (/\$\s*\d/.test(raw) || /^\d+(\.\d+)?$/.test(raw)) return false;
   return true;
