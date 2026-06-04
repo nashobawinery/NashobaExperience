@@ -14206,6 +14206,11 @@ Respond with ONLY the category ID (e.g., "abc-123-def") or "NONE". No other text
         return null;
       }
 
+      if (!process.env.OPENAI_API_KEY) {
+        console.error('[AI Draft Auto] OPENAI_API_KEY is not configured — cannot generate a suggested response for received emails');
+        return null;
+      }
+
       // Get knowledge base (canned responses + web sources + articles)
       const cannedResponses = await storage.getSupportCannedResponses(true);
       const webSources = await storage.getSupportWebSources(true);
@@ -14372,6 +14377,11 @@ ${webSourcesContext}${feedbackContext}`
         return res.status(404).json({ message: 'Support request not found' });
       }
 
+      if (!process.env.OPENAI_API_KEY) {
+        console.error('[AI Draft] OPENAI_API_KEY is not configured on the server');
+        return res.status(503).json({ message: 'AI is not configured: the OpenAI API key (OPENAI_API_KEY) is missing on the server.' });
+      }
+
       // Get knowledge base (canned responses + web sources + articles)
       const cannedResponses = await storage.getSupportCannedResponses(true);
       const webSources = await storage.getSupportWebSources(true);
@@ -14485,9 +14495,10 @@ ${webSourcesContext}`
       // Return the draft without saving
       console.log(`[AI Draft] Generated with guidance: "${guidance || 'none'}"`);
       res.json({ draft: aiResponse });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating AI draft:', error);
-      res.status(500).json({ message: 'Failed to generate AI draft' });
+      const detail = error?.message || 'unknown error';
+      res.status(500).json({ message: `Failed to generate AI draft: ${detail}` });
     }
   });
 

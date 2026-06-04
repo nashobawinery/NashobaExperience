@@ -518,8 +518,13 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
       setAiGuidanceOpen(false);
       setAiGuidance("");
     },
-    onError: () => {
-      toast({ title: "Failed to generate AI response", variant: "destructive" });
+    onError: (err: any) => {
+      const detail = (err?.message || "").replace(/^\d+:\s*/, "");
+      toast({
+        title: "Failed to generate AI response",
+        description: detail || undefined,
+        variant: "destructive",
+      });
     },
   });
 
