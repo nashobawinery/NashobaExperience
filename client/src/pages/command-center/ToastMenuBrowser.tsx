@@ -272,15 +272,43 @@ function formatPrice(price: string | null): string {
 function parseSizePricesInput(input: string): string | null {
   const text = (input || "").trim();
   if (!text) return null;
-  const entries = text.split(/[,\n;|\/]+/).map((s) => s.trim()).filter(Boolean);
-  const sizes: { name: string; price: string }[] = [];
-  for (const entry of entries) {
-    const m = entry.match(/^(.*?)[\s:\-–—]*\$?\s*(\d+(?:\.\d{1,2})?)\s*$/);
-    if (!m) continue;
-    const name = m[1].replace(/[\s:\-–—]+$/, "").trim();
-    if (!name) continue;
-    sizes.push({ name, price: m[2] });
+
+  const buildFromEntries = (entries: string[]) => {
+    const out: { name: string; price: string }[] = [];
+    for (const raw of entries) {
+      const entry = raw.trim();
+      if (!entry) continue;
+      const m = entry.match(/^(.*?)[\s:\-–—]*\$?\s*(\d+(?:\.\d{1,2})?)\s*$/);
+      if (!m) continue;
+      const name = m[1].replace(/^\s*(?:and|or)\b\s*/i, "").replace(/[\s:\-–—]+$/, "").trim();
+      if (!name) continue;
+      out.push({ name, price: m[2] });
+    }
+    return out;
+  };
+
+  // Normalize "and" / "&" / middot into commas so "Cup $6 and Bowl $10" works.
+  const normalized = text
+    .replace(/\s*&\s*/g, ", ")
+    .replace(/\s+(?:and|or)\s+/gi, ", ")
+    .replace(/\s*·\s*/g, ", ");
+
+  let sizes = buildFromEntries(normalized.split(/[,\n;|\/]+/));
+
+  // Fallback for input with no obvious separators but multiple "$" amounts
+  // (e.g. "Cup $6 Bowl $10"): pull out each name + $price pair directly.
+  if (sizes.length < 2) {
+    const re = /([A-Za-z][A-Za-z0-9 .'’\-]*?)\s*\$\s*(\d+(?:\.\d{1,2})?)/g;
+    const out: { name: string; price: string }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const name = m[1].replace(/^\s*(?:and|or)\b\s*/i, "").trim();
+      if (!name) continue;
+      out.push({ name, price: m[2] });
+    }
+    if (out.length > sizes.length) sizes = out;
   }
+
   return sizes.length ? JSON.stringify(sizes) : null;
 }
 
