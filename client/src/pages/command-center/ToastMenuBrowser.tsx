@@ -40,7 +40,7 @@ import { TypographyPanel, type TypoElem } from "@/components/TypographyPanel";
 interface BrowserTypoSettings {
   title: TypoElem; subtitle: TypoElem; group: TypoElem; item: TypoElem;
   price: TypoElem; desc: TypoElem; pairing: TypoElem; allergy: TypoElem;
-  header: TypoElem; footer: TypoElem;
+  header: TypoElem; footer: TypoElem; header2: TypoElem; footer2: TypoElem;
 }
 
 const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
@@ -54,6 +54,8 @@ const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
   allergy:  { font: "Jost",     size: 10, bold: false, italic: false },
   header:   { font: "Jost",     size: 14, bold: false, italic: true  },
   footer:   { font: "Jost",     size: 12, bold: false, italic: true  },
+  header2:  { font: "Allura",   size: 18, bold: false, italic: false },
+  footer2:  { font: "Jost",     size: 12, bold: false, italic: true  },
 };
 
 const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
@@ -65,8 +67,10 @@ const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
   { key: "desc",     label: "Description" },
   { key: "pairing",  label: "Pairings" },
   { key: "allergy",  label: "Allergy text" },
-  { key: "header",   label: "Custom header" },
-  { key: "footer",   label: "Custom footer" },
+  { key: "header",   label: "Custom header 1" },
+  { key: "header2",  label: "Custom header 2" },
+  { key: "footer",   label: "Custom footer 1" },
+  { key: "footer2",  label: "Custom footer 2" },
 ];
 
 function buildTypoParams(t: BrowserTypoSettings): string {
@@ -82,6 +86,8 @@ function buildTypoParams(t: BrowserTypoSettings): string {
     `allergyFont=${e(t.allergy.font)}`,`allergySz=${t.allergy.size}`,t.allergy.bold  ? "allergyBold=1"  : "", t.allergy.italic  ? "allergyItalic=1"  : "",
     `hdrFont=${e(t.header.font)}`,     `hdrSz=${t.header.size}`,     t.header.bold   ? "hdrBold=1"      : "", t.header.italic   ? "hdrItalic=1"      : "",
     `ftrFont=${e(t.footer.font)}`,     `ftrSz=${t.footer.size}`,     t.footer.bold   ? "ftrBold=1"      : "", t.footer.italic   ? "ftrItalic=1"      : "",
+    `hdr2Font=${e(t.header2.font)}`,   `hdr2Sz=${t.header2.size}`,   t.header2.bold  ? "hdr2Bold=1"     : "", t.header2.italic  ? "hdr2Italic=1"     : "",
+    `ftr2Font=${e(t.footer2.font)}`,   `ftr2Sz=${t.footer2.size}`,   t.footer2.bold  ? "ftr2Bold=1"     : "", t.footer2.italic  ? "ftr2Italic=1"     : "",
   ].filter(Boolean).join("&");
 }
 
@@ -94,7 +100,7 @@ function parseTypoParams(str?: string | null): BrowserTypoSettings {
   const map: [keyof BrowserTypoSettings, string][] = [
     ["title", "title"], ["subtitle", "sub"], ["group", "group"], ["item", "item"],
     ["price", "price"], ["desc", "desc"], ["pairing", "pair"], ["allergy", "allergy"],
-    ["header", "hdr"], ["footer", "ftr"],
+    ["header", "hdr"], ["footer", "ftr"], ["header2", "hdr2"], ["footer2", "ftr2"],
   ];
   for (const [key, prefix] of map) {
     const font = params.get(`${prefix}Font`);
@@ -117,6 +123,8 @@ interface MenuPrintSettings {
   template: string;
   header: string;
   footer: string;
+  header2: string;
+  footer2: string;
   scale: number;
   groupGuids: string[];
   hideDescriptions: boolean;
@@ -140,6 +148,8 @@ const DEFAULT_PRINT_SETTINGS: MenuPrintSettings = {
   template: "fine-dining",
   header: "",
   footer: "",
+  header2: "",
+  footer2: "",
   scale: 100,
   groupGuids: [],
   hideDescriptions: false,
@@ -369,6 +379,8 @@ export function ToastMenuBrowser() {
   const [printScale, setPrintScale] = useState(100);
   const [printPages, setPrintPages] = useState(0);
   const [printFooter, setPrintFooter] = useState("");
+  const [printHeader2, setPrintHeader2] = useState("");
+  const [printFooter2, setPrintFooter2] = useState("");
   const [printHideDescriptions, setPrintHideDescriptions] = useState(false);
   const [printPageBreaks, setPrintPageBreaks] = useState<string[]>([]);
   const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
@@ -396,6 +408,8 @@ export function ToastMenuBrowser() {
     template: printTemplate,
     header: printHeader,
     footer: printFooter,
+    header2: printHeader2,
+    footer2: printFooter2,
     scale: printScale,
     groupGuids: selectedPrintGroups,
     hideDescriptions: printHideDescriptions,
@@ -419,6 +433,8 @@ export function ToastMenuBrowser() {
     setPrintTemplate(s.template || "fine-dining");
     setPrintHeader(s.header || "");
     setPrintFooter(s.footer || "");
+    setPrintHeader2(s.header2 || "");
+    setPrintFooter2(s.footer2 || "");
     setPrintScale(s.scale ?? 100);
     setSelectedPrintGroups(Array.isArray(s.groupGuids) ? s.groupGuids : []);
     setPrintHideDescriptions(!!s.hideDescriptions);
@@ -451,7 +467,7 @@ export function ToastMenuBrowser() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    selectedMenu, viewMode, printTemplate, printHeader, printFooter, printScale,
+    selectedMenu, viewMode, printTemplate, printHeader, printFooter, printHeader2, printFooter2, printScale,
     selectedPrintGroups, printHideDescriptions, printHidePricing, printHideWinePairing,
     printShowImages, printHideAllergyFooter, printHideCourseHeadings, printOrnament,
     printOrnamentPos, printPages, printPageBreaks, printCustomLines, printCustomTitle,
@@ -667,6 +683,8 @@ export function ToastMenuBrowser() {
     template: string | null;
     header: string | null;
     footer: string | null;
+    header2: string | null;
+    footer2: string | null;
     scale: number | null;
     groupGuids: string | null;
     hideDescriptions: boolean | null;
@@ -722,6 +740,8 @@ export function ToastMenuBrowser() {
     template: printTemplate,
     header: printHeader || null,
     footer: printFooter || null,
+    header2: printHeader2 || null,
+    footer2: printFooter2 || null,
     scale: printScale,
     groupGuids: selectedPrintGroups.length > 0 ? selectedPrintGroups.join(",") : null,
     hideDescriptions: printHideDescriptions,
@@ -781,6 +801,8 @@ export function ToastMenuBrowser() {
         template: config.template,
         header: config.header,
         footer: config.footer,
+        header2: config.header2,
+        footer2: config.footer2,
         scale: config.scale,
         groupGuids: config.groupGuids,
         hideDescriptions: config.hideDescriptions,
@@ -992,6 +1014,8 @@ export function ToastMenuBrowser() {
     if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
     if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (header) url += `&header=${encodeURIComponent(header)}`;
+    if (printHeader2.trim()) url += `&header2=${encodeURIComponent(printHeader2.trim())}`;
+    if (printFooter2.trim()) url += `&footer2=${encodeURIComponent(printFooter2.trim())}`;
     if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
     const itemStyles = serializeItemPrintStyles();
     if (itemStyles) url += `&itemstyles=${encodeURIComponent(itemStyles)}`;
@@ -1008,6 +1032,8 @@ export function ToastMenuBrowser() {
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
     if (header && header.trim()) url += `&header=${encodeURIComponent(header.trim())}`;
+    if (printHeader2.trim()) url += `&header2=${encodeURIComponent(printHeader2.trim())}`;
+    if (printFooter2.trim()) url += `&footer2=${encodeURIComponent(printFooter2.trim())}`;
     if (hidePricing) url += `&hideprice=1`;
     if (hideWinePairing) url += `&hidepairing=1`;
     if (showImages) url += `&showimages=1`;
@@ -1083,6 +1109,8 @@ export function ToastMenuBrowser() {
       setSelectedPrintGroups(params.get("groupGuid") ? params.get("groupGuid")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintHeader(params.get("header") || "");
       setPrintFooter(params.get("footer") || "");
+      setPrintHeader2(params.get("header2") || "");
+      setPrintFooter2(params.get("footer2") || "");
       setPrintScale(parseFloat(params.get("scale") || "100") || 100);
       setPrintHideDescriptions(params.get("hidedesc") === "1");
       setPrintHidePricing(params.get("hideprice") === "1");
@@ -1117,6 +1145,8 @@ export function ToastMenuBrowser() {
     setPrintTemplate(config.template || "fine-dining");
     setPrintHeader(config.header || "");
     setPrintFooter(config.footer || "");
+    setPrintHeader2(config.header2 || "");
+    setPrintFooter2(config.footer2 || "");
     setPrintScale(config.scale || 100);
     setPrintHideDescriptions(config.hideDescriptions || false);
     setPrintHidePricing(config.hidePricing || false);
@@ -1654,6 +1684,32 @@ export function ToastMenuBrowser() {
                     data-testid="input-detail-footer"
                   />
                 </div>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Custom Header 2</label>
+                <p className="text-xs text-muted-foreground">A second header line below Header 1. Set its own font under Typography → "Custom header 2". Supports HTML.</p>
+                <input
+                  type="text"
+                  value={printHeader2}
+                  onChange={(e) => setPrintHeader2(e.target.value)}
+                  placeholder="e.g., Truffle fries +5 · GF bread +2"
+                  className="w-full min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-detail-header2"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Custom Footer 2</label>
+                <p className="text-xs text-muted-foreground">A second footer line below Footer 1. Set its own font under Typography → "Custom footer 2".</p>
+                <input
+                  type="text"
+                  value={printFooter2}
+                  onChange={(e) => setPrintFooter2(e.target.value)}
+                  placeholder="e.g., Reservations recommended"
+                  className="w-full min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-detail-footer2"
+                />
               </div>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -2564,6 +2620,8 @@ export function ToastMenuBrowser() {
                               setPrintTemplate(cfg.template || "fine-dining");
                               setPrintHeader(cfg.header || "");
                               setPrintFooter(cfg.footer || "");
+                              setPrintHeader2(cfg.header2 || "");
+                              setPrintFooter2(cfg.footer2 || "");
                               setPrintScale(cfg.scale ?? 100);
                               setPrintHideDescriptions(cfg.hideDescriptions ?? false);
                               setPrintHidePricing(cfg.hidePricing ?? false);

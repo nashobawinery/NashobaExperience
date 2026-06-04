@@ -6385,6 +6385,8 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
   template: varchar("template", { length: 50 }).default("fine-dining"),
   header: text("header"),
   footer: text("footer"),
+  header2: text("header2"),
+  footer2: text("footer2"),
   headerFontSize: real("header_font_size").default(1),
   footerFontSize: real("footer_font_size").default(1),
   itemFontSize: real("item_font_size").default(1),

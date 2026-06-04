@@ -212,7 +212,9 @@ function ensureEmbedConfigColumns(): Promise<void> {
       ADD COLUMN IF NOT EXISTS hide_course_headings boolean DEFAULT false,
       ADD COLUMN IF NOT EXISTS ornament varchar(30) DEFAULT 'auto',
       ADD COLUMN IF NOT EXISTS ornament_position varchar(20) DEFAULT 'below-title',
-      ADD COLUMN IF NOT EXISTS typography text
+      ADD COLUMN IF NOT EXISTS typography text,
+      ADD COLUMN IF NOT EXISTS header2 text,
+      ADD COLUMN IF NOT EXISTS footer2 text
     `).then(() => undefined);
   }
   return ensureEmbedConfigColumnsPromise;
@@ -1215,6 +1217,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const columnCount = pages > 0 ? pages : 1;
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
+    const customHeader2 = (req.query.header2 as string) || "";
+    const customFooter2 = (req.query.footer2 as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
     const customTitle = (req.query.title as string) || "";
     const itemPrintStyles = parseItemPrintStyles(req.query.itemstyles);
@@ -1246,8 +1250,10 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     };
     const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
     const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
+    const hdr2Typo = { font: _sf(req.query.hdr2Font as string, "Allura"), size: _sp(req.query.hdr2Sz as string, 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
+    const ftr2Typo = { font: _sf(req.query.ftr2Font as string, "Jost"), size: _sp(req.query.ftr2Sz as string, 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, ...customPrintLines.map(line => line.font)])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -1640,12 +1646,14 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
       const subtitleHtml = template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : template === "fine-dining" ? "" : `<p class="menu-subtitle">Menu</p>`;
       const customHeaderHtml = customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : "";
+      const customHeader2Html = customHeader2 ? `<div class="custom-header" style="font-family:'${hdr2Typo.font}',sans-serif;font-size:${ptRem(hdr2Typo.size)}rem;font-weight:${fw(hdr2Typo.bold)};font-style:${fst(hdr2Typo.italic)};margin-top:-1.1em;">${sanitizeHeaderHtml(customHeader2)}</div>` : "";
       const seq: string[] = [];
       if (ornamentPos === "above-title") seq.push(ornamentHtml);
       seq.push(titleHtml);
       if (ornamentPos === "below-title") seq.push(ornamentHtml);
       if (subtitleHtml) seq.push(subtitleHtml);
       if (customHeaderHtml) seq.push(customHeaderHtml);
+      if (customHeader2Html) seq.push(customHeader2Html);
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
@@ -1657,6 +1665,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         <p>Alert your server if you have special dietary requirements.</p>
       ` : ""}
       ${customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
+      ${customFooter2 ? `<div class="custom-footer" style="font-family:'${ftr2Typo.font}',sans-serif;font-size:${ptRem(ftr2Typo.size)}rem;font-weight:${fw(ftr2Typo.bold)};font-style:${fst(ftr2Typo.italic)};margin-top:4px;">${sanitizeHeaderHtml(customFooter2)}</div>` : ""}
     </div>
   </div>
   <script>
@@ -1737,6 +1746,8 @@ router.get("/public/menus/embed", async (req, res) => {
     const columnCount = pages > 0 ? pages : 1;
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
+    const customHeader2 = (req.query.header2 as string) || "";
+    const customFooter2 = (req.query.footer2 as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
     const itemPrintStyles = parseItemPrintStyles(req.query.itemstyles);
 
@@ -1769,8 +1780,10 @@ router.get("/public/menus/embed", async (req, res) => {
     };
     const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
     const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
+    const hdr2Typo = { font: _sf(req.query.hdr2Font as string, "Allura"), size: _sp(req.query.hdr2Sz as string, 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
+    const ftr2Typo = { font: _sf(req.query.ftr2Font as string, "Jost"), size: _sp(req.query.ftr2Sz as string, 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, ...customPrintLines.map(line => line.font)])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -2134,12 +2147,14 @@ router.get("/public/menus/embed", async (req, res) => {
       const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
       const subtitleHtml = template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : template === "fine-dining" ? "" : `<p class="menu-subtitle">Menu</p>`;
       const customHeaderHtml = customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : "";
+      const customHeader2Html = customHeader2 ? `<div class="custom-header" style="font-family:'${hdr2Typo.font}',sans-serif;font-size:${ptRem(hdr2Typo.size)}rem;font-weight:${fw(hdr2Typo.bold)};font-style:${fst(hdr2Typo.italic)};margin-top:-1.1em;">${sanitizeHeaderHtml(customHeader2)}</div>` : "";
       const seq: string[] = [];
       if (ornamentPos === "above-title") seq.push(ornamentHtml);
       seq.push(titleHtml);
       if (ornamentPos === "below-title") seq.push(ornamentHtml);
       if (subtitleHtml) seq.push(subtitleHtml);
       if (customHeaderHtml) seq.push(customHeaderHtml);
+      if (customHeader2Html) seq.push(customHeader2Html);
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
@@ -2151,6 +2166,7 @@ router.get("/public/menus/embed", async (req, res) => {
         <p>Alert your server if you have special dietary requirements.</p>
       ` : ""}
       ${customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
+      ${customFooter2 ? `<div class="custom-footer" style="font-family:'${ftr2Typo.font}',sans-serif;font-size:${ptRem(ftr2Typo.size)}rem;font-weight:${fw(ftr2Typo.bold)};font-style:${fst(ftr2Typo.italic)};margin-top:4px;">${sanitizeHeaderHtml(customFooter2)}</div>` : ""}
     </div>
   </div>
 </body>
@@ -2301,6 +2317,8 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.customPrintLines) url += `&customlines=${encodeURIComponent(config.customPrintLines)}`;
     if (config.hideDescriptions) url += `&hidedesc=1`;
     if (config.header) url += `&header=${encodeURIComponent(config.header)}`;
+    if (config.header2) url += `&header2=${encodeURIComponent(config.header2)}`;
+    if (config.footer2) url += `&footer2=${encodeURIComponent(config.footer2)}`;
     if (config.hidePricing) url += `&hideprice=1`;
     if (config.hideWinePairing) url += `&hidepairing=1`;
     if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
@@ -2357,6 +2375,8 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       template: req.body.template || "fine-dining",
       header: req.body.header || null,
       footer: req.body.footer || null,
+      header2: req.body.header2 || null,
+      footer2: req.body.footer2 || null,
       headerFontSize: req.body.headerFontSize ?? 1,
       footerFontSize: req.body.footerFontSize ?? 1,
       itemFontSize: req.body.itemFontSize ?? 1,
@@ -2397,6 +2417,8 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       template: req.body.template,
       header: req.body.header ?? null,
       footer: req.body.footer ?? null,
+      header2: req.body.header2 ?? null,
+      footer2: req.body.footer2 ?? null,
       headerFontSize: req.body.headerFontSize ?? 1,
       footerFontSize: req.body.footerFontSize ?? 1,
       itemFontSize: req.body.itemFontSize ?? 1,
