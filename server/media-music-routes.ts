@@ -11,6 +11,7 @@ import {
   insertMusicianSubmissionSchema,
   insertMusicDayBannerSchema,
 } from "@shared/schema";
+import { mediaEventVisibilityCutoffYmd } from "./special-calendar";
 
 const router = Router();
 
@@ -182,7 +183,7 @@ router.post("/api/public/musician-submit", async (req: Request, res: Response) =
 
 router.get("/api/public/music-calendar", async (_req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = mediaEventVisibilityCutoffYmd();
     const events = await db
       .select({
         id: mediaMusicEvents.id,
@@ -262,7 +263,7 @@ router.delete("/api/media/music-day-banners/:id", requireAuth, async (req: Reque
 
 router.get("/api/public/music-day-banners", async (_req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = mediaEventVisibilityCutoffYmd();
     const rows = await db
       .select({
         bannerDate: mediaMusicDayBanners.bannerDate,

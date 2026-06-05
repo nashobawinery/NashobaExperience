@@ -16,6 +16,7 @@ import {
 } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
 import { requireModuleAccess } from "./rbac";
+import { mediaEventVisibilityCutoffYmd } from "./special-calendar";
 
 const router = Router();
 const requireFoodTruckAccess = requireModuleAccess("media_center");
@@ -324,7 +325,7 @@ router.post("/api/public/food-truck-submit", async (req: Request, res: Response)
 
 router.get("/api/public/food-truck-calendar", async (_req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = mediaEventVisibilityCutoffYmd();
     const events = await db
       .select({
         id: mediaFoodTruckEvents.id,
@@ -379,7 +380,7 @@ router.get("/api/public/food-truck-calendar", async (_req: Request, res: Respons
 
 router.get("/api/public/food-truck-day-banners", async (_req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = mediaEventVisibilityCutoffYmd();
     const rows = await db
       .select({
         bannerDate: mediaFoodTruckDayBanners.bannerDate,

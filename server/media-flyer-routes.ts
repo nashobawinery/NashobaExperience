@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "./db";
 import { sql, eq } from "drizzle-orm";
 import { flightCardConfigs } from "@shared/schema";
+import { mediaEventVisibilityCutoffYmd } from "./special-calendar";
 
 const router = Router();
 
@@ -75,6 +76,7 @@ router.get("/api/media/flyer/embed", async (req, res) => {
     };
 
     let events: any[] = [];
+    const visibilityCutoff = mediaEventVisibilityCutoffYmd();
 
     if (mode === "food-trucks") {
       let result;
@@ -103,8 +105,8 @@ router.get("/api/media/flyer/embed", async (req, res) => {
           JOIN media_food_trucks ft ON fte.food_truck_id = ft.id
           WHERE fte.is_active = true
             AND ft.is_active = true
-            AND fte.event_date::date >= CURRENT_DATE
-            AND fte.event_date::date <= CURRENT_DATE + (${daysAhead})::int
+            AND fte.event_date::date >= ${visibilityCutoff}::date
+            AND fte.event_date::date <= ${visibilityCutoff}::date + (${daysAhead})::int
           ORDER BY fte.event_date ASC, fte.start_time ASC
         `);
       }
@@ -134,8 +136,8 @@ router.get("/api/media/flyer/embed", async (req, res) => {
           FROM media_music_events me
           LEFT JOIN media_musicians m ON me.musician_id = m.id
           WHERE me.is_active = true
-            AND me.event_date::date >= CURRENT_DATE
-            AND me.event_date::date <= CURRENT_DATE + (${daysAhead})::int
+            AND me.event_date::date >= ${visibilityCutoff}::date
+            AND me.event_date::date <= ${visibilityCutoff}::date + (${daysAhead})::int
           ORDER BY me.event_date ASC
         `);
       }

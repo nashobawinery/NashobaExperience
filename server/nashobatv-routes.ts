@@ -17,6 +17,7 @@ import {
   mediaMusicians,
 } from "@shared/schema";
 import { objectStorageClient } from "./objectStorage";
+import { mediaEventVisibilityCutoffYmd } from "./special-calendar";
 
 const router = Router();
 
@@ -403,7 +404,7 @@ router.get("/api/public/display/trivia", async (_req: Request, res: Response) =>
 
 router.get("/api/public/display/music", async (_req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = mediaEventVisibilityCutoffYmd();
     const events = await db
       .select({
         id: mediaMusicEvents.id,
@@ -745,7 +746,7 @@ router.get("/api/public/display/:slug/music", async (req: Request, res: Response
   try {
     const channel = await getChannelBySlug(req.params.slug);
     if (!channel) return res.status(404).json({ error: "Channel not found" });
-    const today = new Date().toISOString().split("T")[0];
+    const today = mediaEventVisibilityCutoffYmd();
     const events = await db
       .select({
         id: mediaMusicEvents.id,

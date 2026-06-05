@@ -9,6 +9,39 @@ import { db } from "./db";
 
 type DbExec = typeof db;
 
+function easternHour24(now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(now);
+  const hourPart = parts.find((p) => p.type === "hour");
+  const hour = parseInt(hourPart?.value ?? "0", 10);
+  return hour === 24 ? 0 : hour;
+}
+
+function subtractCalendarDay(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  const yy = dt.getUTCFullYear();
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const da = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mo}-${da}`;
+}
+
+/**
+ * Minimum event/banner date (YYYY-MM-DD) still visible on public media calendars.
+ * Items stay visible through the event day until 1:00 AM Eastern the following morning.
+ */
+export function mediaEventVisibilityCutoffYmd(now = new Date()): string {
+  const todayYmd = calendarYmdEastern(now);
+  if (easternHour24(now) < 1) {
+    return subtractCalendarDay(todayYmd);
+  }
+  return todayYmd;
+}
+
 /** Eastern US calendar YYYY-MM-DD for business-day alignment with operations. */
 export function calendarYmdEastern(inst: Date | string | null | undefined): string {
   if (inst == null) return "invalid";
