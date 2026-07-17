@@ -20,14 +20,19 @@ function easternHour24(now: Date): number {
   return hour === 24 ? 0 : hour;
 }
 
-function subtractCalendarDay(ymd: string): string {
+function shiftCalendarDay(ymd: string, deltaDays: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() - 1);
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
   const yy = dt.getUTCFullYear();
   const mo = String(dt.getUTCMonth() + 1).padStart(2, "0");
   const da = String(dt.getUTCDate()).padStart(2, "0");
   return `${yy}-${mo}-${da}`;
+}
+
+/** Shift a YYYY-MM-DD calendar date by whole days (UTC date arithmetic). */
+export function shiftCalendarYmd(ymd: string, deltaDays: number): string {
+  return shiftCalendarDay(ymd, deltaDays);
 }
 
 /**
@@ -37,9 +42,24 @@ function subtractCalendarDay(ymd: string): string {
 export function mediaEventVisibilityCutoffYmd(now = new Date()): string {
   const todayYmd = calendarYmdEastern(now);
   if (easternHour24(now) < 1) {
-    return subtractCalendarDay(todayYmd);
+    return shiftCalendarDay(todayYmd, -1);
   }
   return todayYmd;
+}
+
+/** Food truck schedule end-of-day (Eastern, 24h). Same-day trucks stay until this hour. */
+export const FOOD_TRUCK_SCHEDULE_END_HOUR_EASTERN = 20;
+
+/**
+ * True once a food-truck event date is past 8:00 PM Eastern on that day.
+ * Used for permit auto-removal — must not deactivate trucks earlier the same day.
+ */
+export function isFoodTruckEventPastScheduleWindow(eventDateYmd: string, now = new Date()): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDateYmd)) return false;
+  const todayYmd = calendarYmdEastern(now);
+  if (eventDateYmd < todayYmd) return true;
+  if (eventDateYmd > todayYmd) return false;
+  return easternHour24(now) >= FOOD_TRUCK_SCHEDULE_END_HOUR_EASTERN;
 }
 
 /** Eastern US calendar YYYY-MM-DD for business-day alignment with operations. */

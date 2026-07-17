@@ -2,16 +2,23 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import sgMail from "@sendgrid/mail";
 import { sendEmail, generateBrandedEmailFooter } from "./email";
+import {
+  calendarYmdEastern,
+  isFoodTruckEventPastScheduleWindow,
+  shiftCalendarYmd,
+} from "./special-calendar";
 
 if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 }
 
-function daysUntil(dateStr: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr + "T00:00:00");
-  return Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+/** Whole calendar days from today (Eastern) until eventDate (YYYY-MM-DD). */
+function daysUntil(dateStr: string, now = new Date()): number {
+  const today = calendarYmdEastern(now);
+  const t1 = Date.parse(`${dateStr}T12:00:00Z`);
+  const t2 = Date.parse(`${today}T12:00:00Z`);
+  if (Number.isNaN(t1) || Number.isNaN(t2)) return Number.POSITIVE_INFINITY;
+  return Math.round((t1 - t2) / (1000 * 60 * 60 * 24));
 }
 
 function generateVendorReminderEmail(
@@ -201,9 +208,11 @@ export async function runFoodTruckPermitReminders(): Promise<void> {
   }
 
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = calendarYmdEastern(new Date());
+    // Include yesterday so the 8 AM job can deactivate no-permit events after their 8 PM window.
+    const activeLookbackDate = shiftCalendarYmd(today, -1);
 
-    // Find active future events where the truck still lacks a compliant permit on file.
+    // Find active events (yesterday through future, Eastern) where the truck still lacks a compliant permit.
     // A permit PDF upload (permit_image_url) satisfies the requirement when no expiry is recorded yet;
     // if an expiry date is present and in the past, keep reminding until staff renews (image + future expiry).
     const upcomingEvents = await db.execute(sql`
@@ -219,7 +228,7 @@ export async function runFoodTruckPermitReminders(): Promise<void> {
       FROM media_food_truck_events e
       JOIN media_food_trucks t ON e.food_truck_id = t.id
       WHERE e.is_active = true
-        AND e.event_date >= ${today}
+        AND e.event_date >= ${activeLookbackDate}
         AND NOT (
           (t.permit_expiry IS NOT NULL AND t.permit_expiry >= ${today})
           OR (
@@ -239,14 +248,14 @@ export async function runFoodTruckPermitReminders(): Promise<void> {
     for (const row of rows) {
       const days = daysUntil(row.event_date);
 
-      // Auto-remove: event is today or past (shouldn't be in future query but guard anyway)
-      // Also auto-remove if event is within 0 days (day of event, no permit)
-      if (days <= 0) {
+      // Auto-remove only after 8 PM Eastern on the event day.
+      // Do not deactivate same-day trucks earlier — they must remain on the public schedule.
+      if (isFoodTruckEventPastScheduleWindow(row.event_date)) {
         await db.execute(sql`
           UPDATE media_food_truck_events SET is_active = false WHERE id = ${row.event_id}
         `);
         removedCount++;
-        console.log(`[Food Truck Permits] Auto-removed event ${row.event_id} (${row.truck_name}) — event date passed with no permit`);
+        console.log(`[Food Truck Permits] Auto-removed event ${row.event_id} (${row.truck_name}) — past 8 PM Eastern with no permit`);
 
         // Notify vendor of removal
         if (row.contact_email) {
