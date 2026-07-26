@@ -110,15 +110,23 @@ function stripHtmlToPlain(text: string): string {
   return text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Detect legacy in-column "Lunch on the Knoll" custom lines so they can be promoted to the full-width banner. */
+/** Detect legacy in-column "Lunch on the Knoll" content (custom lines or Toast rows). */
 function isKnollLunchBannerTitleText(plain: string): boolean {
-  const t = plain.toUpperCase();
+  const t = plain.toUpperCase().replace(/\s+/g, " ").trim();
   return t.includes("LUNCH ON THE KNOLL") || t === KNOLL_LUNCH_BANNER_TITLE;
 }
 
 function isKnollLunchBannerNoteText(plain: string): boolean {
   const t = plain.toUpperCase();
   return t.includes("SERVING LUNCH DAILY") || t.includes("PHYSICAL GIFT CARD");
+}
+
+function isKnollLunchBannerToastItem(item: { name?: string | null; description?: string | null }): boolean {
+  const name = stripHtmlToPlain(item.name || "");
+  if (isKnollLunchBannerTitleText(name)) return true;
+  // Toast sometimes stores the whole lunch blurb as a single header/description row.
+  const desc = stripHtmlToPlain(item.description || "");
+  return isKnollLunchBannerTitleText(desc) || (isKnollLunchBannerNoteText(desc) && name.length <= 40 && !/\d/.test(name));
 }
 
 /**
@@ -139,8 +147,9 @@ function migrateKnollLunchBannerLines(
   for (const line of lines) {
     const plain = stripHtmlToPlain(line.text);
     const plainUp = plain.toUpperCase();
-    const isTitleKind = line.kind === "banner" || line.kind === "header";
-    const isNoteKind = line.kind === "note" || line.kind === "banner";
+    // Include course lines — those are easy to "lose" in the UI (edited only via heading icon).
+    const isTitleKind = line.kind === "banner" || line.kind === "header" || line.kind === "course";
+    const isNoteKind = line.kind === "note" || line.kind === "banner" || line.kind === "course-note";
     const titleLike =
       (isTitleKind && isKnollLunchBannerTitleText(plain)) ||
       (isTitleKind && !!titleNorm && (plainUp === titleNorm || plainUp.includes(titleNorm)));
@@ -205,9 +214,11 @@ function buildKnollCss(opts: {
   hdrTypo: KnollTypoElem;
   hdr2Typo: KnollTypoElem;
   ftrTypo: KnollTypoElem;
+  bannerTypo: KnollTypoElem;
+  bannerNoteTypo: KnollTypoElem;
   headerColor: string;
 }): string {
-  const { gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, headerColor } = opts;
+  const { gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, bannerTypo, bannerNoteTypo, headerColor } = opts;
   const cols = Math.max(1, columnCount);
   return `
         @import url('${gFontsUrl}');
@@ -223,8 +234,8 @@ function buildKnollCss(opts: {
         .custom-header { display: none; }
         /* Outside the column container on purpose — column-span:all is unreliable in Chromium print. */
         .knoll-intro-banner { display: block; width: 100%; max-width: 100%; box-sizing: border-box; border: 1.5px solid #111; padding: 10px 14px; margin: 0 0 14px; text-align: center; break-inside: avoid; }
-        .knoll-intro-banner-title { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(Math.max(typo.group.size, typo.item.size + 1))}rem; font-weight: ${fw(true)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #111; line-height: 1.2; }
-        .knoll-intro-banner-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #333; margin-top: 4px; line-height: 1.4; }
+        .knoll-intro-banner-title { font-family: '${bannerTypo.font}', sans-serif; font-size: ${ptRem(bannerTypo.size)}rem; font-weight: ${fw(bannerTypo.bold)}; font-style: ${fst(bannerTypo.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #111; line-height: 1.2; }
+        .knoll-intro-banner-note { font-family: '${bannerNoteTypo.font}', sans-serif; font-size: ${ptRem(bannerNoteTypo.size)}rem; font-weight: ${fw(bannerNoteTypo.bold)}; font-style: ${fst(bannerNoteTypo.italic)}; color: #333; margin-top: 4px; line-height: 1.4; }
         .menu-groups-container { column-count: ${cols}; column-gap: 24px; column-rule: 1.5px solid #111; column-fill: balance; }
         /* Allow groups to split across columns — Knoll often has one Toast group with many course headers inside. */
         .menu-group { break-inside: auto; page-break-inside: auto; margin-bottom: 14px; }
@@ -1484,13 +1495,16 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const customHeader2 = (req.query.header2 as string) || "";
     const customFooter2 = (req.query.footer2 as string) || "";
     let customPrintLines = parseCustomPrintLines(req.query.customlines);
-    let knollBannerTitle = ((req.query.banner as string) || "").trim();
-    let knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    // Banner text comes only from query params — do not re-promote stripped custom
+    // lines, or clearing the editor fields can never remove the banner.
+    const knollBannerTitle = ((req.query.banner as string) || "").trim();
+    const knollBannerNote = ((req.query.bannernote as string) || "").trim();
     if (isKnoll) {
-      const migrated = migrateKnollLunchBannerLines(customPrintLines, knollBannerTitle, knollBannerNote);
-      customPrintLines = migrated.lines;
-      knollBannerTitle = migrated.bannerTitle;
-      knollBannerNote = migrated.bannerNote;
+      customPrintLines = migrateKnollLunchBannerLines(
+        customPrintLines,
+        knollBannerTitle,
+        knollBannerNote,
+      ).lines;
     }
     const customTitle = (req.query.title as string) || "";
     const itemPrintMeta = parseItemPrintMeta(req.query.itemstyles);
@@ -1529,8 +1543,21 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const ftrTypo = { font: _sf(req.query.ftrFont as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftrSz as string, isKnoll ? 9 : 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
     const hdr2Typo = { font: _sf(req.query.hdr2Font as string, isKnoll ? "Montserrat" : "Allura"), size: _sp(req.query.hdr2Sz as string, isKnoll ? 10 : 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
     const ftr2Typo = { font: _sf(req.query.ftr2Font as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftr2Sz as string, isKnoll ? 9 : 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
+    const bannerTypo = {
+      font: _sf(req.query.bnrFont as string, isKnoll ? "Montserrat" : "Jost"),
+      size: _sp(req.query.bnrSz as string, isKnoll ? 14 : 14),
+      // Default bold when unset so older Knoll URLs keep a strong banner title.
+      bold: req.query.bnrBold == null ? isKnoll : req.query.bnrBold === "1",
+      italic: req.query.bnrItalic === "1",
+    };
+    const bannerNoteTypo = {
+      font: _sf(req.query.bnNoteFont as string, isKnoll ? "Montserrat" : "Jost"),
+      size: _sp(req.query.bnNoteSz as string, isKnoll ? 11 : 11),
+      bold: req.query.bnNoteBold === "1",
+      italic: req.query.bnNoteItalic === "1",
+    };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, ...customPrintLines.map(line => line.font)])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, bannerTypo.font, bannerNoteTypo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -1662,6 +1689,11 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       if (group.items.length === 0) continue;
       let itemsHtml = "";
       for (const item of group.items) {
+        // Knoll: Toast often has a "LUNCH ON THE KNOLL" row — never print it in a
+        // column. Full-width content comes only from banner=/bannernote= fields.
+        if (isKnoll && isKnollLunchBannerToastItem(item)) {
+          continue;
+        }
         // Print-only course headers / notes placed before this Toast item.
         itemsHtml += renderCustomPrintLines(customPrintLines, `before-item:${item.itemGuid}`);
         const price = formatPrice(item.price);
@@ -1879,7 +1911,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         @media print { html { font-size: ${Math.round(scale * 0.8)}%; } body { display: block; } .menu-container { padding: 4px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .bev-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 8px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
     } else if (template === "knoll") {
-      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, headerColor: knollHeaderColor });
+      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, bannerTypo, bannerNoteTypo, headerColor: knollHeaderColor });
     } else {
       css = `
         @import url('${gFontsUrl}');
@@ -2105,13 +2137,16 @@ router.get("/public/menus/embed", async (req, res) => {
     const customHeader2 = (req.query.header2 as string) || "";
     const customFooter2 = (req.query.footer2 as string) || "";
     let customPrintLines = parseCustomPrintLines(req.query.customlines);
-    let knollBannerTitle = ((req.query.banner as string) || "").trim();
-    let knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    // Banner text comes only from query params — do not re-promote stripped custom
+    // lines, or clearing the editor fields can never remove the banner.
+    const knollBannerTitle = ((req.query.banner as string) || "").trim();
+    const knollBannerNote = ((req.query.bannernote as string) || "").trim();
     if (isKnoll) {
-      const migrated = migrateKnollLunchBannerLines(customPrintLines, knollBannerTitle, knollBannerNote);
-      customPrintLines = migrated.lines;
-      knollBannerTitle = migrated.bannerTitle;
-      knollBannerNote = migrated.bannerNote;
+      customPrintLines = migrateKnollLunchBannerLines(
+        customPrintLines,
+        knollBannerTitle,
+        knollBannerNote,
+      ).lines;
     }
     const itemPrintMeta = parseItemPrintMeta(req.query.itemstyles);
     const itemPrintStyles = itemPrintMeta.scales;
@@ -2151,8 +2186,21 @@ router.get("/public/menus/embed", async (req, res) => {
     const ftrTypo = { font: _sf(req.query.ftrFont as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftrSz as string, isKnoll ? 9 : 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
     const hdr2Typo = { font: _sf(req.query.hdr2Font as string, isKnoll ? "Montserrat" : "Allura"), size: _sp(req.query.hdr2Sz as string, isKnoll ? 10 : 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
     const ftr2Typo = { font: _sf(req.query.ftr2Font as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftr2Sz as string, isKnoll ? 9 : 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
+    const bannerTypo = {
+      font: _sf(req.query.bnrFont as string, isKnoll ? "Montserrat" : "Jost"),
+      size: _sp(req.query.bnrSz as string, isKnoll ? 14 : 14),
+      // Default bold when unset so older Knoll URLs keep a strong banner title.
+      bold: req.query.bnrBold == null ? isKnoll : req.query.bnrBold === "1",
+      italic: req.query.bnrItalic === "1",
+    };
+    const bannerNoteTypo = {
+      font: _sf(req.query.bnNoteFont as string, isKnoll ? "Montserrat" : "Jost"),
+      size: _sp(req.query.bnNoteSz as string, isKnoll ? 11 : 11),
+      bold: req.query.bnNoteBold === "1",
+      italic: req.query.bnNoteItalic === "1",
+    };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
-    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, ...customPrintLines.map(line => line.font)])];
+    const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, bannerTypo.font, bannerNoteTypo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
     const fw = (b: boolean) => b ? "700" : "400";
     const fst = (i: boolean) => i ? "italic" : "normal";
@@ -2255,6 +2303,11 @@ router.get("/public/menus/embed", async (req, res) => {
     for (const { group, items } of allGroups) {
       let itemsHtml = "";
       for (const item of items) {
+        // Knoll: Toast often has a "LUNCH ON THE KNOLL" row — never print it in a
+        // column. Full-width content comes only from banner=/bannernote= fields.
+        if (isKnoll && isKnollLunchBannerToastItem(item)) {
+          continue;
+        }
         // Print-only course headers / notes placed before this Toast item.
         itemsHtml += renderCustomPrintLines(customPrintLines, `before-item:${item.itemGuid}`);
         const price = formatPrice(item.price);
@@ -2473,7 +2526,7 @@ router.get("/public/menus/embed", async (req, res) => {
         @media print { html { font-size: ${Math.round(scale * 0.8)}%; } body { display: block; } .menu-container { padding: 4px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .bev-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 8px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
     } else if (template === "knoll") {
-      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, headerColor: knollHeaderColor });
+      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, bannerTypo, bannerNoteTypo, headerColor: knollHeaderColor });
     } else {
       css = `
         @import url('${gFontsUrl}');

@@ -41,36 +41,41 @@ interface BrowserTypoSettings {
   title: TypoElem; subtitle: TypoElem; group: TypoElem; item: TypoElem;
   price: TypoElem; desc: TypoElem; pairing: TypoElem; allergy: TypoElem;
   header: TypoElem; footer: TypoElem; header2: TypoElem; footer2: TypoElem;
+  banner: TypoElem; bannerNote: TypoElem;
 }
 
 const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
-  title:    { font: "Cinzel",   size: 30, bold: false, italic: false },
-  subtitle: { font: "Cinzel",   size: 26, bold: false, italic: false },
-  group:    { font: "Cinzel",   size: 20, bold: false, italic: false },
-  item:     { font: "Cinzel",   size: 17, bold: false, italic: false },
-  price:    { font: "Jost",     size: 13, bold: false, italic: false },
-  desc:     { font: "Jost",     size: 14, bold: false, italic: false },
-  pairing:  { font: "Allura",   size: 16, bold: false, italic: false },
-  allergy:  { font: "Jost",     size: 10, bold: false, italic: false },
-  header:   { font: "Jost",     size: 14, bold: false, italic: false },
-  footer:   { font: "Jost",     size: 12, bold: false, italic: false },
-  header2:  { font: "Jost",     size: 14, bold: false, italic: false },
-  footer2:  { font: "Jost",     size: 12, bold: false, italic: false },
+  title:      { font: "Cinzel",   size: 30, bold: false, italic: false },
+  subtitle:   { font: "Cinzel",   size: 26, bold: false, italic: false },
+  group:      { font: "Cinzel",   size: 20, bold: false, italic: false },
+  item:       { font: "Cinzel",   size: 17, bold: false, italic: false },
+  price:      { font: "Jost",     size: 13, bold: false, italic: false },
+  desc:       { font: "Jost",     size: 14, bold: false, italic: false },
+  pairing:    { font: "Allura",   size: 16, bold: false, italic: false },
+  allergy:    { font: "Jost",     size: 10, bold: false, italic: false },
+  header:     { font: "Jost",     size: 14, bold: false, italic: false },
+  footer:     { font: "Jost",     size: 12, bold: false, italic: false },
+  header2:    { font: "Jost",     size: 14, bold: false, italic: false },
+  footer2:    { font: "Jost",     size: 12, bold: false, italic: false },
+  banner:     { font: "Jost",     size: 14, bold: true,  italic: false },
+  bannerNote: { font: "Jost",     size: 11, bold: false, italic: false },
 };
 
 const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
-  { key: "title",    label: "Private Event Title (optional)" },
-  { key: "subtitle", label: "Sub-header" },
-  { key: "group",    label: "Section header / banner title" },
-  { key: "item",     label: "Item name" },
-  { key: "price",    label: "Price" },
-  { key: "desc",     label: "Description / banner note" },
-  { key: "pairing",  label: "Pairings" },
-  { key: "allergy",  label: "Allergy text" },
-  { key: "header",   label: "Header left (Knoll) / Custom header 1" },
-  { key: "header2",  label: "Header right (Knoll) / Custom header 2" },
-  { key: "footer",   label: "Footer note (Knoll) / Custom footer 1" },
-  { key: "footer2",  label: "Custom footer 2" },
+  { key: "title",      label: "Private Event Title (optional)" },
+  { key: "subtitle",   label: "Sub-header" },
+  { key: "group",      label: "Section header" },
+  { key: "item",       label: "Item name" },
+  { key: "price",      label: "Price" },
+  { key: "desc",       label: "Description" },
+  { key: "pairing",    label: "Pairings" },
+  { key: "allergy",    label: "Allergy text" },
+  { key: "header",     label: "Header left (Knoll) / Custom header 1" },
+  { key: "header2",    label: "Header right (Knoll) / Custom header 2" },
+  { key: "footer",     label: "Footer note (Knoll) / Custom footer 1" },
+  { key: "footer2",    label: "Custom footer 2" },
+  { key: "banner",     label: "Knoll intro banner title" },
+  { key: "bannerNote", label: "Knoll intro banner detail" },
 ];
 
 const ALL_FONT_OPTIONS = FONT_GROUPS.flatMap((g) => g.fonts.map((f) => f.value));
@@ -90,6 +95,9 @@ function buildTypoParams(t: BrowserTypoSettings): string {
     `ftrFont=${e(t.footer.font)}`,     `ftrSz=${t.footer.size}`,     t.footer.bold   ? "ftrBold=1"      : "", t.footer.italic   ? "ftrItalic=1"      : "",
     `hdr2Font=${e(t.header2.font)}`,   `hdr2Sz=${t.header2.size}`,   t.header2.bold  ? "hdr2Bold=1"     : "", t.header2.italic  ? "hdr2Italic=1"     : "",
     `ftr2Font=${e(t.footer2.font)}`,   `ftr2Sz=${t.footer2.size}`,   t.footer2.bold  ? "ftr2Bold=1"     : "", t.footer2.italic  ? "ftr2Italic=1"     : "",
+    // Always send banner bold flags (0/1) so unchecking Bold is not treated as "unset → default bold".
+    `bnrFont=${e(t.banner.font)}`, `bnrSz=${t.banner.size}`, `bnrBold=${t.banner.bold ? "1" : "0"}`, t.banner.italic ? "bnrItalic=1" : "",
+    `bnNoteFont=${e(t.bannerNote.font)}`, `bnNoteSz=${t.bannerNote.size}`, `bnNoteBold=${t.bannerNote.bold ? "1" : "0"}`, t.bannerNote.italic ? "bnNoteItalic=1" : "",
   ].filter(Boolean).join("&");
 }
 
@@ -103,13 +111,17 @@ function parseTypoParams(str?: string | null): BrowserTypoSettings {
     ["title", "title"], ["subtitle", "sub"], ["group", "group"], ["item", "item"],
     ["price", "price"], ["desc", "desc"], ["pairing", "pair"], ["allergy", "allergy"],
     ["header", "hdr"], ["footer", "ftr"], ["header2", "hdr2"], ["footer2", "ftr2"],
+    ["banner", "bnr"], ["bannerNote", "bnNote"],
   ];
   for (const [key, prefix] of map) {
     const font = params.get(`${prefix}Font`);
     const sz = params.get(`${prefix}Sz`);
     if (font) base[key].font = font;
     if (sz != null && !isNaN(Number(sz))) base[key].size = Number(sz);
-    base[key].bold = params.get(`${prefix}Bold`) === "1";
+    const boldParam = params.get(`${prefix}Bold`);
+    if (boldParam != null) base[key].bold = boldParam === "1";
+    else if (key === "banner") base[key].bold = true; // Knoll banner title defaults bold
+    else base[key].bold = false;
     base[key].italic = params.get(`${prefix}Italic`) === "1";
   }
   return base;
@@ -157,13 +169,20 @@ function stripPrintLinePlainText(text: string): string {
 }
 
 function isKnollLunchBannerTitleLine(text: string): boolean {
-  const t = stripPrintLinePlainText(text).toUpperCase();
+  const t = stripPrintLinePlainText(text).toUpperCase().replace(/\s+/g, " ").trim();
   return t.includes("LUNCH ON THE KNOLL");
 }
 
 function isKnollLunchBannerNoteLine(text: string): boolean {
   const t = stripPrintLinePlainText(text).toUpperCase();
   return t.includes("SERVING LUNCH DAILY") || t.includes("PHYSICAL GIFT CARD");
+}
+
+function isKnollLunchBannerToastItem(item: { name?: string | null; description?: string | null }): boolean {
+  const name = stripPrintLinePlainText(item.name || "");
+  if (isKnollLunchBannerTitleLine(name)) return true;
+  const desc = stripPrintLinePlainText(item.description || "");
+  return isKnollLunchBannerTitleLine(desc) || (isKnollLunchBannerNoteLine(desc) && name.length <= 40 && !/\d/.test(name));
 }
 
 /** Pull legacy in-column lunch banner lines into the full-width Knoll banner fields. */
@@ -184,8 +203,8 @@ function migrateLunchBannerFromCustomLines(
   for (const line of lines) {
     const plain = stripPrintLinePlainText(line.text);
     const plainUp = plain.toUpperCase();
-    const isTitleKind = line.kind === "banner" || line.kind === "header";
-    const isNoteKind = line.kind === "note" || line.kind === "banner";
+    const isTitleKind = line.kind === "banner" || line.kind === "header" || line.kind === "course";
+    const isNoteKind = line.kind === "note" || line.kind === "banner" || line.kind === "course-note";
     const titleLike =
       (isTitleKind && isKnollLunchBannerTitleLine(plain)) ||
       (isTitleKind && !!titleNorm && (plainUp === titleNorm || plainUp.includes(titleNorm)));
@@ -2157,49 +2176,198 @@ export function ToastMenuBrowser() {
                   <div>
                     <p className="text-sm font-semibold">Full-width intro banner</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Prints across the full page width under the header (not inside a column). Leave blank to hide.
+                      Prints across the full page width under the header (not inside a column). Clear both fields to hide it.
+                      Toast menu rows named like “LUNCH ON THE KNOLL” are kept out of the columns automatically.
                     </p>
                   </div>
+                  {(() => {
+                    const toastLunchItems = (menuDetail?.groups || []).flatMap((g) =>
+                      (g.items || []).filter((item) => !item.hidden && isKnollLunchBannerToastItem(item)),
+                    );
+                    if (toastLunchItems.length === 0) return null;
+                    return (
+                      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs space-y-1">
+                        <p className="font-medium text-foreground">
+                          Found in Toast (was printing in the left column):
+                        </p>
+                        {toastLunchItems.map((item) => (
+                          <p key={item.itemGuid} className="text-muted-foreground">
+                            “{item.name}”{item.description ? ` — ${item.description.slice(0, 80)}${item.description.length > 80 ? "…" : ""}` : ""}
+                          </p>
+                        ))}
+                        <p className="text-muted-foreground">
+                          That Toast row is no longer printed in a column. Edit or clear the fields below for the full-width banner, or hide the Toast row with the eye icon in the item list.
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Banner title</label>
                     <Input
                       value={printKnollBannerTitle}
                       onChange={(e) => setPrintKnollBannerTitle(e.target.value)}
-                      placeholder={KNOLL_DEFAULT_BANNER_TITLE}
+                      placeholder="e.g. Lunch banner title (optional)"
                       className="text-sm font-semibold uppercase"
                       data-testid="input-knoll-banner-title"
                     />
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <Select
+                        value={printTypo.banner.font}
+                        onValueChange={(v) => setPrintTypo((prev) => ({ ...prev, banner: { ...prev.banner, font: v } }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-36" data-testid="select-knoll-banner-title-font">
+                          <SelectValue placeholder="Font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ALL_FONT_OPTIONS.map((font) => (
+                            <SelectItem key={font} value={font}>{font}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        min={8}
+                        max={48}
+                        value={printTypo.banner.size}
+                        onChange={(e) => setPrintTypo((prev) => ({
+                          ...prev,
+                          banner: { ...prev.banner, size: Math.min(48, Math.max(8, Number(e.target.value) || 12)) },
+                        }))}
+                        className="h-8 w-16 text-xs"
+                        title="Font size (pt)"
+                        data-testid="input-knoll-banner-title-size"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={printTypo.banner.bold}
+                          onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                            ...prev,
+                            banner: { ...prev.banner, bold: !!checked },
+                          }))}
+                          data-testid="checkbox-knoll-banner-title-bold"
+                        />
+                        Bold
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={printTypo.banner.italic}
+                          onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                            ...prev,
+                            banner: { ...prev.banner, italic: !!checked },
+                          }))}
+                          data-testid="checkbox-knoll-banner-title-italic"
+                        />
+                        Italic
+                      </label>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Banner detail</label>
                     <Textarea
                       value={printKnollBannerNote}
                       onChange={(e) => setPrintKnollBannerNote(e.target.value)}
-                      placeholder={KNOLL_DEFAULT_BANNER_NOTE}
+                      placeholder="Optional detail under the banner title"
                       rows={2}
                       className="text-sm"
                       data-testid="textarea-knoll-banner-note"
                     />
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <Select
+                        value={printTypo.bannerNote.font}
+                        onValueChange={(v) => setPrintTypo((prev) => ({ ...prev, bannerNote: { ...prev.bannerNote, font: v } }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-36" data-testid="select-knoll-banner-note-font">
+                          <SelectValue placeholder="Font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ALL_FONT_OPTIONS.map((font) => (
+                            <SelectItem key={font} value={font}>{font}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        min={8}
+                        max={48}
+                        value={printTypo.bannerNote.size}
+                        onChange={(e) => setPrintTypo((prev) => ({
+                          ...prev,
+                          bannerNote: { ...prev.bannerNote, size: Math.min(48, Math.max(8, Number(e.target.value) || 10)) },
+                        }))}
+                        className="h-8 w-16 text-xs"
+                        title="Font size (pt)"
+                        data-testid="input-knoll-banner-note-size"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={printTypo.bannerNote.bold}
+                          onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                            ...prev,
+                            bannerNote: { ...prev.bannerNote, bold: !!checked },
+                          }))}
+                          data-testid="checkbox-knoll-banner-note-bold"
+                        />
+                        Bold
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={printTypo.bannerNote.italic}
+                          onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                            ...prev,
+                            bannerNote: { ...prev.bannerNote, italic: !!checked },
+                          }))}
+                          data-testid="checkbox-knoll-banner-note-italic"
+                        />
+                        Italic
+                      </label>
+                    </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setPrintKnollBannerTitle(KNOLL_DEFAULT_BANNER_TITLE);
-                      setPrintKnollBannerNote(KNOLL_DEFAULT_BANNER_NOTE);
-                      // Remove any leftover in-column lunch banner so it only prints full-width.
-                      setPrintCustomLines((prev) =>
-                        migrateLunchBannerFromCustomLines(
-                          prev,
-                          KNOLL_DEFAULT_BANNER_TITLE,
-                          KNOLL_DEFAULT_BANNER_NOTE,
-                        ).lines,
-                      );
-                    }}
-                    data-testid="button-fill-knoll-banner-defaults"
-                  >
-                    Use lunch banner defaults
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setPrintKnollBannerTitle(KNOLL_DEFAULT_BANNER_TITLE);
+                        setPrintKnollBannerNote(KNOLL_DEFAULT_BANNER_NOTE);
+                        setPrintCustomLines((prev) =>
+                          migrateLunchBannerFromCustomLines(
+                            prev,
+                            KNOLL_DEFAULT_BANNER_TITLE,
+                            KNOLL_DEFAULT_BANNER_NOTE,
+                          ).lines,
+                        );
+                      }}
+                      data-testid="button-fill-knoll-banner-defaults"
+                    >
+                      Use lunch banner defaults
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setPrintKnollBannerTitle("");
+                        setPrintKnollBannerNote("");
+                        setPrintCustomLines((prev) =>
+                          migrateLunchBannerFromCustomLines(
+                            prev,
+                            KNOLL_DEFAULT_BANNER_TITLE,
+                            KNOLL_DEFAULT_BANNER_NOTE,
+                          ).lines,
+                        );
+                        // Hide matching Toast rows so they cannot reappear in print.
+                        for (const group of menuDetail?.groups || []) {
+                          for (const item of group.items || []) {
+                            if (!item.hidden && isKnollLunchBannerToastItem(item)) {
+                              applyItemChange(item.id, { hidden: true });
+                            }
+                          }
+                        }
+                      }}
+                      data-testid="button-clear-knoll-banner"
+                    >
+                      Clear banner
+                    </Button>
+                  </div>
                 </div>
               )}
               <div className="space-y-1">
@@ -2656,6 +2824,11 @@ export function ToastMenuBrowser() {
                       <div className="flex items-baseline justify-between gap-2 flex-wrap">
                         <span className={`font-medium text-sm ${item.hidden ? "line-through" : ""}`}>
                           {item.name}
+                          {printTemplate === "knoll" && isKnollLunchBannerToastItem(item) && (
+                            <Badge variant="outline" className="ml-2 text-amber-700 border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 text-[10px] py-0 px-1.5 font-semibold tracking-wide uppercase no-default-active-elevate" style={{verticalAlign: "middle"}}>
+                              Banner (not in columns)
+                            </Badge>
+                          )}
                           {item.isSpecial && (
                             <Badge variant="outline" className="ml-2 text-amber-600 border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 text-[10px] py-0 px-1.5 font-semibold tracking-wide uppercase no-default-active-elevate" style={{verticalAlign: "middle"}}>
                               Special
