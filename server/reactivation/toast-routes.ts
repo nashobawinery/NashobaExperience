@@ -133,11 +133,20 @@ function migrateKnollLunchBannerLines(
 ): { lines: CustomPrintLine[]; bannerTitle: string; bannerNote: string } {
   let title = bannerTitle;
   let note = bannerNote;
+  const titleNorm = stripHtmlToPlain(title).toUpperCase();
+  const noteNorm = stripHtmlToPlain(note).toUpperCase();
   const kept: CustomPrintLine[] = [];
   for (const line of lines) {
     const plain = stripHtmlToPlain(line.text);
-    const titleLike = (line.kind === "banner" || line.kind === "header") && isKnollLunchBannerTitleText(plain);
-    const noteLike = (line.kind === "note" || line.kind === "banner") && isKnollLunchBannerNoteText(plain);
+    const plainUp = plain.toUpperCase();
+    const isTitleKind = line.kind === "banner" || line.kind === "header";
+    const isNoteKind = line.kind === "note" || line.kind === "banner";
+    const titleLike =
+      (isTitleKind && isKnollLunchBannerTitleText(plain)) ||
+      (isTitleKind && !!titleNorm && (plainUp === titleNorm || plainUp.includes(titleNorm)));
+    const noteLike =
+      (isNoteKind && isKnollLunchBannerNoteText(plain)) ||
+      (isNoteKind && !!noteNorm && (plainUp === noteNorm || plainUp.includes(noteNorm)));
     if (titleLike) {
       if (!title) title = plain;
       continue;
@@ -212,7 +221,8 @@ function buildKnollCss(opts: {
         .menu-title { font-family: '${typo.title.font}', sans-serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; margin: 0; line-height: 1.1; }
         .menu-subtitle, .ornament { display: none; }
         .custom-header { display: none; }
-        .knoll-intro-banner { display: block; width: 100%; max-width: 100%; box-sizing: border-box; border: 1.5px solid #111; padding: 10px 14px; margin: 0 0 14px; text-align: center; break-inside: avoid; column-span: all; -webkit-column-span: all; }
+        /* Outside the column container on purpose — column-span:all is unreliable in Chromium print. */
+        .knoll-intro-banner { display: block; width: 100%; max-width: 100%; box-sizing: border-box; border: 1.5px solid #111; padding: 10px 14px; margin: 0 0 14px; text-align: center; break-inside: avoid; }
         .knoll-intro-banner-title { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(Math.max(typo.group.size, typo.item.size + 1))}rem; font-weight: ${fw(true)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #111; line-height: 1.2; }
         .knoll-intro-banner-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #333; margin-top: 4px; line-height: 1.4; }
         .menu-groups-container { column-count: ${cols}; column-gap: 24px; column-rule: 1.5px solid #111; column-fill: balance; }
@@ -1945,6 +1955,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .knoll-header-bar { grid-template-columns: 1fr auto 1fr !important; text-align: initial !important; }
         .knoll-header-left { text-align: left !important; justify-self: start !important; }
         .knoll-header-right { text-align: right !important; justify-self: end !important; }
+        .knoll-intro-banner { display: block !important; width: 100% !important; max-width: none !important; box-sizing: border-box !important; }
       `;
     }
 
@@ -1993,9 +2004,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
-    ${isKnoll ? "" : knollIntroBannerHtml}
+    ${knollIntroBannerHtml}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
-    <div class="${groupsContainerClass}">${isKnoll ? knollIntroBannerHtml : ""}${groupsHtml}</div>
+    <div class="${groupsContainerClass}">${groupsHtml}</div>
     ${isKnoll ? `<div class="knoll-footer">
       <div class="knoll-footer-row">
         <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>
@@ -2538,6 +2549,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .knoll-header-bar { grid-template-columns: 1fr auto 1fr !important; text-align: initial !important; }
         .knoll-header-left { text-align: left !important; justify-self: start !important; }
         .knoll-header-right { text-align: right !important; justify-self: end !important; }
+        .knoll-intro-banner { display: block !important; width: 100% !important; max-width: none !important; box-sizing: border-box !important; }
       `;
     }
 
@@ -2586,9 +2598,9 @@ router.get("/public/menus/embed", async (req, res) => {
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
-    ${isKnoll ? "" : knollIntroBannerHtml}
+    ${knollIntroBannerHtml}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
-    <div class="${groupsContainerClass}">${isKnoll ? knollIntroBannerHtml : ""}${groupsHtml}</div>
+    <div class="${groupsContainerClass}">${groupsHtml}</div>
     ${isKnoll ? `<div class="knoll-footer">
       <div class="knoll-footer-row">
         <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>

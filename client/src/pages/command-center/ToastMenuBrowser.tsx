@@ -167,21 +167,36 @@ function isKnollLunchBannerNoteLine(text: string): boolean {
 }
 
 /** Pull legacy in-column lunch banner lines into the full-width Knoll banner fields. */
-function migrateLunchBannerFromCustomLines(lines: PrintCustomLine[]): {
+function migrateLunchBannerFromCustomLines(
+  lines: PrintCustomLine[],
+  existingTitle = "",
+  existingNote = "",
+): {
   lines: PrintCustomLine[];
   title: string;
   note: string;
 } {
-  let title = "";
-  let note = "";
+  let title = existingTitle.trim();
+  let note = existingNote.trim();
+  const titleNorm = stripPrintLinePlainText(title).toUpperCase();
+  const noteNorm = stripPrintLinePlainText(note).toUpperCase();
   const kept: PrintCustomLine[] = [];
   for (const line of lines) {
     const plain = stripPrintLinePlainText(line.text);
-    if ((line.kind === "banner" || line.kind === "header") && isKnollLunchBannerTitleLine(plain)) {
+    const plainUp = plain.toUpperCase();
+    const isTitleKind = line.kind === "banner" || line.kind === "header";
+    const isNoteKind = line.kind === "note" || line.kind === "banner";
+    const titleLike =
+      (isTitleKind && isKnollLunchBannerTitleLine(plain)) ||
+      (isTitleKind && !!titleNorm && (plainUp === titleNorm || plainUp.includes(titleNorm)));
+    const noteLike =
+      (isNoteKind && isKnollLunchBannerNoteLine(plain)) ||
+      (isNoteKind && !!noteNorm && (plainUp === noteNorm || plainUp.includes(noteNorm)));
+    if (titleLike) {
       if (!title) title = plain;
       continue;
     }
-    if ((line.kind === "note" || line.kind === "banner") && isKnollLunchBannerNoteLine(plain)) {
+    if (noteLike) {
       if (!note) note = plain;
       continue;
     }
@@ -550,10 +565,10 @@ export function ToastMenuBrowser() {
       let bannerNote = s.knollBannerNote || "";
       let lines = rawLines;
       if (isKnoll) {
-        const migrated = migrateLunchBannerFromCustomLines(rawLines);
+        const migrated = migrateLunchBannerFromCustomLines(rawLines, bannerTitle, bannerNote);
         lines = migrated.lines;
-        bannerTitle = bannerTitle.trim() || migrated.title;
-        bannerNote = bannerNote.trim() || migrated.note;
+        bannerTitle = migrated.title;
+        bannerNote = migrated.note;
       }
       setPrintCustomLines(lines);
       setPrintKnollBannerTitle(bannerTitle);
@@ -1520,10 +1535,10 @@ export function ToastMenuBrowser() {
       let bannerNote = typoParams.get("bannernote") || "";
       let lines = parsePrintCustomLines(config.customPrintLines);
       if (loadedIsKnoll) {
-        const migrated = migrateLunchBannerFromCustomLines(lines);
+        const migrated = migrateLunchBannerFromCustomLines(lines, bannerTitle, bannerNote);
         lines = migrated.lines;
-        bannerTitle = bannerTitle.trim() || migrated.title;
-        bannerNote = bannerNote.trim() || migrated.note;
+        bannerTitle = migrated.title;
+        bannerNote = migrated.note;
       }
       setPrintKnollBannerTitle(bannerTitle);
       setPrintKnollBannerNote(bannerNote);
@@ -1955,10 +1970,14 @@ export function ToastMenuBrowser() {
                       }));
                       // Promote any leftover in-column lunch banner into the full-width fields.
                       setPrintCustomLines((prev) => {
-                        const migrated = migrateLunchBannerFromCustomLines(prev);
+                        const migrated = migrateLunchBannerFromCustomLines(
+                          prev,
+                          printKnollBannerTitle,
+                          printKnollBannerNote,
+                        );
                         if (migrated.title || migrated.note) {
-                          setPrintKnollBannerTitle((t) => t.trim() || migrated.title);
-                          setPrintKnollBannerNote((n) => n.trim() || migrated.note);
+                          setPrintKnollBannerTitle(migrated.title);
+                          setPrintKnollBannerNote(migrated.note);
                         }
                         return migrated.lines;
                       });
@@ -2169,7 +2188,13 @@ export function ToastMenuBrowser() {
                       setPrintKnollBannerTitle(KNOLL_DEFAULT_BANNER_TITLE);
                       setPrintKnollBannerNote(KNOLL_DEFAULT_BANNER_NOTE);
                       // Remove any leftover in-column lunch banner so it only prints full-width.
-                      setPrintCustomLines((prev) => migrateLunchBannerFromCustomLines(prev).lines);
+                      setPrintCustomLines((prev) =>
+                        migrateLunchBannerFromCustomLines(
+                          prev,
+                          KNOLL_DEFAULT_BANNER_TITLE,
+                          KNOLL_DEFAULT_BANNER_NOTE,
+                        ).lines,
+                      );
                     }}
                     data-testid="button-fill-knoll-banner-defaults"
                   >
