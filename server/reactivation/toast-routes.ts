@@ -2631,8 +2631,13 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.pageBreaks) url += `&pagebreaks=${encodeURIComponent(config.pageBreaks)}`;
     if (config.customPrintLines) url += `&customlines=${encodeURIComponent(config.customPrintLines)}`;
     if (config.hideDescriptions) url += `&hidedesc=1`;
-    if (config.header) url += `&header=${encodeURIComponent(config.header)}`;
-    if (config.header2) url += `&header2=${encodeURIComponent(config.header2)}`;
+    if ((config.template || "") === "knoll") {
+      url += `&header=${encodeURIComponent((config.header || "").trim() || "Dine in at")}`;
+      url += `&header2=${encodeURIComponent((config.header2 || "").trim() || "Open Daily 11-8")}`;
+    } else {
+      if (config.header) url += `&header=${encodeURIComponent(config.header)}`;
+      if (config.header2) url += `&header2=${encodeURIComponent(config.header2)}`;
+    }
     if (config.footer2) url += `&footer2=${encodeURIComponent(config.footer2)}`;
     if (config.hidePricing) url += `&hideprice=1`;
     if (config.hideWinePairing) url += `&hidepairing=1`;
