@@ -52,10 +52,10 @@ const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
   desc:     { font: "Jost",     size: 14, bold: false, italic: false },
   pairing:  { font: "Allura",   size: 16, bold: false, italic: false },
   allergy:  { font: "Jost",     size: 10, bold: false, italic: false },
-  header:   { font: "Jost",     size: 14, bold: false, italic: true  },
-  footer:   { font: "Jost",     size: 12, bold: false, italic: true  },
-  header2:  { font: "Allura",   size: 18, bold: false, italic: false },
-  footer2:  { font: "Jost",     size: 12, bold: false, italic: true  },
+  header:   { font: "Jost",     size: 14, bold: false, italic: false },
+  footer:   { font: "Jost",     size: 12, bold: false, italic: false },
+  header2:  { font: "Jost",     size: 14, bold: false, italic: false },
+  footer2:  { font: "Jost",     size: 12, bold: false, italic: false },
 };
 
 const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
@@ -151,6 +151,44 @@ const KNOLL_DEFAULT_FOOTER_NOTE =
 const KNOLL_DEFAULT_BANNER_TITLE = "LUNCH ON THE KNOLL";
 const KNOLL_DEFAULT_BANNER_NOTE =
   "Serving lunch daily 11-4 pm. Please see server for assistance if you have a physical gift card to purchase food or beverage.";
+
+function stripPrintLinePlainText(text: string): string {
+  return text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isKnollLunchBannerTitleLine(text: string): boolean {
+  const t = stripPrintLinePlainText(text).toUpperCase();
+  return t.includes("LUNCH ON THE KNOLL");
+}
+
+function isKnollLunchBannerNoteLine(text: string): boolean {
+  const t = stripPrintLinePlainText(text).toUpperCase();
+  return t.includes("SERVING LUNCH DAILY") || t.includes("PHYSICAL GIFT CARD");
+}
+
+/** Pull legacy in-column lunch banner lines into the full-width Knoll banner fields. */
+function migrateLunchBannerFromCustomLines(lines: PrintCustomLine[]): {
+  lines: PrintCustomLine[];
+  title: string;
+  note: string;
+} {
+  let title = "";
+  let note = "";
+  const kept: PrintCustomLine[] = [];
+  for (const line of lines) {
+    const plain = stripPrintLinePlainText(line.text);
+    if ((line.kind === "banner" || line.kind === "header") && isKnollLunchBannerTitleLine(plain)) {
+      if (!title) title = plain;
+      continue;
+    }
+    if ((line.kind === "note" || line.kind === "banner") && isKnollLunchBannerNoteLine(plain)) {
+      if (!note) note = plain;
+      continue;
+    }
+    kept.push(line);
+  }
+  return { lines: kept, title, note };
+}
 
 function normalizeKnollHeaderColor(raw: string | null | undefined): string {
   const key = (raw || "pink").trim().toLowerCase();
@@ -505,13 +543,32 @@ export function ToastMenuBrowser() {
     setPrintOrnamentPos(s.ornamentPos || "below-title");
     setPrintPages(s.pages ?? 0);
     setPrintPageBreaks(Array.isArray(s.pageBreaks) ? s.pageBreaks : []);
-    setPrintCustomLines(Array.isArray(s.customLines) ? s.customLines : []);
     setPrintCustomTitle(s.customTitle || "");
-    setPrintKnollBannerTitle(s.knollBannerTitle || "");
-    setPrintKnollBannerNote(s.knollBannerNote || "");
+    {
+      const rawLines = Array.isArray(s.customLines) ? s.customLines : [];
+      let bannerTitle = s.knollBannerTitle || "";
+      let bannerNote = s.knollBannerNote || "";
+      let lines = rawLines;
+      if (isKnoll) {
+        const migrated = migrateLunchBannerFromCustomLines(rawLines);
+        lines = migrated.lines;
+        bannerTitle = bannerTitle.trim() || migrated.title;
+        bannerNote = bannerNote.trim() || migrated.note;
+      }
+      setPrintCustomLines(lines);
+      setPrintKnollBannerTitle(bannerTitle);
+      setPrintKnollBannerNote(bannerNote);
+    }
     setPrintItemFontScales(s.itemFontScales && typeof s.itemFontScales === "object" ? s.itemFontScales : {});
     setPrintItemAllergens(s.itemAllergens && typeof s.itemAllergens === "object" ? s.itemAllergens : {});
-    setPrintTypo(s.typography ? parseTypoParams(s.typography) : DEFAULT_BROWSER_TYPO);
+    {
+      const typo = s.typography ? parseTypoParams(s.typography) : DEFAULT_BROWSER_TYPO;
+      // Older Knoll defaults left the left header italic while the right was not.
+      if (isKnoll && typo.header.italic && !typo.header2.italic && typo.header.font === typo.header2.font) {
+        typo.header.italic = false;
+      }
+      setPrintTypo(typo);
+    }
     setAdditionalMenuGuids(Array.isArray(s.additionalMenuGuids) ? s.additionalMenuGuids : []);
   };
 
@@ -1459,17 +1516,32 @@ export function ToastMenuBrowser() {
     {
       const typoParams = new URLSearchParams(config.typography || "");
       setPrintKnollHeaderColor(normalizeKnollHeaderColor(typoParams.get("headercolor")));
-      setPrintKnollBannerTitle(typoParams.get("banner") || "");
-      setPrintKnollBannerNote(typoParams.get("bannernote") || "");
+      let bannerTitle = typoParams.get("banner") || "";
+      let bannerNote = typoParams.get("bannernote") || "";
+      let lines = parsePrintCustomLines(config.customPrintLines);
+      if (loadedIsKnoll) {
+        const migrated = migrateLunchBannerFromCustomLines(lines);
+        lines = migrated.lines;
+        bannerTitle = bannerTitle.trim() || migrated.title;
+        bannerNote = bannerNote.trim() || migrated.note;
+      }
+      setPrintKnollBannerTitle(bannerTitle);
+      setPrintKnollBannerNote(bannerNote);
+      setPrintCustomLines(lines);
     }
     setPrintOrnament(config.ornament || "auto");
     setPrintOrnamentPos(config.ornamentPosition || "below-title");
     setPrintPages(config.pages || 0);
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
-    setPrintCustomLines(parsePrintCustomLines(config.customPrintLines));
     setPrintCustomTitle(config.customTitle || "");
     applyItemPrintMeta(config.itemPrintStyles);
-    setPrintTypo(parseTypoParams(config.typography));
+    {
+      const typo = parseTypoParams(config.typography);
+      if (loadedIsKnoll && typo.header.italic && !typo.header2.italic && typo.header.font === typo.header2.font) {
+        typo.header.italic = false;
+      }
+      setPrintTypo(typo);
+    }
     setSelectedPrintGroups(config.groupGuids ? config.groupGuids.split(",").filter(Boolean) : []);
     // Use dedicated print additional guids if available, otherwise fall back to legacy multi-guid format
     if (config.printAdditionalMenuGuids) {
@@ -1875,6 +1947,21 @@ export function ToastMenuBrowser() {
                       setPrintHeader((h) => h.trim() || KNOLL_DEFAULT_HEADER_LEFT);
                       setPrintHeader2((h) => h.trim() || KNOLL_DEFAULT_HEADER_RIGHT);
                       setPrintFooter((f) => f.trim() || KNOLL_DEFAULT_FOOTER_NOTE);
+                      // Keep header sides visually matched (same default style, no surprise italic).
+                      setPrintTypo((prev) => ({
+                        ...prev,
+                        header: { ...prev.header, italic: false },
+                        header2: { ...prev.header2, italic: false },
+                      }));
+                      // Promote any leftover in-column lunch banner into the full-width fields.
+                      setPrintCustomLines((prev) => {
+                        const migrated = migrateLunchBannerFromCustomLines(prev);
+                        if (migrated.title || migrated.note) {
+                          setPrintKnollBannerTitle((t) => t.trim() || migrated.title);
+                          setPrintKnollBannerNote((n) => n.trim() || migrated.note);
+                        }
+                        return migrated.lines;
+                      });
                     }
                   }}
                 >
@@ -1932,12 +2019,12 @@ export function ToastMenuBrowser() {
                         className="text-sm"
                         data-testid="input-knoll-header-left"
                       />
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap items-center">
                         <Select
                           value={printTypo.header.font}
                           onValueChange={(v) => setPrintTypo((prev) => ({ ...prev, header: { ...prev.header, font: v } }))}
                         >
-                          <SelectTrigger className="h-8 text-xs" data-testid="select-knoll-header-left-font">
+                          <SelectTrigger className="h-8 text-xs w-36" data-testid="select-knoll-header-left-font">
                             <SelectValue placeholder="Font" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1955,10 +2042,32 @@ export function ToastMenuBrowser() {
                             ...prev,
                             header: { ...prev.header, size: Math.min(48, Math.max(8, Number(e.target.value) || 10)) },
                           }))}
-                          className="h-8 w-20 text-xs"
+                          className="h-8 w-16 text-xs"
                           title="Font size (pt)"
                           data-testid="input-knoll-header-left-size"
                         />
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={printTypo.header.italic}
+                            onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                              ...prev,
+                              header: { ...prev.header, italic: !!checked },
+                            }))}
+                            data-testid="checkbox-knoll-header-left-italic"
+                          />
+                          Italic
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={printTypo.header.bold}
+                            onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                              ...prev,
+                              header: { ...prev.header, bold: !!checked },
+                            }))}
+                            data-testid="checkbox-knoll-header-left-bold"
+                          />
+                          Bold
+                        </label>
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -1970,12 +2079,12 @@ export function ToastMenuBrowser() {
                         className="text-sm"
                         data-testid="input-knoll-header-right"
                       />
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap items-center">
                         <Select
                           value={printTypo.header2.font}
                           onValueChange={(v) => setPrintTypo((prev) => ({ ...prev, header2: { ...prev.header2, font: v } }))}
                         >
-                          <SelectTrigger className="h-8 text-xs" data-testid="select-knoll-header-right-font">
+                          <SelectTrigger className="h-8 text-xs w-36" data-testid="select-knoll-header-right-font">
                             <SelectValue placeholder="Font" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1993,10 +2102,32 @@ export function ToastMenuBrowser() {
                             ...prev,
                             header2: { ...prev.header2, size: Math.min(48, Math.max(8, Number(e.target.value) || 10)) },
                           }))}
-                          className="h-8 w-20 text-xs"
+                          className="h-8 w-16 text-xs"
                           title="Font size (pt)"
                           data-testid="input-knoll-header-right-size"
                         />
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={printTypo.header2.italic}
+                            onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                              ...prev,
+                              header2: { ...prev.header2, italic: !!checked },
+                            }))}
+                            data-testid="checkbox-knoll-header-right-italic"
+                          />
+                          Italic
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={printTypo.header2.bold}
+                            onCheckedChange={(checked) => setPrintTypo((prev) => ({
+                              ...prev,
+                              header2: { ...prev.header2, bold: !!checked },
+                            }))}
+                            data-testid="checkbox-knoll-header-right-bold"
+                          />
+                          Bold
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -2035,8 +2166,10 @@ export function ToastMenuBrowser() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      if (!printKnollBannerTitle.trim()) setPrintKnollBannerTitle(KNOLL_DEFAULT_BANNER_TITLE);
-                      if (!printKnollBannerNote.trim()) setPrintKnollBannerNote(KNOLL_DEFAULT_BANNER_NOTE);
+                      setPrintKnollBannerTitle(KNOLL_DEFAULT_BANNER_TITLE);
+                      setPrintKnollBannerNote(KNOLL_DEFAULT_BANNER_NOTE);
+                      // Remove any leftover in-column lunch banner so it only prints full-width.
+                      setPrintCustomLines((prev) => migrateLunchBannerFromCustomLines(prev).lines);
                     }}
                     data-testid="button-fill-knoll-banner-defaults"
                   >
@@ -3097,15 +3230,17 @@ export function ToastMenuBrowser() {
                     <Printer className="w-4 h-4 mr-1" />Print This
                   </Button>
                 </div>
-                <div className="bg-neutral-300 dark:bg-neutral-800 p-4 flex justify-center">
-                  <iframe
-                    key={livePreviewUrl}
-                    src={livePreviewUrl}
-                    className="bg-white shadow-lg border-0"
-                    style={{ width: "8.5in", maxWidth: "100%", height: "720px" }}
-                    title="Live Print Preview"
-                    data-testid="iframe-live-print-preview"
-                  />
+                <div className="bg-neutral-300 dark:bg-neutral-800 p-4 overflow-x-auto">
+                  <div className="mx-auto" style={{ width: "8.5in", minWidth: "8.5in" }}>
+                    <iframe
+                      key={livePreviewUrl}
+                      src={livePreviewUrl}
+                      className="bg-white shadow-lg border-0 block"
+                      style={{ width: "8.5in", minWidth: "8.5in", height: "720px" }}
+                      title="Live Print Preview"
+                      data-testid="iframe-live-print-preview"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -3414,7 +3549,7 @@ export function ToastMenuBrowser() {
       openPrintView(buildPrintUrl(template));
     };
 
-    const getPrintPreviewUrl = () => buildPrintUrl(printTemplate);
+    const getPrintPreviewUrl = () => `${buildPrintUrl(printTemplate)}&preview=print`;
 
     const primaryMenuName = menuDetail?.menu?.name || "";
     const baseMenuName = primaryMenuName.replace(/\s*\(copy\)(\s+\d+)?$/i, "").trim();
@@ -3796,13 +3931,17 @@ export function ToastMenuBrowser() {
                 Open & Print
               </Button>
             </div>
-            <iframe
-              src={getPrintPreviewUrl()}
-              className="w-full border-0"
-              style={{ height: "600px" }}
-              title="Print Preview"
-              data-testid="iframe-print-preview"
-            />
+            <div className="bg-neutral-300 dark:bg-neutral-800 p-4 overflow-x-auto">
+              <div className="mx-auto" style={{ width: "8.5in", minWidth: "8.5in" }}>
+                <iframe
+                  src={getPrintPreviewUrl()}
+                  className="bg-white shadow-lg border-0 block"
+                  style={{ width: "8.5in", minWidth: "8.5in", height: "720px" }}
+                  title="Print Preview"
+                  data-testid="iframe-print-preview"
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </>

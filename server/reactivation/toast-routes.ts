@@ -104,15 +104,62 @@ function resolveMenuOrnament(styleParam: string | undefined, template: string): 
 const KNOLL_DEFAULT_FOOTER =
   "We will send a text when your food is ready for pick up at the Snack Shack counter. Please have your order # ready. Drinks will be delivered to your table.";
 
-const KNOLL_LOGO_HTML = `<div class="knoll-logo" aria-hidden="true">
-  <svg viewBox="0 0 48 56" xmlns="http://www.w3.org/2000/svg" class="knoll-logo-mark">
-    <path d="M24 4 C18 14 12 20 12 30 C12 40 17 46 24 48 C31 46 36 40 36 30 C36 20 30 14 24 4 Z" fill="none" stroke="currentColor" stroke-width="2"/>
-    <path d="M24 18 V48" fill="none" stroke="currentColor" stroke-width="2"/>
-    <path d="M24 26 C18 24 14 28 14 32" fill="none" stroke="currentColor" stroke-width="1.5"/>
-    <path d="M24 30 C30 28 34 32 34 36" fill="none" stroke="currentColor" stroke-width="1.5"/>
-  </svg>
-  <span class="knoll-logo-text">NASHOBA</span>
+const KNOLL_LUNCH_BANNER_TITLE = "LUNCH ON THE KNOLL";
+
+function stripHtmlToPlain(text: string): string {
+  return text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Detect legacy in-column "Lunch on the Knoll" custom lines so they can be promoted to the full-width banner. */
+function isKnollLunchBannerTitleText(plain: string): boolean {
+  const t = plain.toUpperCase();
+  return t.includes("LUNCH ON THE KNOLL") || t === KNOLL_LUNCH_BANNER_TITLE;
+}
+
+function isKnollLunchBannerNoteText(plain: string): boolean {
+  const t = plain.toUpperCase();
+  return t.includes("SERVING LUNCH DAILY") || t.includes("PHYSICAL GIFT CARD");
+}
+
+/**
+ * Remove lunch-banner custom print lines from the column flow. If the dedicated
+ * banner query params are empty, promote the first matching title/note so older
+ * saves still render as a full-width intro banner.
+ */
+function migrateKnollLunchBannerLines(
+  lines: CustomPrintLine[],
+  bannerTitle: string,
+  bannerNote: string,
+): { lines: CustomPrintLine[]; bannerTitle: string; bannerNote: string } {
+  let title = bannerTitle;
+  let note = bannerNote;
+  const kept: CustomPrintLine[] = [];
+  for (const line of lines) {
+    const plain = stripHtmlToPlain(line.text);
+    const titleLike = (line.kind === "banner" || line.kind === "header") && isKnollLunchBannerTitleText(plain);
+    const noteLike = (line.kind === "note" || line.kind === "banner") && isKnollLunchBannerNoteText(plain);
+    if (titleLike) {
+      if (!title) title = plain;
+      continue;
+    }
+    if (noteLike) {
+      if (!note) note = plain;
+      continue;
+    }
+    kept.push(line);
+  }
+  return { lines: kept, bannerTitle: title, bannerNote: note };
+}
+
+/** Real NVW mark from client/public — same asset used across the app (/nvw-logo.png). */
+function buildKnollLogoHtml(req: { protocol: string; get: (name: string) => string | undefined }): string {
+  const host = (req.get("host") || "").replace(/"/g, "");
+  const proto = (req.get("x-forwarded-proto") || req.protocol || "https").split(",")[0].trim();
+  const src = host ? `${proto}://${host}/nvw-logo.png` : "/nvw-logo.png";
+  return `<div class="knoll-logo">
+  <img src="${src}" alt="Nashoba Valley Winery" class="knoll-logo-img" />
 </div>`;
+}
 
 type KnollTypoElem = { font: string; size: number; bold: boolean; italic: boolean };
 
@@ -165,16 +212,17 @@ function buildKnollCss(opts: {
         .menu-title { font-family: '${typo.title.font}', sans-serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; margin: 0; line-height: 1.1; }
         .menu-subtitle, .ornament { display: none; }
         .custom-header { display: none; }
-        .knoll-intro-banner { width: 100%; box-sizing: border-box; border: 1.5px solid #111; padding: 10px 14px; margin: 0 0 14px; text-align: center; break-inside: avoid; }
+        .knoll-intro-banner { display: block; width: 100%; max-width: 100%; box-sizing: border-box; border: 1.5px solid #111; padding: 10px 14px; margin: 0 0 14px; text-align: center; break-inside: avoid; column-span: all; -webkit-column-span: all; }
         .knoll-intro-banner-title { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(Math.max(typo.group.size, typo.item.size + 1))}rem; font-weight: ${fw(true)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #111; line-height: 1.2; }
         .knoll-intro-banner-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #333; margin-top: 4px; line-height: 1.4; }
-        .menu-groups-container { column-count: ${cols}; column-gap: 24px; column-rule: 1.5px solid #111; }
-        .menu-group { break-inside: avoid; margin-bottom: 14px; }
-        .group-name { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #111; margin: 0 0 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+        .menu-groups-container { column-count: ${cols}; column-gap: 24px; column-rule: 1.5px solid #111; column-fill: balance; }
+        /* Allow groups to split across columns — Knoll often has one Toast group with many course headers inside. */
+        .menu-group { break-inside: auto; page-break-inside: auto; margin-bottom: 14px; }
+        .group-name { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #111; margin: 0 0 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
         .group-divider { display: none; }
-        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #333; margin: 0 0 8px; line-height: 1.35; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #333; margin: 0 0 8px; line-height: 1.35; break-after: avoid; page-break-after: avoid; }
         .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 14px 0 4px; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
-        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; line-height: 1.35; color: #333; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; line-height: 1.35; color: #333; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
         .custom-print-line--banner, .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 4px; }
         .menu-item { text-align: left; margin-bottom: 8px; break-inside: avoid; }
         .item-header { display: flex; align-items: baseline; gap: 4px; width: 100%; }
@@ -197,9 +245,8 @@ function buildKnollCss(opts: {
         .special-badge { background: #111; color: #fff; border: none; border-radius: 2px; }
         .knoll-footer { margin-top: 12px; width: 100%; }
         .knoll-footer-row { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
-        .knoll-logo { display: flex; flex-direction: column; align-items: center; color: #888; opacity: 0.7; flex: 0 0 auto; align-self: center; order: 2; }
-        .knoll-logo-mark { width: 36px; height: 42px; }
-        .knoll-logo-text { font-family: '${typo.title.font}', sans-serif; font-size: 0.55rem; letter-spacing: 0.18em; font-weight: 700; margin-top: 2px; }
+        .knoll-logo { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; align-self: center; order: 2; }
+        .knoll-logo-img { width: 72px; height: auto; max-height: 72px; object-fit: contain; display: block; }
         .knoll-note-box { background: #111; color: #fff; padding: 12px 14px; width: 100%; max-width: none; box-sizing: border-box; flex: 0 0 auto; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; line-height: 1.4; text-align: left; order: 1; }
         .footer { text-align: left; margin-top: 10px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #666; letter-spacing: 0.02em; line-height: 1.45; }
         .custom-footer { display: none; }
@@ -214,8 +261,9 @@ function buildKnollCss(opts: {
           .menu-container { padding: 0; max-width: none; }
           .knoll-header-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin-bottom: 10px; }
           .menu-groups-container { column-count: ${cols}; column-gap: 22px; column-rule: 1.5px solid #111; column-fill: balance; }
-          .menu-group { margin-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
-          .menu-item { margin-bottom: 6px; }
+          .menu-group { margin-bottom: 10px; break-inside: auto; page-break-inside: auto; }
+          .menu-item { margin-bottom: 6px; break-inside: avoid; page-break-inside: avoid; }
+          .group-name, .custom-print-line--course, .custom-print-line--course-note { break-after: avoid; page-break-after: avoid; }
           .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.95).toFixed(3)}rem; }
           .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; }
           .item-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.95).toFixed(3)}rem; }
@@ -1425,7 +1473,15 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const customFooter = (req.query.footer as string) || "";
     const customHeader2 = (req.query.header2 as string) || "";
     const customFooter2 = (req.query.footer2 as string) || "";
-    const customPrintLines = parseCustomPrintLines(req.query.customlines);
+    let customPrintLines = parseCustomPrintLines(req.query.customlines);
+    let knollBannerTitle = ((req.query.banner as string) || "").trim();
+    let knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    if (isKnoll) {
+      const migrated = migrateKnollLunchBannerLines(customPrintLines, knollBannerTitle, knollBannerNote);
+      customPrintLines = migrated.lines;
+      knollBannerTitle = migrated.bannerTitle;
+      knollBannerNote = migrated.bannerNote;
+    }
     const customTitle = (req.query.title as string) || "";
     const itemPrintMeta = parseItemPrintMeta(req.query.itemstyles);
     const itemPrintStyles = itemPrintMeta.scales;
@@ -1873,17 +1929,34 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       // In-app live preview: apply the print stylesheet on screen so the iframe
       // shows exactly what will print (fonts, sizes, colors, spacing, layout).
       css = css.replace(/@media print \{/g, "@media all {");
+      // Narrow iframes hit the mobile max-width rules and collapse to 1 column —
+      // force letter-width print layout so preview matches the printed page.
+      const previewCols = Math.max(1, columnCount);
+      css += `
+        html, body { min-width: 8.5in; width: 8.5in; max-width: 8.5in; overflow-x: hidden; }
+        .menu-container { max-width: none !important; width: 100% !important; box-sizing: border-box; }
+        .menu-groups-container, .bev-groups-container {
+          column-count: ${previewCols} !important;
+          ${previewCols > 1 ? "column-rule: 1.5px solid #111 !important;" : "column-rule: none !important;"}
+          column-fill: balance !important;
+        }
+        .menu-group { break-inside: auto !important; page-break-inside: auto !important; }
+        .group-name, .custom-print-line--course, .custom-print-line--course-note { display: block !important; visibility: visible !important; break-after: avoid !important; }
+        .knoll-header-bar { grid-template-columns: 1fr auto 1fr !important; text-align: initial !important; }
+        .knoll-header-left { text-align: left !important; justify-self: start !important; }
+        .knoll-header-right { text-align: right !important; justify-self: end !important; }
+      `;
     }
 
     const knollFooterText = customFooter.trim() || KNOLL_DEFAULT_FOOTER;
-    const knollBannerTitle = ((req.query.banner as string) || "").trim();
-    const knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    const knollLogoHtml = isKnoll ? buildKnollLogoHtml(req) : "";
     const knollIntroBannerHtml = isKnoll && (knollBannerTitle || knollBannerNote)
       ? `<div class="knoll-intro-banner">
       ${knollBannerTitle ? `<div class="knoll-intro-banner-title">${sanitizeHeaderHtml(knollBannerTitle)}</div>` : ""}
       ${knollBannerNote ? `<div class="knoll-intro-banner-note">${sanitizeHeaderHtml(knollBannerNote)}</div>` : ""}
     </div>`
       : "";
+    const groupsContainerClass = template === "beverage" ? "bev-groups-container" : "menu-groups-container";
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1920,13 +1993,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
-    ${knollIntroBannerHtml}
+    ${isKnoll ? "" : knollIntroBannerHtml}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
-    <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
+    <div class="${groupsContainerClass}">${isKnoll ? knollIntroBannerHtml : ""}${groupsHtml}</div>
     ${isKnoll ? `<div class="knoll-footer">
       <div class="knoll-footer-row">
         <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>
-        ${KNOLL_LOGO_HTML}
+        ${knollLogoHtml}
       </div>
     </div>` : ""}
     <div class="footer">
@@ -2020,7 +2093,15 @@ router.get("/public/menus/embed", async (req, res) => {
     const customFooter = (req.query.footer as string) || "";
     const customHeader2 = (req.query.header2 as string) || "";
     const customFooter2 = (req.query.footer2 as string) || "";
-    const customPrintLines = parseCustomPrintLines(req.query.customlines);
+    let customPrintLines = parseCustomPrintLines(req.query.customlines);
+    let knollBannerTitle = ((req.query.banner as string) || "").trim();
+    let knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    if (isKnoll) {
+      const migrated = migrateKnollLunchBannerLines(customPrintLines, knollBannerTitle, knollBannerNote);
+      customPrintLines = migrated.lines;
+      knollBannerTitle = migrated.bannerTitle;
+      knollBannerNote = migrated.bannerNote;
+    }
     const itemPrintMeta = parseItemPrintMeta(req.query.itemstyles);
     const itemPrintStyles = itemPrintMeta.scales;
     const itemAllergens = {
@@ -2441,17 +2522,34 @@ router.get("/public/menus/embed", async (req, res) => {
       // In-app live preview: apply the print stylesheet on screen so the iframe
       // shows exactly what will print (fonts, sizes, colors, spacing, layout).
       css = css.replace(/@media print \{/g, "@media all {");
+      // Narrow iframes hit the mobile max-width rules and collapse to 1 column —
+      // force letter-width print layout so preview matches the printed page.
+      const previewCols = Math.max(1, columnCount);
+      css += `
+        html, body { min-width: 8.5in; width: 8.5in; max-width: 8.5in; overflow-x: hidden; }
+        .menu-container { max-width: none !important; width: 100% !important; box-sizing: border-box; }
+        .menu-groups-container, .bev-groups-container {
+          column-count: ${previewCols} !important;
+          ${previewCols > 1 ? "column-rule: 1.5px solid #111 !important;" : "column-rule: none !important;"}
+          column-fill: balance !important;
+        }
+        .menu-group { break-inside: auto !important; page-break-inside: auto !important; }
+        .group-name, .custom-print-line--course, .custom-print-line--course-note { display: block !important; visibility: visible !important; break-after: avoid !important; }
+        .knoll-header-bar { grid-template-columns: 1fr auto 1fr !important; text-align: initial !important; }
+        .knoll-header-left { text-align: left !important; justify-self: start !important; }
+        .knoll-header-right { text-align: right !important; justify-self: end !important; }
+      `;
     }
 
     const knollFooterText = customFooter.trim() || KNOLL_DEFAULT_FOOTER;
-    const knollBannerTitle = ((req.query.banner as string) || "").trim();
-    const knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    const knollLogoHtml = isKnoll ? buildKnollLogoHtml(req) : "";
     const knollIntroBannerHtml = isKnoll && (knollBannerTitle || knollBannerNote)
       ? `<div class="knoll-intro-banner">
       ${knollBannerTitle ? `<div class="knoll-intro-banner-title">${sanitizeHeaderHtml(knollBannerTitle)}</div>` : ""}
       ${knollBannerNote ? `<div class="knoll-intro-banner-note">${sanitizeHeaderHtml(knollBannerNote)}</div>` : ""}
     </div>`
       : "";
+    const groupsContainerClass = template === "beverage" ? "bev-groups-container" : "menu-groups-container";
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2488,13 +2586,13 @@ router.get("/public/menus/embed", async (req, res) => {
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
-    ${knollIntroBannerHtml}
+    ${isKnoll ? "" : knollIntroBannerHtml}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
-    <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
+    <div class="${groupsContainerClass}">${isKnoll ? knollIntroBannerHtml : ""}${groupsHtml}</div>
     ${isKnoll ? `<div class="knoll-footer">
       <div class="knoll-footer-row">
         <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>
-        ${KNOLL_LOGO_HTML}
+        ${knollLogoHtml}
       </div>
     </div>` : ""}
     <div class="footer">
