@@ -119,6 +119,17 @@ function parseTypoParams(str?: string | null): BrowserTypoSettings {
 const PRINT_SETTINGS_KEY_PREFIX = "toast-menu-print-settings:";
 const printSettingsStorageKey = (guid: string) => `${PRINT_SETTINGS_KEY_PREFIX}${guid}`;
 
+const PRINT_ALLERGEN_TAGS = ["GF", "GFO", "V", "VG", "DF", "NF"] as const;
+type PrintAllergenTag = (typeof PRINT_ALLERGEN_TAGS)[number];
+const PRINT_ALLERGEN_LABELS: Record<PrintAllergenTag, string> = {
+  GF: "Gluten Free",
+  GFO: "Gluten-Free Option",
+  V: "Vegan",
+  VG: "Vegetarian",
+  DF: "Dairy Free",
+  NF: "Nut Free",
+};
+
 interface MenuPrintSettings {
   template: string;
   header: string;
@@ -141,6 +152,7 @@ interface MenuPrintSettings {
   customLines: PrintCustomLine[];
   customTitle: string;
   itemFontScales: Record<string, number>;
+  itemAllergens: Record<string, string[]>;
   typography: string;
   additionalMenuGuids: string[];
 }
@@ -167,6 +179,7 @@ const DEFAULT_PRINT_SETTINGS: MenuPrintSettings = {
   customLines: [],
   customTitle: "",
   itemFontScales: {},
+  itemAllergens: {},
   typography: buildTypoParams(DEFAULT_BROWSER_TYPO),
   additionalMenuGuids: [],
 };
@@ -401,6 +414,7 @@ export function ToastMenuBrowser() {
   const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
   const [printCustomTitle, setPrintCustomTitle] = useState("");
   const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
+  const [printItemAllergens, setPrintItemAllergens] = useState<Record<string, string[]>>({});
   const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
   // Bumped after a successful save so the server-rendered live print preview
   // iframe reloads and reflects the just-saved item edits (sizes, descriptions, etc.).
@@ -430,6 +444,7 @@ export function ToastMenuBrowser() {
     customLines: printCustomLines,
     customTitle: printCustomTitle,
     itemFontScales: printItemFontScales,
+    itemAllergens: printItemAllergens,
     typography: buildTypoParams(printTypo),
     additionalMenuGuids,
   });
@@ -456,6 +471,7 @@ export function ToastMenuBrowser() {
     setPrintCustomLines(Array.isArray(s.customLines) ? s.customLines : []);
     setPrintCustomTitle(s.customTitle || "");
     setPrintItemFontScales(s.itemFontScales && typeof s.itemFontScales === "object" ? s.itemFontScales : {});
+    setPrintItemAllergens(s.itemAllergens && typeof s.itemAllergens === "object" ? s.itemAllergens : {});
     setPrintTypo(s.typography ? parseTypoParams(s.typography) : DEFAULT_BROWSER_TYPO);
     setAdditionalMenuGuids(Array.isArray(s.additionalMenuGuids) ? s.additionalMenuGuids : []);
   };
@@ -477,7 +493,7 @@ export function ToastMenuBrowser() {
     selectedPrintGroups, printHideDescriptions, printHidePricing, printHideWinePairing,
     printShowImages, printHideAllergyFooter, printHideCourseHeadings, printKnollHeaderColor, printOrnament,
     printOrnamentPos, printPages, printPageBreaks, printCustomLines, printCustomTitle,
-    printItemFontScales, printTypo, additionalMenuGuids,
+    printItemFontScales, printItemAllergens, printTypo, additionalMenuGuids,
   ]);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
@@ -499,6 +515,13 @@ export function ToastMenuBrowser() {
     setPresets(updated);
     localStorage.setItem(storageKey, JSON.stringify(updated));
   };
+
+  const [courseAboveDialog, setCourseAboveDialog] = useState<{ itemGuid: string; itemName: string } | null>(null);
+  const [courseAboveTitle, setCourseAboveTitle] = useState("");
+  const [courseAboveNote, setCourseAboveNote] = useState("");
+
+  const cleanMenuItemName = (name: string) =>
+    name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim();
 
   const addPrintCustomLine = (preset?: Partial<PrintCustomLine>) => {
     const isKnoll = printTemplate === "knoll" || preset?.kind === "course" || preset?.kind === "course-note";
@@ -527,6 +550,58 @@ export function ToastMenuBrowser() {
         ...preset,
       },
     ]);
+  };
+
+  const openCourseAboveDialog = (itemGuid: string, itemName: string) => {
+    setCourseAboveDialog({ itemGuid, itemName: cleanMenuItemName(itemName) });
+    setCourseAboveTitle("");
+    setCourseAboveNote("");
+  };
+
+  const confirmCourseAbove = () => {
+    if (!courseAboveDialog) return;
+    const title = courseAboveTitle.trim();
+    if (!title) {
+      toast({ title: "Course name required", description: "Enter a course title such as SANDWICHES.", variant: "destructive" });
+      return;
+    }
+    const placement = `before-item:${courseAboveDialog.itemGuid}`;
+    const stamp = Date.now();
+    const note = courseAboveNote.trim();
+    setPrintCustomLines((prev) => [
+      ...prev,
+      {
+        id: `line-${stamp}-course`,
+        kind: "course",
+        text: title,
+        placement,
+        align: "left",
+        font: "Montserrat",
+        size: 12,
+        bold: true,
+        italic: false,
+      },
+      ...(note
+        ? [{
+            id: `line-${stamp}-note`,
+            kind: "course-note" as const,
+            text: note,
+            placement,
+            align: "left" as const,
+            font: "Montserrat",
+            size: 9,
+            bold: false,
+            italic: true,
+          }]
+        : []),
+    ]);
+    toast({
+      title: "Course added",
+      description: `"${title}" will print above ${courseAboveDialog.itemName}. Edit it anytime under Courses & Print Lines.`,
+    });
+    setCourseAboveDialog(null);
+    setCourseAboveTitle("");
+    setCourseAboveNote("");
   };
 
   const updatePrintCustomLine = (id: string, change: Partial<PrintCustomLine>) => {
@@ -588,23 +663,81 @@ export function ToastMenuBrowser() {
     });
   };
 
-  const serializeItemPrintStyles = () => (
-    Object.keys(printItemFontScales).length > 0 ? JSON.stringify(printItemFontScales) : ""
-  );
+  const togglePrintItemAllergen = (itemGuid: string, tag: PrintAllergenTag) => {
+    if (!itemGuid) return;
+    setPrintItemAllergens(prev => {
+      const current = prev[itemGuid] || [];
+      const nextTags = current.includes(tag)
+        ? current.filter((t) => t !== tag)
+        : [...current, tag];
+      const next = { ...prev };
+      if (nextTags.length === 0) delete next[itemGuid];
+      else next[itemGuid] = nextTags;
+      return next;
+    });
+  };
 
-  const parseItemPrintStyles = (value: string | null | undefined): Record<string, number> => {
-    if (!value) return {};
+  /** Serialize per-item print scale + allergen icons into the existing itemstyles payload. */
+  const serializeItemPrintStyles = () => {
+    const guids = new Set([
+      ...Object.keys(printItemFontScales),
+      ...Object.keys(printItemAllergens),
+    ]);
+    if (guids.size === 0) return "";
+    const out: Record<string, number | { scale?: number; allergens: string[] }> = {};
+    for (const guid of guids) {
+      const scale = printItemFontScales[guid];
+      const allergens = printItemAllergens[guid];
+      if (allergens?.length) {
+        out[guid] = {
+          ...(scale && scale !== 1 ? { scale } : {}),
+          allergens,
+        };
+      } else if (scale && scale !== 1) {
+        out[guid] = scale;
+      }
+    }
+    return Object.keys(out).length > 0 ? JSON.stringify(out) : "";
+  };
+
+  const parseItemPrintMetaClient = (value: string | null | undefined): {
+    scales: Record<string, number>;
+    allergens: Record<string, string[]>;
+  } => {
+    const scales: Record<string, number> = {};
+    const allergens: Record<string, string[]> = {};
+    if (!value) return { scales, allergens };
     try {
       const parsed = JSON.parse(value);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-      return Object.fromEntries(
-        Object.entries(parsed)
-          .map(([key, raw]) => [key, Number(raw)] as const)
-          .filter(([key, scale]) => key && !Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8)
-      );
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { scales, allergens };
+      for (const [key, raw] of Object.entries(parsed)) {
+        if (!key) continue;
+        if (typeof raw === "number" || typeof raw === "string") {
+          const scale = Number(raw);
+          if (!Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8) scales[key] = scale;
+          continue;
+        }
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+        const obj = raw as { scale?: unknown; allergens?: unknown };
+        const scale = Number(obj.scale);
+        if (!Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8) scales[key] = scale;
+        if (Array.isArray(obj.allergens)) {
+          const tags = obj.allergens
+            .map((t) => String(t || "").toUpperCase().trim())
+            .filter((t): t is PrintAllergenTag => (PRINT_ALLERGEN_TAGS as readonly string[]).includes(t));
+          if (tags.length > 0) allergens[key] = [...new Set(tags)];
+        }
+      }
+      return { scales, allergens };
     } catch {
-      return {};
+      return { scales, allergens };
     }
+  };
+
+  const applyItemPrintMeta = (value: string | null | undefined) => {
+    const meta = parseItemPrintMetaClient(value);
+    setPrintItemFontScales(meta.scales);
+    setPrintItemAllergens(meta.allergens);
   };
 
   const [activeDetailTab, setActiveDetailTab] = useState<"web" | "print">("print");
@@ -1147,7 +1280,7 @@ export function ToastMenuBrowser() {
       setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintCustomLines(parsePrintCustomLines(params.get("customlines")));
       setPrintCustomTitle(params.get("title") || "");
-      setPrintItemFontScales(parseItemPrintStyles(params.get("itemstyles")));
+      applyItemPrintMeta(params.get("itemstyles"));
       setAdditionalMenuGuids(extraMenuGuids);
 
       clearPendingChanges();
@@ -1187,7 +1320,7 @@ export function ToastMenuBrowser() {
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
     setPrintCustomLines(parsePrintCustomLines(config.customPrintLines));
     setPrintCustomTitle(config.customTitle || "");
-    setPrintItemFontScales(parseItemPrintStyles(config.itemPrintStyles));
+    applyItemPrintMeta(config.itemPrintStyles);
     setPrintTypo(parseTypoParams(config.typography));
     setSelectedPrintGroups(config.groupGuids ? config.groupGuids.split(",").filter(Boolean) : []);
     // Use dedicated print additional guids if available, otherwise fall back to legacy multi-guid format
@@ -1274,15 +1407,15 @@ export function ToastMenuBrowser() {
         <div className="border-t pt-2.5 flex flex-col sm:flex-row sm:items-start gap-2">
           <p className="text-xs font-medium text-foreground shrink-0">Dietary badges:</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Add a code in parentheses to an item's name in Toast POS and it will automatically display as a styled badge on the menu.
-            Supported codes:{" "}
+            Add a code in parentheses to an item's name in Toast POS, or toggle print icons on any item below (print-only; not written back to Toast).
+            Supported:{" "}
             <span className="font-medium text-foreground">(GF)</span> Gluten Free &nbsp;&middot;&nbsp;
             <span className="font-medium text-foreground">(GFO)</span> Gluten-Free Option &nbsp;&middot;&nbsp;
             <span className="font-medium text-foreground">(V)</span> Vegan &nbsp;&middot;&nbsp;
             <span className="font-medium text-foreground">(VG)</span> Vegetarian &nbsp;&middot;&nbsp;
             <span className="font-medium text-foreground">(DF)</span> Dairy Free &nbsp;&middot;&nbsp;
             <span className="font-medium text-foreground">(NF)</span> Nut Free.
-            The code is removed from the displayed item name automatically.
+            Toast name codes are stripped from the printed item name automatically.
           </p>
         </div>
       </div>
@@ -2018,6 +2151,39 @@ export function ToastMenuBrowser() {
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <span className="text-[11px] font-medium text-muted-foreground mr-0.5">Print icons</span>
+                        {PRINT_ALLERGEN_TAGS.map((tag) => {
+                          const active = (printItemAllergens[item.itemGuid] || []).includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => togglePrintItemAllergen(item.itemGuid, tag)}
+                              title={`${active ? "Remove" : "Add"} ${PRINT_ALLERGEN_LABELS[tag]} icon (print only)`}
+                              data-testid={`button-print-allergen-${tag}-${item.id}`}
+                              className={`h-6 min-w-6 px-1.5 rounded-full text-[10px] font-bold border transition-colors ${
+                                active
+                                  ? "bg-foreground text-background border-foreground"
+                                  : "bg-background text-muted-foreground border-border hover:border-foreground/50"
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[11px] px-2 ml-1"
+                          onClick={() => openCourseAboveDialog(item.itemGuid, item.name)}
+                          data-testid={`button-add-course-above-${item.id}`}
+                          title="Add a bold course header (and optional note) above this item on the printed menu"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Course above
+                        </Button>
+                      </div>
                       <div className="mt-1">
                         <Textarea
                           key={`desc-${item.id}-${item.description || ""}`}
@@ -2221,17 +2387,17 @@ export function ToastMenuBrowser() {
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {printTemplate === "knoll"
-                        ? "When Toast is not broken into courses, add Course Headers (e.g. BOARDS & SHAREABLES) and Course Notes (italic details under a section). Place each line before the first item of that section. These print only — they are not written back to Toast."
+                        ? "Easiest: on any item above, click Course above to add a bold section title (e.g. SANDWICHES) and an optional italic note under it. Or use the buttons here, then set Placement to Before [first item]. Print-only — not written back to Toast."
                         : <>Add print-only banners, headers, or notes without adding them to Toast. Supports safe HTML like <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, and <code className="text-xs">&lt;i&gt;</code>.</>}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {printTemplate === "knoll" && (
+                    {(printTemplate === "knoll" || printCustomLines.some((l) => l.kind === "course" || l.kind === "course-note")) && (
                       <>
                         <Button
                           size="sm"
                           variant="default"
-                          onClick={() => addPrintCustomLine({ kind: "course", text: "BOARDS & SHAREABLES" })}
+                          onClick={() => addPrintCustomLine({ kind: "course", text: "SANDWICHES" })}
                           data-testid="button-add-course-header"
                         >
                           <Plus className="w-4 h-4 mr-1" />
@@ -2242,7 +2408,7 @@ export function ToastMenuBrowser() {
                           variant="outline"
                           onClick={() => addPrintCustomLine({
                             kind: "course-note",
-                            text: "Served with hand cut Russet potato chips / Gluten Free bread upon request +2",
+                            text: "Served with Hand cut Russet potato chips.<br>Gluten Free Bread upon request — Add $2.00",
                           })}
                           data-testid="button-add-course-note"
                         >
@@ -2261,7 +2427,7 @@ export function ToastMenuBrowser() {
                 {printCustomLines.length === 0 ? (
                   <p className="text-xs text-muted-foreground border rounded-md px-3 py-2 bg-muted/30">
                     {printTemplate === "knoll"
-                      ? "No courses added yet. Use Add Course Header, then set Placement to “Before [first item in that section]”."
+                      ? "No courses yet. On the first item of a section (e.g. Plain Grilled Cheese), click Course above and enter SANDWICHES plus a note."
                       : "No added print lines yet."}
                   </p>
                 ) : (
@@ -3659,6 +3825,80 @@ export function ToastMenuBrowser() {
             >
               Cancel — Stay on Page
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!courseAboveDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCourseAboveDialog(null);
+            setCourseAboveTitle("");
+            setCourseAboveNote("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add course above item</DialogTitle>
+            <DialogDescription>
+              {courseAboveDialog
+                ? <>Prints a bold course title and optional note above <span className="font-medium text-foreground">{courseAboveDialog.itemName}</span>. Not written back to Toast.</>
+                : "Add a print-only course header above a menu item."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Course title</label>
+              <Input
+                value={courseAboveTitle}
+                onChange={(e) => setCourseAboveTitle(e.target.value)}
+                placeholder="SANDWICHES"
+                className="text-sm font-semibold uppercase"
+                autoFocus
+                data-testid="input-course-above-title"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    confirmCourseAbove();
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">
+                Course note <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Textarea
+                value={courseAboveNote}
+                onChange={(e) => setCourseAboveNote(e.target.value)}
+                placeholder={"Served with Hand cut Russet potato chips.<br>Gluten Free Bread upon request — Add $2.00"}
+                rows={3}
+                className="text-sm"
+                data-testid="textarea-course-above-note"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Use <code className="text-[10px]">&lt;br&gt;</code> for a line break. Prints in smaller italic text under the course title.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button onClick={confirmCourseAbove} disabled={!courseAboveTitle.trim()} data-testid="button-confirm-course-above">
+                <Plus className="w-4 h-4 mr-1" />
+                Add Course
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCourseAboveDialog(null);
+                  setCourseAboveTitle("");
+                  setCourseAboveNote("");
+                }}
+                data-testid="button-cancel-course-above"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -54,6 +54,12 @@ type CustomPrintLine = {
 };
 
 type ItemPrintStyles = Record<string, number>;
+type ItemAllergenMap = Record<string, string[]>;
+
+const ALLOWED_ALLERGEN_TAGS = new Set(["GF", "GFO", "V", "VG", "DF", "NF"]);
+
+const KNOLL_LEAF_ICON =
+  `<svg class="dietary-leaf" viewBox="0 0 16 16" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M8 1.5 C4.5 4 3 7 3.5 10.5 C5.5 10 7 8.5 8 7 C9 8.5 10.5 10 12.5 10.5 C13 7 11.5 4 8 1.5 Z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7 V14" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`;
 
 function normalizeMenuLabel(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -173,8 +179,10 @@ function buildKnollCss(opts: {
         .item-image-wrap { display: none; }
         ${dietaryTagsCss}
         ${customPrintLineCss}
-        .dietary-tags { margin-left: 2px; flex: 0 0 auto; }
-        .dietary-tag { width: 1.4em; height: 1.4em; border-radius: 50%; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 700; letter-spacing: 0; background: #fff; color: #111; border: 1.5px solid #111; margin-left: 3px; line-height: 1; }
+        .dietary-tags { margin-left: 2px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px; }
+        .dietary-tag { width: 1.4em; height: 1.4em; border-radius: 50%; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 700; letter-spacing: 0; background: #fff; color: #111; border: 1.5px solid #111; margin-left: 0; line-height: 1; }
+        .dietary-tag--leaf { border-color: #166534; color: #166534; }
+        .dietary-leaf { width: 0.85em; height: 0.85em; display: block; }
         .special-badge { background: #111; color: #fff; border: none; border-radius: 2px; }
         .knoll-footer { margin-top: 12px; }
         .knoll-footer-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
@@ -286,23 +294,86 @@ function renderCustomPrintLines(lines: CustomPrintLine[], placement: string): st
     .join("");
 }
 
+function parseItemPrintMeta(value: unknown): { scales: ItemPrintStyles; allergens: ItemAllergenMap } {
+  const scales: ItemPrintStyles = {};
+  const allergens: ItemAllergenMap = {};
+  if (typeof value !== "string" || !value.trim()) return { scales, allergens };
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { scales, allergens };
+    for (const [itemGuid, raw] of Object.entries(parsed)) {
+      if (typeof itemGuid !== "string" || itemGuid.length > 160) continue;
+      if (typeof raw === "number" || typeof raw === "string") {
+        const scale = Number(raw);
+        if (!Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8) scales[itemGuid] = scale;
+        continue;
+      }
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      const obj = raw as { scale?: unknown; allergens?: unknown };
+      const scale = Number(obj.scale);
+      if (!Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8) scales[itemGuid] = scale;
+      if (Array.isArray(obj.allergens)) {
+        const tags = obj.allergens
+          .map((t) => String(t || "").toUpperCase().trim())
+          .filter((t) => ALLOWED_ALLERGEN_TAGS.has(t))
+          .slice(0, 8);
+        if (tags.length > 0) allergens[itemGuid] = [...new Set(tags)];
+      }
+    }
+    return { scales, allergens };
+  } catch {
+    return { scales, allergens };
+  }
+}
+
+/** @deprecated use parseItemPrintMeta — kept for scale-only call sites during transition */
 function parseItemPrintStyles(value: unknown): ItemPrintStyles {
+  return parseItemPrintMeta(value).scales;
+}
+
+function parseItemAllergensParam(value: unknown): ItemAllergenMap {
   if (typeof value !== "string" || !value.trim()) return {};
   try {
     const parsed = JSON.parse(value);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const styles: ItemPrintStyles = {};
-    for (const [itemGuid, rawScale] of Object.entries(parsed)) {
-      if (typeof itemGuid !== "string" || itemGuid.length > 160) continue;
-      const scale = Number(rawScale);
-      if (!Number.isNaN(scale) && scale >= 0.7 && scale <= 1.8) {
-        styles[itemGuid] = scale;
-      }
+    const allergens: ItemAllergenMap = {};
+    for (const [itemGuid, raw] of Object.entries(parsed)) {
+      if (typeof itemGuid !== "string" || itemGuid.length > 160 || !Array.isArray(raw)) continue;
+      const tags = raw
+        .map((t) => String(t || "").toUpperCase().trim())
+        .filter((t) => ALLOWED_ALLERGEN_TAGS.has(t))
+        .slice(0, 8);
+      if (tags.length > 0) allergens[itemGuid] = [...new Set(tags)];
     }
-    return styles;
+    return allergens;
   } catch {
     return {};
   }
+}
+
+function mergeDietaryTags(...lists: string[][]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const list of lists) {
+    for (const tag of list) {
+      const t = String(tag || "").toUpperCase().trim();
+      if (!t || seen.has(t) || !ALLOWED_ALLERGEN_TAGS.has(t)) continue;
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+function renderDietaryTagsHtml(tags: string[], template: string): string {
+  if (tags.length === 0) return "";
+  const parts = tags.map((t) => {
+    if (template === "knoll" && (t === "V" || t === "VG")) {
+      return `<span class="dietary-tag dietary-tag--leaf" title="${t === "V" ? "Vegan" : "Vegetarian"}">${KNOLL_LEAF_ICON}</span>`;
+    }
+    return `<span class="dietary-tag" title="${t}">${t}</span>`;
+  });
+  return `<span class="dietary-tags">${parts.join("")}</span>`;
 }
 
 /** Descriptions: allow the same light HTML as custom headers (incl. <i> / <em>), plus <br>. */
@@ -1345,7 +1416,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const customFooter2 = (req.query.footer2 as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
     const customTitle = (req.query.title as string) || "";
-    const itemPrintStyles = parseItemPrintStyles(req.query.itemstyles);
+    const itemPrintMeta = parseItemPrintMeta(req.query.itemstyles);
+    const itemPrintStyles = itemPrintMeta.scales;
+    const itemAllergens = {
+      ...itemPrintMeta.allergens,
+      ...parseItemAllergensParam(req.query.itemallergens),
+    };
 
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -1512,7 +1588,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         // Print-only course headers / notes placed before this Toast item.
         itemsHtml += renderCustomPrintLines(customPrintLines, `before-item:${item.itemGuid}`);
         const price = formatPrice(item.price);
-        const dietaryTags = extractDietaryTags(item.name);
+        const dietaryTags = mergeDietaryTags(extractDietaryTags(item.name), itemAllergens[item.itemGuid] || []);
         const cleanName = cleanItemName(item.name);
         const itemFontScale = itemPrintStyles[item.itemGuid] || 1;
         const itemScaleStyle = itemFontScale !== 1 ? ` style="--item-scale:${itemFontScale.toFixed(2)}"` : "";
@@ -1536,9 +1612,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
           continue;
         }
 
-        const tagsHtml = dietaryTags.length > 0
-          ? `<span class="dietary-tags">${dietaryTags.map(t => `<span class="dietary-tag">${t}</span>`).join("")}</span>`
-          : "";
+        const tagsHtml = renderDietaryTagsHtml(dietaryTags, template);
         const pairingHtml = item.suggestedPairing
           ? `<p class="item-pairing">${escapeHtml(item.suggestedPairing)}</p>`
           : "";
@@ -1927,7 +2001,12 @@ router.get("/public/menus/embed", async (req, res) => {
     const customHeader2 = (req.query.header2 as string) || "";
     const customFooter2 = (req.query.footer2 as string) || "";
     const customPrintLines = parseCustomPrintLines(req.query.customlines);
-    const itemPrintStyles = parseItemPrintStyles(req.query.itemstyles);
+    const itemPrintMeta = parseItemPrintMeta(req.query.itemstyles);
+    const itemPrintStyles = itemPrintMeta.scales;
+    const itemAllergens = {
+      ...itemPrintMeta.allergens,
+      ...parseItemAllergensParam(req.query.itemallergens),
+    };
 
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -2067,7 +2146,7 @@ router.get("/public/menus/embed", async (req, res) => {
         // Print-only course headers / notes placed before this Toast item.
         itemsHtml += renderCustomPrintLines(customPrintLines, `before-item:${item.itemGuid}`);
         const price = formatPrice(item.price);
-        const dietaryTags = extractDietaryTags(item.name);
+        const dietaryTags = mergeDietaryTags(extractDietaryTags(item.name), itemAllergens[item.itemGuid] || []);
         const cleanName = cleanItemName(item.name);
         const itemFontScale = itemPrintStyles[item.itemGuid] || 1;
         const itemScaleStyle = itemFontScale !== 1 ? ` style="--item-scale:${itemFontScale.toFixed(2)}"` : "";
@@ -2091,9 +2170,7 @@ router.get("/public/menus/embed", async (req, res) => {
           continue;
         }
 
-        const tagsHtml = dietaryTags.length > 0
-          ? `<span class="dietary-tags">${dietaryTags.map(t => `<span class="dietary-tag">${t}</span>`).join("")}</span>`
-          : "";
+        const tagsHtml = renderDietaryTagsHtml(dietaryTags, template);
         const pairingHtml = item.suggestedPairing
           ? `<p class="item-pairing">${escapeHtml(item.suggestedPairing)}</p>`
           : "";
