@@ -33,7 +33,7 @@ import {
   ExternalLink, Eye, EyeOff, ListFilter,
   ArrowLeft, Code, Printer, Copy, Check, Wine,
   BookMarked, Trash2, Pencil, Save, Plus, DollarSign, Sparkles,
-  BookOpen, HelpCircle, AlertCircle, Lightbulb, Share2, Monitor
+  BookOpen, HelpCircle, AlertCircle, Lightbulb, Share2, Monitor, Heading2
 } from "lucide-react";
 import { TypographyPanel, type TypoElem } from "@/components/TypographyPanel";
 
@@ -534,12 +534,40 @@ export function ToastMenuBrowser() {
     localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
-  const [courseAboveDialog, setCourseAboveDialog] = useState<{ itemGuid: string; itemName: string } | null>(null);
+  const [courseAboveDialog, setCourseAboveDialog] = useState<{
+    itemGuid: string;
+    itemName: string;
+    mode: "add" | "edit";
+  } | null>(null);
   const [courseAboveTitle, setCourseAboveTitle] = useState("");
   const [courseAboveNote, setCourseAboveNote] = useState("");
+  const [courseFormTitle, setCourseFormTitle] = useState("");
+  const [courseFormNote, setCourseFormNote] = useState("");
+  const [courseFormBeforeItemGuid, setCourseFormBeforeItemGuid] = useState("");
 
   const cleanMenuItemName = (name: string) =>
     name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim();
+
+  const getCourseLinesForItem = (itemGuid: string, lines: PrintCustomLine[] = printCustomLines) => {
+    const placement = `before-item:${itemGuid}`;
+    const forItem = lines.filter(
+      (line) =>
+        (line.kind === "course" || line.kind === "course-note") &&
+        line.placement === placement
+    );
+    return {
+      placement,
+      course: forItem.find((l) => l.kind === "course") || null,
+      note: forItem.find((l) => l.kind === "course-note") || null,
+      allIds: forItem.map((l) => l.id),
+    };
+  };
+
+  const closeCourseAboveDialog = () => {
+    setCourseAboveDialog(null);
+    setCourseAboveTitle("");
+    setCourseAboveNote("");
+  };
 
   const addPrintCustomLine = (preset?: Partial<PrintCustomLine>) => {
     const isKnoll = printTemplate === "knoll" || preset?.kind === "course" || preset?.kind === "course-note";
@@ -548,8 +576,8 @@ export function ToastMenuBrowser() {
       banner: { align: "center", font: "Jost", size: 14, bold: true, italic: false, placement: "after-title" },
       header: { align: "center", font: "Jost", size: 14, bold: true, italic: false, placement: "after-title" },
       note: { align: "left", font: "Jost", size: 11, bold: false, italic: true, placement: "after-title" },
-      course: { align: "left", font: "Montserrat", size: 12, bold: true, italic: false, placement: "after-title", text: "" },
-      "course-note": { align: "left", font: "Montserrat", size: 9, bold: false, italic: true, placement: "after-title", text: "" },
+      course: { align: "center", font: "Montserrat", size: 14, bold: true, italic: false, placement: "after-title", text: "" },
+      "course-note": { align: "center", font: "Montserrat", size: 10, bold: false, italic: true, placement: "after-title", text: "" },
     };
     const defaults = defaultsByKind[kind];
     setPrintCustomLines(prev => [
@@ -571,55 +599,107 @@ export function ToastMenuBrowser() {
   };
 
   const openCourseAboveDialog = (itemGuid: string, itemName: string) => {
-    setCourseAboveDialog({ itemGuid, itemName: cleanMenuItemName(itemName) });
-    setCourseAboveTitle("");
-    setCourseAboveNote("");
+    const existing = getCourseLinesForItem(itemGuid);
+    const hasExisting = !!existing.course || !!existing.note;
+    setCourseAboveDialog({
+      itemGuid,
+      itemName: cleanMenuItemName(itemName),
+      mode: hasExisting ? "edit" : "add",
+    });
+    setCourseAboveTitle(existing.course?.text || "");
+    setCourseAboveNote(existing.note?.text || "");
+  };
+
+  /** Upsert a bold course title (+ optional note) above a specific Toast item. Replaces any existing course for that item. */
+  const saveCourseAboveItem = (itemGuid: string, itemName: string, titleRaw: string, noteRaw: string, isEdit: boolean) => {
+    const title = titleRaw.trim();
+    if (!itemGuid) {
+      toast({ title: "Pick an item", description: "Choose which menu item the course should appear above.", variant: "destructive" });
+      return false;
+    }
+    if (!title) {
+      toast({ title: "Course name required", description: "Enter a course title such as SANDWICHES.", variant: "destructive" });
+      return false;
+    }
+    const placement = `before-item:${itemGuid}`;
+    const stamp = Date.now();
+    const note = noteRaw.trim();
+    const cleanName = cleanMenuItemName(itemName) || "that item";
+    const courseSize = Math.min(72, Math.max(11, Math.round((printTypo.item?.size || 14) * 1.18)));
+    const noteSize = Math.min(72, Math.max(9, Math.round((printTypo.desc?.size || 12) * 0.95)));
+    const courseFont = printTypo.item?.font || "Montserrat";
+    const noteFont = printTypo.desc?.font || "Montserrat";
+    setPrintCustomLines((prev) => {
+      const withoutExisting = prev.filter(
+        (line) =>
+          !((line.kind === "course" || line.kind === "course-note") && line.placement === placement)
+      );
+      return [
+        ...withoutExisting,
+        {
+          id: `line-${stamp}-course`,
+          kind: "course" as const,
+          text: title.toUpperCase(),
+          placement,
+          align: "center" as const,
+          font: courseFont,
+          size: courseSize,
+          bold: true,
+          italic: false,
+        },
+        ...(note
+          ? [{
+              id: `line-${stamp}-note`,
+              kind: "course-note" as const,
+              text: note,
+              placement,
+              align: "center" as const,
+              font: noteFont,
+              size: noteSize,
+              bold: false,
+              italic: true,
+            }]
+          : []),
+      ];
+    });
+    toast({
+      title: isEdit ? "Course updated" : "Course added to print menu",
+      description: `"${title}" will print above ${cleanName}.`,
+    });
+    return true;
+  };
+
+  const deleteCourseAboveItem = (itemGuid: string, itemName: string) => {
+    const placement = `before-item:${itemGuid}`;
+    setPrintCustomLines((prev) =>
+      prev.filter(
+        (line) =>
+          !((line.kind === "course" || line.kind === "course-note") && line.placement === placement)
+      )
+    );
+    toast({
+      title: "Course removed",
+      description: `Course above ${cleanMenuItemName(itemName) || "item"} was deleted from the print menu.`,
+    });
   };
 
   const confirmCourseAbove = () => {
     if (!courseAboveDialog) return;
-    const title = courseAboveTitle.trim();
-    if (!title) {
-      toast({ title: "Course name required", description: "Enter a course title such as SANDWICHES.", variant: "destructive" });
-      return;
+    if (saveCourseAboveItem(
+      courseAboveDialog.itemGuid,
+      courseAboveDialog.itemName,
+      courseAboveTitle,
+      courseAboveNote,
+      courseAboveDialog.mode === "edit"
+    )) {
+      closeCourseAboveDialog();
     }
-    const placement = `before-item:${courseAboveDialog.itemGuid}`;
-    const stamp = Date.now();
-    const note = courseAboveNote.trim();
-    setPrintCustomLines((prev) => [
-      ...prev,
-      {
-        id: `line-${stamp}-course`,
-        kind: "course",
-        text: title,
-        placement,
-        align: "left",
-        font: "Montserrat",
-        size: 12,
-        bold: true,
-        italic: false,
-      },
-      ...(note
-        ? [{
-            id: `line-${stamp}-note`,
-            kind: "course-note" as const,
-            text: note,
-            placement,
-            align: "left" as const,
-            font: "Montserrat",
-            size: 9,
-            bold: false,
-            italic: true,
-          }]
-        : []),
-    ]);
-    toast({
-      title: "Course added",
-      description: `"${title}" will print above ${courseAboveDialog.itemName}. Edit it anytime under Courses & Print Lines.`,
-    });
-    setCourseAboveDialog(null);
-    setCourseAboveTitle("");
-    setCourseAboveNote("");
+  };
+
+  const confirmDeleteCourseAbove = () => {
+    if (!courseAboveDialog) return;
+    deleteCourseAboveItem(courseAboveDialog.itemGuid, courseAboveDialog.itemName);
+    closeCourseAboveDialog();
   };
 
   const updatePrintCustomLine = (id: string, change: Partial<PrintCustomLine>) => {
@@ -842,6 +922,28 @@ export function ToastMenuBrowser() {
     );
     return [...primary, ...additional];
   }, [menuDetail, additionalMenuDetailsList]);
+
+  const printableCourseItems = useMemo(() => (
+    allPrintGroups.flatMap((group) =>
+      (group.items || [])
+        .filter((item: ToastMenuItemData) => !item.hidden)
+        .map((item: ToastMenuItemData) => ({
+          itemGuid: item.itemGuid,
+          name: cleanMenuItemName(item.name),
+          groupName: group.name as string,
+        }))
+    )
+  ), [allPrintGroups]);
+
+  const submitCourseForm = () => {
+    const item = printableCourseItems.find((i) => i.itemGuid === courseFormBeforeItemGuid);
+    const existing = getCourseLinesForItem(courseFormBeforeItemGuid);
+    const isEdit = !!existing.course || !!existing.note;
+    if (saveCourseAboveItem(courseFormBeforeItemGuid, item?.name || "", courseFormTitle, courseFormNote, isEdit)) {
+      setCourseFormTitle("");
+      setCourseFormNote("");
+    }
+  };
 
   interface EmbedConfig {
     id: number;
@@ -2070,6 +2172,30 @@ export function ToastMenuBrowser() {
           </CardContent>
         </Card>
 
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-semibold">How to add a course name above an item</p>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
+              <li>On the item below (left icons: eye, $, special, <span className="font-medium text-foreground">heading</span>), click the heading icon.</li>
+              <li>Enter the course name (e.g. <span className="font-medium text-foreground">SANDWICHES</span>) and optional detail.</li>
+              <li>Click <span className="font-medium text-foreground">Add Course</span> — it prints centered, bold, and slightly larger above that item on any template.</li>
+            </ol>
+            <p className="text-xs text-muted-foreground">
+              Or use the form further down: <span className="font-medium text-foreground">Add a Course Above an Item</span>.
+            </p>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => {
+                document.getElementById("course-above-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              data-testid="button-jump-to-course-form"
+            >
+              Jump to course form
+            </Button>
+          </CardContent>
+        </Card>
+
         {effectiveGroups.map((group) => (
           <div key={group.id} className={`space-y-1 ${group.hidden ? "opacity-50" : ""}`}>
             <div className="flex items-center justify-between gap-2 pt-2 border-b pb-1">
@@ -2095,7 +2221,13 @@ export function ToastMenuBrowser() {
               <p className="text-sm text-muted-foreground py-2">No items in this group</p>
             ) : (
               <div className="space-y-0">
-                {group.items.map((item) => (
+                {group.items.map((item) => {
+                  const hasCourseAbove = printCustomLines.some(
+                    (line) =>
+                      (line.kind === "course" || line.kind === "course-note") &&
+                      line.placement === `before-item:${item.itemGuid}`
+                  );
+                  return (
                   <div
                     key={item.id}
                     className={`flex items-start gap-3 py-2 border-b border-muted/50 last:border-0 ${item.hidden ? "opacity-40" : ""}`}
@@ -2132,6 +2264,16 @@ export function ToastMenuBrowser() {
                         className={item.isSpecial ? "toggle-elevate toggle-elevated text-amber-600" : "toggle-elevate"}
                       >
                         <Sparkles className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openCourseAboveDialog(item.itemGuid, item.name)}
+                        data-testid={`button-add-course-above-${item.id}`}
+                        title={hasCourseAbove ? "Edit or delete course above this item" : "Add course name & detail above this item"}
+                        className={hasCourseAbove ? "toggle-elevate toggle-elevated text-primary" : "toggle-elevate"}
+                      >
+                        <Heading2 className="w-4 h-4" />
                       </Button>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -2201,17 +2343,6 @@ export function ToastMenuBrowser() {
                             </button>
                           );
                         })}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-[11px] px-2 ml-1"
-                          onClick={() => openCourseAboveDialog(item.itemGuid, item.name)}
-                          data-testid={`button-add-course-above-${item.id}`}
-                          title="Add a bold course header (and optional note) above this item on the printed menu"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Course above
-                        </Button>
                       </div>
                       <div className="mt-1">
                         <Textarea
@@ -2263,7 +2394,8 @@ export function ToastMenuBrowser() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2407,57 +2539,82 @@ export function ToastMenuBrowser() {
               </div>
             </div>
 
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {printTemplate === "knoll" ? "Courses & Print Lines" : "Added Print Lines"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {printTemplate === "knoll"
-                        ? "Easiest: on any item above, click Course above to add a bold section title (e.g. SANDWICHES) and an optional italic note under it. Or use the buttons here, then set Placement to Before [first item]. Print-only — not written back to Toast."
-                        : <>Add print-only banners, headers, or notes without adding them to Toast. Supports safe HTML like <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, and <code className="text-xs">&lt;i&gt;</code>.</>}
-                    </p>
+            <Card className="border-primary/30">
+              <CardContent className="p-4 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold">Add a Course Above an Item</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Works on all templates. Course titles print centered, bold, uppercase, and slightly larger than menu items. Print-only — not written back to Toast.
+                  </p>
+                </div>
+
+                <div id="course-above-form" className="rounded-md border bg-muted/40 p-3 space-y-3" data-testid="course-above-form">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-xs font-medium">1. Course name (bold, centered, uppercase)</label>
+                      <Input
+                        value={courseFormTitle}
+                        onChange={(e) => setCourseFormTitle(e.target.value)}
+                        placeholder="SANDWICHES"
+                        className="text-sm font-semibold uppercase"
+                        data-testid="input-course-form-title"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-xs font-medium">2. Course detail (optional smaller note)</label>
+                      <Textarea
+                        value={courseFormNote}
+                        onChange={(e) => setCourseFormNote(e.target.value)}
+                        placeholder={"Served with Hand cut Russet potato chips.<br>Gluten Free Bread upon request — Add $2.00"}
+                        rows={2}
+                        className="text-sm"
+                        data-testid="textarea-course-form-note"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Use <code className="text-[10px]">&lt;br&gt;</code> to break onto a second line.
+                      </p>
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-xs font-medium">3. Print this course above which item?</label>
+                      <Select value={courseFormBeforeItemGuid || undefined} onValueChange={setCourseFormBeforeItemGuid}>
+                        <SelectTrigger data-testid="select-course-form-before-item">
+                          <SelectValue placeholder="Choose an item (e.g. Plain Grilled Cheese)…" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {printableCourseItems.length === 0 ? (
+                            <SelectItem value="__none" disabled>No visible items on this menu</SelectItem>
+                          ) : (
+                            printableCourseItems.map((item) => (
+                              <SelectItem key={item.itemGuid} value={item.itemGuid}>
+                                {item.name}
+                                {item.groupName ? `  ·  ${item.groupName}` : ""}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(printTemplate === "knoll" || printCustomLines.some((l) => l.kind === "course" || l.kind === "course-note")) && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => addPrintCustomLine({ kind: "course", text: "SANDWICHES" })}
-                          data-testid="button-add-course-header"
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Add Course Header
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => addPrintCustomLine({
-                            kind: "course-note",
-                            text: "Served with Hand cut Russet potato chips.<br>Gluten Free Bread upon request — Add $2.00",
-                          })}
-                          data-testid="button-add-course-note"
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Add Course Note
-                        </Button>
-                      </>
-                    )}
-                    <Button size="sm" variant="outline" onClick={() => addPrintCustomLine()} data-testid="button-add-print-line">
-                      <Plus className="w-4 h-4 mr-1" />
-                      {printTemplate === "knoll" ? "Add Other Line" : "Add Banner / Header"}
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={submitCourseForm}
+                    disabled={!courseFormTitle.trim() || !courseFormBeforeItemGuid}
+                    data-testid="button-submit-course-form"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add course to print menu
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => addPrintCustomLine()} data-testid="button-add-print-line">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add other print line
+                  </Button>
                 </div>
 
                 {printCustomLines.length === 0 ? (
                   <p className="text-xs text-muted-foreground border rounded-md px-3 py-2 bg-muted/30">
-                    {printTemplate === "knoll"
-                      ? "No courses yet. On the first item of a section (e.g. Plain Grilled Cheese), click Course above and enter SANDWICHES plus a note."
-                      : "No added print lines yet."}
+                    No courses on the print menu yet. Fill in the form above (name → detail → choose item → Add), or use the heading icon on an item.
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -3861,19 +4018,19 @@ export function ToastMenuBrowser() {
       <Dialog
         open={!!courseAboveDialog}
         onOpenChange={(open) => {
-          if (!open) {
-            setCourseAboveDialog(null);
-            setCourseAboveTitle("");
-            setCourseAboveNote("");
-          }
+          if (!open) closeCourseAboveDialog();
         }}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add course above item</DialogTitle>
+            <DialogTitle>
+              {courseAboveDialog?.mode === "edit" ? "Edit course above item" : "Add course above item"}
+            </DialogTitle>
             <DialogDescription>
               {courseAboveDialog
-                ? <>Prints a bold course title and optional note above <span className="font-medium text-foreground">{courseAboveDialog.itemName}</span>. Not written back to Toast.</>
+                ? courseAboveDialog.mode === "edit"
+                  ? <>Update or delete the course that prints above <span className="font-medium text-foreground">{courseAboveDialog.itemName}</span>.</>
+                  : <>Prints a bold course title and optional note above <span className="font-medium text-foreground">{courseAboveDialog.itemName}</span>. Not written back to Toast.</>
                 : "Add a print-only course header above a menu item."}
             </DialogDescription>
           </DialogHeader>
@@ -3883,7 +4040,7 @@ export function ToastMenuBrowser() {
               <Input
                 value={courseAboveTitle}
                 onChange={(e) => setCourseAboveTitle(e.target.value)}
-                placeholder="SANDWICHES"
+                placeholder={courseAboveDialog?.mode === "edit" ? "Course title" : "e.g. SANDWICHES"}
                 className="text-sm font-semibold uppercase"
                 autoFocus
                 data-testid="input-course-above-title"
@@ -3902,7 +4059,11 @@ export function ToastMenuBrowser() {
               <Textarea
                 value={courseAboveNote}
                 onChange={(e) => setCourseAboveNote(e.target.value)}
-                placeholder={"Served with Hand cut Russet potato chips.<br>Gluten Free Bread upon request — Add $2.00"}
+                placeholder={
+                  courseAboveDialog?.mode === "edit"
+                    ? "Course detail note"
+                    : "Served with Hand cut Russet potato chips.<br>Gluten Free Bread upon request — Add $2.00"
+                }
                 rows={3}
                 className="text-sm"
                 data-testid="textarea-course-above-note"
@@ -3911,18 +4072,33 @@ export function ToastMenuBrowser() {
                 Use <code className="text-[10px]">&lt;br&gt;</code> for a line break. Prints in smaller italic text under the course title.
               </p>
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               <Button onClick={confirmCourseAbove} disabled={!courseAboveTitle.trim()} data-testid="button-confirm-course-above">
-                <Plus className="w-4 h-4 mr-1" />
-                Add Course
+                {courseAboveDialog?.mode === "edit" ? (
+                  <>
+                    <Save className="w-4 h-4 mr-1" />
+                    Save Changes
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Course
+                  </>
+                )}
               </Button>
+              {courseAboveDialog?.mode === "edit" && (
+                <Button
+                  variant="destructive"
+                  onClick={confirmDeleteCourseAbove}
+                  data-testid="button-delete-course-above"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Delete Course
+                </Button>
+              )}
               <Button
                 variant="outline"
-                onClick={() => {
-                  setCourseAboveDialog(null);
-                  setCourseAboveTitle("");
-                  setCourseAboveNote("");
-                }}
+                onClick={closeCourseAboveDialog}
                 data-testid="button-cancel-course-above"
               >
                 Cancel

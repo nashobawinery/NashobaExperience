@@ -169,8 +169,8 @@ function buildKnollCss(opts: {
         .group-name { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #111; margin: 0 0 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
         .group-divider { display: none; }
         .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #333; margin: 0 0 8px; line-height: 1.35; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700 !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 12px 0 3px; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
-        .custom-print-line--course-note { font-style: italic !important; font-weight: 400 !important; margin: 0 0 8px; line-height: 1.35; color: #333; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 14px 0 4px; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; line-height: 1.35; color: #333; break-after: avoid; page-break-after: avoid; }
         .custom-print-line--banner, .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 4px; }
         .menu-item { text-align: left; margin-bottom: 8px; break-inside: avoid; }
         .item-header { display: flex; align-items: baseline; gap: 4px; width: 100%; }
@@ -1734,8 +1734,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 14px 0 4px; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course-note { font-style: italic; margin: 0 0 8px; opacity: 0.9; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 16px 0 4px; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; opacity: 0.92; line-height: 1.35; break-after: avoid; page-break-after: avoid; }
     `;
     if (template === "fine-dining") {
       css = `
@@ -2291,8 +2291,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 14px 0 4px; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course-note { font-style: italic; margin: 0 0 8px; opacity: 0.9; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 16px 0 4px; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; opacity: 0.92; line-height: 1.35; break-after: avoid; page-break-after: avoid; }
     `;
 
     let css = "";
