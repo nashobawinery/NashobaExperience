@@ -119,6 +119,13 @@ type KnollTypoElem = { font: string; size: number; bold: boolean; italic: boolea
 const KNOLL_HEADER_COLORS: Record<string, string> = {
   pink: "#ec4899",
   black: "#111111",
+  navy: "#1e3a5f",
+  burgundy: "#7f1d1d",
+  forest: "#14532d",
+  teal: "#0f766e",
+  charcoal: "#374151",
+  orange: "#c2410c",
+  plum: "#6b21a8",
 };
 
 function resolveKnollHeaderColor(raw: string | undefined): string {

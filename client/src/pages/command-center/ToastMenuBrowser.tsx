@@ -130,6 +130,24 @@ const PRINT_ALLERGEN_LABELS: Record<PrintAllergenTag, string> = {
   NF: "Nut Free",
 };
 
+const KNOLL_HEADER_COLOR_OPTIONS = [
+  { value: "pink", label: "Pink", hex: "#ec4899" },
+  { value: "black", label: "Black", hex: "#111111" },
+  { value: "navy", label: "Navy", hex: "#1e3a5f" },
+  { value: "burgundy", label: "Burgundy", hex: "#7f1d1d" },
+  { value: "forest", label: "Forest", hex: "#14532d" },
+  { value: "teal", label: "Teal", hex: "#0f766e" },
+  { value: "charcoal", label: "Charcoal", hex: "#374151" },
+  { value: "orange", label: "Orange", hex: "#c2410c" },
+  { value: "plum", label: "Plum", hex: "#6b21a8" },
+] as const;
+const KNOLL_HEADER_COLOR_VALUES = new Set(KNOLL_HEADER_COLOR_OPTIONS.map((c) => c.value));
+
+function normalizeKnollHeaderColor(raw: string | null | undefined): string {
+  const key = (raw || "pink").trim().toLowerCase();
+  return KNOLL_HEADER_COLOR_VALUES.has(key as typeof KNOLL_HEADER_COLOR_OPTIONS[number]["value"]) ? key : "pink";
+}
+
 interface MenuPrintSettings {
   template: string;
   header: string;
@@ -463,7 +481,7 @@ export function ToastMenuBrowser() {
     setPrintShowImages(!!s.showImages);
     setPrintHideAllergyFooter(!!s.hideAllergyFooter);
     setPrintHideCourseHeadings(!!s.hideCourseHeadings);
-    setPrintKnollHeaderColor(s.knollHeaderColor === "black" ? "black" : "pink");
+    setPrintKnollHeaderColor(normalizeKnollHeaderColor(s.knollHeaderColor));
     setPrintOrnament(s.ornament || "auto");
     setPrintOrnamentPos(s.ornamentPos || "below-title");
     setPrintPages(s.pages ?? 0);
@@ -1274,6 +1292,7 @@ export function ToastMenuBrowser() {
       setPrintHideWinePairing(params.get("hidepairing") === "1");
       setPrintShowImages(params.get("showimages") === "1");
       setPrintHideCourseHeadings(params.get("hidegroups") === "1");
+      setPrintKnollHeaderColor(normalizeKnollHeaderColor(params.get("headercolor")));
       setPrintOrnament(params.get("ornament") || "auto");
       setPrintOrnamentPos(params.get("ornamentpos") || "below-title");
       setPrintPages(parseInt(params.get("pages") || "0") || 0);
@@ -1312,7 +1331,7 @@ export function ToastMenuBrowser() {
     setPrintHideCourseHeadings(config.hideCourseHeadings || false);
     {
       const hc = new URLSearchParams(config.typography || "").get("headercolor");
-      setPrintKnollHeaderColor(hc === "black" ? "black" : "pink");
+      setPrintKnollHeaderColor(normalizeKnollHeaderColor(hc));
     }
     setPrintOrnament(config.ornament || "auto");
     setPrintOrnamentPos(config.ornamentPosition || "below-title");
@@ -1735,13 +1754,23 @@ export function ToastMenuBrowser() {
                 <div className="space-y-1">
                   <label className="text-sm font-medium">Header Color</label>
                   <p className="text-xs text-muted-foreground">Color of the THE KNOLL header bar.</p>
-                  <Select value={printKnollHeaderColor} onValueChange={setPrintKnollHeaderColor}>
+                  <Select value={normalizeKnollHeaderColor(printKnollHeaderColor)} onValueChange={setPrintKnollHeaderColor}>
                     <SelectTrigger data-testid="select-knoll-header-color">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pink">Pink</SelectItem>
-                      <SelectItem value="black">Black</SelectItem>
+                      {KNOLL_HEADER_COLOR_OPTIONS.map((color) => (
+                        <SelectItem key={color.value} value={color.value}>
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="inline-block w-3.5 h-3.5 rounded-sm border border-black/20 shrink-0"
+                              style={{ backgroundColor: color.hex }}
+                              aria-hidden
+                            />
+                            {color.label}
+                          </span>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
