@@ -35,7 +35,7 @@ import {
   BookMarked, Trash2, Pencil, Save, Plus, DollarSign, Sparkles,
   BookOpen, HelpCircle, AlertCircle, Lightbulb, Share2, Monitor, Heading2
 } from "lucide-react";
-import { TypographyPanel, type TypoElem } from "@/components/TypographyPanel";
+import { TypographyPanel, FONT_GROUPS, type TypoElem } from "@/components/TypographyPanel";
 
 interface BrowserTypoSettings {
   title: TypoElem; subtitle: TypoElem; group: TypoElem; item: TypoElem;
@@ -61,17 +61,19 @@ const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
 const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
   { key: "title",    label: "Private Event Title (optional)" },
   { key: "subtitle", label: "Sub-header" },
-  { key: "group",    label: "Section header" },
+  { key: "group",    label: "Section header / banner title" },
   { key: "item",     label: "Item name" },
   { key: "price",    label: "Price" },
-  { key: "desc",     label: "Description" },
+  { key: "desc",     label: "Description / banner note" },
   { key: "pairing",  label: "Pairings" },
   { key: "allergy",  label: "Allergy text" },
-  { key: "header",   label: "Custom header 1" },
-  { key: "header2",  label: "Custom header 2" },
-  { key: "footer",   label: "Custom footer 1" },
+  { key: "header",   label: "Header left (Knoll) / Custom header 1" },
+  { key: "header2",  label: "Header right (Knoll) / Custom header 2" },
+  { key: "footer",   label: "Footer note (Knoll) / Custom footer 1" },
   { key: "footer2",  label: "Custom footer 2" },
 ];
+
+const ALL_FONT_OPTIONS = FONT_GROUPS.flatMap((g) => g.fonts.map((f) => f.value));
 
 function buildTypoParams(t: BrowserTypoSettings): string {
   const e = encodeURIComponent;
@@ -144,6 +146,11 @@ const KNOLL_HEADER_COLOR_OPTIONS = [
 const KNOLL_HEADER_COLOR_VALUES = new Set(KNOLL_HEADER_COLOR_OPTIONS.map((c) => c.value));
 const KNOLL_DEFAULT_HEADER_LEFT = "Dine in at";
 const KNOLL_DEFAULT_HEADER_RIGHT = "Open Daily 11-8";
+const KNOLL_DEFAULT_FOOTER_NOTE =
+  "We will send a text when your food is ready for pick up at the Snack Shack counter. Please have your order # ready. Drinks will be delivered to your table.";
+const KNOLL_DEFAULT_BANNER_TITLE = "LUNCH ON THE KNOLL";
+const KNOLL_DEFAULT_BANNER_NOTE =
+  "Serving lunch daily 11-4 pm. Please see server for assistance if you have a physical gift card to purchase food or beverage.";
 
 function normalizeKnollHeaderColor(raw: string | null | undefined): string {
   const key = (raw || "pink").trim().toLowerCase();
@@ -171,6 +178,8 @@ interface MenuPrintSettings {
   pageBreaks: string[];
   customLines: PrintCustomLine[];
   customTitle: string;
+  knollBannerTitle: string;
+  knollBannerNote: string;
   itemFontScales: Record<string, number>;
   itemAllergens: Record<string, string[]>;
   typography: string;
@@ -198,6 +207,8 @@ const DEFAULT_PRINT_SETTINGS: MenuPrintSettings = {
   pageBreaks: [],
   customLines: [],
   customTitle: "",
+  knollBannerTitle: "",
+  knollBannerNote: "",
   itemFontScales: {},
   itemAllergens: {},
   typography: buildTypoParams(DEFAULT_BROWSER_TYPO),
@@ -433,6 +444,8 @@ export function ToastMenuBrowser() {
   const [printOrnamentPos, setPrintOrnamentPos] = useState("below-title");
   const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
   const [printCustomTitle, setPrintCustomTitle] = useState("");
+  const [printKnollBannerTitle, setPrintKnollBannerTitle] = useState("");
+  const [printKnollBannerNote, setPrintKnollBannerNote] = useState("");
   const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
   const [printItemAllergens, setPrintItemAllergens] = useState<Record<string, string[]>>({});
   const [printTypo, setPrintTypo] = useState<BrowserTypoSettings>(DEFAULT_BROWSER_TYPO);
@@ -463,6 +476,8 @@ export function ToastMenuBrowser() {
     pageBreaks: printPageBreaks,
     customLines: printCustomLines,
     customTitle: printCustomTitle,
+    knollBannerTitle: printKnollBannerTitle,
+    knollBannerNote: printKnollBannerNote,
     itemFontScales: printItemFontScales,
     itemAllergens: printItemAllergens,
     typography: buildTypoParams(printTypo),
@@ -474,7 +489,7 @@ export function ToastMenuBrowser() {
     setPrintTemplate(template);
     const isKnoll = template === "knoll";
     setPrintHeader(isKnoll ? (s.header?.trim() || KNOLL_DEFAULT_HEADER_LEFT) : (s.header || ""));
-    setPrintFooter(s.footer || "");
+    setPrintFooter(isKnoll ? (s.footer?.trim() || KNOLL_DEFAULT_FOOTER_NOTE) : (s.footer || ""));
     setPrintHeader2(isKnoll ? (s.header2?.trim() || KNOLL_DEFAULT_HEADER_RIGHT) : (s.header2 || ""));
     setPrintFooter2(s.footer2 || "");
     setPrintScale(s.scale ?? 100);
@@ -492,6 +507,8 @@ export function ToastMenuBrowser() {
     setPrintPageBreaks(Array.isArray(s.pageBreaks) ? s.pageBreaks : []);
     setPrintCustomLines(Array.isArray(s.customLines) ? s.customLines : []);
     setPrintCustomTitle(s.customTitle || "");
+    setPrintKnollBannerTitle(s.knollBannerTitle || "");
+    setPrintKnollBannerNote(s.knollBannerNote || "");
     setPrintItemFontScales(s.itemFontScales && typeof s.itemFontScales === "object" ? s.itemFontScales : {});
     setPrintItemAllergens(s.itemAllergens && typeof s.itemAllergens === "object" ? s.itemAllergens : {});
     setPrintTypo(s.typography ? parseTypoParams(s.typography) : DEFAULT_BROWSER_TYPO);
@@ -515,7 +532,7 @@ export function ToastMenuBrowser() {
     selectedPrintGroups, printHideDescriptions, printHidePricing, printHideWinePairing,
     printShowImages, printHideAllergyFooter, printHideCourseHeadings, printKnollHeaderColor, printOrnament,
     printOrnamentPos, printPages, printPageBreaks, printCustomLines, printCustomTitle,
-    printItemFontScales, printItemAllergens, printTypo, additionalMenuGuids,
+    printKnollBannerTitle, printKnollBannerNote, printItemFontScales, printItemAllergens, printTypo, additionalMenuGuids,
   ]);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
@@ -545,10 +562,6 @@ export function ToastMenuBrowser() {
   } | null>(null);
   const [courseAboveTitle, setCourseAboveTitle] = useState("");
   const [courseAboveNote, setCourseAboveNote] = useState("");
-  const [courseFormTitle, setCourseFormTitle] = useState("");
-  const [courseFormNote, setCourseFormNote] = useState("");
-  const [courseFormBeforeItemGuid, setCourseFormBeforeItemGuid] = useState("");
-
   const cleanMenuItemName = (name: string) =>
     name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim();
 
@@ -927,28 +940,6 @@ export function ToastMenuBrowser() {
     return [...primary, ...additional];
   }, [menuDetail, additionalMenuDetailsList]);
 
-  const printableCourseItems = useMemo(() => (
-    allPrintGroups.flatMap((group) =>
-      (group.items || [])
-        .filter((item: ToastMenuItemData) => !item.hidden)
-        .map((item: ToastMenuItemData) => ({
-          itemGuid: item.itemGuid,
-          name: cleanMenuItemName(item.name),
-          groupName: group.name as string,
-        }))
-    )
-  ), [allPrintGroups]);
-
-  const submitCourseForm = () => {
-    const item = printableCourseItems.find((i) => i.itemGuid === courseFormBeforeItemGuid);
-    const existing = getCourseLinesForItem(courseFormBeforeItemGuid);
-    const isEdit = !!existing.course || !!existing.note;
-    if (saveCourseAboveItem(courseFormBeforeItemGuid, item?.name || "", courseFormTitle, courseFormNote, isEdit)) {
-      setCourseFormTitle("");
-      setCourseFormNote("");
-    }
-  };
-
   interface EmbedConfig {
     id: number;
     slug: string;
@@ -1033,8 +1024,14 @@ export function ToastMenuBrowser() {
     itemPrintStyles: serializeItemPrintStyles() || null,
     typography: (() => {
       const typo = buildTypoParams(printTypo);
-      const knollColor = printTemplate === "knoll" ? `headercolor=${encodeURIComponent(printKnollHeaderColor || "pink")}` : "";
-      return [typo, knollColor].filter(Boolean).join("&") || null;
+      const knollExtras = printTemplate === "knoll"
+        ? [
+            `headercolor=${encodeURIComponent(printKnollHeaderColor || "pink")}`,
+            printKnollBannerTitle.trim() ? `banner=${encodeURIComponent(printKnollBannerTitle.trim())}` : "",
+            printKnollBannerNote.trim() ? `bannernote=${encodeURIComponent(printKnollBannerNote.trim())}` : "",
+          ].filter(Boolean).join("&")
+        : "";
+      return [typo, knollExtras].filter(Boolean).join("&") || null;
     })(),
   });
 
@@ -1296,6 +1293,8 @@ export function ToastMenuBrowser() {
       const right = printHeader2.trim() || KNOLL_DEFAULT_HEADER_RIGHT;
       url += `&header=${encodeURIComponent(left)}`;
       url += `&header2=${encodeURIComponent(right)}`;
+      if (printKnollBannerTitle.trim()) url += `&banner=${encodeURIComponent(printKnollBannerTitle.trim())}`;
+      if (printKnollBannerNote.trim()) url += `&bannernote=${encodeURIComponent(printKnollBannerNote.trim())}`;
     } else {
       if (header) url += `&header=${encodeURIComponent(header)}`;
       if (printHeader2.trim()) url += `&header2=${encodeURIComponent(printHeader2.trim())}`;
@@ -1324,6 +1323,8 @@ export function ToastMenuBrowser() {
       url += `&header=${encodeURIComponent(left)}`;
       url += `&header2=${encodeURIComponent(right)}`;
       url += `&headercolor=${encodeURIComponent(printKnollHeaderColor || "pink")}`;
+      if (printKnollBannerTitle.trim()) url += `&banner=${encodeURIComponent(printKnollBannerTitle.trim())}`;
+      if (printKnollBannerNote.trim()) url += `&bannernote=${encodeURIComponent(printKnollBannerNote.trim())}`;
     } else {
       if (header && header.trim()) url += `&header=${encodeURIComponent(header.trim())}`;
       if (printHeader2.trim()) url += `&header2=${encodeURIComponent(printHeader2.trim())}`;
@@ -1405,7 +1406,7 @@ export function ToastMenuBrowser() {
       setPrintTemplate(loadedTemplate);
       setSelectedPrintGroups(params.get("groupGuid") ? params.get("groupGuid")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintHeader(loadedIsKnoll ? (params.get("header")?.trim() || KNOLL_DEFAULT_HEADER_LEFT) : (params.get("header") || ""));
-      setPrintFooter(params.get("footer") || "");
+      setPrintFooter(loadedIsKnoll ? (params.get("footer")?.trim() || KNOLL_DEFAULT_FOOTER_NOTE) : (params.get("footer") || ""));
       setPrintHeader2(loadedIsKnoll ? (params.get("header2")?.trim() || KNOLL_DEFAULT_HEADER_RIGHT) : (params.get("header2") || ""));
       setPrintFooter2(params.get("footer2") || "");
       setPrintScale(parseFloat(params.get("scale") || "100") || 100);
@@ -1421,6 +1422,8 @@ export function ToastMenuBrowser() {
       setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintCustomLines(parsePrintCustomLines(params.get("customlines")));
       setPrintCustomTitle(params.get("title") || "");
+      setPrintKnollBannerTitle(params.get("banner") || "");
+      setPrintKnollBannerNote(params.get("bannernote") || "");
       applyItemPrintMeta(params.get("itemstyles"));
       setAdditionalMenuGuids(extraMenuGuids);
 
@@ -1444,7 +1447,7 @@ export function ToastMenuBrowser() {
     const loadedIsKnoll = loadedTemplate === "knoll";
     setPrintTemplate(loadedTemplate);
     setPrintHeader(loadedIsKnoll ? (config.header?.trim() || KNOLL_DEFAULT_HEADER_LEFT) : (config.header || ""));
-    setPrintFooter(config.footer || "");
+    setPrintFooter(loadedIsKnoll ? (config.footer?.trim() || KNOLL_DEFAULT_FOOTER_NOTE) : (config.footer || ""));
     setPrintHeader2(loadedIsKnoll ? (config.header2?.trim() || KNOLL_DEFAULT_HEADER_RIGHT) : (config.header2 || ""));
     setPrintFooter2(config.footer2 || "");
     setPrintScale(config.scale || 100);
@@ -1454,8 +1457,10 @@ export function ToastMenuBrowser() {
     setPrintShowImages(config.showImages || false);
     setPrintHideCourseHeadings(config.hideCourseHeadings || false);
     {
-      const hc = new URLSearchParams(config.typography || "").get("headercolor");
-      setPrintKnollHeaderColor(normalizeKnollHeaderColor(hc));
+      const typoParams = new URLSearchParams(config.typography || "");
+      setPrintKnollHeaderColor(normalizeKnollHeaderColor(typoParams.get("headercolor")));
+      setPrintKnollBannerTitle(typoParams.get("banner") || "");
+      setPrintKnollBannerNote(typoParams.get("bannernote") || "");
     }
     setPrintOrnament(config.ornament || "auto");
     setPrintOrnamentPos(config.ornamentPosition || "below-title");
@@ -1869,6 +1874,7 @@ export function ToastMenuBrowser() {
                     if (v === "knoll") {
                       setPrintHeader((h) => h.trim() || KNOLL_DEFAULT_HEADER_LEFT);
                       setPrintHeader2((h) => h.trim() || KNOLL_DEFAULT_HEADER_RIGHT);
+                      setPrintFooter((f) => f.trim() || KNOLL_DEFAULT_FOOTER_NOTE);
                     }
                   }}
                 >
@@ -1913,7 +1919,7 @@ export function ToastMenuBrowser() {
                   <div>
                     <p className="text-sm font-semibold">Header bar text (editable)</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Left and right text in the colored header bar. Change these anytime — they are not locked to the defaults.
+                      Left and right text in the colored header bar, with their own font and size.
                     </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1926,6 +1932,34 @@ export function ToastMenuBrowser() {
                         className="text-sm"
                         data-testid="input-knoll-header-left"
                       />
+                      <div className="flex gap-2">
+                        <Select
+                          value={printTypo.header.font}
+                          onValueChange={(v) => setPrintTypo((prev) => ({ ...prev, header: { ...prev.header, font: v } }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs" data-testid="select-knoll-header-left-font">
+                            <SelectValue placeholder="Font" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ALL_FONT_OPTIONS.map((font) => (
+                              <SelectItem key={font} value={font}>{font}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min={8}
+                          max={48}
+                          value={printTypo.header.size}
+                          onChange={(e) => setPrintTypo((prev) => ({
+                            ...prev,
+                            header: { ...prev.header, size: Math.min(48, Math.max(8, Number(e.target.value) || 10)) },
+                          }))}
+                          className="h-8 w-20 text-xs"
+                          title="Font size (pt)"
+                          data-testid="input-knoll-header-left-size"
+                        />
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-medium">Right side</label>
@@ -1936,8 +1970,78 @@ export function ToastMenuBrowser() {
                         className="text-sm"
                         data-testid="input-knoll-header-right"
                       />
+                      <div className="flex gap-2">
+                        <Select
+                          value={printTypo.header2.font}
+                          onValueChange={(v) => setPrintTypo((prev) => ({ ...prev, header2: { ...prev.header2, font: v } }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs" data-testid="select-knoll-header-right-font">
+                            <SelectValue placeholder="Font" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ALL_FONT_OPTIONS.map((font) => (
+                              <SelectItem key={font} value={font}>{font}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min={8}
+                          max={48}
+                          value={printTypo.header2.size}
+                          onChange={(e) => setPrintTypo((prev) => ({
+                            ...prev,
+                            header2: { ...prev.header2, size: Math.min(48, Math.max(8, Number(e.target.value) || 10)) },
+                          }))}
+                          className="h-8 w-20 text-xs"
+                          title="Font size (pt)"
+                          data-testid="input-knoll-header-right-size"
+                        />
+                      </div>
                     </div>
                   </div>
+                </div>
+              )}
+              {printTemplate === "knoll" && (
+                <div className="space-y-3 sm:col-span-2 rounded-md border bg-muted/30 p-3">
+                  <div>
+                    <p className="text-sm font-semibold">Full-width intro banner</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Prints across the full page width under the header (not inside a column). Leave blank to hide.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Banner title</label>
+                    <Input
+                      value={printKnollBannerTitle}
+                      onChange={(e) => setPrintKnollBannerTitle(e.target.value)}
+                      placeholder={KNOLL_DEFAULT_BANNER_TITLE}
+                      className="text-sm font-semibold uppercase"
+                      data-testid="input-knoll-banner-title"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Banner detail</label>
+                    <Textarea
+                      value={printKnollBannerNote}
+                      onChange={(e) => setPrintKnollBannerNote(e.target.value)}
+                      placeholder={KNOLL_DEFAULT_BANNER_NOTE}
+                      rows={2}
+                      className="text-sm"
+                      data-testid="textarea-knoll-banner-note"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!printKnollBannerTitle.trim()) setPrintKnollBannerTitle(KNOLL_DEFAULT_BANNER_TITLE);
+                      if (!printKnollBannerNote.trim()) setPrintKnollBannerNote(KNOLL_DEFAULT_BANNER_NOTE);
+                    }}
+                    data-testid="button-fill-knoll-banner-defaults"
+                  >
+                    Use lunch banner defaults
+                  </Button>
                 </div>
               )}
               <div className="space-y-1">
@@ -2011,9 +2115,12 @@ export function ToastMenuBrowser() {
                 </div>
               </div>
               )}
-              <div className="space-y-1">
+              <div className={`space-y-1 ${printTemplate === "knoll" ? "sm:col-span-2" : ""}`}>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <label className="text-sm font-medium">Custom Footer</label>
+                  <label className="text-sm font-medium">
+                    {printTemplate === "knoll" ? "Full-width footer note (editable)" : "Custom Footer"}
+                  </label>
+                  {printTemplate !== "knoll" && (
                   <div className="flex items-center gap-1">
                     {footerPresets.length > 0 && (
                       <Select
@@ -2054,22 +2161,64 @@ export function ToastMenuBrowser() {
                       <BookMarked className="w-3 h-3 mr-1" />Save
                     </Button>
                   </div>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {printTemplate === "knoll"
-                    ? "Text for the black pickup-note box (defaults to the Snack Shack pickup message if left blank)."
+                    ? "Black note bar at the bottom of the menu, full page width. Edit the text, font, and size anytime."
                     : "Message at the bottom (e.g., website, phone)."}
                 </p>
-                <div className="flex gap-1 items-center">
-                  <input
-                    type="text"
-                    value={printFooter}
-                    onChange={(e) => setPrintFooter(e.target.value)}
-                    placeholder={printTemplate === "knoll" ? "We will send a text when your food is ready…" : "e.g., nashobawinery.com · (978) 779-5521"}
-                    className="flex-1 min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
-                    data-testid="input-detail-footer"
-                  />
-                </div>
+                {printTemplate === "knoll" ? (
+                  <>
+                    <Textarea
+                      value={printFooter}
+                      onChange={(e) => setPrintFooter(e.target.value)}
+                      placeholder={KNOLL_DEFAULT_FOOTER_NOTE}
+                      rows={3}
+                      className="text-sm"
+                      data-testid="input-detail-footer"
+                    />
+                    <div className="flex gap-2 flex-wrap">
+                      <Select
+                        value={printTypo.footer.font}
+                        onValueChange={(v) => setPrintTypo((prev) => ({ ...prev, footer: { ...prev.footer, font: v } }))}
+                      >
+                        <SelectTrigger className="h-8 w-44 text-xs" data-testid="select-knoll-footer-font">
+                          <SelectValue placeholder="Font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ALL_FONT_OPTIONS.map((font) => (
+                            <SelectItem key={font} value={font}>{font}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        min={8}
+                        max={48}
+                        value={printTypo.footer.size}
+                        onChange={(e) => setPrintTypo((prev) => ({
+                          ...prev,
+                          footer: { ...prev.footer, size: Math.min(48, Math.max(8, Number(e.target.value) || 9)) },
+                        }))}
+                        className="h-8 w-20 text-xs"
+                        title="Font size (pt)"
+                        data-testid="input-knoll-footer-size"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex gap-1 items-center">
+                    <input
+                      type="text"
+                      value={printFooter}
+                      onChange={(e) => setPrintFooter(e.target.value)}
+                      placeholder="e.g., nashobawinery.com · (978) 779-5521"
+                      className="flex-1 min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
+                      data-testid="input-detail-footer"
+                    />
+                  </div>
+                )}
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -2237,25 +2386,12 @@ export function ToastMenuBrowser() {
 
         <Card className="border-primary/40 bg-primary/5">
           <CardContent className="p-4 space-y-2">
-            <p className="text-sm font-semibold">How to add a course name above an item</p>
+            <p className="text-sm font-semibold">How to add a course above an item</p>
             <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
-              <li>On the item below (left icons: eye, $, special, <span className="font-medium text-foreground">heading</span>), click the heading icon.</li>
+              <li>On an item below, click the <span className="font-medium text-foreground">heading</span> icon (left column with eye / $ / special).</li>
               <li>Enter the course name (e.g. <span className="font-medium text-foreground">SANDWICHES</span>) and optional detail.</li>
-              <li>Click <span className="font-medium text-foreground">Add Course</span> — it prints centered, bold, and slightly larger above that item on any template.</li>
+              <li>Save — the course appears above that item here and on the printed menu. Click it again to edit or delete.</li>
             </ol>
-            <p className="text-xs text-muted-foreground">
-              Or use the form further down: <span className="font-medium text-foreground">Add a Course Above an Item</span>.
-            </p>
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => {
-                document.getElementById("course-above-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
-              }}
-              data-testid="button-jump-to-course-form"
-            >
-              Jump to course form
-            </Button>
           </CardContent>
         </Card>
 
@@ -2622,134 +2758,28 @@ export function ToastMenuBrowser() {
               </div>
             </div>
 
-            <Card className="border-primary/30">
-              <CardContent className="p-4 space-y-4">
-                <div>
-                  <p className="text-sm font-semibold">Add a Course Above an Item</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Works on all templates. Course titles print centered, bold, uppercase, and slightly larger than menu items. Print-only — not written back to Toast.
-                  </p>
-                </div>
-
-                <div id="course-above-form" className="rounded-md border bg-muted/40 p-3 space-y-3" data-testid="course-above-form">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1 sm:col-span-2">
-                      <label className="text-xs font-medium">1. Course name (bold, centered, uppercase)</label>
-                      <Input
-                        value={courseFormTitle}
-                        onChange={(e) => setCourseFormTitle(e.target.value)}
-                        placeholder="SANDWICHES"
-                        className="text-sm font-semibold uppercase"
-                        data-testid="input-course-form-title"
-                      />
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <label className="text-xs font-medium">2. Course detail (optional smaller note)</label>
-                      <Textarea
-                        value={courseFormNote}
-                        onChange={(e) => setCourseFormNote(e.target.value)}
-                        placeholder={"Served with Hand cut Russet potato chips.<br>Gluten Free Bread upon request — Add $2.00"}
-                        rows={2}
-                        className="text-sm"
-                        data-testid="textarea-course-form-note"
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Use <code className="text-[10px]">&lt;br&gt;</code> to break onto a second line.
-                      </p>
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <label className="text-xs font-medium">3. Print this course above which item?</label>
-                      <Select value={courseFormBeforeItemGuid || undefined} onValueChange={setCourseFormBeforeItemGuid}>
-                        <SelectTrigger data-testid="select-course-form-before-item">
-                          <SelectValue placeholder="Choose an item (e.g. Plain Grilled Cheese)…" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-72">
-                          {printableCourseItems.length === 0 ? (
-                            <SelectItem value="__none" disabled>No visible items on this menu</SelectItem>
-                          ) : (
-                            printableCourseItems.map((item) => (
-                              <SelectItem key={item.itemGuid} value={item.itemGuid}>
-                                {item.name}
-                                {item.groupName ? `  ·  ${item.groupName}` : ""}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold">Other print lines (optional)</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      For banners/notes that are not course headers. Add courses with the heading icon on each menu item above.
+                    </p>
                   </div>
-                  <Button
-                    onClick={submitCourseForm}
-                    disabled={!courseFormTitle.trim() || !courseFormBeforeItemGuid}
-                    data-testid="button-submit-course-form"
-                  >
+                  <Button size="sm" variant="outline" onClick={() => addPrintCustomLine({ kind: "banner" })} data-testid="button-add-print-line">
                     <Plus className="w-4 h-4 mr-1" />
-                    Add course to print menu
+                    Add banner / note
                   </Button>
                 </div>
 
-                {(() => {
-                  const coursePlacements = printableCourseItems
-                    .map((item) => ({ item, course: getCourseLinesForItem(item.itemGuid) }))
-                    .filter(({ course }) => course.course || course.note);
-                  if (coursePlacements.length === 0) {
-                    return (
-                      <p className="text-xs text-muted-foreground border rounded-md px-3 py-2 bg-muted/30">
-                        No courses on this menu yet. After you add one, it will show here above the item it belongs to.
-                      </p>
-                    );
-                  }
-                  return (
-                    <div className="rounded-md border bg-background p-3 space-y-3" data-testid="course-menu-preview">
-                      <div>
-                        <p className="text-sm font-semibold">Courses on this menu</p>
-                        <p className="text-xs text-muted-foreground">
-                          Shown above each item just like on the printed menu. Click a course to edit or delete it.
-                        </p>
-                      </div>
-                      <div className="space-y-4">
-                        {coursePlacements.map(({ item, course }) => (
-                          <div key={item.itemGuid} className="space-y-1.5">
-                            <button
-                              type="button"
-                              onClick={() => openCourseAboveDialog(item.itemGuid, item.name)}
-                              className="w-full rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-center hover-elevate"
-                              data-testid={`course-form-preview-${item.itemGuid}`}
-                              title="Edit or delete this course"
-                            >
-                              {course.course?.text && (
-                                <p className="text-sm font-bold uppercase tracking-wide underline underline-offset-2">
-                                  {course.course.text}
-                                </p>
-                              )}
-                              {course.note?.text && (
-                                <p className="text-xs italic text-muted-foreground mt-0.5 whitespace-pre-line leading-snug">
-                                  {course.note.text.replace(/<br\s*\/?>/gi, "\n")}
-                                </p>
-                              )}
-                            </button>
-                            <p className="text-xs text-muted-foreground pl-1">
-                              ↑ above <span className="font-medium text-foreground">{item.name}</span>
-                              {item.groupName ? ` · ${item.groupName}` : ""}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => addPrintCustomLine()} data-testid="button-add-print-line">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add other print line
-                  </Button>
-                </div>
-
-                {printCustomLines.length === 0 ? null : (
+                {printCustomLines.filter((l) => l.kind !== "course" && l.kind !== "course-note").length === 0 ? (
+                  <p className="text-xs text-muted-foreground border rounded-md px-3 py-2 bg-muted/30">
+                    No extra print lines. Course headers are managed on each item.
+                  </p>
+                ) : (
                   <div className="space-y-3">
-                    <p className="text-xs font-medium text-muted-foreground">Advanced line settings</p>
-                    {printCustomLines.map((line, index) => (
+                    {printCustomLines.filter((l) => l.kind !== "course" && l.kind !== "course-note").map((line, index) => (
                       <div key={line.id} className="border rounded-md p-3 space-y-3" data-testid={`print-line-${index}`}>
                         <div className="grid gap-3 sm:grid-cols-[160px_1fr_auto] sm:items-end">
                           <div className="space-y-1">

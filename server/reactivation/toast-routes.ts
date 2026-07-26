@@ -147,10 +147,11 @@ function buildKnollCss(opts: {
   dietaryTagsCss: string;
   customPrintLineCss: string;
   hdrTypo: KnollTypoElem;
+  hdr2Typo: KnollTypoElem;
   ftrTypo: KnollTypoElem;
   headerColor: string;
 }): string {
-  const { gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, ftrTypo, headerColor } = opts;
+  const { gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, headerColor } = opts;
   const cols = Math.max(1, columnCount);
   return `
         @import url('${gFontsUrl}');
@@ -158,12 +159,15 @@ function buildKnollCss(opts: {
         body { font-family: '${typo.desc.font}', sans-serif; background: #fff; color: #111; min-height: 100vh; font-size: 14px; }
         .menu-container { max-width: 8.5in; margin: 0 auto; padding: 16px 20px 20px; }
         .knoll-header-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; background: ${headerColor}; color: #fff; padding: 10px 14px; margin: 0 0 14px; }
-        .knoll-header-side { font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(Math.max(8, hdrTypo.size * 0.75))}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; letter-spacing: 0.04em; opacity: 0.95; line-height: 1.2; }
-        .knoll-header-left { text-align: left; justify-self: start; }
-        .knoll-header-right { text-align: right; justify-self: end; }
+        .knoll-header-side { letter-spacing: 0.04em; opacity: 0.95; line-height: 1.2; }
+        .knoll-header-left { text-align: left; justify-self: start; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; }
+        .knoll-header-right { text-align: right; justify-self: end; font-family: '${hdr2Typo.font}', sans-serif; font-size: ${ptRem(hdr2Typo.size)}rem; font-weight: ${fw(hdr2Typo.bold)}; font-style: ${fst(hdr2Typo.italic)}; }
         .menu-title { font-family: '${typo.title.font}', sans-serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; margin: 0; line-height: 1.1; }
         .menu-subtitle, .ornament { display: none; }
         .custom-header { display: none; }
+        .knoll-intro-banner { width: 100%; box-sizing: border-box; border: 1.5px solid #111; padding: 10px 14px; margin: 0 0 14px; text-align: center; break-inside: avoid; }
+        .knoll-intro-banner-title { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(Math.max(typo.group.size, typo.item.size + 1))}rem; font-weight: ${fw(true)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #111; line-height: 1.2; }
+        .knoll-intro-banner-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #333; margin-top: 4px; line-height: 1.4; }
         .menu-groups-container { column-count: ${cols}; column-gap: 24px; column-rule: 1.5px solid #111; }
         .menu-group { break-inside: avoid; margin-bottom: 14px; }
         .group-name { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #111; margin: 0 0 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
@@ -191,12 +195,12 @@ function buildKnollCss(opts: {
         .dietary-tag--leaf { border-color: #166534; color: #166534; }
         .dietary-leaf { width: 0.85em; height: 0.85em; display: block; }
         .special-badge { background: #111; color: #fff; border: none; border-radius: 2px; }
-        .knoll-footer { margin-top: 12px; }
-        .knoll-footer-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
-        .knoll-logo { display: flex; flex-direction: column; align-items: center; color: #888; opacity: 0.7; flex: 0 0 auto; }
+        .knoll-footer { margin-top: 12px; width: 100%; }
+        .knoll-footer-row { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
+        .knoll-logo { display: flex; flex-direction: column; align-items: center; color: #888; opacity: 0.7; flex: 0 0 auto; align-self: center; order: 2; }
         .knoll-logo-mark { width: 36px; height: 42px; }
         .knoll-logo-text { font-family: '${typo.title.font}', sans-serif; font-size: 0.55rem; letter-spacing: 0.18em; font-weight: 700; margin-top: 2px; }
-        .knoll-note-box { background: #111; color: #fff; padding: 10px 12px; max-width: 52%; flex: 0 1 auto; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; line-height: 1.4; text-align: left; }
+        .knoll-note-box { background: #111; color: #fff; padding: 12px 14px; width: 100%; max-width: none; box-sizing: border-box; flex: 0 0 auto; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; line-height: 1.4; text-align: left; order: 1; }
         .footer { text-align: left; margin-top: 10px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #666; letter-spacing: 0.02em; line-height: 1.45; }
         .custom-footer { display: none; }
         .page-break { border-top: 2px dashed #ccc; padding-top: 16px; margin-top: 8px; position: relative; }
@@ -227,7 +231,7 @@ function buildKnollCss(opts: {
           .knoll-header-bar { grid-template-columns: 1fr; text-align: center; gap: 4px; }
           .knoll-header-left, .knoll-header-right { text-align: center; justify-self: center; }
           .knoll-footer-row { flex-direction: column; align-items: stretch; }
-          .knoll-note-box { max-width: none; }
+          .knoll-note-box { max-width: none; width: 100%; }
         }`;
 }
 
@@ -1809,7 +1813,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         @media print { html { font-size: ${Math.round(scale * 0.8)}%; } body { display: block; } .menu-container { padding: 4px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .bev-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 8px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
     } else if (template === "knoll") {
-      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, ftrTypo, headerColor: knollHeaderColor });
+      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, headerColor: knollHeaderColor });
     } else {
       css = `
         @import url('${gFontsUrl}');
@@ -1872,6 +1876,14 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     }
 
     const knollFooterText = customFooter.trim() || KNOLL_DEFAULT_FOOTER;
+    const knollBannerTitle = ((req.query.banner as string) || "").trim();
+    const knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    const knollIntroBannerHtml = isKnoll && (knollBannerTitle || knollBannerNote)
+      ? `<div class="knoll-intro-banner">
+      ${knollBannerTitle ? `<div class="knoll-intro-banner-title">${sanitizeHeaderHtml(knollBannerTitle)}</div>` : ""}
+      ${knollBannerNote ? `<div class="knoll-intro-banner-note">${sanitizeHeaderHtml(knollBannerNote)}</div>` : ""}
+    </div>`
+      : "";
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1908,12 +1920,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
+    ${knollIntroBannerHtml}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
     <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
     ${isKnoll ? `<div class="knoll-footer">
       <div class="knoll-footer-row">
-        ${KNOLL_LOGO_HTML}
         <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>
+        ${KNOLL_LOGO_HTML}
       </div>
     </div>` : ""}
     <div class="footer">
@@ -2368,7 +2381,7 @@ router.get("/public/menus/embed", async (req, res) => {
         @media print { html { font-size: ${Math.round(scale * 0.8)}%; } body { display: block; } .menu-container { padding: 4px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .bev-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 8px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
     } else if (template === "knoll") {
-      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, ftrTypo, headerColor: knollHeaderColor });
+      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, hdr2Typo, ftrTypo, headerColor: knollHeaderColor });
     } else {
       css = `
         @import url('${gFontsUrl}');
@@ -2431,6 +2444,14 @@ router.get("/public/menus/embed", async (req, res) => {
     }
 
     const knollFooterText = customFooter.trim() || KNOLL_DEFAULT_FOOTER;
+    const knollBannerTitle = ((req.query.banner as string) || "").trim();
+    const knollBannerNote = ((req.query.bannernote as string) || "").trim();
+    const knollIntroBannerHtml = isKnoll && (knollBannerTitle || knollBannerNote)
+      ? `<div class="knoll-intro-banner">
+      ${knollBannerTitle ? `<div class="knoll-intro-banner-title">${sanitizeHeaderHtml(knollBannerTitle)}</div>` : ""}
+      ${knollBannerNote ? `<div class="knoll-intro-banner-note">${sanitizeHeaderHtml(knollBannerNote)}</div>` : ""}
+    </div>`
+      : "";
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2467,12 +2488,13 @@ router.get("/public/menus/embed", async (req, res) => {
       if (ornamentPos === "below-header") seq.push(ornamentHtml);
       return seq.filter(Boolean).join("\n    ");
     })()}
+    ${knollIntroBannerHtml}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
     <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
     ${isKnoll ? `<div class="knoll-footer">
       <div class="knoll-footer-row">
-        ${KNOLL_LOGO_HTML}
         <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>
+        ${KNOLL_LOGO_HTML}
       </div>
     </div>` : ""}
     <div class="footer">
