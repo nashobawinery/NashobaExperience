@@ -681,6 +681,7 @@ function ToastConnectContent() {
             <SelectContent>
               <SelectItem value="fine-dining">Fine Dining (Dark & Elegant)</SelectItem>
               <SelectItem value="modern">Modern (Clean & Minimal)</SelectItem>
+              <SelectItem value="knoll">Knoll (Letter, 2-column)</SelectItem>
             </SelectContent>
           </Select>
         </div>

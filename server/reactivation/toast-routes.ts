@@ -43,7 +43,7 @@ const COURSE_LABEL_WORDS = new Set([
 ]);
 
 type CustomPrintLine = {
-  kind: "banner" | "header" | "note";
+  kind: "banner" | "header" | "note" | "course" | "course-note";
   text: string;
   placement: string;
   align: "left" | "center" | "right";
@@ -94,6 +94,128 @@ function resolveMenuOrnament(styleParam: string | undefined, template: string): 
   return content ? `<div class="ornament">${content}</div>` : "";
 }
 
+/** Default pickup note shown in the Knoll template footer box when no custom footer is set. */
+const KNOLL_DEFAULT_FOOTER =
+  "We will send a text when your food is ready for pick up at the Snack Shack counter. Please have your order # ready. Drinks will be delivered to your table.";
+
+const KNOLL_LOGO_HTML = `<div class="knoll-logo" aria-hidden="true">
+  <svg viewBox="0 0 48 56" xmlns="http://www.w3.org/2000/svg" class="knoll-logo-mark">
+    <path d="M24 4 C18 14 12 20 12 30 C12 40 17 46 24 48 C31 46 36 40 36 30 C36 20 30 14 24 4 Z" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M24 18 V48" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M24 26 C18 24 14 28 14 32" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M24 30 C30 28 34 32 34 36" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  </svg>
+  <span class="knoll-logo-text">NASHOBA</span>
+</div>`;
+
+type KnollTypoElem = { font: string; size: number; bold: boolean; italic: boolean };
+
+const KNOLL_HEADER_COLORS: Record<string, string> = {
+  pink: "#ec4899",
+  black: "#111111",
+};
+
+function resolveKnollHeaderColor(raw: string | undefined): string {
+  const key = (raw || "pink").trim().toLowerCase();
+  if (KNOLL_HEADER_COLORS[key]) return KNOLL_HEADER_COLORS[key];
+  // Allow a safe custom hex (#RGB or #RRGGBB)
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(key)) return key;
+  return KNOLL_HEADER_COLORS.pink;
+}
+
+function buildKnollCss(opts: {
+  gFontsUrl: string;
+  typo: Record<string, KnollTypoElem>;
+  ptRem: (pt: number) => string;
+  fw: (b: boolean) => string;
+  fst: (i: boolean) => string;
+  columnCount: number;
+  scale: number;
+  dietaryTagsCss: string;
+  customPrintLineCss: string;
+  hdrTypo: KnollTypoElem;
+  ftrTypo: KnollTypoElem;
+  headerColor: string;
+}): string {
+  const { gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, ftrTypo, headerColor } = opts;
+  const cols = Math.max(1, columnCount);
+  return `
+        @import url('${gFontsUrl}');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: '${typo.desc.font}', sans-serif; background: #fff; color: #111; min-height: 100vh; font-size: 14px; }
+        .menu-container { max-width: 8.5in; margin: 0 auto; padding: 16px 20px 20px; }
+        .knoll-header-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; background: ${headerColor}; color: #fff; padding: 10px 14px; margin: 0 0 14px; }
+        .knoll-header-side { font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(Math.max(8, hdrTypo.size * 0.75))}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; letter-spacing: 0.04em; opacity: 0.95; line-height: 1.2; }
+        .knoll-header-left { text-align: left; justify-self: start; }
+        .knoll-header-right { text-align: right; justify-self: end; }
+        .menu-title { font-family: '${typo.title.font}', sans-serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; margin: 0; line-height: 1.1; }
+        .menu-subtitle, .ornament { display: none; }
+        .custom-header { display: none; }
+        .menu-groups-container { column-count: ${cols}; column-gap: 24px; column-rule: 1.5px solid #111; }
+        .menu-group { break-inside: avoid; margin-bottom: 14px; }
+        .group-name { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #111; margin: 0 0 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+        .group-divider { display: none; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #333; margin: 0 0 8px; line-height: 1.35; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700 !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 12px 0 3px; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
+        .custom-print-line--course-note { font-style: italic !important; font-weight: 400 !important; margin: 0 0 8px; line-height: 1.35; color: #333; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--banner, .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 4px; }
+        .menu-item { text-align: left; margin-bottom: 8px; break-inside: avoid; }
+        .item-header { display: flex; align-items: baseline; gap: 4px; width: 100%; }
+        .item-name { font-family: '${typo.item.font}', sans-serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.03em; color: #111; flex: 0 1 auto; max-width: 72%; }
+        .item-dots { flex: 1 1 auto; border-bottom: 1px dotted #555; margin: 0 4px 0.2em; min-width: 12px; height: 0; align-self: flex-end; opacity: 0.75; }
+        .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #111; white-space: nowrap; flex: 0 0 auto; }
+        .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #333; margin-top: 2px; }
+        .size-entry { white-space: nowrap; }
+        .size-sep { margin: 0 5px; opacity: 0.4; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #333; margin-top: 2px; line-height: 1.35; }
+        .item-pairing { font-family: '${typo.pairing.font}', sans-serif; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #444; margin-top: 2px; }
+        .item-pairing::before { content: "Pairing: "; }
+        .item-image-wrap { display: none; }
+        ${dietaryTagsCss}
+        ${customPrintLineCss}
+        .dietary-tags { margin-left: 2px; flex: 0 0 auto; }
+        .dietary-tag { width: 1.4em; height: 1.4em; border-radius: 50%; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 700; letter-spacing: 0; background: #fff; color: #111; border: 1.5px solid #111; margin-left: 3px; line-height: 1; }
+        .special-badge { background: #111; color: #fff; border: none; border-radius: 2px; }
+        .knoll-footer { margin-top: 12px; }
+        .knoll-footer-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+        .knoll-logo { display: flex; flex-direction: column; align-items: center; color: #888; opacity: 0.7; flex: 0 0 auto; }
+        .knoll-logo-mark { width: 36px; height: 42px; }
+        .knoll-logo-text { font-family: '${typo.title.font}', sans-serif; font-size: 0.55rem; letter-spacing: 0.18em; font-weight: 700; margin-top: 2px; }
+        .knoll-note-box { background: #111; color: #fff; padding: 10px 12px; max-width: 52%; flex: 0 1 auto; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; line-height: 1.4; text-align: left; }
+        .footer { text-align: left; margin-top: 10px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #666; letter-spacing: 0.02em; line-height: 1.45; }
+        .custom-footer { display: none; }
+        .page-break { border-top: 2px dashed #ccc; padding-top: 16px; margin-top: 8px; position: relative; }
+        .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #999; }
+        .item-page-break { border-top: 2px dashed #ccc; margin: 8px 0 0; position: relative; height: 20px; }
+        .item-page-break::before { content: "PAGE BREAK"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 10px; font-size: 0.6rem; letter-spacing: 0.15em; color: #999; }
+        @page { size: letter; margin: 0.35in 0.4in; }
+        @media print {
+          html { font-size: ${Math.round(scale * 0.85)}%; }
+          body { background: white; color: #111; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .menu-container { padding: 0; max-width: none; }
+          .knoll-header-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin-bottom: 10px; }
+          .menu-groups-container { column-count: ${cols}; column-gap: 22px; column-rule: 1.5px solid #111; column-fill: balance; }
+          .menu-group { margin-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
+          .menu-item { margin-bottom: 6px; }
+          .group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.95).toFixed(3)}rem; }
+          .item-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.95).toFixed(3)}rem; }
+          .item-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.95).toFixed(3)}rem; }
+          .item-description { font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; }
+          .knoll-note-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; }
+          .page-break::before { display: none; }
+          .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; }
+          .item-page-break::before { display: none; }
+        }
+        @media (max-width: 600px) {
+          .menu-groups-container { column-count: 1; column-rule: none; }
+          .knoll-header-bar { grid-template-columns: 1fr; text-align: center; gap: 4px; }
+          .knoll-header-left, .knoll-header-right { text-align: center; justify-self: center; }
+          .knoll-footer-row { flex-direction: column; align-items: stretch; }
+          .knoll-note-box { max-width: none; }
+        }`;
+}
+
 function isToastInMenuSectionRow(item: ToastItemLike): boolean {
   if (item.isSpecial) return false;
   const t = (item.type || "").toLowerCase();
@@ -132,7 +254,7 @@ function parseCustomPrintLines(value: unknown): CustomPrintLine[] {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .map((line): CustomPrintLine => ({
-        kind: ["banner", "header", "note"].includes(line?.kind) ? line.kind : "banner",
+        kind: ["banner", "header", "note", "course", "course-note"].includes(line?.kind) ? line.kind : "banner",
         text: typeof line?.text === "string" ? line.text.trim() : "",
         placement: typeof line?.placement === "string" ? line.placement : "after-title",
         align: ["left", "center", "right"].includes(line?.align) ? line.align : "center",
@@ -142,7 +264,7 @@ function parseCustomPrintLines(value: unknown): CustomPrintLine[] {
         italic: !!line?.italic,
       }))
       .filter((line) => line.text.length > 0 && line.text.length <= 1000 && line.placement.length <= 160)
-      .slice(0, 25);
+      .slice(0, 40);
   } catch {
     return [];
   }
@@ -1208,13 +1330,15 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
   try {
     const { menuGuid } = req.params;
     const template = (req.query.template as string) || "fine-dining";
+    const isKnoll = template === "knoll";
+    const knollHeaderColor = resolveKnollHeaderColor(req.query.headercolor as string | undefined);
     const groupGuidParam = req.query.groupGuid as string | undefined;
     const groupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const rawScale = parseFloat(req.query.scale as string) || 100;
     const scale = Math.min(120, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
-    const columnCount = pages > 0 ? pages : 1;
+    const columnCount = pages > 0 ? pages : (isKnoll ? 2 : 1);
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const customHeader2 = (req.query.header2 as string) || "";
@@ -1239,19 +1363,19 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const _sf = (v: string | undefined, d: string) => { if (!v) return d; const s = v.replace(/[^a-zA-Z0-9 ]/g, "").trim(); return s.slice(0, 60) || d; };
     const _sp = (v: string | undefined, d: number) => { const n = parseFloat(v || ""); return isNaN(n) ? d : Math.min(144, Math.max(6, n)); };
     const typo = {
-      title:    { font: _sf(req.query.titleFont as string,   "Cinzel"), size: _sp(req.query.titleSz as string,   30), bold: req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
-      subtitle: { font: _sf(req.query.subFont as string,     "Cinzel"), size: _sp(req.query.subSz as string,     26), bold: req.query.subBold === "1",     italic: req.query.subItalic === "1" },
-      group:    { font: _sf(req.query.groupFont as string,   "Cinzel"), size: _sp(req.query.groupSz as string,   20), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
-      item:     { font: _sf(req.query.itemFont as string,    "Cinzel"), size: _sp(req.query.itemSz as string,    17), bold: req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
-      price:    { font: _sf(req.query.priceFont as string,   "Jost"),   size: _sp(req.query.priceSz as string,   13), bold: req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
-      desc:     { font: _sf(req.query.descFont as string,    "Jost"),   size: _sp(req.query.descSz as string,    14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
-      pairing:  { font: _sf(req.query.pairFont as string,    "Allura"), size: _sp(req.query.pairSz as string,    16), bold: req.query.pairBold === "1",    italic: req.query.pairItalic === "1" },
-      allergy:  { font: _sf(req.query.allergyFont as string, "Jost"),   size: _sp(req.query.allergySz as string, 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
+      title:    { font: _sf(req.query.titleFont as string,   isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.titleSz as string,   isKnoll ? 28 : 30), bold: isKnoll ? req.query.titleBold !== "0" : req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
+      subtitle: { font: _sf(req.query.subFont as string,     isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.subSz as string,     isKnoll ? 12 : 26), bold: isKnoll ? req.query.subBold !== "0" : req.query.subBold === "1",     italic: req.query.subItalic === "1" },
+      group:    { font: _sf(req.query.groupFont as string,   isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.groupSz as string,   isKnoll ? 12 : 20), bold: isKnoll ? req.query.groupBold !== "0" : req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
+      item:     { font: _sf(req.query.itemFont as string,    isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.itemSz as string,    isKnoll ? 10 : 17), bold: isKnoll ? req.query.itemBold !== "0" : req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
+      price:    { font: _sf(req.query.priceFont as string,   isKnoll ? "Montserrat" : "Jost"),   size: _sp(req.query.priceSz as string,   isKnoll ? 10 : 13), bold: isKnoll ? req.query.priceBold !== "0" : req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
+      desc:     { font: _sf(req.query.descFont as string,    isKnoll ? "Montserrat" : "Jost"),   size: _sp(req.query.descSz as string,    isKnoll ? 8.5 : 14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
+      pairing:  { font: _sf(req.query.pairFont as string,    isKnoll ? "Montserrat" : "Allura"), size: _sp(req.query.pairSz as string,    isKnoll ? 8 : 16), bold: req.query.pairBold === "1",    italic: isKnoll ? req.query.pairItalic !== "0" : req.query.pairItalic === "1" },
+      allergy:  { font: _sf(req.query.allergyFont as string, isKnoll ? "Montserrat" : "Jost"),   size: _sp(req.query.allergySz as string, isKnoll ? 8 : 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
     };
-    const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
-    const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
-    const hdr2Typo = { font: _sf(req.query.hdr2Font as string, "Allura"), size: _sp(req.query.hdr2Sz as string, 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
-    const ftr2Typo = { font: _sf(req.query.ftr2Font as string, "Jost"), size: _sp(req.query.ftr2Sz as string, 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
+    const hdrTypo = { font: _sf(req.query.hdrFont as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.hdrSz as string, isKnoll ? 10 : 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
+    const ftrTypo = { font: _sf(req.query.ftrFont as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftrSz as string, isKnoll ? 9 : 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
+    const hdr2Typo = { font: _sf(req.query.hdr2Font as string, isKnoll ? "Montserrat" : "Allura"), size: _sp(req.query.hdr2Sz as string, isKnoll ? 10 : 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
+    const ftr2Typo = { font: _sf(req.query.ftr2Font as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftr2Sz as string, isKnoll ? 9 : 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
     const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
@@ -1323,7 +1447,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const formatPrice = (price: string | null) => {
       if (!price) return "";
       const num = parseFloat(price);
-      return isNaN(num) ? "" : `$${num.toFixed(2)}`;
+      if (isNaN(num)) return "";
+      if (isKnoll) {
+        return Number.isInteger(num) || Math.abs(num - Math.round(num)) < 0.001
+          ? String(Math.round(num))
+          : num.toFixed(2);
+      }
+      return `$${num.toFixed(2)}`;
     };
 
     const escapeHtml = (str: string) =>
@@ -1379,6 +1509,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       if (group.items.length === 0) continue;
       let itemsHtml = "";
       for (const item of group.items) {
+        // Print-only course headers / notes placed before this Toast item.
+        itemsHtml += renderCustomPrintLines(customPrintLines, `before-item:${item.itemGuid}`);
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
@@ -1448,6 +1580,19 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
               ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
+        } else if (template === "knoll") {
+          itemsHtml += `
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
+              <div class="item-header">
+                <span class="item-name"${itemNameStyle}>${escapeHtml(cleanName)}${specialBadgeHtml}</span>
+                ${showSinglePrice || tagsHtml ? `<span class="item-dots" aria-hidden="true"></span>` : ""}
+                ${showSinglePrice ? `<span class="item-price">${price}</span>` : ""}
+                ${tagsHtml}
+              </div>
+              ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
+              ${showPairing}
+            </div>`;
         } else {
           itemsHtml += `
             <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
@@ -1466,13 +1611,24 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
-      const showGroupSubheading = !hideGroupHeadings && !shouldHideGroupHeading;
+      // Knoll always shows course titles unless Hide Courses is checked.
+      const showGroupSubheading = !hideGroupHeadings && (isKnoll || !shouldHideGroupHeading);
       const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
             ${customBeforeGroupHtml}
             ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml(group.name)}</h2>` : ""}
+            ${itemsHtml}
+          </div>`;
+      } else if (template === "knoll") {
+        const groupNote = !hideDescriptions && group.description?.trim()
+          ? `<p class="group-note">${sanitizeMenuDescriptionHtml(group.description)}</p>`
+          : "";
+        groupsHtml += `
+          <div class="menu-group${hasPageBreak ? " page-break" : ""}">
+            ${customBeforeGroupHtml}
+            ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml(group.name)}</h2>${groupNote}` : ""}
             ${itemsHtml}
           </div>`;
       } else {
@@ -1497,6 +1653,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 14px 0 4px; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { font-style: italic; margin: 0 0 8px; opacity: 0.9; break-after: avoid; page-break-after: avoid; }
     `;
     if (template === "fine-dining") {
       css = `
@@ -1569,6 +1727,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         @page { size: letter; margin: 0.3in 0.4in; }
         @media print { html { font-size: ${Math.round(scale * 0.8)}%; } body { display: block; } .menu-container { padding: 4px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .bev-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 8px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
+    } else if (template === "knoll") {
+      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, ftrTypo, headerColor: knollHeaderColor });
     } else {
       css = `
         @import url('${gFontsUrl}');
@@ -1630,6 +1790,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       css = css.replace(/@media print \{/g, "@media all {");
     }
 
+    const knollFooterText = customFooter.trim() || KNOLL_DEFAULT_FOOTER;
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1641,6 +1802,15 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 <body>
   <div class="menu-container">
     ${(() => {
+      if (isKnoll) {
+        const left = customHeader.trim() ? sanitizeHeaderHtml(customHeader) : "Dine in at";
+        const right = customHeader2.trim() ? sanitizeHeaderHtml(customHeader2) : "Open Daily 11-8";
+        return `<div class="knoll-header-bar">
+      <span class="knoll-header-side knoll-header-left">${left}</span>
+      <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
+      <span class="knoll-header-side knoll-header-right">${right}</span>
+    </div>`;
+      }
       const ornamentPos = ((req.query.ornamentpos as string) || "below-title").trim();
       const ornamentHtml = resolveMenuOrnament(req.query.ornament as string | undefined, template);
       const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
@@ -1659,12 +1829,18 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     })()}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
     <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
+    ${isKnoll ? `<div class="knoll-footer">
+      <div class="knoll-footer-row">
+        ${KNOLL_LOGO_HTML}
+        <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>
+      </div>
+    </div>` : ""}
     <div class="footer">
       ${!hideAllergyFooter ? `
         <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
         <p>Alert your server if you have special dietary requirements.</p>
       ` : ""}
-      ${customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
+      ${!isKnoll && customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
       ${customFooter2 ? `<div class="custom-footer" style="font-family:'${ftr2Typo.font}',sans-serif;font-size:${ptRem(ftr2Typo.size)}rem;font-weight:${fw(ftr2Typo.bold)};font-style:${fst(ftr2Typo.italic)};margin-top:4px;">${sanitizeHeaderHtml(customFooter2)}</div>` : ""}
     </div>
   </div>
@@ -1739,11 +1915,13 @@ router.get("/public/menus/embed", async (req, res) => {
     }
 
     const template = (req.query.template as string) || "fine-dining";
+    const isKnoll = template === "knoll";
+    const knollHeaderColor = resolveKnollHeaderColor(req.query.headercolor as string | undefined);
     const rawScale = parseFloat(req.query.scale as string) || 100;
     const scale = Math.min(120, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
-    const columnCount = pages > 0 ? pages : 1;
+    const columnCount = pages > 0 ? pages : (isKnoll ? 2 : 1);
     const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const customHeader2 = (req.query.header2 as string) || "";
@@ -1769,19 +1947,19 @@ router.get("/public/menus/embed", async (req, res) => {
     const _sf = (v: string | undefined, d: string) => { if (!v) return d; const s = v.replace(/[^a-zA-Z0-9 ]/g, "").trim(); return s.slice(0, 60) || d; };
     const _sp = (v: string | undefined, d: number) => { const n = parseFloat(v || ""); return isNaN(n) ? d : Math.min(144, Math.max(6, n)); };
     const typo = {
-      title:    { font: _sf(req.query.titleFont as string,   "Cinzel"), size: _sp(req.query.titleSz as string,   30), bold: req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
-      subtitle: { font: _sf(req.query.subFont as string,     "Cinzel"), size: _sp(req.query.subSz as string,     26), bold: req.query.subBold === "1",     italic: req.query.subItalic === "1" },
-      group:    { font: _sf(req.query.groupFont as string,   "Cinzel"), size: _sp(req.query.groupSz as string,   20), bold: req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
-      item:     { font: _sf(req.query.itemFont as string,    "Cinzel"), size: _sp(req.query.itemSz as string,    17), bold: req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
-      price:    { font: _sf(req.query.priceFont as string,   "Jost"),   size: _sp(req.query.priceSz as string,   13), bold: req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
-      desc:     { font: _sf(req.query.descFont as string,    "Jost"),   size: _sp(req.query.descSz as string,    14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
-      pairing:  { font: _sf(req.query.pairFont as string,    "Allura"), size: _sp(req.query.pairSz as string,    16), bold: req.query.pairBold === "1",    italic: req.query.pairItalic === "1" },
-      allergy:  { font: _sf(req.query.allergyFont as string, "Jost"),   size: _sp(req.query.allergySz as string, 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
+      title:    { font: _sf(req.query.titleFont as string,   isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.titleSz as string,   isKnoll ? 28 : 30), bold: isKnoll ? req.query.titleBold !== "0" : req.query.titleBold === "1",   italic: req.query.titleItalic === "1" },
+      subtitle: { font: _sf(req.query.subFont as string,     isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.subSz as string,     isKnoll ? 12 : 26), bold: isKnoll ? req.query.subBold !== "0" : req.query.subBold === "1",     italic: req.query.subItalic === "1" },
+      group:    { font: _sf(req.query.groupFont as string,   isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.groupSz as string,   isKnoll ? 12 : 20), bold: isKnoll ? req.query.groupBold !== "0" : req.query.groupBold === "1",   italic: req.query.groupItalic === "1" },
+      item:     { font: _sf(req.query.itemFont as string,    isKnoll ? "Montserrat" : "Cinzel"), size: _sp(req.query.itemSz as string,    isKnoll ? 10 : 17), bold: isKnoll ? req.query.itemBold !== "0" : req.query.itemBold === "1",    italic: req.query.itemItalic === "1" },
+      price:    { font: _sf(req.query.priceFont as string,   isKnoll ? "Montserrat" : "Jost"),   size: _sp(req.query.priceSz as string,   isKnoll ? 10 : 13), bold: isKnoll ? req.query.priceBold !== "0" : req.query.priceBold === "1",   italic: req.query.priceItalic === "1" },
+      desc:     { font: _sf(req.query.descFont as string,    isKnoll ? "Montserrat" : "Jost"),   size: _sp(req.query.descSz as string,    isKnoll ? 8.5 : 14), bold: req.query.descBold === "1",    italic: req.query.descItalic === "1" },
+      pairing:  { font: _sf(req.query.pairFont as string,    isKnoll ? "Montserrat" : "Allura"), size: _sp(req.query.pairSz as string,    isKnoll ? 8 : 16), bold: req.query.pairBold === "1",    italic: isKnoll ? req.query.pairItalic !== "0" : req.query.pairItalic === "1" },
+      allergy:  { font: _sf(req.query.allergyFont as string, isKnoll ? "Montserrat" : "Jost"),   size: _sp(req.query.allergySz as string, isKnoll ? 8 : 10), bold: req.query.allergyBold === "1", italic: req.query.allergyItalic === "1" },
     };
-    const hdrTypo = { font: _sf(req.query.hdrFont as string, "Jost"), size: _sp(req.query.hdrSz as string, 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
-    const ftrTypo = { font: _sf(req.query.ftrFont as string, "Jost"), size: _sp(req.query.ftrSz as string, 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
-    const hdr2Typo = { font: _sf(req.query.hdr2Font as string, "Allura"), size: _sp(req.query.hdr2Sz as string, 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
-    const ftr2Typo = { font: _sf(req.query.ftr2Font as string, "Jost"), size: _sp(req.query.ftr2Sz as string, 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
+    const hdrTypo = { font: _sf(req.query.hdrFont as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.hdrSz as string, isKnoll ? 10 : 14), bold: req.query.hdrBold === "1", italic: req.query.hdrItalic === "1" };
+    const ftrTypo = { font: _sf(req.query.ftrFont as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftrSz as string, isKnoll ? 9 : 12), bold: req.query.ftrBold === "1", italic: req.query.ftrItalic === "1" };
+    const hdr2Typo = { font: _sf(req.query.hdr2Font as string, isKnoll ? "Montserrat" : "Allura"), size: _sp(req.query.hdr2Sz as string, isKnoll ? 10 : 18), bold: req.query.hdr2Bold === "1", italic: req.query.hdr2Italic === "1" };
+    const ftr2Typo = { font: _sf(req.query.ftr2Font as string, isKnoll ? "Montserrat" : "Jost"), size: _sp(req.query.ftr2Sz as string, isKnoll ? 9 : 12), bold: req.query.ftr2Bold === "1", italic: req.query.ftr2Italic === "1" };
     const ptRem = (pt: number) => (pt / 12).toFixed(3);
     const uf = [...new Set([typo.title.font, typo.subtitle.font, typo.group.font, typo.item.font, typo.price.font, typo.desc.font, typo.pairing.font, typo.allergy.font, hdrTypo.font, ftrTypo.font, hdr2Typo.font, ftr2Typo.font, ...customPrintLines.map(line => line.font)])];
     const gFontsUrl = `https://fonts.googleapis.com/css2?${uf.map(f => `family=${f.replace(/ /g, "+")}:ital,wght@0,400;0,700;1,400;1,700`).join("&")}&display=swap`;
@@ -1832,7 +2010,13 @@ router.get("/public/menus/embed", async (req, res) => {
     const formatPrice = (price: string | null) => {
       if (!price) return "";
       const num = parseFloat(price);
-      return isNaN(num) ? "" : `$${num.toFixed(2)}`;
+      if (isNaN(num)) return "";
+      if (isKnoll) {
+        return Number.isInteger(num) || Math.abs(num - Math.round(num)) < 0.001
+          ? String(Math.round(num))
+          : num.toFixed(2);
+      }
+      return `$${num.toFixed(2)}`;
     };
 
     const escapeHtml = (str: string) =>
@@ -1880,6 +2064,8 @@ router.get("/public/menus/embed", async (req, res) => {
     for (const { group, items } of allGroups) {
       let itemsHtml = "";
       for (const item of items) {
+        // Print-only course headers / notes placed before this Toast item.
+        itemsHtml += renderCustomPrintLines(customPrintLines, `before-item:${item.itemGuid}`);
         const price = formatPrice(item.price);
         const dietaryTags = extractDietaryTags(item.name);
         const cleanName = cleanItemName(item.name);
@@ -1898,6 +2084,7 @@ router.get("/public/menus/embed", async (req, res) => {
             itemsHtml += `
             <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>`;
           }
+          itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
           if (pagebreakGuids.includes(item.itemGuid)) {
             itemsHtml += `<div class="item-page-break"></div>`;
           }
@@ -1948,6 +2135,19 @@ router.get("/public/menus/embed", async (req, res) => {
               ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
+        } else if (template === "knoll") {
+          itemsHtml += `
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
+              <div class="item-header">
+                <span class="item-name"${itemNameStyle}>${escapeHtml(cleanName)}${specialBadgeHtml}</span>
+                ${showSinglePrice || tagsHtml ? `<span class="item-dots" aria-hidden="true"></span>` : ""}
+                ${showSinglePrice ? `<span class="item-price">${price}</span>` : ""}
+                ${tagsHtml}
+              </div>
+              ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
+              ${showDesc ? `<p class="item-description">${sanitizeMenuDescriptionHtml(item.description!)}</p>` : ""}
+              ${showPairing}
+            </div>`;
         } else {
           itemsHtml += `
             <div class="menu-item${item.isSpecial ? " item-special" : ""}"${itemScaleStyle}>
@@ -1966,13 +2166,24 @@ router.get("/public/menus/embed", async (req, res) => {
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
-      const showGroupSubheading = !hideGroupHeadings && !shouldHideGroupHeading;
+      // Knoll always shows course titles unless Hide Courses is checked.
+      const showGroupSubheading = !hideGroupHeadings && (isKnoll || !shouldHideGroupHeading);
       const customBeforeGroupHtml = renderCustomPrintLines(customPrintLines, `before-group:${group.groupGuid}`);
       if (template === "beverage") {
         groupsHtml += `
           <div class="bev-group${hasPageBreak ? " page-break" : ""}">
             ${customBeforeGroupHtml}
             ${showGroupSubheading ? `<h2 class="bev-group-name">${escapeHtml(group.name)}</h2>` : ""}
+            ${itemsHtml}
+          </div>`;
+      } else if (template === "knoll") {
+        const groupNote = !hideDescriptions && group.description?.trim()
+          ? `<p class="group-note">${sanitizeMenuDescriptionHtml(group.description)}</p>`
+          : "";
+        groupsHtml += `
+          <div class="menu-group${hasPageBreak ? " page-break" : ""}">
+            ${customBeforeGroupHtml}
+            ${showGroupSubheading ? `<h2 class="group-name">${escapeHtml(group.name)}</h2>${groupNote}` : ""}
             ${itemsHtml}
           </div>`;
       } else {
@@ -1996,6 +2207,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 14px 0 4px; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { font-style: italic; margin: 0 0 8px; opacity: 0.9; break-after: avoid; page-break-after: avoid; }
     `;
 
     let css = "";
@@ -2070,6 +2283,8 @@ router.get("/public/menus/embed", async (req, res) => {
         @page { size: letter; margin: 0.3in 0.4in; }
         @media print { html { font-size: ${Math.round(scale * 0.8)}%; } body { display: block; } .menu-container { padding: 4px 0; display: flex; flex-direction: column; min-height: 100vh; } .menu-title { font-size: ${(parseFloat(ptRem(typo.title.size)) * 0.8).toFixed(3)}rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { font-size: ${(parseFloat(ptRem(typo.subtitle.size)) * 0.8).toFixed(3)}rem; margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: ${(parseFloat(ptRem(typo.group.size)) * 0.8).toFixed(3)}rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: ${(parseFloat(ptRem(typo.item.size)) * 0.8).toFixed(3)}rem; } .bev-price { font-size: ${(parseFloat(ptRem(typo.price.size)) * 0.8).toFixed(3)}rem; } .footer { margin-top: auto; padding-top: 8px; font-size: ${(parseFloat(ptRem(typo.allergy.size)) * 0.8).toFixed(3)}rem; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } .item-page-break { page-break-before: always; break-before: page; border-top: none; height: 0; margin: 0; } .item-page-break::before { display: none; } }
         @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
+    } else if (template === "knoll") {
+      css = buildKnollCss({ gFontsUrl, typo, ptRem, fw, fst, columnCount, scale, dietaryTagsCss, customPrintLineCss, hdrTypo, ftrTypo, headerColor: knollHeaderColor });
     } else {
       css = `
         @import url('${gFontsUrl}');
@@ -2131,6 +2346,7 @@ router.get("/public/menus/embed", async (req, res) => {
       css = css.replace(/@media print \{/g, "@media all {");
     }
 
+    const knollFooterText = customFooter.trim() || KNOLL_DEFAULT_FOOTER;
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2142,6 +2358,15 @@ router.get("/public/menus/embed", async (req, res) => {
 <body>
   <div class="menu-container">
     ${(() => {
+      if (isKnoll) {
+        const left = customHeader.trim() ? sanitizeHeaderHtml(customHeader) : "Dine in at";
+        const right = customHeader2.trim() ? sanitizeHeaderHtml(customHeader2) : "Open Daily 11-8";
+        return `<div class="knoll-header-bar">
+      <span class="knoll-header-side knoll-header-left">${left}</span>
+      <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
+      <span class="knoll-header-side knoll-header-right">${right}</span>
+    </div>`;
+      }
       const ornamentPos = ((req.query.ornamentpos as string) || "below-title").trim();
       const ornamentHtml = resolveMenuOrnament(req.query.ornament as string | undefined, template);
       const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
@@ -2160,12 +2385,18 @@ router.get("/public/menus/embed", async (req, res) => {
     })()}
     ${renderCustomPrintLines(customPrintLines, "after-title")}
     <div class="${template === "beverage" ? "bev-groups-container" : "menu-groups-container"}">${groupsHtml}</div>
+    ${isKnoll ? `<div class="knoll-footer">
+      <div class="knoll-footer-row">
+        ${KNOLL_LOGO_HTML}
+        <div class="knoll-note-box">${sanitizeHeaderHtml(knollFooterText)}</div>
+      </div>
+    </div>` : ""}
     <div class="footer">
       ${!hideAllergyFooter ? `
         <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
         <p>Alert your server if you have special dietary requirements.</p>
       ` : ""}
-      ${customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
+      ${!isKnoll && customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
       ${customFooter2 ? `<div class="custom-footer" style="font-family:'${ftr2Typo.font}',sans-serif;font-size:${ptRem(ftr2Typo.size)}rem;font-weight:${fw(ftr2Typo.bold)};font-style:${fst(ftr2Typo.italic)};margin-top:4px;">${sanitizeHeaderHtml(customFooter2)}</div>` : ""}
     </div>
   </div>

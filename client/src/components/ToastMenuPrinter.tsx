@@ -293,6 +293,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
     if (printHideGroupHeadings) url += `&hidegroups=1`;
+    if (template === "knoll") url += `&headercolor=pink`;
     if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
     if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     url += `&${buildTypoParams(printTypo)}`;
@@ -308,6 +309,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
     if (printHideGroupHeadings) url += `&hidegroups=1`;
+    if (template === "knoll") url += `&headercolor=pink`;
     if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
     if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (title && title.trim()) url += `&title=${encodeURIComponent(title.trim())}`;
@@ -590,6 +592,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
               <SelectItem value="fine-dining">Fine Dining</SelectItem>
               <SelectItem value="modern">Modern Clean</SelectItem>
               <SelectItem value="beverage">Beverage Menu</SelectItem>
+              <SelectItem value="knoll">Knoll (Letter, 2-column)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -858,7 +861,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="overflow-hidden">
           <div className="aspect-[3/4] bg-[#1a1a18] flex flex-col items-center justify-center p-6 text-center">
             <p className="text-[#d4b896] font-serif text-xl tracking-widest uppercase mb-2">Fine Dining</p>
@@ -941,6 +944,45 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
                   size="sm"
                   onClick={() => handlePrint("beverage")}
                   data-testid={`${testIdPrefix}-button-print-beverage`}
+                >
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="aspect-[3/4] bg-white flex flex-col items-stretch justify-start p-0 text-center overflow-hidden">
+            <div className="bg-[#ec4899] text-white py-2 px-2 grid grid-cols-3 items-center gap-1">
+              <span className="text-[7px] text-left opacity-90">Dine in at</span>
+              <span className="font-sans text-[11px] font-bold tracking-widest uppercase">The Knoll</span>
+              <span className="text-[7px] text-right opacity-90">Open Daily 11-8</span>
+            </div>
+            <div className="flex flex-1 gap-2 px-3 py-3 text-left">
+              <div className="flex-1 space-y-1 border-r border-black/80 pr-2">
+                <p className="text-[9px] font-bold uppercase underline">Boards</p>
+                <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Cheese</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>23</span></div>
+              </div>
+              <div className="flex-1 space-y-1">
+                <p className="text-[9px] font-bold uppercase underline">Sandwiches</p>
+                <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Club</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>16</span></div>
+              </div>
+            </div>
+            <p className="text-[#78716c] text-[10px] pb-3 italic">Letter · 2 columns</p>
+          </div>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-medium text-sm">Knoll</p>
+                <p className="text-xs text-muted-foreground">Letter, 2-column cafe menu</p>
+              </div>
+              {hasSelection && (
+                <Button
+                  size="sm"
+                  onClick={() => handlePrint("knoll")}
+                  data-testid={`${testIdPrefix}-button-print-knoll`}
                 >
                   <Printer className="w-4 h-4 mr-1" />
                   Print

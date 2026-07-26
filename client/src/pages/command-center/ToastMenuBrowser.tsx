@@ -133,6 +133,7 @@ interface MenuPrintSettings {
   showImages: boolean;
   hideAllergyFooter: boolean;
   hideCourseHeadings: boolean;
+  knollHeaderColor: string;
   ornament: string;
   ornamentPos: string;
   pages: number;
@@ -158,6 +159,7 @@ const DEFAULT_PRINT_SETTINGS: MenuPrintSettings = {
   showImages: false,
   hideAllergyFooter: false,
   hideCourseHeadings: false,
+  knollHeaderColor: "pink",
   ornament: "auto",
   ornamentPos: "below-title",
   pages: 0,
@@ -252,7 +254,7 @@ interface SyncStatus {
   };
 }
 
-type PrintCustomLineKind = "banner" | "header" | "note";
+type PrintCustomLineKind = "banner" | "header" | "note" | "course" | "course-note";
 type PrintCustomLineAlign = "left" | "center" | "right";
 
 interface PrintCustomLine {
@@ -267,7 +269,8 @@ interface PrintCustomLine {
   italic: boolean;
 }
 
-const PRINT_LINE_FONT_OPTIONS = ["Cinzel", "Jost", "Allura", "Georgia", "Arial", "Times New Roman"];
+const PRINT_LINE_FONT_OPTIONS = ["Montserrat", "Cinzel", "Jost", "Allura", "Georgia", "Arial", "Times New Roman"];
+const PRINT_LINE_KINDS: PrintCustomLineKind[] = ["banner", "header", "note", "course", "course-note"];
 
 function formatPrice(price: string | null): string {
   if (!price) return "";
@@ -392,6 +395,7 @@ export function ToastMenuBrowser() {
   const [printShowImages, setPrintShowImages] = useState(false);
   const [printHideAllergyFooter, setPrintHideAllergyFooter] = useState(false);
   const [printHideCourseHeadings, setPrintHideCourseHeadings] = useState(false);
+  const [printKnollHeaderColor, setPrintKnollHeaderColor] = useState("pink");
   const [printOrnament, setPrintOrnament] = useState("auto");
   const [printOrnamentPos, setPrintOrnamentPos] = useState("below-title");
   const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
@@ -418,6 +422,7 @@ export function ToastMenuBrowser() {
     showImages: printShowImages,
     hideAllergyFooter: printHideAllergyFooter,
     hideCourseHeadings: printHideCourseHeadings,
+    knollHeaderColor: printKnollHeaderColor,
     ornament: printOrnament,
     ornamentPos: printOrnamentPos,
     pages: printPages,
@@ -443,6 +448,7 @@ export function ToastMenuBrowser() {
     setPrintShowImages(!!s.showImages);
     setPrintHideAllergyFooter(!!s.hideAllergyFooter);
     setPrintHideCourseHeadings(!!s.hideCourseHeadings);
+    setPrintKnollHeaderColor(s.knollHeaderColor === "black" ? "black" : "pink");
     setPrintOrnament(s.ornament || "auto");
     setPrintOrnamentPos(s.ornamentPos || "below-title");
     setPrintPages(s.pages ?? 0);
@@ -469,7 +475,7 @@ export function ToastMenuBrowser() {
   }, [
     selectedMenu, viewMode, printTemplate, printHeader, printFooter, printHeader2, printFooter2, printScale,
     selectedPrintGroups, printHideDescriptions, printHidePricing, printHideWinePairing,
-    printShowImages, printHideAllergyFooter, printHideCourseHeadings, printOrnament,
+    printShowImages, printHideAllergyFooter, printHideCourseHeadings, printKnollHeaderColor, printOrnament,
     printOrnamentPos, printPages, printPageBreaks, printCustomLines, printCustomTitle,
     printItemFontScales, printTypo, additionalMenuGuids,
   ]);
@@ -494,19 +500,31 @@ export function ToastMenuBrowser() {
     localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
-  const addPrintCustomLine = () => {
+  const addPrintCustomLine = (preset?: Partial<PrintCustomLine>) => {
+    const isKnoll = printTemplate === "knoll" || preset?.kind === "course" || preset?.kind === "course-note";
+    const kind = preset?.kind || (isKnoll ? "course" : "banner");
+    const defaultsByKind: Record<PrintCustomLineKind, Partial<PrintCustomLine>> = {
+      banner: { align: "center", font: "Jost", size: 14, bold: true, italic: false, placement: "after-title" },
+      header: { align: "center", font: "Jost", size: 14, bold: true, italic: false, placement: "after-title" },
+      note: { align: "left", font: "Jost", size: 11, bold: false, italic: true, placement: "after-title" },
+      course: { align: "left", font: "Montserrat", size: 12, bold: true, italic: false, placement: "after-title", text: "" },
+      "course-note": { align: "left", font: "Montserrat", size: 9, bold: false, italic: true, placement: "after-title", text: "" },
+    };
+    const defaults = defaultsByKind[kind];
     setPrintCustomLines(prev => [
       ...prev,
       {
         id: `line-${Date.now()}-${prev.length}`,
-        kind: "banner",
+        kind,
         text: "",
         placement: "after-title",
         align: "center",
-        font: "Jost",
+        font: isKnoll ? "Montserrat" : "Jost",
         size: 14,
         bold: false,
         italic: false,
+        ...defaults,
+        ...preset,
       },
     ]);
   };
@@ -543,7 +561,7 @@ export function ToastMenuBrowser() {
       return parsed
         .map((line, index) => ({
           id: `line-${Date.now()}-${index}`,
-          kind: ["banner", "header", "note"].includes(line?.kind) ? line.kind as PrintCustomLineKind : "banner",
+          kind: PRINT_LINE_KINDS.includes(line?.kind) ? line.kind as PrintCustomLineKind : "banner",
           text: typeof line?.text === "string" ? line.text : "",
           placement: typeof line?.placement === "string" ? line.placement : "after-title",
           align: ["left", "center", "right"].includes(line?.align) ? line.align as PrintCustomLineAlign : "center",
@@ -756,7 +774,11 @@ export function ToastMenuBrowser() {
     customPrintLines: serializePrintCustomLines() || null,
     customTitle: printCustomTitle.trim() || null,
     itemPrintStyles: serializeItemPrintStyles() || null,
-    typography: buildTypoParams(printTypo) || null,
+    typography: (() => {
+      const typo = buildTypoParams(printTypo);
+      const knollColor = printTemplate === "knoll" ? `headercolor=${encodeURIComponent(printKnollHeaderColor || "pink")}` : "";
+      return [typo, knollColor].filter(Boolean).join("&") || null;
+    })(),
   });
 
   const createEmbedConfigMutation = useMutation({
@@ -1011,6 +1033,7 @@ export function ToastMenuBrowser() {
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
     if (printHideCourseHeadings) url += `&hidegroups=1`;
+    if (template === "knoll") url += `&headercolor=${encodeURIComponent(printKnollHeaderColor || "pink")}`;
     if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
     if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (header) url += `&header=${encodeURIComponent(header)}`;
@@ -1039,6 +1062,7 @@ export function ToastMenuBrowser() {
     if (showImages) url += `&showimages=1`;
     if (hideAllergyFooter) url += `&hideAllergyFooter=1`;
     if (printHideCourseHeadings) url += `&hidegroups=1`;
+    if (template === "knoll") url += `&headercolor=${encodeURIComponent(printKnollHeaderColor || "pink")}`;
     if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
     if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
@@ -1153,6 +1177,10 @@ export function ToastMenuBrowser() {
     setPrintHideWinePairing(config.hideWinePairing || false);
     setPrintShowImages(config.showImages || false);
     setPrintHideCourseHeadings(config.hideCourseHeadings || false);
+    {
+      const hc = new URLSearchParams(config.typography || "").get("headercolor");
+      setPrintKnollHeaderColor(hc === "black" ? "black" : "pink");
+    }
     setPrintOrnament(config.ornament || "auto");
     setPrintOrnamentPos(config.ornamentPosition || "below-title");
     setPrintPages(config.pages || 0);
@@ -1543,13 +1571,15 @@ export function ToastMenuBrowser() {
               <div className="space-y-1 sm:col-span-2">
                 <label className="text-sm font-medium">Private Event Title (optional)</label>
                 <p className="text-xs text-muted-foreground">
-                  Replaces the Toast menu name at the top of web and print menus. Leave blank to use "{menuDetail?.menu?.name || "Toast menu title"}".
+                  {printTemplate === "knoll"
+                    ? 'Shows centered in the black header bar. For The Knoll menu, use "THE KNOLL". Leave blank to use the Toast menu name.'
+                    : `Replaces the Toast menu name at the top of web and print menus. Leave blank to use "${menuDetail?.menu?.name || "Toast menu title"}".`}
                 </p>
                 <input
                   type="text"
                   value={printCustomTitle}
                   onChange={(e) => setPrintCustomTitle(e.target.value)}
-                  placeholder="e.g., Carolin's Bridal Shower"
+                  placeholder={printTemplate === "knoll" ? "THE KNOLL" : "e.g., Carolin's Bridal Shower"}
                   className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
                   data-testid="input-custom-menu-title"
                 />
@@ -1564,11 +1594,32 @@ export function ToastMenuBrowser() {
                     <SelectItem value="fine-dining">Fine Dining (Dark &amp; Elegant)</SelectItem>
                     <SelectItem value="modern">Modern (Clean &amp; Minimal)</SelectItem>
                     <SelectItem value="beverage">Beverage Menu</SelectItem>
+                    <SelectItem value="knoll">Knoll (Letter, 2-column)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {printTemplate === "knoll" && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Header Color</label>
+                  <p className="text-xs text-muted-foreground">Color of the THE KNOLL header bar.</p>
+                  <Select value={printKnollHeaderColor} onValueChange={setPrintKnollHeaderColor}>
+                    <SelectTrigger data-testid="select-knoll-header-color">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pink">Pink</SelectItem>
+                      <SelectItem value="black">Black</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-sm font-medium">Courses / Groups</label>
+                <p className="text-xs text-muted-foreground">
+                  {printTemplate === "knoll"
+                    ? "Choose which Toast courses appear. Section titles print unless you turn them off below."
+                    : "Limit which groups are included in the print."}
+                </p>
                 {renderGroupMultiSelect(selectedPrintGroups, setSelectedPrintGroups, "select-detail-group", menuDetail?.groups || [])}
               </div>
             </div>
@@ -1617,7 +1668,11 @@ export function ToastMenuBrowser() {
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">Appears below the menu title. Supports HTML (e.g., <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, <code className="text-xs">&lt;i&gt;</code>).</p>
+                <p className="text-xs text-muted-foreground">
+                  {printTemplate === "knoll"
+                    ? 'Left side of the black header bar (default: "Dine in at").'
+                    : <>Appears below the menu title. Supports HTML (e.g., <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, <code className="text-xs">&lt;i&gt;</code>).</>}
+                </p>
                 <div className="flex gap-1 items-center">
                   <input
                     type="text"
@@ -1673,13 +1728,17 @@ export function ToastMenuBrowser() {
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">Message at the bottom (e.g., website, phone).</p>
+                <p className="text-xs text-muted-foreground">
+                  {printTemplate === "knoll"
+                    ? "Text for the black pickup-note box (defaults to the Snack Shack pickup message if left blank)."
+                    : "Message at the bottom (e.g., website, phone)."}
+                </p>
                 <div className="flex gap-1 items-center">
                   <input
                     type="text"
                     value={printFooter}
                     onChange={(e) => setPrintFooter(e.target.value)}
-                    placeholder="e.g., nashobawinery.com · (978) 779-5521"
+                    placeholder={printTemplate === "knoll" ? "We will send a text when your food is ready…" : "e.g., nashobawinery.com · (978) 779-5521"}
                     className="flex-1 min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
                     data-testid="input-detail-footer"
                   />
@@ -1689,12 +1748,16 @@ export function ToastMenuBrowser() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Custom Header 2</label>
-                <p className="text-xs text-muted-foreground">A second header line below Header 1. Set its own font under Typography → "Custom header 2". Supports HTML.</p>
+                <p className="text-xs text-muted-foreground">
+                  {printTemplate === "knoll"
+                    ? 'Right side of the black header bar (default: "Open Daily 11-8").'
+                    : 'A second header line below Header 1. Set its own font under Typography → "Custom header 2". Supports HTML.'}
+                </p>
                 <input
                   type="text"
                   value={printHeader2}
                   onChange={(e) => setPrintHeader2(e.target.value)}
-                  placeholder="e.g., Truffle fries +5 · GF bread +2"
+                  placeholder={printTemplate === "knoll" ? "Open Daily 11-8" : "e.g., Truffle fries +5 · GF bread +2"}
                   className="w-full min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
                   data-testid="input-detail-header2"
                 />
@@ -1753,14 +1816,26 @@ export function ToastMenuBrowser() {
                 />
                 <span className="font-medium">Hide Allergy Footer</span>
               </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={printHideCourseHeadings}
-                  onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
-                  data-testid="checkbox-detail-hide-course-headings"
-                />
-                <span className="font-medium">Hide Courses / Groups</span>
-              </label>
+              {printTemplate === "knoll" ? (
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={!printHideCourseHeadings}
+                    onCheckedChange={(checked) => setPrintHideCourseHeadings(!checked)}
+                    data-testid="checkbox-detail-show-course-headings"
+                  />
+                  <span className="font-medium">Show Courses / Groups</span>
+                  <span className="text-xs text-muted-foreground">Section titles like BOARDS &amp; SHAREABLES, SANDWICHES</span>
+                </label>
+              ) : (
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={printHideCourseHeadings}
+                    onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
+                    data-testid="checkbox-detail-hide-course-headings"
+                  />
+                  <span className="font-medium">Hide Courses / Groups</span>
+                </label>
+              )}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
@@ -2115,15 +2190,19 @@ export function ToastMenuBrowser() {
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Columns on Page</label>
-                <p className="text-xs text-muted-foreground">Choose how many columns the menu body should flow into on one printed page.</p>
+                <p className="text-xs text-muted-foreground">
+                  {printTemplate === "knoll"
+                    ? "Knoll defaults to 2 columns with a vertical center line (Letter size). Choose Auto or 2 columns for the cafe layout."
+                    : "Choose how many columns the menu body should flow into on one printed page."}
+                </p>
                 <Select value={String(printPages)} onValueChange={(v) => setPrintPages(Number(v))}>
                   <SelectTrigger data-testid="select-print-pages">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">1 column (default)</SelectItem>
+                    <SelectItem value="0">{printTemplate === "knoll" ? "Auto (2 columns + center line)" : "1 column (default)"}</SelectItem>
                     <SelectItem value="1">1 column</SelectItem>
-                    <SelectItem value="2">2 columns</SelectItem>
+                    <SelectItem value="2">2 columns{printTemplate === "knoll" ? " + center line" : ""}</SelectItem>
                     <SelectItem value="3">3 columns</SelectItem>
                     <SelectItem value="4">4 columns</SelectItem>
                     <SelectItem value="5">5 columns</SelectItem>
@@ -2137,20 +2216,53 @@ export function ToastMenuBrowser() {
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
-                    <p className="text-sm font-semibold">Added Print Lines</p>
+                    <p className="text-sm font-semibold">
+                      {printTemplate === "knoll" ? "Courses & Print Lines" : "Added Print Lines"}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Add print-only banners, headers, or notes without adding them to Toast or the online Toast store. Supports safe HTML like <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, and <code className="text-xs">&lt;i&gt;</code>.
+                      {printTemplate === "knoll"
+                        ? "When Toast is not broken into courses, add Course Headers (e.g. BOARDS & SHAREABLES) and Course Notes (italic details under a section). Place each line before the first item of that section. These print only — they are not written back to Toast."
+                        : <>Add print-only banners, headers, or notes without adding them to Toast. Supports safe HTML like <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, and <code className="text-xs">&lt;i&gt;</code>.</>}
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={addPrintCustomLine} data-testid="button-add-print-line">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Banner / Header
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    {printTemplate === "knoll" && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => addPrintCustomLine({ kind: "course", text: "BOARDS & SHAREABLES" })}
+                          data-testid="button-add-course-header"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Add Course Header
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addPrintCustomLine({
+                            kind: "course-note",
+                            text: "Served with hand cut Russet potato chips / Gluten Free bread upon request +2",
+                          })}
+                          data-testid="button-add-course-note"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Add Course Note
+                        </Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => addPrintCustomLine()} data-testid="button-add-print-line">
+                      <Plus className="w-4 h-4 mr-1" />
+                      {printTemplate === "knoll" ? "Add Other Line" : "Add Banner / Header"}
+                    </Button>
+                  </div>
                 </div>
 
                 {printCustomLines.length === 0 ? (
                   <p className="text-xs text-muted-foreground border rounded-md px-3 py-2 bg-muted/30">
-                    No added print lines yet.
+                    {printTemplate === "knoll"
+                      ? "No courses added yet. Use Add Course Header, then set Placement to “Before [first item in that section]”."
+                      : "No added print lines yet."}
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -2164,6 +2276,8 @@ export function ToastMenuBrowser() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="course">Course Header</SelectItem>
+                                <SelectItem value="course-note">Course Note</SelectItem>
                                 <SelectItem value="banner">Banner</SelectItem>
                                 <SelectItem value="header">Header</SelectItem>
                                 <SelectItem value="note">Notation</SelectItem>
@@ -2180,15 +2294,21 @@ export function ToastMenuBrowser() {
                                 <SelectItem value="after-title">After menu title/header</SelectItem>
                                 {allPrintGroups.map((group) => (
                                   <SelectItem key={`before-${group.groupGuid}`} value={`before-group:${group.groupGuid}`}>
-                                    Before {group.name}{group.sourceName ? ` (${group.sourceName})` : ""}
+                                    Before group: {group.name}{group.sourceName ? ` (${group.sourceName})` : ""}
                                   </SelectItem>
                                 ))}
                                 {allPrintGroups.flatMap((group) =>
-                                  (group.items || []).filter((item: ToastMenuItemData) => !item.hidden).map((item: ToastMenuItemData) => (
-                                    <SelectItem key={`after-${item.itemGuid}`} value={`after-item:${item.itemGuid}`}>
-                                      After {item.name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim()}
-                                    </SelectItem>
-                                  ))
+                                  (group.items || []).filter((item: ToastMenuItemData) => !item.hidden).flatMap((item: ToastMenuItemData) => {
+                                    const clean = item.name.replace(/\s*\((GF|GFO|V|VG|DF|NF)\)\s*/gi, " ").trim();
+                                    return [
+                                      <SelectItem key={`before-${item.itemGuid}`} value={`before-item:${item.itemGuid}`}>
+                                        Before {clean}
+                                      </SelectItem>,
+                                      <SelectItem key={`after-${item.itemGuid}`} value={`after-item:${item.itemGuid}`}>
+                                        After {clean}
+                                      </SelectItem>,
+                                    ];
+                                  })
                                 )}
                               </SelectContent>
                             </Select>
@@ -2263,7 +2383,13 @@ export function ToastMenuBrowser() {
                         <Textarea
                           value={line.text}
                           onChange={(e) => updatePrintCustomLine(line.id, { text: e.target.value })}
-                          placeholder="e.g., Chef's Specials<br>Available after 5pm"
+                          placeholder={
+                            line.kind === "course"
+                              ? "e.g., BOARDS & SHAREABLES"
+                              : line.kind === "course-note"
+                                ? "e.g., Served with hand cut Russet potato chips / Gluten Free bread upon request +2"
+                                : "e.g., Chef's Specials<br>Available after 5pm"
+                          }
                           rows={2}
                           className="text-sm"
                           data-testid={`textarea-print-line-text-${index}`}
@@ -2348,7 +2474,7 @@ export function ToastMenuBrowser() {
             <div>
               <p className="text-sm font-medium mb-1">Choose a template and print</p>
               <p className="text-xs text-muted-foreground mb-3">Each template opens a print-ready page in a new tab and triggers your browser's print dialog.</p>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Card className="overflow-hidden">
                   <div className="aspect-[3/4] bg-[#1a1a18] flex flex-col items-center justify-center p-6 text-center">
                     <p className="text-[#d4b896] font-serif text-xl tracking-widest uppercase mb-2">Fine Dining</p>
@@ -2408,6 +2534,40 @@ export function ToastMenuBrowser() {
                         <p className="text-xs text-muted-foreground">Compact list, names + prices</p>
                       </div>
                       <Button size="sm" onClick={() => handlePrint("beverage")} data-testid="button-print-beverage">
+                        <Printer className="w-4 h-4 mr-1" />Print
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden">
+                  <div className="aspect-[3/4] bg-white flex flex-col items-stretch justify-start p-0 text-center overflow-hidden">
+                    <div className="bg-[#ec4899] text-white py-2 px-2 grid grid-cols-3 items-center gap-1">
+                      <span className="text-[7px] text-left opacity-90">Dine in at</span>
+                      <span className="font-sans text-[11px] font-bold tracking-widest uppercase">The Knoll</span>
+                      <span className="text-[7px] text-right opacity-90">Open Daily 11-8</span>
+                    </div>
+                    <div className="flex flex-1 gap-2 px-3 py-3 text-left">
+                      <div className="flex-1 space-y-1 border-r border-black/80 pr-2">
+                        <p className="text-[9px] font-bold uppercase underline">Boards</p>
+                        <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Cheese</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>23</span></div>
+                        <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Falafel</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>20</span></div>
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-[9px] font-bold uppercase underline">Sandwiches</p>
+                        <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Club</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>16</span></div>
+                        <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Italian</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>17</span></div>
+                      </div>
+                    </div>
+                    <p className="text-[#78716c] text-[10px] pb-3 italic">Pink header · courses · letter</p>
+                  </div>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm">Knoll</p>
+                        <p className="text-xs text-muted-foreground">Letter, 2-column cafe menu</p>
+                      </div>
+                      <Button size="sm" onClick={() => handlePrint("knoll")} data-testid="button-print-knoll">
                         <Printer className="w-4 h-4 mr-1" />Print
                       </Button>
                     </div>
@@ -2514,15 +2674,27 @@ export function ToastMenuBrowser() {
           </div>
         </div>
 
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <Checkbox
-            checked={printHideCourseHeadings}
-            onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
-            data-testid="checkbox-print-hide-course-headings"
-          />
-          <span className="font-medium">Hide Courses / Groups</span>
-          <span className="text-xs text-muted-foreground">Keep the menu items, but do not print the Toast course/group titles.</span>
-        </label>
+        {printTemplate === "knoll" ? (
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={!printHideCourseHeadings}
+              onCheckedChange={(checked) => setPrintHideCourseHeadings(!checked)}
+              data-testid="checkbox-print-show-course-headings"
+            />
+            <span className="font-medium">Show Courses / Groups</span>
+            <span className="text-xs text-muted-foreground">Print section titles like BOARDS &amp; SHAREABLES, SANDWICHES, DESSERTS.</span>
+          </label>
+        ) : (
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={printHideCourseHeadings}
+              onCheckedChange={(checked) => setPrintHideCourseHeadings(!!checked)}
+              data-testid="checkbox-print-hide-course-headings"
+            />
+            <span className="font-medium">Hide Courses / Groups</span>
+            <span className="text-xs text-muted-foreground">Keep the menu items, but do not print the Toast course/group titles.</span>
+          </label>
+        )}
 
         <Card>
           <CardContent className="p-4 space-y-3">
@@ -2898,7 +3070,7 @@ export function ToastMenuBrowser() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="overflow-hidden">
             <div className="aspect-[3/4] bg-[#1a1a18] flex flex-col items-center justify-center p-6 text-center">
               <p className="text-[#d4b896] font-serif text-xl tracking-widest uppercase mb-2">Fine Dining</p>
@@ -2965,6 +3137,39 @@ export function ToastMenuBrowser() {
                   <p className="text-xs text-muted-foreground">Compact list, names + prices</p>
                 </div>
                 <Button size="sm" onClick={() => handlePrint("beverage")} data-testid="button-print-beverage">
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <div className="aspect-[3/4] bg-white flex flex-col items-stretch justify-start p-0 text-center overflow-hidden">
+              <div className="bg-[#ec4899] text-white py-2 px-2 grid grid-cols-3 items-center gap-1">
+                <span className="text-[7px] text-left opacity-90">Dine in at</span>
+                <span className="font-sans text-[11px] font-bold tracking-widest uppercase">The Knoll</span>
+                <span className="text-[7px] text-right opacity-90">Open Daily 11-8</span>
+              </div>
+              <div className="flex flex-1 gap-2 px-3 py-3 text-left">
+                <div className="flex-1 space-y-1 border-r border-black/80 pr-2">
+                  <p className="text-[9px] font-bold uppercase underline">Boards</p>
+                  <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Cheese</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>23</span></div>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <p className="text-[9px] font-bold uppercase underline">Sandwiches</p>
+                  <div className="flex text-[8px] gap-1"><span className="uppercase font-semibold">Club</span><span className="flex-1 border-b border-dotted border-neutral-400 mb-1" /><span>16</span></div>
+                </div>
+              </div>
+              <p className="text-[#78716c] text-[10px] pb-3 italic">Pink header · courses · letter</p>
+            </div>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium text-sm">Knoll</p>
+                  <p className="text-xs text-muted-foreground">Letter, 2-column cafe menu</p>
+                </div>
+                <Button size="sm" onClick={() => handlePrint("knoll")} data-testid="button-print-knoll">
                   <Printer className="w-4 h-4 mr-1" />
                   Print
                 </Button>
@@ -3095,6 +3300,7 @@ export function ToastMenuBrowser() {
     "fine-dining": "Fine Dining",
     "beverage": "Beverage",
     "modern": "Modern",
+    "knoll": "Knoll",
   };
 
   const getConfigPrintUrl = (config: EmbedConfig) => {
