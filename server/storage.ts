@@ -4603,7 +4603,8 @@ export class DatabaseStorage implements IStorage {
     const [accessCode] = await db.select().from(dailyReportAccessCodes)
       .where(and(
         eq(dailyReportAccessCodes.code, code),
-        eq(dailyReportAccessCodes.department, department as any)
+        eq(dailyReportAccessCodes.department, department as any),
+        eq(dailyReportAccessCodes.isActive, true)
       ));
     return accessCode;
   }
@@ -4645,9 +4646,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveAccessCodesByStaffName(staffName: string): Promise<DailyReportAccessCode[]> {
+    const normalized = (staffName || "").trim();
+    if (!normalized) return [];
     return await db.select().from(dailyReportAccessCodes)
       .where(and(
-        sql`LOWER(${dailyReportAccessCodes.staffName}) = LOWER(${staffName})`,
+        // Trim both sides so trailing spaces in stored names or query params don't block access.
+        sql`LOWER(TRIM(${dailyReportAccessCodes.staffName})) = LOWER(${normalized})`,
         eq(dailyReportAccessCodes.isActive, true)
       ))
       .orderBy(dailyReportAccessCodes.department);

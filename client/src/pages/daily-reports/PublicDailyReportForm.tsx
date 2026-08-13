@@ -220,11 +220,18 @@ export default function PublicDailyReportForm() {
 
   const handleSelectDepartment = async (department: string) => {
     if (!validationData?.staffName) return;
+
+    const deptMeta = validationData.availableDepartments?.find(d => d.department === department);
+    const codeForDept = deptMeta?.code || validatedCode || "";
     
     setIsLoadingForm(true);
     try {
+      const params = new URLSearchParams({
+        staffName: validationData.staffName.trim(),
+      });
+      if (codeForDept) params.set("code", codeForDept);
       const response = await fetch(
-        `/api/public/daily-reports/department/${department}/form?staffName=${encodeURIComponent(validationData.staffName)}`
+        `/api/public/daily-reports/department/${encodeURIComponent(department)}/form?${params.toString()}`
       );
       if (response.ok) {
         const data = await response.json();
@@ -251,8 +258,12 @@ export default function PublicDailyReportForm() {
   const handleSelectDepartmentFromUrl = async (department: string, staffName: string) => {
     setIsLoadingForm(true);
     try {
+      const params = new URLSearchParams({
+        staffName: staffName.trim(),
+      });
+      if (validatedCode) params.set("code", validatedCode);
       const response = await fetch(
-        `/api/public/daily-reports/department/${department}/form?staffName=${encodeURIComponent(staffName)}`
+        `/api/public/daily-reports/department/${encodeURIComponent(department)}/form?${params.toString()}`
       );
       if (response.ok) {
         const data = await response.json();

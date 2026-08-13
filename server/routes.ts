@@ -13258,7 +13258,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
             }));
 
           return res.json({
-            staffName: primaryCode.staffName,
+            staffName: (primaryCode.staffName || "").trim(),
             department: dept.department,
             departmentLabel: template.departmentLabel,
             multipleDepartments: false,
@@ -13275,7 +13275,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         }
 
         return res.json({
-          staffName: primaryCode.staffName,
+          staffName: (primaryCode.staffName || "").trim(),
           multipleDepartments: true,
           availableDepartments
         });
@@ -13313,7 +13313,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         }));
 
       res.json({
-        staffName: accessCode.staffName,
+        staffName: (accessCode.staffName || "").trim(),
         department: accessCode.department,
         departmentLabel: template?.departmentLabel || accessCode.department,
         multipleDepartments: false,
@@ -13337,18 +13337,40 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   app.get('/api/public/daily-reports/department/:department/form', async (req, res) => {
     try {
       const { department } = req.params;
-      const { staffName } = req.query;
+      const staffNameRaw = typeof req.query.staffName === 'string' ? req.query.staffName : '';
+      const staffName = staffNameRaw.trim();
+      const codeRaw = typeof req.query.code === 'string' ? req.query.code.trim() : '';
 
-      if (!staffName || typeof staffName !== 'string') {
-        return res.status(400).json({ message: 'Staff name is required' });
+      if (!staffName && !codeRaw) {
+        return res.status(400).json({ message: 'Staff name or access code is required' });
       }
 
-      // Verify this staff member has access to this department
-      const allStaffCodes = await storage.getActiveAccessCodesByStaffName(staffName);
-      const departmentCode = allStaffCodes.find(ac => ac.department === department);
+      // Prefer code+department (same code already validated on login). Staff-name
+      // lookup alone can fail when stored names have whitespace or casing quirks.
+      let departmentCode = codeRaw
+        ? await storage.getDailyReportAccessCodeByCodeAndDepartment(codeRaw, department)
+        : undefined;
+
+      if (!departmentCode && staffName) {
+        const allStaffCodes = await storage.getActiveAccessCodesByStaffName(staffName);
+        departmentCode = allStaffCodes.find(ac => ac.department === department);
+      }
+
+      if (!departmentCode && codeRaw) {
+        const byCode = await storage.getDailyReportAccessCodesByCode(codeRaw);
+        departmentCode = byCode.find(ac => ac.department === department);
+      }
 
       if (!departmentCode) {
         return res.status(403).json({ message: 'Access denied to this department' });
+      }
+
+      // If staffName was provided, ensure it matches the access code (allowing trim/case).
+      if (staffName) {
+        const codeName = (departmentCode.staffName || '').trim().toLowerCase();
+        if (codeName && codeName !== staffName.toLowerCase()) {
+          return res.status(403).json({ message: 'Access denied to this department' });
+        }
       }
 
       const template = await storage.getDailyReportTemplateByDepartment(department as any);
@@ -13373,7 +13395,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         }));
 
       res.json({
-        staffName: staffName,
+        staffName: (departmentCode.staffName || staffName).trim(),
         department: department,
         departmentLabel: template.departmentLabel || department,
         code: departmentCode.code,
