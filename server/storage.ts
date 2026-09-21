@@ -4606,7 +4606,16 @@ export class DatabaseStorage implements IStorage {
         eq(dailyReportAccessCodes.department, department as any),
         eq(dailyReportAccessCodes.isActive, true)
       ));
-    return accessCode;
+    if (accessCode) return accessCode;
+
+    // Flexible department match for values stored as labels or with spaces/hyphens
+    // (e.g. "Food Operations" vs "food_operations").
+    const normalizeDept = (value: string) =>
+      value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    const requested = normalizeDept(department);
+    if (!requested) return undefined;
+    const byCode = await this.getDailyReportAccessCodesByCode(code);
+    return byCode.find(ac => normalizeDept(ac.department) === requested);
   }
 
   async getDailyReportAccessCodeById(id: string): Promise<DailyReportAccessCode | undefined> {

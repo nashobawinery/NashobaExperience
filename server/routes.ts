@@ -13205,11 +13205,12 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
 
       // Use the first matching code for staff name (they should all be the same staff if sharing a code)
       const primaryCode = matchingCodes[0];
+      const primaryStaffName = (primaryCode.staffName || "").trim();
       
       // Collect all departments this staff has access to (via same code or multiple codes)
       let allAccessCodes = matchingCodes;
       if (matchingCodes.length === 1) {
-        const allStaffCodes = await storage.getActiveAccessCodesByStaffName(primaryCode.staffName);
+        const allStaffCodes = await storage.getActiveAccessCodesByStaffName(primaryStaffName);
         if (allStaffCodes.length > 1) {
           allAccessCodes = allStaffCodes;
         }
@@ -13336,51 +13337,62 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
   // Get form data for a specific department (after department selection)
   app.get('/api/public/daily-reports/department/:department/form', async (req, res) => {
     try {
-      const { department } = req.params;
+      // Express already decodes params; normalize for resilient matching against stored keys.
+      const requestedDepartment = decodeURIComponent(String(req.params.department || "")).trim();
       const staffNameRaw = typeof req.query.staffName === 'string' ? req.query.staffName : '';
       const staffName = staffNameRaw.trim();
       const codeRaw = typeof req.query.code === 'string' ? req.query.code.trim() : '';
+      const loginCodeRaw = typeof req.query.loginCode === 'string' ? req.query.loginCode.trim() : '';
+      const candidateCodes = Array.from(new Set([codeRaw, loginCodeRaw].filter(Boolean)));
+      const normalizeDept = (value: string) =>
+        value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+      const deptMatches = (stored: string, requested: string) =>
+        stored === requested || normalizeDept(stored) === normalizeDept(requested);
 
-      if (!staffName && !codeRaw) {
+      if (!staffName && candidateCodes.length === 0) {
         return res.status(400).json({ message: 'Staff name or access code is required' });
       }
 
-      // Prefer code+department (same code already validated on login). Staff-name
-      // lookup alone can fail when stored names have whitespace or casing quirks.
-      let departmentCode = codeRaw
-        ? await storage.getDailyReportAccessCodeByCodeAndDepartment(codeRaw, department)
-        : undefined;
+      if (!requestedDepartment) {
+        return res.status(400).json({ message: 'Department is required' });
+      }
+
+      // Prefer code+department (code was already validated on login). Exact match first,
+      // then flexible department-key matching (food_operations vs "Food Operations").
+      let departmentCode;
+      for (const candidate of candidateCodes) {
+        departmentCode = await storage.getDailyReportAccessCodeByCodeAndDepartment(candidate, requestedDepartment);
+        if (departmentCode) break;
+        const byCode = await storage.getDailyReportAccessCodesByCode(candidate);
+        departmentCode = byCode.find(ac => deptMatches(ac.department, requestedDepartment));
+        if (departmentCode) break;
+      }
 
       if (!departmentCode && staffName) {
         const allStaffCodes = await storage.getActiveAccessCodesByStaffName(staffName);
-        departmentCode = allStaffCodes.find(ac => ac.department === department);
-      }
-
-      if (!departmentCode && codeRaw) {
-        const byCode = await storage.getDailyReportAccessCodesByCode(codeRaw);
-        departmentCode = byCode.find(ac => ac.department === department);
+        departmentCode = allStaffCodes.find(ac => deptMatches(ac.department, requestedDepartment));
       }
 
       if (!departmentCode) {
+        console.warn(
+          `[Daily Reports] Department form denied. department=${requestedDepartment} code=${candidateCodes.join(",") || "(none)"} staff=${staffName || "(none)"}`
+        );
         return res.status(403).json({ message: 'Access denied to this department' });
       }
 
-      // If staffName was provided, ensure it matches the access code (allowing trim/case).
-      if (staffName) {
-        const codeName = (departmentCode.staffName || '').trim().toLowerCase();
-        if (codeName && codeName !== staffName.toLowerCase()) {
-          return res.status(403).json({ message: 'Access denied to this department' });
-        }
-      }
+      // Code+department already proves access. Do not also require an exact staff-name
+      // match — stored names often differ slightly across rows for the same person
+      // ("Jackie" vs "Jackie "), which previously blocked every department.
 
-      const template = await storage.getDailyReportTemplateByDepartment(department as any);
+      const resolvedDepartment = departmentCode.department;
+      const template = await storage.getDailyReportTemplateByDepartment(resolvedDepartment as any);
 
       if (!template) {
         return res.status(404).json({ message: 'Department template not found' });
       }
 
       // Get active procedure templates for the department
-      const procedures = await storage.getDailyProcedureTemplates(department as any, true);
+      const procedures = await storage.getDailyProcedureTemplates(resolvedDepartment as any, true);
 
       // Get enabled fields from the junction table (authoritative source)
       const fieldAssignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id);
@@ -13396,8 +13408,8 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
 
       res.json({
         staffName: (departmentCode.staffName || staffName).trim(),
-        department: department,
-        departmentLabel: template.departmentLabel || department,
+        department: resolvedDepartment,
+        departmentLabel: template.departmentLabel || resolvedDepartment,
         code: departmentCode.code,
         metrics: enabledMetrics,
         procedures: procedures.map(p => ({

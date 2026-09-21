@@ -222,7 +222,8 @@ export default function PublicDailyReportForm() {
     if (!validationData?.staffName) return;
 
     const deptMeta = validationData.availableDepartments?.find(d => d.department === department);
-    const codeForDept = deptMeta?.code || validatedCode || "";
+    // Prefer the department's own code (multi-code staff), then the code Jackie just entered.
+    const codeForDept = (deptMeta?.code || validatedCode || "").trim();
     
     setIsLoadingForm(true);
     try {
@@ -230,6 +231,10 @@ export default function PublicDailyReportForm() {
         staffName: validationData.staffName.trim(),
       });
       if (codeForDept) params.set("code", codeForDept);
+      // Also send the originally validated code so the server can authorize either way.
+      if (validatedCode && validatedCode !== codeForDept) {
+        params.set("loginCode", validatedCode);
+      }
       const response = await fetch(
         `/api/public/daily-reports/department/${encodeURIComponent(department)}/form?${params.toString()}`
       );
