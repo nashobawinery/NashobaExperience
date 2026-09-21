@@ -72,7 +72,7 @@ interface RevisionRequest {
 export default function PublicDailyReportForm() {
   const { code: urlCode } = useParams<{ code: string }>();
   const [, navigate] = useLocation();
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
   
   // Get department from URL query params (when coming from Staff Portal)
   const urlParams = new URLSearchParams(window.location.search);
@@ -200,12 +200,21 @@ export default function PublicDailyReportForm() {
           });
           setSelectedDepartment(data.department);
         } else if (data.multipleDepartments && urlDepartment) {
-          // If department was provided in URL (from Staff Portal), auto-select it
+          // Staff Portal may deep-link with ?department= — try to open it, but if that
+          // fails just show the picker (no error toast; they can still choose).
           const matchingDept = data.availableDepartments?.find(d => d.department === urlDepartment);
           if (matchingDept) {
-            // Load form data for the pre-selected department
-            handleSelectDepartmentFromUrl(urlDepartment, data.staffName);
+            await loadDepartmentForm({
+              department: urlDepartment,
+              staffName: data.staffName,
+              codeForDept: matchingDept.code || code,
+              loginCode: code,
+              showErrorToast: false,
+            });
           }
+        } else if (data.multipleDepartments) {
+          // Clear any leftover error toast from a prior attempt
+          dismiss();
         }
       } else {
         const error = await response.json();
@@ -218,78 +227,75 @@ export default function PublicDailyReportForm() {
     }
   };
 
+  const loadDepartmentForm = async ({
+    department,
+    staffName,
+    codeForDept,
+    loginCode,
+    showErrorToast = true,
+  }: {
+    department: string;
+    staffName: string;
+    codeForDept?: string;
+    loginCode?: string;
+    showErrorToast?: boolean;
+  }) => {
+    setIsLoadingForm(true);
+    try {
+      const params = new URLSearchParams({
+        staffName: staffName.trim(),
+      });
+      const primaryCode = (codeForDept || loginCode || "").trim();
+      if (primaryCode) params.set("code", primaryCode);
+      if (loginCode && loginCode !== primaryCode) {
+        params.set("loginCode", loginCode);
+      }
+      const response = await fetch(
+        `/api/public/daily-reports/department/${encodeURIComponent(department)}/form?${params.toString()}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        dismiss();
+        setFormData({
+          staffName: data.staffName,
+          department: data.department,
+          departmentLabel: data.departmentLabel,
+          code: data.code,
+          metrics: data.metrics || [],
+          procedures: data.procedures || []
+        });
+        setSelectedDepartment(department);
+        return true;
+      }
+      if (showErrorToast) {
+        const error = await response.json();
+        toast({ title: error.message || "Failed to load form", variant: "destructive" });
+      }
+      return false;
+    } catch {
+      if (showErrorToast) {
+        toast({ title: "Failed to load department form", variant: "destructive" });
+      }
+      return false;
+    } finally {
+      setIsLoadingForm(false);
+    }
+  };
+
   const handleSelectDepartment = async (department: string) => {
     if (!validationData?.staffName) return;
 
     const deptMeta = validationData.availableDepartments?.find(d => d.department === department);
     // Prefer the department's own code (multi-code staff), then the code Jackie just entered.
     const codeForDept = (deptMeta?.code || validatedCode || "").trim();
-    
-    setIsLoadingForm(true);
-    try {
-      const params = new URLSearchParams({
-        staffName: validationData.staffName.trim(),
-      });
-      if (codeForDept) params.set("code", codeForDept);
-      // Also send the originally validated code so the server can authorize either way.
-      if (validatedCode && validatedCode !== codeForDept) {
-        params.set("loginCode", validatedCode);
-      }
-      const response = await fetch(
-        `/api/public/daily-reports/department/${encodeURIComponent(department)}/form?${params.toString()}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setFormData({
-          staffName: data.staffName,
-          department: data.department,
-          departmentLabel: data.departmentLabel,
-          code: data.code,
-          metrics: data.metrics || [],
-          procedures: data.procedures || []
-        });
-        setSelectedDepartment(department);
-      } else {
-        const error = await response.json();
-        toast({ title: error.message || "Failed to load form", variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Failed to load department form", variant: "destructive" });
-    } finally {
-      setIsLoadingForm(false);
-    }
-  };
-  
-  const handleSelectDepartmentFromUrl = async (department: string, staffName: string) => {
-    setIsLoadingForm(true);
-    try {
-      const params = new URLSearchParams({
-        staffName: staffName.trim(),
-      });
-      if (validatedCode) params.set("code", validatedCode);
-      const response = await fetch(
-        `/api/public/daily-reports/department/${encodeURIComponent(department)}/form?${params.toString()}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setFormData({
-          staffName: data.staffName,
-          department: data.department,
-          departmentLabel: data.departmentLabel,
-          code: data.code,
-          metrics: data.metrics || [],
-          procedures: data.procedures || []
-        });
-        setSelectedDepartment(department);
-      } else {
-        const error = await response.json();
-        toast({ title: error.message || "Failed to load form", variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Failed to load department form", variant: "destructive" });
-    } finally {
-      setIsLoadingForm(false);
-    }
+
+    await loadDepartmentForm({
+      department,
+      staffName: validationData.staffName,
+      codeForDept,
+      loginCode: validatedCode || undefined,
+      showErrorToast: true,
+    });
   };
 
   // Group procedures by type
