@@ -1207,6 +1207,16 @@ export async function seedPlatformModules(): Promise<void> {
       routePrefix: '/media-library',
       status: 'active',
       sortOrder: 19
+    },
+    {
+      moduleKey: 'accounting',
+      moduleName: 'Accounting',
+      description: 'Shared accounting for Nashoba Valley and The Gables, including health insurance allocation',
+      icon: 'Calculator',
+      color: 'bg-sky-700',
+      routePrefix: '/accounting',
+      status: 'active',
+      sortOrder: 20
     }
   ];
 
@@ -1237,6 +1247,7 @@ export async function seedPlatformModules(): Promise<void> {
     { moduleKey: 'media_center', featureKey: 'special_events', featureName: 'Special Events', description: 'Manage special events listings and calendar content', sortOrder: 5 },
     { moduleKey: 'media_center', featureKey: 'shelf_talkers', featureName: 'Shelf Talkers', description: 'Print retail shelf talkers', sortOrder: 6 },
     { moduleKey: 'media_center', featureKey: 'flight_cards', featureName: 'Flight Cards', description: 'Print tasting flight cards', sortOrder: 7 },
+    { moduleKey: 'accounting', featureKey: 'health_care_allocation', featureName: 'Health Care Insurance Allocation', description: 'Allocate the shared UnitedHealthcare medical, dental, and vision bill between Nashoba Valley and The Gables', sortOrder: 1 },
   ];
 
   for (const feature of defaultFeatures) {

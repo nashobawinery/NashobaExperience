@@ -6469,3 +6469,112 @@ export const emailDeliveryLogs = pgTable("email_delivery_logs", {
 export const insertEmailDeliveryLogSchema = createInsertSchema(emailDeliveryLogs).omit({ id: true, sentAt: true });
 export type InsertEmailDeliveryLog = z.infer<typeof insertEmailDeliveryLogSchema>;
 export type EmailDeliveryLog = typeof emailDeliveryLogs.$inferSelect;
+
+// ─── Accounting: shared health insurance ────────────────────────────────────
+// Nashoba Valley and The Gables share one medical, dental, and vision policy.
+export const accountingCompanies = pgTable("accounting_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(),
+  legalName: varchar("legal_name"),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const accountingBenefitProviders = pgTable("accounting_benefit_providers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  groupNumber: varchar("group_number"),
+  policyHolder: varchar("policy_holder"),
+  planYearStart: date("plan_year_start"),
+  rateGuaranteeThrough: date("rate_guarantee_through"),
+  isCurrent: boolean("is_current").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const accountingBenefitPrograms = pgTable("accounting_benefit_programs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  providerId: varchar("provider_id").notNull().references(() => accountingBenefitProviders.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 20 }).notNull(),
+  planCode: varchar("plan_code").notNull(),
+  planName: varchar("plan_name").notNull(),
+  network: varchar("network"),
+  benefits: jsonb("benefits").notNull().default({}),
+  rates: jsonb("rates").notNull().default({}),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const accountingContributionRules = pgTable("accounting_contribution_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").notNull().references(() => accountingCompanies.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 20 }).notNull(),
+  basis: varchar("basis", { length: 40 }).notNull().default("percent_of_employee_only"),
+  employerPercent: numeric("employer_percent", { precision: 5, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.companyId, table.category),
+]);
+
+export const accountingParticipants = pgTable("accounting_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").notNull().references(() => accountingCompanies.id, { onDelete: "cascade" }),
+  fullName: varchar("full_name").notNull(),
+  hireDate: date("hire_date").notNull(),
+  coverageEnd: date("coverage_end"),
+  active: boolean("active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const accountingParticipantElections = pgTable("accounting_participant_elections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  participantId: varchar("participant_id").notNull().references(() => accountingParticipants.id, { onDelete: "cascade" }),
+  programId: varchar("program_id").notNull().references(() => accountingBenefitPrograms.id, { onDelete: "cascade" }),
+  tier: varchar("tier").notNull(),
+}, (table) => [
+  unique().on(table.participantId, table.programId),
+]);
+
+export const accountingBenefitStatements = pgTable("accounting_benefit_statements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  providerId: varchar("provider_id").references(() => accountingBenefitProviders.id, { onDelete: "set null" }),
+  billingMonth: date("billing_month").notNull(),
+  kind: varchar("kind").notNull(),
+  invoiceNumber: varchar("invoice_number").notNull(),
+  recipientEmail: varchar("recipient_email").notNull(),
+  recipientName: varchar("recipient_name").notNull(),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+  employerAmount: numeric("employer_amount", { precision: 12, scale: 2 }).notNull(),
+  employeeAmount: numeric("employee_amount", { precision: 12, scale: 2 }).notNull(),
+  lineItems: jsonb("line_items").notNull().default([]),
+  status: varchar("status").notNull().default("recorded"),
+  sentAt: timestamp("sent_at"),
+  emailError: text("email_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.billingMonth, table.kind),
+]);
+
+export const accountingBenefitBills = pgTable("accounting_benefit_bills", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  providerId: varchar("provider_id").notNull().references(() => accountingBenefitProviders.id, { onDelete: "cascade" }),
+  programId: varchar("program_id").references(() => accountingBenefitPrograms.id, { onDelete: "set null" }),
+  billingMonth: date("billing_month").notNull(),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }),
+  allocations: jsonb("allocations").notNull().default([]),
+  originalFilename: text("original_filename").notNull(),
+  storedFilename: varchar("stored_filename").notNull(),
+  mimeType: varchar("mime_type"),
+  fileSize: integer("file_size"),
+  notes: text("notes"),
+  uploadedById: varchar("uploaded_by_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

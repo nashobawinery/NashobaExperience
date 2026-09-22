@@ -84,6 +84,7 @@ const DepartmentCalendarDashboard = lazy(() => import("@/pages/department-calend
 const DailyReportsAdminDashboard = lazy(() => import("@/pages/daily-reports/DailyReportsAdminDashboard"));
 const PublicDailyReportForm = lazy(() => import("@/pages/daily-reports/PublicDailyReportForm"));
 const StaffReportingDashboard = lazy(() => import("@/pages/staff-reporting/StaffReportingDashboard"));
+const AccountingPage = lazy(() => import("@/pages/accounting/Accounting"));
 
 // Lazy load Daily Procedures module
 const ProceduresAdminDashboard = lazy(() => import("@/pages/procedures/ProceduresAdminDashboard"));
@@ -979,6 +980,24 @@ function StaffReportingRoute() {
   );
 }
 
+function AccountingRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <AccountingPage />
+    </Suspense>
+  );
+}
+
 function PublicDailyReportRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -1475,6 +1494,8 @@ function Router() {
         <Route path="/staff-reporting/procedures/templates/:id" component={StaffReportingRoute} />
         <Route path="/staff-reporting/admin" component={StaffReportingRoute} />
         <Route path="/staff-reporting" component={StaffReportingRoute} />
+        <Route path="/accounting/admin" component={AccountingRoute} />
+        <Route path="/accounting" component={AccountingRoute} />
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         {/* Reservation Routes - Customer facing */}

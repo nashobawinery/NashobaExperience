@@ -31,6 +31,7 @@ import { establishB2bBridgeSession } from "./b2b-auth";
 import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import staffReportingRouter, { getApprovedStaffPrintMenus, getSharedStaffPortalAccess, syncStaffReportingAssignmentOptions } from "./staff-reporting-routes";
+import accountingRouter, { ensureAccountingTables } from "./accounting-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
@@ -133,6 +134,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     throw err;
   }
 
+  try {
+    await ensureAccountingTables();
+  } catch (err) {
+    console.error("[Accounting] setup failed:", err);
+  }
+
   const isAdmin = requirePlatformRole(['super_admin']);
 
   // Health check endpoint for deployment verification (responds immediately)
@@ -191,6 +198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount unified Staff Reporting routes
   app.use("/api/staff-reporting", staffReportingRouter);
+  app.use("/api/accounting", accountingRouter);
   
   // Mount Spot Inventory routes
   app.use("/api/spot-inventory", spotInventoryRouter);
@@ -249,6 +257,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       { name: "Operations Dashboard", path: "/operations", description: "Central operations management with meeting notes, audio recording, AI-powered meeting summaries, and action items", keywords: "operations meetings notes recording transcription summary action items team coordination" },
       { name: "Meeting Notes", path: "/operations", description: "Record meetings, transcribe audio with AI, and generate summaries with action items", keywords: "meeting notes recording audio transcribe summary action items minutes" },
       { name: "QuickBooks Sync", path: "/command-center", description: "QuickBooks Online integration for syncing wholesale invoices and payments - in Command Center", keywords: "quickbooks qb sync invoices payments accounting ekos wholesale" },
+      { name: "Accounting", path: "/accounting/admin", description: "Shared accounting for Nashoba Valley and The Gables", keywords: "accounting books finance nashoba gables" },
+      { name: "Health Care Insurance Allocation", path: "/accounting/admin", description: "Upload monthly UnitedHealthcare bills and split the shared medical, dental, and vision policy between Nashoba Valley and The Gables", keywords: "health insurance dental vision unitedhealthcare allocation medical benefits provider" },
       { name: "LMS Admin", path: "/lms/admin", description: "Learning management - create courses, lessons, quizzes, and manage certifications", keywords: "lms learning training courses lessons quizzes certificates education" },
       { name: "LMS Learner Portal", path: "/lms/portal", description: "Staff training portal for taking courses and tracking progress", keywords: "training portal learner courses progress" },
       { name: "Training Portal", path: "/lms/portal", description: "External training access for staff members", keywords: "training staff external" },
