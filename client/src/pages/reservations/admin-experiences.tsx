@@ -247,6 +247,23 @@ function ExperienceCard({ experience, onEdit }: { experience: Experience; onEdit
             ${parseFloat(experience.price).toFixed(2)} per person
           </p>
         )}
+        {!experience.isExternal && (
+          <div className="space-y-1 mb-4">
+            <a
+              href={`/book/${experience.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              data-testid={`link-experience-booking-${experience.id}`}
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Guest reservation link
+            </a>
+            <p className="text-xs text-muted-foreground break-all">
+              {window.location.origin}/book/{experience.id}
+            </p>
+          </div>
+        )}
         <div className="flex gap-2 flex-wrap">
           <Button
             variant={experience.showOnMasterPage === false ? "outline" : "secondary"}

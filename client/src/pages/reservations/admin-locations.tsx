@@ -191,14 +191,21 @@ export default function AdminLocations() {
                     <Users className="w-4 h-4" />
                     <span>{tableCount} {tableCount === 1 ? 'table' : 'tables'}</span>
                   </div>
-                  <a
-                    href={`/reservations/locations/${location.id}`}
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                    data-testid={`link-booking-page-${location.id}`}
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Location booking page
-                  </a>
+                  <div className="space-y-1">
+                    <a
+                      href={`/reservations/locations/${location.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                      data-testid={`link-booking-page-${location.id}`}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Guest reservation link
+                    </a>
+                    <p className="text-xs text-muted-foreground break-all">
+                      {window.location.origin}/reservations/locations/{location.id}
+                    </p>
+                  </div>
                   <Button
                     variant={location.showOnMasterPage === false ? "outline" : "secondary"}
                     className="w-full"
