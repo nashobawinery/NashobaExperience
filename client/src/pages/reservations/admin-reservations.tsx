@@ -43,13 +43,15 @@ export default function AdminReservations() {
     queryKey: ["/api/resy/experiences"],
   });
 
-  const { data: locationTables } = useQuery<Array<{id: string; tableLabel: string; tableNumber: number; minCapacity: number; maxCapacity: number; locationId: string}>>({
+  const { data: locationTables } = useQuery<Array<{id: string; tableLabel: string; minCapacity: number; maxCapacity: number; locationId: string}>>({
     queryKey: ["/api/resy/location-tables"],
   });
 
   const filteredReservations = reservations?.filter((reservation) => {
-    const matchesSearch = reservation.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
+    const name = (reservation.customerName || "").toLowerCase();
+    const email = (reservation.customerEmail || "").toLowerCase();
+    const matchesSearch = name.includes(searchTerm.toLowerCase()) ||
+      email.includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || reservation.status === statusFilter;
     const matchesExperience = experienceFilter === "all" || reservation.experienceId === experienceFilter;
     return matchesSearch && matchesStatus && matchesExperience;
@@ -172,7 +174,7 @@ export default function AdminReservations() {
   );
 }
 
-type LocationTable = {id: string; tableLabel: string; tableNumber: number; minCapacity: number; maxCapacity: number; locationId: string};
+type LocationTable = {id: string; tableLabel: string; minCapacity: number; maxCapacity: number; locationId: string};
 
 function formatTimeRange(reservation: Reservation): string {
   const startTime = reservation.holdStart || reservation.reservationTime;
@@ -225,7 +227,7 @@ function ReservationRow({ reservation, experience, locationTables, onEdit }: { r
     
     const tableLabels = assignedIds.map(id => {
       const table = locationTables?.find(t => t.id === id);
-      return table ? table.tableNumber.toString() : (id ? String(id).slice(0, 4) : '?');
+      return table?.tableLabel || (id ? String(id).slice(0, 4) : "?");
     });
     
     return (
@@ -760,10 +762,10 @@ function EditReservationDialog({ open, onOpenChange, reservation, locationTables
                       size="sm"
                       variant={selectedTableIds.includes(table.id) ? "default" : "outline"}
                       onClick={() => toggleTableSelection(table.id)}
-                      data-testid={`button-table-${table.tableNumber}`}
+                      data-testid={`button-table-${table.tableLabel}`}
                     >
                       <Table2 className="w-3 h-3 mr-1" />
-                      {table.tableNumber}
+                      {table.tableLabel}
                       <span className="ml-1 text-xs opacity-70">
                         ({table.minCapacity}-{table.maxCapacity})
                       </span>
@@ -774,7 +776,7 @@ function EditReservationDialog({ open, onOpenChange, reservation, locationTables
                   <p className="text-xs text-muted-foreground">
                     Selected: {selectedTableIds.map(id => {
                       const table = filteredTables.find(t => t.id === id);
-                      return table ? `Table ${table.tableNumber}` : id;
+                      return table ? `Table ${table.tableLabel}` : id;
                     }).join(', ')}
                   </p>
                 )}
