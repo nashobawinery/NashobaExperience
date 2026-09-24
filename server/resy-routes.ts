@@ -50,6 +50,8 @@ import {
   resyEventStaffCodes,
   resySiteSettings,
   resyFooterLinks,
+  customerIdentities,
+  toastGuests,
   resyTicketedEventDefinitions,
   resyTicketedEventTimeslots,
   insertResyLocationSchema,
@@ -1583,6 +1585,99 @@ router.post("/api/resy/reservations/:id/reschedule", requireResyAdmin, async (re
   } catch (error: any) {
     console.error("Reschedule error:", error);
     res.status(500).json({ message: "Failed to reschedule reservation: " + error.message });
+  }
+});
+
+function phoneLast10(value: unknown): string {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : "";
+}
+
+function phoneDigitsEqual(column: any, digits: string) {
+  return sql`right(regexp_replace(coalesce(${column}, ''), '\\D', '', 'g'), 10) = ${digits}`;
+}
+
+router.post("/api/resy/guests/lookup-phone", async (req, res) => {
+  try {
+    const digits = phoneLast10(req.body?.phone);
+    if (!digits) return res.json({ matched: false });
+
+    const identities = await db
+      .select({
+        firstName: customerIdentities.mergedFirstName,
+        lastName: customerIdentities.mergedLastName,
+        email: customerIdentities.primaryEmail,
+      })
+      .from(customerIdentities)
+      .where(phoneDigitsEqual(customerIdentities.primaryPhone, digits))
+      .limit(15);
+
+    const guests = await db
+      .select({
+        firstName: toastGuests.firstName,
+        lastName: toastGuests.lastName,
+        email: toastGuests.email1,
+      })
+      .from(toastGuests)
+      .where(
+        sql`${phoneDigitsEqual(toastGuests.phone1, digits)}
+          OR ${phoneDigitsEqual(toastGuests.phone2, digits)}
+          OR ${phoneDigitsEqual(toastGuests.phone3, digits)}
+          OR ${phoneDigitsEqual(toastGuests.phone4, digits)}
+          OR ${phoneDigitsEqual(toastGuests.phone5, digits)}`
+      )
+      .limit(15);
+
+    const reservationCustomers = await db
+      .select({
+        firstName: resyCustomers.firstName,
+        lastName: resyCustomers.lastName,
+        email: resyCustomers.email,
+      })
+      .from(resyCustomers)
+      .where(phoneDigitsEqual(resyCustomers.phone, digits))
+      .limit(15);
+
+    const people = new Map<string, { firstName: string; lastName: string; email: string }>();
+    const addPerson = (
+      firstName: string | null,
+      lastName: string | null,
+      email: string | null,
+      prefer: boolean,
+    ) => {
+      const first = (firstName || "").trim();
+      const last = (lastName || "").trim();
+      const mail = (email || "").trim();
+      if (!first && !last && !mail) return;
+      const key = `${first.toLowerCase()}|${last.toLowerCase()}`;
+      const existing = people.get(key);
+      if (!existing) {
+        people.set(key, { firstName: first, lastName: last, email: mail });
+        return;
+      }
+      if (!existing.firstName && first) existing.firstName = first;
+      if (!existing.lastName && last) existing.lastName = last;
+      if ((prefer || !existing.email) && mail) existing.email = mail;
+    };
+
+    for (const guest of guests) addPerson(guest.firstName, guest.lastName, guest.email, false);
+    for (const customer of reservationCustomers) addPerson(customer.firstName, customer.lastName, customer.email, false);
+    for (const identity of identities) addPerson(identity.firstName, identity.lastName, identity.email, true);
+
+    const named = [...people.values()].filter((person) => person.firstName || person.lastName);
+    const matches = named.length > 0 ? named : [...people.values()];
+    if (matches.length !== 1) return res.json({ matched: false });
+
+    const person = matches[0];
+    res.json({
+      matched: true,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      email: person.email,
+    });
+  } catch (error: any) {
+    console.error("Guest phone lookup failed:", error);
+    res.status(500).json({ matched: false });
   }
 });
 

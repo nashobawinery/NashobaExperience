@@ -65,7 +65,10 @@ function formatTo12Hour(timeStr: string): string {
 const bookingFormSchema = z.object({
   customerName: z.string().min(2, "Name must be at least 2 characters"),
   customerEmail: z.string().email("Please enter a valid email address"),
-  customerPhone: z.string().optional(),
+  customerPhone: z
+    .string()
+    .min(1, "Phone number is required")
+    .refine((value) => value.replace(/\D/g, "").length >= 10, "Enter a 10-digit phone number"),
   notificationPreference: z.enum(["email", "text", "both"]).default("email"),
   partySize: z.number().min(1).optional(),
   ticketQuantity: z.number().min(1).optional(),
@@ -121,6 +124,8 @@ export default function Booking() {
     discountValue: string;
   } | null>(null);
   const [checkingClubDiscount, setCheckingClubDiscount] = useState(false);
+  const [lookingUpPhone, setLookingUpPhone] = useState(false);
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
 
   const { data: experience, isLoading: experienceLoading } =
     useQuery<Experience>({
@@ -366,6 +371,56 @@ export default function Booking() {
     const timeoutId = setTimeout(checkClubDiscount, 500);
     return () => clearTimeout(timeoutId);
   }, [watchedEmail, experience]);
+
+  const watchedPhone = form.watch("customerPhone");
+
+  useEffect(() => {
+    const digits = (watchedPhone || "").replace(/\D/g, "");
+    if (digits.length < 10) {
+      setWelcomeName(null);
+      setLookingUpPhone(false);
+      return;
+    }
+
+    let cancelled = false;
+    const lookupGuest = async () => {
+      setLookingUpPhone(true);
+      try {
+        const response = await fetch("/api/resy/guests/lookup-phone", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: watchedPhone }),
+        });
+        const result = await response.json();
+        if (cancelled) return;
+        if (!result.matched) {
+          setWelcomeName(null);
+          return;
+        }
+        const fullName = `${result.firstName || ""} ${result.lastName || ""}`.trim();
+        if (fullName) form.setValue("customerName", fullName, { shouldValidate: true });
+        if (result.email) form.setValue("customerEmail", result.email, { shouldValidate: true });
+        setCustomerInfo({
+          firstName: result.firstName || "",
+          lastName: result.lastName || "",
+          email: result.email || form.getValues("customerEmail") || "",
+          phone: watchedPhone || "",
+        });
+        setWelcomeName(result.firstName || fullName);
+      } catch (error) {
+        console.error("Error looking up guest phone:", error);
+        if (!cancelled) setWelcomeName(null);
+      } finally {
+        if (!cancelled) setLookingUpPhone(false);
+      }
+    };
+
+    const timeoutId = setTimeout(lookupGuest, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [watchedPhone, form, setCustomerInfo]);
 
   const validateDiscountCode = async () => {
     if (!discountCode.trim() || !experience) return;
@@ -1275,7 +1330,7 @@ export default function Booking() {
                 Guest Information
               </CardTitle>
               <CardDescription>
-                Please provide your contact details
+                Start with your phone number. If we already know you, we will fill in the rest.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1284,6 +1339,42 @@ export default function Booking() {
                   onSubmit={form.handleSubmit(onSubmit)}
                   className="space-y-4"
                 >
+                  <FormField
+                    control={form.control}
+                    name="customerPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="tel"
+                            placeholder="(555) 123-4567"
+                            {...field}
+                            data-testid="input-phone"
+                          />
+                        </FormControl>
+                        {lookingUpPhone && (
+                          <p className="text-xs text-muted-foreground">Looking up your number...</p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {welcomeName !== null && (
+                    <div
+                      className="rounded-md border border-primary bg-primary/5 p-3"
+                      data-testid="text-welcome-back"
+                    >
+                      <p className="text-sm font-medium text-primary">
+                        {welcomeName ? `Welcome back, ${welcomeName}.` : "Welcome back."}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        We filled in your name and email from your last visit.
+                      </p>
+                    </div>
+                  )}
+
                   <FormField
                     control={form.control}
                     name="customerName"
@@ -1314,25 +1405,6 @@ export default function Booking() {
                             placeholder="john@example.com"
                             {...field}
                             data-testid="input-email"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="customerPhone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone Number</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="tel"
-                            placeholder="(555) 123-4567"
-                            {...field}
-                            data-testid="input-phone"
                           />
                         </FormControl>
                         <FormMessage />
