@@ -35,60 +35,6 @@ async function requireFloorPin(req: any, res: any, next: () => void) {
   }
 }
 
-router.get("/api/resy/floor-access/session", requireResyAdmin, requireFloorPin, async (_req, res) => {
-  res.json({ ok: true });
-});
-
-router.get("/api/resy/floor-access", requireResyAdmin, async (_req, res) => {
-  const result = await db.execute(sql`SELECT area FROM resy_floor_access_codes`);
-  const rows = ((result as { rows?: Array<{ area: string }> }).rows) || [];
-  const areas = new Set(rows.map((row) => row.area));
-  res.json({ host: areas.has("host"), tracker: areas.has("tracker") });
-});
-
-router.put("/api/resy/floor-access", requireResyAdmin, async (req, res) => {
-  const updates = [
-    ["host", String(req.body?.hostCode || "")],
-    ["tracker", String(req.body?.trackerCode || "")],
-  ] as const;
-  for (const [area, code] of updates) {
-    if (!code) continue;
-    if (!/^\d{4}$/.test(code)) return res.status(400).json({ message: "Each access code must be 4 digits." });
-    await db.execute(sql`
-      INSERT INTO resy_floor_access_codes (area, code_hash)
-      VALUES (${area}, ${hashFloorCode(area, code)})
-      ON CONFLICT (area) DO UPDATE SET code_hash = EXCLUDED.code_hash, updated_at = now()
-    `);
-  }
-  res.json({ saved: true });
-});
-
-router.post("/api/resy/floor-access/verify", requireResyAdmin, async (req, res) => {
-  const area = req.body?.area === "tracker" ? "tracker" : req.body?.area === "host" ? "host" : "";
-  const code = String(req.body?.code || "");
-  if (!area || !/^\d{4}$/.test(code)) return res.status(400).json({ message: "Enter the 4-digit code." });
-  const caller = String(req.ip || req.get("x-forwarded-for") || "staff");
-  const attempt = floorPinAttempts.get(caller);
-  if (attempt && attempt.lockedUntil > Date.now()) {
-    return res.status(429).json({ message: "Too many incorrect codes. Wait a few minutes and try again." });
-  }
-  const result = await db.execute(sql`SELECT code_hash FROM resy_floor_access_codes WHERE area = ${area}`);
-  const rows = ((result as { rows?: Array<{ code_hash: string }> }).rows) || [];
-  if (!rows.length) return res.status(400).json({ message: "This access code has not been set yet. A manager can set it in reservation settings." });
-  if (rows[0].code_hash !== hashFloorCode(area, code)) {
-    const count = (attempt?.count || 0) + 1;
-    floorPinAttempts.set(caller, { count, lockedUntil: count >= 5 ? Date.now() + 10 * 60 * 1000 : 0 });
-    return res.status(401).json({ message: "That code is not correct." });
-  }
-  floorPinAttempts.delete(caller);
-  const token = randomBytes(24).toString("hex");
-  await db.execute(sql`
-    INSERT INTO resy_floor_access_sessions (token, area, expires_at)
-    VALUES (${token}, ${area}, now() + interval '12 hours')
-  `);
-  res.json({ token });
-});
-
 const RESERVED_BOOKING_SLUGS = new Set([
   "accounting", "admin", "admin-hub", "apple-game", "b2b", "book", "boomerang", "cellartraks",
   "checkout", "command-center", "company-info", "compliance", "confirmation", "contact", "contracts",
@@ -294,6 +240,60 @@ import {
 } from "@shared/schema";
 
 const router = Router();
+
+router.get("/api/resy/floor-access/session", requireResyAdmin, requireFloorPin, async (_req, res) => {
+  res.json({ ok: true });
+});
+
+router.get("/api/resy/floor-access", requireResyAdmin, async (_req, res) => {
+  const result = await db.execute(sql`SELECT area FROM resy_floor_access_codes`);
+  const rows = ((result as { rows?: Array<{ area: string }> }).rows) || [];
+  const areas = new Set(rows.map((row) => row.area));
+  res.json({ host: areas.has("host"), tracker: areas.has("tracker") });
+});
+
+router.put("/api/resy/floor-access", requireResyAdmin, async (req, res) => {
+  const updates = [
+    ["host", String(req.body?.hostCode || "")],
+    ["tracker", String(req.body?.trackerCode || "")],
+  ] as const;
+  for (const [area, code] of updates) {
+    if (!code) continue;
+    if (!/^\d{4}$/.test(code)) return res.status(400).json({ message: "Each access code must be 4 digits." });
+    await db.execute(sql`
+      INSERT INTO resy_floor_access_codes (area, code_hash)
+      VALUES (${area}, ${hashFloorCode(area, code)})
+      ON CONFLICT (area) DO UPDATE SET code_hash = EXCLUDED.code_hash, updated_at = now()
+    `);
+  }
+  res.json({ saved: true });
+});
+
+router.post("/api/resy/floor-access/verify", requireResyAdmin, async (req, res) => {
+  const area = req.body?.area === "tracker" ? "tracker" : req.body?.area === "host" ? "host" : "";
+  const code = String(req.body?.code || "");
+  if (!area || !/^\d{4}$/.test(code)) return res.status(400).json({ message: "Enter the 4-digit code." });
+  const caller = String(req.ip || req.get("x-forwarded-for") || "staff");
+  const attempt = floorPinAttempts.get(caller);
+  if (attempt && attempt.lockedUntil > Date.now()) {
+    return res.status(429).json({ message: "Too many incorrect codes. Wait a few minutes and try again." });
+  }
+  const result = await db.execute(sql`SELECT code_hash FROM resy_floor_access_codes WHERE area = ${area}`);
+  const rows = ((result as { rows?: Array<{ code_hash: string }> }).rows) || [];
+  if (!rows.length) return res.status(400).json({ message: "This access code has not been set yet. A manager can set it in reservation settings." });
+  if (rows[0].code_hash !== hashFloorCode(area, code)) {
+    const count = (attempt?.count || 0) + 1;
+    floorPinAttempts.set(caller, { count, lockedUntil: count >= 5 ? Date.now() + 10 * 60 * 1000 : 0 });
+    return res.status(401).json({ message: "That code is not correct." });
+  }
+  floorPinAttempts.delete(caller);
+  const token = randomBytes(24).toString("hex");
+  await db.execute(sql`
+    INSERT INTO resy_floor_access_sessions (token, area, expires_at)
+    VALUES (${token}, ${area}, now() + interval '12 hours')
+  `);
+  res.json({ token });
+});
 
 let stripe: Stripe | null = null;
 if (process.env.STRIPE_SECRET_KEY) {
