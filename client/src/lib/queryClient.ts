@@ -15,6 +15,15 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+export function floorAccessHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const path = window.location.pathname;
+  const area = path.includes("knoll-tracker") || path.endsWith("/floor") ? "tracker" : path.includes("/host") ? "host" : "";
+  if (!area) return {};
+  const token = sessionStorage.getItem(`floor-access-${area}`);
+  return token ? { "x-floor-access": token, "x-floor-area": area } : {};
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -22,7 +31,7 @@ export async function apiRequest(
 ): Promise<Response> {
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: { ...(data ? { "Content-Type": "application/json" } : {}), ...floorAccessHeaders() },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -66,6 +75,7 @@ export const getQueryFn: <T>(options: {
     
     const res = await fetch(url, {
       credentials: "include",
+      headers: floorAccessHeaders(),
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

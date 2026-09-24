@@ -37,6 +37,36 @@ const siteSettingsSchema = z.object({
 
 type SiteSettingsForm = z.infer<typeof siteSettingsSchema>;
 
+function FloorAccessCodes() {
+  const { toast } = useToast();
+  const [hostCode, setHostCode] = useState("");
+  const [trackerCode, setTrackerCode] = useState("");
+  const { data } = useQuery<{ host: boolean; tracker: boolean }>({ queryKey: ["/api/resy/floor-access"] });
+  const save = useMutation({
+    mutationFn: async () => apiRequest("PUT", "/api/resy/floor-access", { hostCode, trackerCode }),
+    onSuccess: () => {
+      setHostCode("");
+      setTrackerCode("");
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/floor-access"] });
+      toast({ title: "Access codes saved" });
+    },
+    onError: (error: Error) => toast({ title: "Access codes", description: error.message.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Host and tracker access codes</CardTitle>
+        <CardDescription>Each page needs its own 4-digit code. The code is not shown again after it is saved. {data?.host ? "Host code is set." : "Host code is not set."} {data?.tracker ? "Tracker code is set." : "Tracker code is not set."}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2">
+        <Input inputMode="numeric" maxLength={4} placeholder="Host code" value={hostCode} onChange={(event) => setHostCode(event.target.value.replace(/\D/g, "").slice(0, 4))} />
+        <Input inputMode="numeric" maxLength={4} placeholder="Tracker code" value={trackerCode} onChange={(event) => setTrackerCode(event.target.value.replace(/\D/g, "").slice(0, 4))} />
+        <Button className="sm:col-span-2 w-fit" disabled={save.isPending || (!hostCode && !trackerCode)} onClick={() => save.mutate()}>Save access codes</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminSettings() {
   const { toast } = useToast();
   const [headerImageURL, setHeaderImageURL] = useState<string | null>(null);
@@ -293,6 +323,8 @@ export default function AdminSettings() {
           Configure your reservation site settings and footer links.
         </p>
       </div>
+
+      <FloorAccessCodes />
 
       <Tabs defaultValue="general" className="space-y-6">
         <TabsList data-testid="tabs-settings">

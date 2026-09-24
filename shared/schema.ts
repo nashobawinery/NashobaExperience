@@ -2675,6 +2675,7 @@ export const resyExperiences = pgTable("resy_experiences", {
   location: text("location"),
   locationId: varchar("location_id"),
   bookingSlug: varchar("booking_slug", { length: 80 }),
+  allowAdjacentReservations: boolean("allow_adjacent_reservations").notNull().default(false),
   showWaitlist: boolean("show_waitlist").notNull().default(false),
   closedMessage: text("closed_message"),
   fullyBookedMessage: text("fully_booked_message"),

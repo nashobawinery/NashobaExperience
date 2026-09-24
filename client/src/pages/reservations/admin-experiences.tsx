@@ -835,6 +835,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
     defaultValues: experience ? {
       name: experience.name,
       bookingSlug: experience.bookingSlug || "",
+      allowAdjacentReservations: experience.allowAdjacentReservations ?? false,
       shortDescription: experience.shortDescription || "",
       longDescription: experience.longDescription || "",
       imageUrl: experience.imageUrl || "",
@@ -850,6 +851,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
     } : {
       name: "",
       bookingSlug: "",
+      allowAdjacentReservations: false,
       shortDescription: "",
       longDescription: "",
       imageUrl: "",
@@ -962,6 +964,22 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
               </FormControl>
               <FormDescription>Short address, such as knollresy. The public link becomes /knollresy.</FormDescription>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="allowAdjacentReservations"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <FormControl>
+                <Checkbox checked={!!field.value} onCheckedChange={field.onChange} data-testid="checkbox-adjacent-reservations" />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>Allow a second reservation</FormLabel>
+                <FormDescription>Off: the same person cannot book a second table for this event on the same day. On: a second reservation is accepted only when two neighboring tables are open, and those tables are assigned together.</FormDescription>
+              </div>
             </FormItem>
           )}
         />

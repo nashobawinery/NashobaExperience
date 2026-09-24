@@ -130,6 +130,8 @@ export default function Booking() {
   const [checkingClubDiscount, setCheckingClubDiscount] = useState(false);
   const [lookingUpPhone, setLookingUpPhone] = useState(false);
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  const [separateTableOffer, setSeparateTableOffer] = useState<string | null>(null);
+  const [acceptSeparateTables, setAcceptSeparateTables] = useState(false);
 
   const { data: experience, isLoading: experienceLoading } =
     useQuery<Experience>({
@@ -546,7 +548,7 @@ export default function Booking() {
   };
 
   const createReservationMutation = useMutation({
-    mutationFn: async (data: BookingFormValues) => {
+    mutationFn: async (data: BookingFormValues & { acceptSeparateTables?: boolean }) => {
       if (!experience || !selectedDate) {
         throw new Error("Missing required data");
       }
@@ -587,6 +589,7 @@ export default function Booking() {
         status: "pending",
         specialRequests: data.specialRequests || null,
         discountCode: appliedDiscount?.code || null,
+        acceptSeparateTables: data.acceptSeparateTables === true,
       };
 
       const response = await apiRequest(
@@ -658,9 +661,14 @@ export default function Booking() {
         }
       }
 
+      const cleanedMessage = errorMessage.replace(/^\d+:\s*/, "");
+      if (cleanedMessage.includes("trying to book a second table")) {
+        setSeparateTableOffer(cleanedMessage);
+        setAcceptSeparateTables(false);
+      }
       toast({
         title: "Reservation Failed",
-        description: errorMessage,
+        description: cleanedMessage,
         variant: "destructive",
       });
     },
@@ -1630,6 +1638,28 @@ export default function Booking() {
                       </div>
                     )}
 
+                  {separateTableOffer && (
+                    <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3">
+                      <p className="text-sm">{separateTableOffer}</p>
+                      <label className="flex items-start gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={acceptSeparateTables}
+                          onChange={(event) => setAcceptSeparateTables(event.target.checked)}
+                        />
+                        <span>Tables are not close to each other. I accept this condition and want to book a second table.</span>
+                      </label>
+                      <Button
+                        type="button"
+                        className="w-full"
+                        disabled={!acceptSeparateTables || createReservationMutation.isPending}
+                        onClick={() => createReservationMutation.mutate({ ...form.getValues(), acceptSeparateTables: true })}
+                      >
+                        Book a second table
+                      </Button>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <Button
                       type="button"

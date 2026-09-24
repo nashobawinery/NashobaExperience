@@ -692,6 +692,13 @@ function TableCard({
   );
 }
 
+function sectionFromLabel(label: string) {
+  if (/^1D\d+$/i.test(label)) return "Deck 1";
+  if (/^2D\d+$/i.test(label)) return "Deck 2";
+  const row = label.match(/^([A-Ga-gVPvp])\d+$/);
+  return row ? row[1].toUpperCase() : "Floor";
+}
+
 function TableForm({ 
   table, 
   locationId, 
@@ -716,6 +723,9 @@ function TableForm({
       combinableWith: [],
       isCommunal: false,
       isActive: true,
+      posX: null,
+      posY: null,
+      floorSection: null,
     },
   });
 
@@ -731,6 +741,9 @@ function TableForm({
         combinableWith: table.combinableWith || [],
         isCommunal: table.isCommunal ?? false,
         isActive: table.isActive,
+        posX: table.posX ?? null,
+        posY: table.posY ?? null,
+        floorSection: table.floorSection ?? null,
       });
     } else {
       form.reset({
@@ -742,6 +755,9 @@ function TableForm({
         combinableWith: [],
         isCommunal: false,
         isActive: true,
+        posX: null,
+        posY: null,
+        floorSection: null,
       });
     }
   }, [table, locationId, form]);
@@ -783,8 +799,19 @@ function TableForm({
   });
 
   const onSubmit = (data: InsertLocationTable) => {
-    saveMutation.mutate(data);
+    const section = data.floorSection || sectionFromLabel(data.tableLabel);
+    const peers = allTables.filter((item) => item.floorSection === section && item.id !== table?.id && item.posX != null);
+    saveMutation.mutate({
+      ...data,
+      floorSection: section,
+      posX: data.posX ?? (peers.length ? Math.max(...peers.map((item) => item.posX || 0)) + 110 : 70),
+      posY: data.posY ?? peers[0]?.posY ?? 70,
+    });
   };
+  const mapX = form.watch("posX");
+  const mapY = form.watch("posY");
+  const mapWidth = Math.max(700, ...allTables.map((item) => (item.posX || 0) + 140), (mapX || 0) + 140);
+  const mapHeight = Math.max(280, ...allTables.map((item) => (item.posY || 0) + 90), (mapY || 0) + 90);
 
   const availableTablesForCombination = allTables.filter(t => 
     !table || t.id !== table.id
@@ -971,6 +998,51 @@ function TableForm({
             </FormItem>
           )}
         />
+
+        <div className="space-y-2">
+          <FormLabel>Place on the table map</FormLabel>
+          <p className="text-sm text-muted-foreground">Click the map to set this table. Drag the gold table to move it. The Knoll Table Tracker uses this position.</p>
+          <div className="h-64 overflow-auto rounded-md border bg-[#f6f3ee]">
+            <div
+              className="relative"
+              style={{ width: mapWidth, height: mapHeight }}
+              onClick={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect();
+                form.setValue("posX", Math.max(0, Math.round(event.clientX - bounds.left - 40)));
+                form.setValue("posY", Math.max(0, Math.round(event.clientY - bounds.top - 24)));
+                form.setValue("floorSection", sectionFromLabel(form.getValues("tableLabel")));
+              }}
+            >
+              {allTables.filter((item) => !table || item.id !== table.id).map((item) => (
+                <div key={item.id} className="absolute flex h-12 w-20 items-center justify-center rounded-md border bg-white text-xs" style={{ left: item.posX || 0, top: item.posY || 0 }}>{item.tableLabel}</div>
+              ))}
+              <div
+                className="absolute flex h-12 w-20 cursor-move items-center justify-center rounded-md border bg-[#f4c95d] text-xs font-semibold"
+                style={{ left: mapX ?? 70, top: mapY ?? 70 }}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  const originX = event.clientX;
+                  const originY = event.clientY;
+                  const startX = mapX ?? 70;
+                  const startY = mapY ?? 70;
+                  const move = (pointer: PointerEvent) => {
+                    form.setValue("posX", Math.max(0, Math.round(startX + pointer.clientX - originX)));
+                    form.setValue("posY", Math.max(0, Math.round(startY + pointer.clientY - originY)));
+                  };
+                  const up = () => {
+                    window.removeEventListener("pointermove", move);
+                    window.removeEventListener("pointerup", up);
+                  };
+                  window.addEventListener("pointermove", move);
+                  window.addEventListener("pointerup", up);
+                }}
+              >
+                {form.watch("tableLabel") || "New"}
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="flex justify-end gap-3">
           <Button

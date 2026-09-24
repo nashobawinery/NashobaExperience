@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "crypto";
 import { Router } from "express";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray, notInArray, not, lte, gte } from "drizzle-orm";
@@ -11,6 +12,82 @@ import * as XLSX from "xlsx";
 import multer from "multer";
 
 const requireResyAdmin = requireModuleAccess('reservations');
+
+const floorPinAttempts = new Map<string, { count: number; lockedUntil: number }>();
+
+function hashFloorCode(area: string, code: string) {
+  return createHash("sha256").update(`nashoba-floor:${area}:${code}`).digest("hex");
+}
+
+async function requireFloorPin(req: any, res: any, next: () => void) {
+  try {
+    const token = String(req.get("x-floor-access") || "");
+    if (!token) return res.status(401).json({ message: "Enter the 4-digit access code for this page." });
+    const result = await db.execute(sql`SELECT area FROM resy_floor_access_sessions WHERE token = ${token} AND expires_at > now()`);
+    const rows = ((result as { rows?: Array<{ area: string }> }).rows) || [];
+    const requested = String(req.get("x-floor-area") || "");
+    if (!rows.length || (requested && rows[0].area !== requested)) {
+      return res.status(401).json({ message: "Enter the 4-digit access code for this page." });
+    }
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Enter the 4-digit access code for this page." });
+  }
+}
+
+router.get("/api/resy/floor-access/session", requireResyAdmin, requireFloorPin, async (_req, res) => {
+  res.json({ ok: true });
+});
+
+router.get("/api/resy/floor-access", requireResyAdmin, async (_req, res) => {
+  const result = await db.execute(sql`SELECT area FROM resy_floor_access_codes`);
+  const rows = ((result as { rows?: Array<{ area: string }> }).rows) || [];
+  const areas = new Set(rows.map((row) => row.area));
+  res.json({ host: areas.has("host"), tracker: areas.has("tracker") });
+});
+
+router.put("/api/resy/floor-access", requireResyAdmin, async (req, res) => {
+  const updates = [
+    ["host", String(req.body?.hostCode || "")],
+    ["tracker", String(req.body?.trackerCode || "")],
+  ] as const;
+  for (const [area, code] of updates) {
+    if (!code) continue;
+    if (!/^\d{4}$/.test(code)) return res.status(400).json({ message: "Each access code must be 4 digits." });
+    await db.execute(sql`
+      INSERT INTO resy_floor_access_codes (area, code_hash)
+      VALUES (${area}, ${hashFloorCode(area, code)})
+      ON CONFLICT (area) DO UPDATE SET code_hash = EXCLUDED.code_hash, updated_at = now()
+    `);
+  }
+  res.json({ saved: true });
+});
+
+router.post("/api/resy/floor-access/verify", requireResyAdmin, async (req, res) => {
+  const area = req.body?.area === "tracker" ? "tracker" : req.body?.area === "host" ? "host" : "";
+  const code = String(req.body?.code || "");
+  if (!area || !/^\d{4}$/.test(code)) return res.status(400).json({ message: "Enter the 4-digit code." });
+  const caller = String(req.ip || req.get("x-forwarded-for") || "staff");
+  const attempt = floorPinAttempts.get(caller);
+  if (attempt && attempt.lockedUntil > Date.now()) {
+    return res.status(429).json({ message: "Too many incorrect codes. Wait a few minutes and try again." });
+  }
+  const result = await db.execute(sql`SELECT code_hash FROM resy_floor_access_codes WHERE area = ${area}`);
+  const rows = ((result as { rows?: Array<{ code_hash: string }> }).rows) || [];
+  if (!rows.length) return res.status(400).json({ message: "This access code has not been set yet. A manager can set it in reservation settings." });
+  if (rows[0].code_hash !== hashFloorCode(area, code)) {
+    const count = (attempt?.count || 0) + 1;
+    floorPinAttempts.set(caller, { count, lockedUntil: count >= 5 ? Date.now() + 10 * 60 * 1000 : 0 });
+    return res.status(401).json({ message: "That code is not correct." });
+  }
+  floorPinAttempts.delete(caller);
+  const token = randomBytes(24).toString("hex");
+  await db.execute(sql`
+    INSERT INTO resy_floor_access_sessions (token, area, expires_at)
+    VALUES (${token}, ${area}, now() + interval '12 hours')
+  `);
+  res.json({ token });
+});
 
 const RESERVED_BOOKING_SLUGS = new Set([
   "accounting", "admin", "admin-hub", "apple-game", "b2b", "book", "boomerang", "cellartraks",
@@ -93,6 +170,21 @@ export async function ensureResyMasterPageFlags() {
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_contact_phone varchar(30)`);
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS ai_knowledge text`);
   await db.execute(sql`ALTER TABLE resy_experiences ADD COLUMN IF NOT EXISTS booking_slug varchar(80)`);
+  await db.execute(sql`ALTER TABLE resy_experiences ADD COLUMN IF NOT EXISTS allow_adjacent_reservations boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS resy_floor_access_codes (
+      area varchar(20) PRIMARY KEY,
+      code_hash text NOT NULL,
+      updated_at timestamp DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS resy_floor_access_sessions (
+      token varchar PRIMARY KEY,
+      area varchar(20) NOT NULL,
+      expires_at timestamp NOT NULL
+    )
+  `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS resy_experiences_booking_slug_key ON resy_experiences (booking_slug)`);
   await db.execute(sql`
     UPDATE resy_experiences
@@ -1533,6 +1625,108 @@ function outsideAdvanceBookingWindow(advanceBookingDays: number | null | undefin
   return null;
 }
 
+function tablesAreAdjacent(left: { id: string; posX: number | null; posY: number | null; floorSection: string | null; combinableWith: string[] | null }, right: { id: string; posX: number | null; posY: number | null; floorSection: string | null; combinableWith: string[] | null }) {
+  if (left.posX != null && right.posX != null && left.posY != null && right.posY != null) {
+    const dx = Math.abs(left.posX - right.posX);
+    const dy = Math.abs(left.posY - right.posY);
+    if (dy <= 45 && dx >= 70 && dx <= 150) return true;
+  }
+  return (left.combinableWith || []).includes(right.id) || (right.combinableWith || []).includes(left.id);
+}
+
+function reservationWindow(reservation: { holdStart: string | null; holdEnd: string | null; reservationTime: string; turnDuration: number | null }, fallbackStart?: string, fallbackDuration?: number) {
+  const start = clockMinutes(reservation.holdStart || fallbackStart || reservation.reservationTime);
+  const end = reservation.holdEnd ? clockMinutes(reservation.holdEnd) : start + (reservation.turnDuration || fallbackDuration || 180);
+  return { start, end: Math.max(end, start + 15) };
+}
+
+async function screenSecondReservation(input: {
+  locationId: string;
+  experienceId: string;
+  date: string;
+  time: string;
+  partySize: number;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  turnDuration: number;
+  acceptSeparateTables?: boolean;
+}) {
+  const email = input.customerEmail?.trim().toLowerCase() || "";
+  const phone = (input.customerPhone || "").replace(/\D/g, "").slice(-10);
+  const [experience] = await db.select().from(resyExperiences).where(eq(resyExperiences.id, input.experienceId));
+  const existing = (await db.select().from(resyReservations).where(and(
+    eq(resyReservations.locationId, input.locationId),
+    eq(resyReservations.experienceId, input.experienceId),
+    eq(resyReservations.reservationDate, input.date),
+    not(eq(resyReservations.status, "cancelled")),
+    not(eq(resyReservations.status, "completed")),
+  ))).filter((reservation) => {
+    const sameEmail = email && reservation.customerEmail?.trim().toLowerCase() === email;
+    const samePhone = phone.length >= 7 && (reservation.customerPhone || "").replace(/\D/g, "").slice(-10) === phone;
+    return sameEmail || samePhone;
+  });
+  if (existing.length === 0) return { blocked: false as const };
+  if (!experience?.allowAdjacentReservations) {
+    return {
+      blocked: true as const,
+      message: "You already have a reservation on this day. This event does not accept a second reservation, because another table is not guaranteed to be next to your first table.",
+    };
+  }
+  if (existing.length > 1) {
+    return {
+      blocked: true as const,
+      message: "You already have more than one reservation on this day. Another table cannot be added.",
+    };
+  }
+  const first = existing[0];
+  const tables = await db.select().from(resyLocationTables).where(and(
+    eq(resyLocationTables.locationId, input.locationId),
+    eq(resyLocationTables.isActive, true),
+    eq(resyLocationTables.isPaused, false),
+  ));
+  const walkins = await openWalkinTableIds(input.locationId, input.date);
+  const dayReservations = await db.select().from(resyReservations).where(and(
+    eq(resyReservations.locationId, input.locationId),
+    eq(resyReservations.reservationDate, input.date),
+    not(eq(resyReservations.status, "cancelled")),
+    not(eq(resyReservations.status, "completed")),
+  ));
+  const requested = { start: clockMinutes(input.time), end: clockMinutes(input.time) + input.turnDuration };
+  const firstWindow = reservationWindow(first);
+  const freeFor = (tableId: string, window: { start: number; end: number }, ignoreId: string) => {
+    if (walkins.has(tableId)) return false;
+    return !dayReservations.some((reservation) => {
+      if (reservation.id === ignoreId || !reservationUsesTable(reservation, tableId)) return false;
+      const held = reservationWindow(reservation);
+      return window.start < held.end && held.start < window.end;
+    });
+  };
+  const fits = (table: typeof tables[number], party: number) => party >= table.minCapacity && party <= table.maxCapacity;
+  const current = tables.find((table) => reservationUsesTable(first, table.id));
+  if (current) {
+    const neighbor = tables.find((table) => table.id !== current.id && tablesAreAdjacent(current, table) && fits(table, input.partySize) && freeFor(table.id, requested, first.id));
+    if (neighbor) return { blocked: false as const, tableId: neighbor.id, tableLabel: neighbor.tableLabel };
+  }
+  for (const left of tables) {
+    if (!fits(left, first.partySize) || !freeFor(left.id, firstWindow, first.id)) continue;
+    for (const right of tables) {
+      if (right.id === left.id || !tablesAreAdjacent(left, right) || !fits(right, input.partySize) || !freeFor(right.id, requested, first.id)) continue;
+      return {
+        blocked: false as const,
+        tableId: right.id,
+        tableLabel: right.tableLabel,
+        moveExisting: { reservationId: first.id, tableId: left.id, tableLabel: left.tableLabel },
+      };
+    }
+  }
+  if (input.acceptSeparateTables) return { blocked: false as const, separateAccepted: true as const };
+  return {
+    blocked: true as const,
+    separateOption: true as const,
+    message: "Sorry, I see you are trying to book a second table, unfortunately at this time we do not have two tables adjacent to each other and therefore cannot accommodate your request.",
+  };
+}
+
 router.post("/api/resy/reservations", async (req, res) => {
   try {
     // For ticketed events, provide defaults for table reservation fields
@@ -1595,7 +1789,31 @@ router.post("/api/resy/reservations", async (req, res) => {
           return res.status(400).json({ message: withWalkInInvite(`Sorry, the time selected is not available for a party of ${party}.`) });
         }
         const turnDuration = await getTurnDuration(bookingLocationId, period.periodId, party);
-        const availableTables = await getAvailableTables(bookingLocationId, String(data.reservationDate), String(data.reservationTime), party, turnDuration);
+        const second = await screenSecondReservation({
+          locationId: bookingLocationId,
+          experienceId: String(data.experienceId || experience?.id || ""),
+          date: String(data.reservationDate),
+          time: String(data.reservationTime),
+          partySize: party,
+          customerEmail: data.customerEmail,
+          customerPhone: data.customerPhone,
+          turnDuration,
+          acceptSeparateTables: data.acceptSeparateTables === true,
+        });
+        if (second.blocked) return res.status(400).json({ message: second.message, separateOption: second.separateOption === true });
+        if (second.separateAccepted) {
+          data.specialRequests = [data.specialRequests, "Guest accepted that this second table is not close to their other reservation."].filter(Boolean).join(" ");
+        }
+        if (second.moveExisting) {
+          await resyStorage.updateReservation(second.moveExisting.reservationId, {
+            assignedTableId: second.moveExisting.tableId,
+            tableId: second.moveExisting.tableId,
+            tableAssignment: second.moveExisting.tableLabel,
+          });
+        }
+        const availableTables = second.tableId
+          ? [{ tableId: second.tableId, tableLabel: second.tableLabel }]
+          : await getAvailableTables(bookingLocationId, String(data.reservationDate), String(data.reservationTime), party, turnDuration);
         if (availableTables.length === 0) {
           const fittingTables = await db.select().from(resyLocationTables).where(and(
             eq(resyLocationTables.locationId, bookingLocationId),
@@ -2375,7 +2593,7 @@ async function openWalkinTableIds(locationId: string, date: string) {
   return new Set(rows.map((row) => row.tableId));
 }
 
-router.get("/api/resy/locations/:locationId/floor", requireResyAdmin, async (req, res) => {
+router.get("/api/resy/locations/:locationId/floor", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const { locationId } = req.params;
     const date = String(req.query.date || new Date().toISOString().slice(0, 10));
@@ -2407,7 +2625,7 @@ router.get("/api/resy/locations/:locationId/floor", requireResyAdmin, async (req
   }
 });
 
-router.patch("/api/resy/location-tables/:id/position", requireResyAdmin, async (req, res) => {
+router.patch("/api/resy/location-tables/:id/position", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const posX = Number(req.body.posX);
     const posY = Number(req.body.posY);
@@ -2426,7 +2644,7 @@ router.patch("/api/resy/location-tables/:id/position", requireResyAdmin, async (
   }
 });
 
-router.post("/api/resy/reservations/:id/arrive", requireResyAdmin, async (req, res) => {
+router.post("/api/resy/reservations/:id/arrive", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const reservation = await resyStorage.getReservation(req.params.id);
     if (!reservation) return res.status(404).json({ message: "Reservation not found" });
@@ -2453,7 +2671,7 @@ router.post("/api/resy/reservations/:id/arrive", requireResyAdmin, async (req, r
   }
 });
 
-router.post("/api/resy/locations/:locationId/tables/:tableId/clear", requireResyAdmin, async (req, res) => {
+router.post("/api/resy/locations/:locationId/tables/:tableId/clear", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const { locationId, tableId } = req.params;
     const date = String(req.body.date || "");
@@ -2482,7 +2700,7 @@ router.post("/api/resy/locations/:locationId/tables/:tableId/clear", requireResy
   }
 });
 
-router.post("/api/resy/locations/:locationId/tables/swap", requireResyAdmin, async (req, res) => {
+router.post("/api/resy/locations/:locationId/tables/swap", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const { locationId } = req.params;
     const { date, fromTableId, toTableId } = req.body || {};
@@ -2514,7 +2732,7 @@ router.post("/api/resy/locations/:locationId/tables/swap", requireResyAdmin, asy
   }
 });
 
-router.post("/api/resy/locations/:locationId/host-walkin", requireResyAdmin, async (req, res) => {
+router.post("/api/resy/locations/:locationId/host-walkin", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const { locationId } = req.params;
     const date = String(req.body?.date || "");
@@ -2591,7 +2809,7 @@ router.post("/api/resy/locations/:locationId/host-walkin", requireResyAdmin, asy
   }
 });
 
-router.post("/api/resy/locations/:locationId/tables/:tableId/pirates", requireResyAdmin, async (req, res) => {
+router.post("/api/resy/locations/:locationId/tables/:tableId/pirates", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const { locationId, tableId } = req.params;
     const date = String(req.body.date || "");
@@ -2681,7 +2899,7 @@ function spansOverlap(left: { start: number; end: number }, right: { start: numb
   return left.start < right.end && right.start < left.end;
 }
 
-router.post("/api/resy/locations/:locationId/floor/suggest", requireResyAdmin, async (req, res) => {
+router.post("/api/resy/locations/:locationId/floor/suggest", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const { locationId } = req.params;
     const date = String(req.body?.date || "");
@@ -2806,7 +3024,7 @@ router.post("/api/resy/locations/:locationId/floor/suggest", requireResyAdmin, a
   }
 });
 
-router.post("/api/resy/locations/:locationId/floor/apply", requireResyAdmin, async (req, res) => {
+router.post("/api/resy/locations/:locationId/floor/apply", requireResyAdmin, requireFloorPin, async (req, res) => {
   try {
     const { locationId } = req.params;
     const date = String(req.body?.date || "");
@@ -4942,9 +5160,33 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
     
     // Step 3: Get turn duration
     const turnDuration = await getTurnDuration(locationId, period.periodId, partySize);
+    const second = await screenSecondReservation({
+      locationId,
+      experienceId,
+      date,
+      time,
+      partySize,
+      customerEmail,
+      customerPhone,
+      turnDuration,
+      acceptSeparateTables: req.body?.acceptSeparateTables === true,
+    });
+    if (second.blocked) return res.status(400).json({ message: second.message, separateOption: second.separateOption === true });
+    if (second.separateAccepted) {
+      req.body.specialRequests = [specialRequests, "Guest accepted that this second table is not close to their other reservation."].filter(Boolean).join(" ");
+    }
+    if (second.moveExisting) {
+      await resyStorage.updateReservation(second.moveExisting.reservationId, {
+        assignedTableId: second.moveExisting.tableId,
+        tableId: second.moveExisting.tableId,
+        tableAssignment: second.moveExisting.tableLabel,
+      });
+    }
     
     // Step 4: Find available table
-    const availableTables = await getAvailableTables(locationId, date, time, partySize, turnDuration);
+    const availableTables = second.tableId
+      ? [{ tableId: second.tableId, tableLabel: second.tableLabel, score: 0 }]
+      : await getAvailableTables(locationId, date, time, partySize, turnDuration);
     if (availableTables.length === 0) {
       return res.status(400).json({ message: "No tables available for this party size at this time" });
     }
@@ -4971,7 +5213,7 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
       customerEmail,
       customerPhone: customerPhone || null,
       notes: notes || null,
-      specialRequests: specialRequests || null,
+      specialRequests: req.body.specialRequests || specialRequests || null,
       status: "booked", // New reservations start as "booked", customer confirms via email link
       confirmationCode,
       confirmationToken,

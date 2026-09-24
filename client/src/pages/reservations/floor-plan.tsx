@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Loader2, Minus, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, floorAccessHeaders, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Location, ResyLocationTable, ResyReservation } from "@shared/schema";
 
@@ -97,7 +97,61 @@ function timeLabel(time: string) {
   return `${hours}:${minutes} ${period}`;
 }
 
-export default function FloorPlan({ hostStation = false }: { hostStation?: boolean }) {
+function FloorCodeGate({ area, title, children }: { area: "host" | "tracker"; title: string; children: ReactNode }) {
+  const { toast } = useToast();
+  const [code, setCode] = useState("");
+  const [ready, setReady] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const storageKey = `floor-access-${area}`;
+
+  useEffect(() => {
+    const token = sessionStorage.getItem(storageKey);
+    if (!token) {
+      setChecking(false);
+      return;
+    }
+    fetch(`/api/resy/floor-access/session`, { credentials: "include", headers: { "x-floor-access": token, "x-floor-area": area } })
+      .then((response) => {
+        if (response.status === 401) sessionStorage.removeItem(storageKey);
+        setReady(response.ok);
+      })
+      .catch(() => setReady(false))
+      .finally(() => setChecking(false));
+  }, [storageKey]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const response = await apiRequest("POST", "/api/resy/floor-access/verify", { area, code }).catch((error: Error) => {
+      toast({ title: title, description: error.message.replace(/^\d+:\s*/, ""), variant: "destructive" });
+      return null;
+    });
+    if (!response) return;
+    const body = await response.json();
+    sessionStorage.setItem(storageKey, body.token);
+    setReady(true);
+  };
+
+  if (checking) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (ready) return <>{children}</>;
+  return (
+    <form onSubmit={submit} className="mx-auto mt-16 max-w-sm space-y-4 rounded-lg border bg-background p-6">
+      <h1 className="font-serif text-2xl">{title}</h1>
+      <p className="text-sm text-muted-foreground">Enter the 4-digit access code to open this page.</p>
+      <input
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={4}
+        pattern="\d{4}"
+        value={code}
+        onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 4))}
+        className="h-12 w-full rounded-md border text-center text-2xl tracking-[0.4em]"
+      />
+      <Button type="submit" className="w-full" disabled={code.length !== 4}>Continue</Button>
+    </form>
+  );
+}
+
+function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
   const { toast } = useToast();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [showHost, setShowHost] = useState(false);
@@ -123,7 +177,7 @@ export default function FloorPlan({ hostStation = false }: { hostStation?: boole
     enabled: !!knoll?.id,
     refetchInterval: 15000,
     queryFn: async () => {
-      const response = await fetch(`/api/resy/locations/${knoll!.id}/floor?date=${date}`, { credentials: "include" });
+      const response = await fetch(`/api/resy/locations/${knoll!.id}/floor?date=${date}`, { credentials: "include", headers: floorAccessHeaders() });
       if (!response.ok) throw new Error("The floor plan could not be loaded.");
       return response.json();
     },
@@ -463,6 +517,14 @@ function tableIsOpen(table: ResyLocationTable, partySize: number, reservations: 
     const window = reservationSpan(reservation);
     return start < window.end && window.start < end;
   });
+}
+
+export default function FloorPlan({ hostStation = false }: { hostStation?: boolean }) {
+  return (
+    <FloorCodeGate area={hostStation ? "host" : "tracker"} title={hostStation ? "Host/Information Center" : "Knoll Table Tracker"}>
+      <FloorPlanScreen hostStation={hostStation} />
+    </FloorCodeGate>
+  );
 }
 
 function Legend({ color, label }: { color: string; label: string }) {
