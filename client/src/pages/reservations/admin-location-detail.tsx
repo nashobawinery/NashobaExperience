@@ -169,6 +169,14 @@ export default function AdminLocationDetail() {
             Back to Locations
           </Button>
           <h1 className="font-serif text-3xl md:text-4xl font-semibold">{location.name}</h1>
+          <a
+            href={`/reservations/locations/${location.id}`}
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            data-testid="link-location-booking-page"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Location booking page
+          </a>
           {location.description && (
             <p className="text-muted-foreground">{location.description}</p>
           )}

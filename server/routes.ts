@@ -28,7 +28,7 @@ function getStorageBucket() {
 }
 import b2bRouter from "./b2b-routes";
 import { establishB2bBridgeSession } from "./b2b-auth";
-import resyRouter from "./resy-routes";
+import resyRouter, { ensureResyMasterPageFlags } from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import staffReportingRouter, { getApprovedStaffPrintMenus, getSharedStaffPortalAccess, syncStaffReportingAssignmentOptions } from "./staff-reporting-routes";
 import accountingRouter, { ensureAccountingTables } from "./accounting-routes";
@@ -138,6 +138,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await ensureAccountingTables();
   } catch (err) {
     console.error("[Accounting] setup failed:", err);
+  }
+
+  try {
+    await ensureResyMasterPageFlags();
+  } catch (err) {
+    console.error("[Reservations] master page flags setup failed:", err);
   }
 
   const isAdmin = requirePlatformRole(['super_admin']);

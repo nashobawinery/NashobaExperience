@@ -11,6 +11,13 @@ import * as XLSX from "xlsx";
 import multer from "multer";
 
 const requireResyAdmin = requireModuleAccess('reservations');
+
+export async function ensureResyMasterPageFlags() {
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS show_on_master_page boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE resy_experiences ADD COLUMN IF NOT EXISTS show_on_master_page boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS headline text`);
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS booking_details text`);
+}
 const isAuthenticated = isPlatformAuthenticated;
 
 // Multer configuration for file uploads

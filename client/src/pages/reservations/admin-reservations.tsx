@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -16,8 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil, Trash2, DollarSign, CalendarIcon, RefreshCw, Table2 } from "lucide-react";
+import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil, Trash2, DollarSign, CalendarIcon, RefreshCw, Table2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -27,11 +28,41 @@ import { insertReservationSchema, type InsertReservation } from "@shared/schema"
 import type { Reservation, Experience } from "@shared/schema";
 import { format } from "date-fns";
 
+type SortColumn = "customer" | "experience" | "date" | "time" | "party" | "table" | "amount" | "status";
+
+function timeToMinutes(time: string | null | undefined): number {
+  if (!time) return 0;
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?/);
+  if (!match) return 0;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const period = match[3]?.toLowerCase();
+  if (period === "pm" && hours < 12) hours += 12;
+  if (period === "am" && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function reservationTableLabel(
+  reservation: Reservation,
+  locationTables?: Array<{ id: string; tableLabel: string }>
+): string {
+  if (reservation.tableAssignment) return reservation.tableAssignment;
+  const assignedIds = (reservation.assignedTableId || "").split(",").filter(Boolean);
+  return assignedIds
+    .map((id) => locationTables?.find((table) => table.id === id)?.tableLabel || "")
+    .filter(Boolean)
+    .join(", ");
+}
+
 export default function AdminReservations() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [experienceFilter, setExperienceFilter] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("time");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
 
@@ -47,15 +78,60 @@ export default function AdminReservations() {
     queryKey: ["/api/resy/location-tables"],
   });
 
-  const filteredReservations = reservations?.filter((reservation) => {
-    const name = (reservation.customerName || "").toLowerCase();
-    const email = (reservation.customerEmail || "").toLowerCase();
-    const matchesSearch = name.includes(searchTerm.toLowerCase()) ||
-      email.includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || reservation.status === statusFilter;
-    const matchesExperience = experienceFilter === "all" || reservation.experienceId === experienceFilter;
-    return matchesSearch && matchesStatus && matchesExperience;
-  }) || [];
+  const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
+
+  const filteredReservations = useMemo(() => {
+    const rows = (reservations || []).filter((reservation) => {
+      const name = (reservation.customerName || "").toLowerCase();
+      const email = (reservation.customerEmail || "").toLowerCase();
+      const matchesSearch = name.includes(searchTerm.toLowerCase()) ||
+        email.includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || reservation.status === statusFilter;
+      const matchesExperience = experienceFilter === "all" || reservation.experienceId === experienceFilter;
+      const matchesDate = reservation.reservationDate === selectedDateKey;
+      return matchesSearch && matchesStatus && matchesExperience && matchesDate;
+    });
+
+    const valueFor = (reservation: Reservation): string | number => {
+      const experience = experiences?.find((item) => item.id === reservation.experienceId);
+      switch (sortColumn) {
+        case "customer":
+          return (reservation.customerName || "").toLowerCase();
+        case "experience":
+          return (experience?.name || "").toLowerCase();
+        case "date":
+          return reservation.reservationDate || "";
+        case "time":
+          return timeToMinutes(reservation.reservationTime);
+        case "party":
+          return reservation.partySize || 0;
+        case "table":
+          return reservationTableLabel(reservation, locationTables).toLowerCase();
+        case "amount":
+          return Number(reservation.totalAmount || 0);
+        case "status":
+          return (reservation.status || "").toLowerCase();
+      }
+    };
+
+    return rows.sort((a, b) => {
+      const left = valueFor(a);
+      const right = valueFor(b);
+      const compared = typeof left === "number" && typeof right === "number"
+        ? left - right
+        : String(left).localeCompare(String(right));
+      return sortDirection === "asc" ? compared : -compared;
+    });
+  }, [reservations, experiences, locationTables, searchTerm, statusFilter, experienceFilter, selectedDateKey, sortColumn, sortDirection]);
+
+  const toggleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((direction) => direction === "asc" ? "desc" : "asc");
+      return;
+    }
+    setSortColumn(column);
+    setSortDirection("asc");
+  };
 
   const handleEdit = (reservation: Reservation) => {
     setEditingReservation(reservation);
@@ -74,7 +150,26 @@ export default function AdminReservations() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="justify-start" data-testid="button-reservation-date">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(selectedDate, "EEEE, MMM d, yyyy")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    if (!date) return;
+                    setSelectedDate(date);
+                    setCalendarOpen(false);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -91,6 +186,7 @@ export default function AdminReservations() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="booked">Booked</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -115,7 +211,7 @@ export default function AdminReservations() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Reservations ({filteredReservations.length})</CardTitle>
+          <CardTitle>{format(selectedDate, "EEEE, MMMM d, yyyy")} ({filteredReservations.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {reservationsLoading ? (
@@ -129,14 +225,14 @@ export default function AdminReservations() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Experience</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Party</TableHead>
-                    <TableHead>Table</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableHead column="customer" label="Customer" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
+                    <SortableHead column="experience" label="Experience" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
+                    <SortableHead column="date" label="Date" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
+                    <SortableHead column="time" label="Time" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
+                    <SortableHead column="party" label="Party" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
+                    <SortableHead column="table" label="Table" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
+                    <SortableHead column="amount" label="Amount" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
+                    <SortableHead column="status" label="Status" sortColumn={sortColumn} sortDirection={sortDirection} onSort={toggleSort} />
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -171,6 +267,36 @@ export default function AdminReservations() {
         locationTables={locationTables}
       />
     </div>
+  );
+}
+
+function SortableHead({
+  column,
+  label,
+  sortColumn,
+  sortDirection,
+  onSort,
+}: {
+  column: SortColumn;
+  label: string;
+  sortColumn: SortColumn;
+  sortDirection: "asc" | "desc";
+  onSort: (column: SortColumn) => void;
+}) {
+  const active = sortColumn === column;
+  const Icon = !active ? ArrowUpDown : sortDirection === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 hover:text-foreground"
+        onClick={() => onSort(column)}
+        data-testid={`sort-${column}`}
+      >
+        {label}
+        <Icon className="h-3.5 w-3.5" />
+      </button>
+    </TableHead>
   );
 }
 

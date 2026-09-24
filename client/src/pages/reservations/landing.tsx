@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ExternalLink, Calendar, Wine, Users, Link2, ShoppingCart, Check, AlertTriangle } from "lucide-react";
-import type { Experience, ResySiteSetting, FooterLink } from "@shared/schema";
+import type { Experience, Location, ResySiteSetting, FooterLink } from "@shared/schema";
 import heroImageDefault from "@/assets/winery-vineyard.jpg";
 import { useReservationCart } from "@/contexts/reservation-cart-context";
 
@@ -34,7 +34,14 @@ export default function Landing() {
 
   const { isInCart, cartCount } = useReservationCart();
 
-  const activeExperiences = experiences?.filter(exp => exp.isActive) || [];
+  const { data: locations, isLoading: locationsLoading } = useQuery<Location[]>({
+    queryKey: ["/api/resy/locations"],
+  });
+
+  const activeExperiences = experiences?.filter(exp => exp.isActive && exp.showOnMasterPage !== false) || [];
+  const masterLocations = (locations || [])
+    .filter((location) => location.isActive && location.showOnMasterPage !== false)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
   
   const siteRow = settingsArray[0];
 
@@ -95,6 +102,53 @@ export default function Landing() {
             From intimate tastings to guided tours and fine dining, discover all that Nashoba Valley has to offer
           </p>
         </div>
+
+        <div className="mb-16">
+          <h3 className="font-serif text-2xl font-medium mb-6">Locations</h3>
+          {locationsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="overflow-hidden">
+                  <div className="h-32 bg-muted animate-pulse" />
+                </Card>
+              ))}
+            </div>
+          ) : masterLocations.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {masterLocations.map((location) => {
+                const linkedImage = (experiences || []).find(
+                  (experience) => experience.locationId === location.id && experience.imageUrl && !experience.imageUrl.startsWith("/@fs/")
+                )?.imageUrl;
+                const image = location.imageUrl || linkedImage || "";
+                return (
+                <Card key={location.id} className="overflow-hidden h-full" data-testid={`card-location-${location.id}`}>
+                  {image && (
+                    <div className="aspect-[4/3] overflow-hidden">
+                      <img src={image} alt={location.name} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <CardContent className="p-6">
+                    <h3 className="font-sans text-xl font-semibold mb-2">{location.name}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
+                      {location.headline || location.bookingDetails || location.description}
+                    </p>
+                    <Link href={`/reservations/locations/${location.id}`}>
+                      <Button className="w-full" data-testid={`button-location-${location.id}`}>
+                        <Calendar className="w-4 h-4 mr-2" />
+                        View reservations
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No locations are listed on this page yet.</p>
+          )}
+        </div>
+
+        <h3 className="font-serif text-2xl font-medium mb-6">Experiences</h3>
 
         {/* Experiences Grid */}
         {experiencesLoading ? (
@@ -182,7 +236,7 @@ export default function Landing() {
   );
 }
 
-function ExperienceCard({ experience, inCart, cartCount }: { experience: Experience; inCart: boolean; cartCount: number }) {
+export function ExperienceCard({ experience, inCart, cartCount }: { experience: Experience; inCart: boolean; cartCount: number }) {
   const [showExternalWarning, setShowExternalWarning] = useState(false);
 
   const getImageUrl = (exp: Experience) => {

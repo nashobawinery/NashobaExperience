@@ -12,9 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight, Copy, Home } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight, Copy, Home, Eye, EyeOff, ExternalLink } from "lucide-react";
 import type { Location, LocationTable, InsertLocationTable, InsertLocation } from "@shared/schema";
 import { insertLocationTableSchema, insertLocationSchema } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,6 +32,19 @@ export default function AdminLocations() {
 
   const { data: allTables, isLoading: tablesLoading } = useQuery<LocationTable[]>({
     queryKey: ["/api/resy/location-tables"],
+  });
+
+  const masterMutation = useMutation({
+    mutationFn: async ({ id, showOnMasterPage }: { id: string; showOnMasterPage: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/resy/locations/${id}`, { showOnMasterPage });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    },
   });
 
   const cloneMutation = useMutation({
@@ -177,6 +191,31 @@ export default function AdminLocations() {
                     <Users className="w-4 h-4" />
                     <span>{tableCount} {tableCount === 1 ? 'table' : 'tables'}</span>
                   </div>
+                  <a
+                    href={`/reservations/locations/${location.id}`}
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                    data-testid={`link-booking-page-${location.id}`}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Location booking page
+                  </a>
+                  <Button
+                    variant={location.showOnMasterPage === false ? "outline" : "secondary"}
+                    className="w-full"
+                    disabled={masterMutation.isPending}
+                    onClick={() => masterMutation.mutate({
+                      id: location.id,
+                      showOnMasterPage: location.showOnMasterPage === false,
+                    })}
+                    data-testid={`button-master-location-${location.id}`}
+                  >
+                    {location.showOnMasterPage === false ? (
+                      <EyeOff className="w-4 h-4 mr-2" />
+                    ) : (
+                      <Eye className="w-4 h-4 mr-2" />
+                    )}
+                    {location.showOnMasterPage === false ? "Excluded from master page" : "Included on master page"}
+                  </Button>
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleManageLocation(location.id)}
@@ -285,6 +324,8 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
       ? {
           name: location.name,
           description: location.description || "",
+          headline: location.headline || "",
+          bookingDetails: location.bookingDetails || "",
           address: location.address || "",
           isActive: location.isActive,
           isTicketedEventLocation: location.isTicketedEventLocation ?? false,
@@ -293,6 +334,8 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
       : {
           name: "",
           description: "",
+          headline: "",
+          bookingDetails: "",
           address: "",
           isActive: true,
           isTicketedEventLocation: false,
@@ -425,18 +468,58 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
 
         <FormField
           control={form.control}
+          name="headline"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Guest headline</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Outdoor seating above the vineyard"
+                  {...field}
+                  value={field.value || ""}
+                  data-testid="input-location-headline"
+                />
+              </FormControl>
+              <FormDescription>Shown at the top of this location's booking page.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel>About this location</FormLabel>
               <FormControl>
-                <Input
-                  placeholder="Fine dining with seasonal menu"
+                <Textarea
+                  placeholder="What guests should know about this place"
                   {...field}
                   value={field.value || ""}
                   data-testid="input-location-description"
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="bookingDetails"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>What guests are booking</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="A table for casual outdoor dining"
+                  {...field}
+                  value={field.value || ""}
+                  data-testid="input-location-booking-details"
+                />
+              </FormControl>
+              <FormDescription>Shown beside the photo on the public booking page.</FormDescription>
               <FormMessage />
             </FormItem>
           )}

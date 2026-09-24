@@ -157,6 +157,7 @@ const FoodTruckCalendar = lazy(() => import("@/pages/FoodTruckCalendar"));
 
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
+const ResyLocationLanding = lazy(() => import("@/pages/reservations/location-landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
 const ResyCart = lazy(() => import("@/pages/reservations/cart"));
 const ResyCheckout = lazy(() => import("@/pages/reservations/checkout"));
@@ -1103,6 +1104,14 @@ function ResyLandingRoute() {
   );
 }
 
+function ResyLocationLandingRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ResyLocationLanding />
+    </Suspense>
+  );
+}
+
 function ResyBookingRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -1499,6 +1508,7 @@ function Router() {
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         {/* Reservation Routes - Customer facing */}
+        <Route path="/reservations/locations/:id" component={ResyLocationLandingRoute} />
         <Route path="/reservations" component={ResyLandingRoute} />
         <Route path="/reservations/booking/:id" component={ResyBookingRoute} />
         <Route path="/reservations/cart" component={ResyCartRoute} />

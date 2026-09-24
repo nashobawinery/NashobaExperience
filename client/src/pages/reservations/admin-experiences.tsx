@@ -17,7 +17,7 @@ import { LabeledSwitch } from "@/components/ui/labeled-switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, ExternalLink, Loader2, Upload, X, Tag, Percent, DollarSign, Calendar, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, ExternalLink, Loader2, Upload, X, Tag, Percent, DollarSign, Calendar, Copy, Eye, EyeOff } from "lucide-react";
 import type { Experience, InsertExperience, TimeSlot, ExperienceDiscount, InsertExperienceDiscount } from "@shared/schema";
 import { insertExperienceSchema, insertExperienceDiscountSchema } from "@shared/schema";
 import { ObjectUploader } from "@/components/ResyObjectUploader";
@@ -159,6 +159,21 @@ function ExperienceCard({ experience, onEdit }: { experience: Experience; onEdit
     },
   });
 
+  const masterMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PATCH", `/api/resy/experiences/${experience.id}`, {
+        showOnMasterPage: experience.showOnMasterPage === false,
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/experiences"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    },
+  });
+
   const cloneMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest("POST", `/api/resy/experiences/${id}/clone`, {});
@@ -233,6 +248,21 @@ function ExperienceCard({ experience, onEdit }: { experience: Experience; onEdit
           </p>
         )}
         <div className="flex gap-2 flex-wrap">
+          <Button
+            variant={experience.showOnMasterPage === false ? "outline" : "secondary"}
+            size="sm"
+            className="w-full"
+            disabled={masterMutation.isPending}
+            onClick={() => masterMutation.mutate()}
+            data-testid={`button-master-experience-${experience.id}`}
+          >
+            {experience.showOnMasterPage === false ? (
+              <EyeOff className="w-3 h-3 mr-1" />
+            ) : (
+              <Eye className="w-3 h-3 mr-1" />
+            )}
+            {experience.showOnMasterPage === false ? "Excluded from master page" : "Included on master page"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
