@@ -21,6 +21,18 @@ export async function ensureResyMasterPageFlags() {
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_closing text`);
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_contact_email varchar(255)`);
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_contact_phone varchar(30)`);
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS ai_knowledge text`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS resy_location_questions (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      location_id varchar NOT NULL,
+      question text NOT NULL,
+      answer text NOT NULL,
+      corrected_answer text,
+      created_at timestamp DEFAULT now(),
+      updated_at timestamp DEFAULT now()
+    )
+  `);
 }
 const isAuthenticated = isPlatformAuthenticated;
 
@@ -34,6 +46,7 @@ import Stripe from "stripe";
 import {
   resyUsers,
   resyLocations,
+  resyLocationQuestions,
   resyExperiences,
   resyClubs,
   resyCustomers,
@@ -54,6 +67,7 @@ import {
   resyEventStaffCodes,
   resySiteSettings,
   resyFooterLinks,
+  users,
   customerIdentities,
   toastGuests,
   resyTicketedEventDefinitions,
@@ -929,6 +943,116 @@ router.get("/api/resy/locations/:id", async (req, res) => {
     res.json(location);
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch location: " + error.message });
+  }
+});
+
+router.get("/api/resy/locations/:id/questions", requireResyAdmin, async (req, res) => {
+  try {
+    const questions = await db.select().from(resyLocationQuestions)
+      .where(eq(resyLocationQuestions.locationId, req.params.id))
+      .orderBy(desc(resyLocationQuestions.createdAt))
+      .limit(30);
+    res.json(questions);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch questions: " + error.message });
+  }
+});
+
+router.patch("/api/resy/locations/:id/questions/:questionId", requireResyAdmin, async (req, res) => {
+  try {
+    const correctedAnswer = String(req.body?.correctedAnswer || "").trim();
+    if (!correctedAnswer) return res.status(400).json({ message: "A corrected answer is required" });
+    const [updated] = await db.update(resyLocationQuestions)
+      .set({ correctedAnswer, updatedAt: new Date() })
+      .where(and(
+        eq(resyLocationQuestions.id, req.params.questionId),
+        eq(resyLocationQuestions.locationId, req.params.id),
+      ))
+      .returning();
+    if (!updated) return res.status(404).json({ message: "Question not found" });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to save correction: " + error.message });
+  }
+});
+
+router.post("/api/resy/locations/:id/ask", async (req, res) => {
+  try {
+    const location = await resyStorage.getLocation(req.params.id);
+    if (!location) return res.status(404).json({ message: "Location not found" });
+    const question = String(req.body?.question || "").trim();
+    if (question.length < 3 || question.length > 500) {
+      return res.status(400).json({ message: "Enter a question of a few words, up to 500 characters." });
+    }
+
+    const corrections = await db.select({
+      question: resyLocationQuestions.question,
+      correctedAnswer: resyLocationQuestions.correctedAnswer,
+    }).from(resyLocationQuestions).where(and(
+      eq(resyLocationQuestions.locationId, location.id),
+      sql`${resyLocationQuestions.correctedAnswer} is not null`,
+    )).orderBy(desc(resyLocationQuestions.updatedAt)).limit(20);
+
+    const facts = corrections
+      .filter((item) => item.correctedAnswer)
+      .map((item) => `Q: ${item.question}\nApproved answer: ${item.correctedAnswer}`)
+      .join("\n\n");
+
+    let answer = "I don't have that detail yet. The team has been notified and can confirm it for you.";
+    if (process.env.OPENAI_API_KEY) {
+      const { default: OpenAI } = await import("openai");
+      const openai = new OpenAI();
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0.2,
+        messages: [
+          {
+            role: "system",
+            content: "You answer guest questions about one Nashoba Valley reservation location. Use only the facts provided. If a fact is missing, say you don't know and that the team can confirm it. Do not invent prices, availability, or policies.",
+          },
+          {
+            role: "user",
+            content: `Location: ${location.name}
+Headline: ${location.headline || ""}
+About: ${location.description || ""}
+What guests book: ${location.bookingDetails || ""}
+Address: ${location.address || ""}
+Staff notes: ${location.aiKnowledge || ""}
+Approved answers:
+${facts || "None yet."}
+
+Guest question: ${question}`,
+          },
+        ],
+      });
+      answer = completion.choices[0]?.message?.content?.trim() || answer;
+    }
+
+    const [saved] = await db.insert(resyLocationQuestions).values({
+      locationId: location.id,
+      question,
+      answer,
+    }).returning();
+
+    const managers = await db.select({ email: users.email }).from(users).where(eq(users.role, "admin"));
+    const recipients = managers
+      .map((manager) => manager.email || "")
+      .filter((email) => email.includes("@") && !email.endsWith("@example.com"));
+    const subject = `Guest question about ${location.name}`;
+    const text = `A guest asked about ${location.name}.\n\nQuestion: ${question}\n\nAnswer sent to the guest:\n${answer}\n\nCorrect this answer in Reservations → Locations → ${location.name} → Settings → Guest questions. Saved corrections are used the next time a guest asks.`;
+    const html = `<p>A guest asked about <strong>${location.name}</strong>.</p><p><strong>Question:</strong> ${question.replace(/</g, "")}</p><p><strong>Answer sent to the guest:</strong></p><p>${answer.replace(/</g, "").replace(/\n/g, "<br>")}</p><p>Correct this answer in Reservations → Locations → ${location.name} → Settings → Guest questions. Saved corrections are used the next time a guest asks.</p>`;
+    for (const email of recipients) {
+      try {
+        await sendEmail(email, subject, html, text);
+      } catch (emailError) {
+        console.error("Failed to email guest question:", emailError);
+      }
+    }
+
+    res.json({ id: saved.id, answer });
+  } catch (error: any) {
+    console.error("Location question failed:", error);
+    res.status(500).json({ message: "Could not answer that question right now." });
   }
 });
 

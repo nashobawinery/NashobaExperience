@@ -3570,6 +3570,47 @@ function TicketedEventForm({
   );
 }
 
+function GuestQuestionCorrections({ locationId }: { locationId: string }) {
+  const { toast } = useToast();
+  const { data: questions = [] } = useQuery<Array<{ id: string; question: string; answer: string; correctedAnswer: string | null }>>({
+    queryKey: ["/api/resy/locations", locationId, "questions"],
+  });
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const saveCorrection = async (questionId: string) => {
+    const correctedAnswer = (drafts[questionId] || "").trim();
+    if (!correctedAnswer) return;
+    try {
+      await apiRequest("PATCH", `/api/resy/locations/${locationId}/questions/${questionId}`, { correctedAnswer });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", locationId, "questions"] });
+      toast({ title: "Correction saved", description: "Future answers will use this correction." });
+    } catch {
+      toast({ title: "Could not save the correction", variant: "destructive" });
+    }
+  };
+
+  if (questions.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      {questions.map((item) => (
+        <div key={item.id} className="rounded-md border p-3 space-y-2">
+          <p className="text-sm font-medium">{item.question}</p>
+          <p className="text-sm text-muted-foreground">{item.correctedAnswer || item.answer}</p>
+          <Textarea
+            value={drafts[item.id] ?? item.correctedAnswer ?? ""}
+            onChange={(event) => setDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+            placeholder="Correct the answer"
+          />
+          <Button type="button" size="sm" variant="outline" onClick={() => saveCorrection(item.id)}>
+            Save correction
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Location Settings Tab - Booking policies and location-wide settings
 function LocationSettingsTab({ locationId, location }: { locationId: string; location: Location }) {
   const { toast } = useToast();
@@ -3583,6 +3624,7 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
   const [confirmationClosing, setConfirmationClosing] = useState(location.confirmationClosing || "");
   const [confirmationContactEmail, setConfirmationContactEmail] = useState(location.confirmationContactEmail || "");
   const [confirmationContactPhone, setConfirmationContactPhone] = useState(location.confirmationContactPhone || "");
+  const [aiKnowledge, setAiKnowledge] = useState(location.aiKnowledge || "");
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -3597,6 +3639,7 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
         confirmationClosing: confirmationClosing.trim() || null,
         confirmationContactEmail: confirmationContactEmail.trim() || null,
         confirmationContactPhone: confirmationContactPhone.trim() || null,
+        aiKnowledge: aiKnowledge.trim() || null,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", locationId] });
@@ -3717,6 +3760,20 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
               />
             </div>
           </div>
+
+          <div className="space-y-2 pt-2">
+            <h3 className="text-sm font-medium">Guest questions</h3>
+            <p className="text-sm text-muted-foreground">
+              These notes are what the reservation page uses when a guest asks a question. Change them when the way you host this reservation changes. Corrected answers below are used as well.
+            </p>
+            <Textarea
+              value={aiKnowledge}
+              onChange={(e) => setAiKnowledge(e.target.value)}
+              placeholder="Hours, seating, walk-ins, cakes, dogs, and anything else guests should be told."
+              data-testid="input-ai-knowledge"
+            />
+          </div>
+          <GuestQuestionCorrections locationId={locationId} />
         </div>
 
         <div className="flex justify-end pt-4 border-t">

@@ -2622,6 +2622,7 @@ export const resyLocations = pgTable("resy_locations", {
   confirmationClosing: text("confirmation_closing"),
   confirmationContactEmail: varchar("confirmation_contact_email", { length: 255 }),
   confirmationContactPhone: varchar("confirmation_contact_phone", { length: 30 }),
+  aiKnowledge: text("ai_knowledge"),
   displayOrder: integer("display_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   isTicketedEventLocation: boolean("is_ticketed_event_location").notNull().default(false),
@@ -2638,6 +2639,20 @@ export const resyLocations = pgTable("resy_locations", {
 export const insertResyLocationSchema = createInsertSchema(resyLocations).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertResyLocation = z.infer<typeof insertResyLocationSchema>;
 export type ResyLocation = typeof resyLocations.$inferSelect;
+
+export const resyLocationQuestions = pgTable("resy_location_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  correctedAnswer: text("corrected_answer"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_resy_location_questions_location").on(table.locationId),
+]);
+
+export type ResyLocationQuestion = typeof resyLocationQuestions.$inferSelect;
 
 // Resy Experiences - Tasting experiences/activities
 export const resyExperiences = pgTable("resy_experiences", {
