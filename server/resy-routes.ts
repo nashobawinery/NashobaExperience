@@ -1244,6 +1244,20 @@ router.get("/api/resy/reservations/:id", async (req, res) => {
   }
 });
 
+function outsideAdvanceBookingWindow(advanceBookingDays: number | null | undefined, reservationDate: string): string | null {
+  if (!advanceBookingDays || advanceBookingDays < 1 || !reservationDate) return null;
+  const [year, month, day] = reservationDate.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const requested = new Date(year, month - 1, day);
+  const latest = new Date();
+  latest.setHours(0, 0, 0, 0);
+  latest.setDate(latest.getDate() + advanceBookingDays);
+  if (requested > latest) {
+    return `Reservations can be made up to ${advanceBookingDays} days in advance.`;
+  }
+  return null;
+}
+
 router.post("/api/resy/reservations", async (req, res) => {
   try {
     // For ticketed events, provide defaults for table reservation fields
@@ -1265,6 +1279,13 @@ router.post("/api/resy/reservations", async (req, res) => {
       }
     }
     
+    const bookingLocationId = data.locationId || experience?.locationId;
+    if (bookingLocationId && data.reservationDate) {
+      const bookingLocation = await resyStorage.getLocation(bookingLocationId);
+      const windowMessage = outsideAdvanceBookingWindow(bookingLocation?.advanceBookingDays, String(data.reservationDate));
+      if (windowMessage) return res.status(400).json({ message: windowMessage });
+    }
+
     const validated = insertResyReservationSchema.parse(data);
     const reservation = await resyStorage.createReservation(validated);
     
@@ -2208,6 +2229,14 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
       return res.status(404).json({ message: "Location not found" });
     }
     
+    const windowMessage = outsideAdvanceBookingWindow(location.advanceBookingDays, String(date));
+    if (windowMessage) {
+      return res.json({
+        availableTimes: [],
+        messages: { closedMessage: windowMessage },
+      });
+    }
+
     // Parse reservation close time if set
     let closeTimeMinutes: number | null = null;
     if (location.reservationCloseTime) {
