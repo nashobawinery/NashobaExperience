@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { reservationHref } from "@/lib/reservationLink";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -369,7 +370,7 @@ export function ExperienceCard({ experience, inCart, cartCount }: { experience: 
             asChild
             data-testid={`button-book-${experience.id}`}
           >
-            <Link href={`/book/${experience.id}`}>
+            <Link href={reservationHref(experience)}>
               {experience.reservationType === 'ticketed' ? (
                 <>
                   <Calendar className="w-4 h-4 mr-2" />

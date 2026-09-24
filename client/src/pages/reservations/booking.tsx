@@ -93,7 +93,8 @@ type AvailableTimeSlot = {
 };
 
 export default function Booking() {
-  const { id } = useParams();
+  const params = useParams<{ id?: string; bookingSlug?: string }>();
+  const id = params.id || params.bookingSlug;
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { addToCart, isInCart, cartCount, customerInfo, setCustomerInfo } = useReservationCart();

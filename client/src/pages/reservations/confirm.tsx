@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle, XCircle, CalendarDays, Clock, Users } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
+import { reservationHref } from "@/lib/reservationLink";
 
 interface ReservationDetails {
   reservation: {
@@ -22,6 +23,7 @@ interface ReservationDetails {
     id: string;
     name: string;
     description?: string;
+    bookingSlug?: string | null;
   } | null;
 }
 
@@ -52,7 +54,7 @@ export default function ConfirmReservation() {
     onSuccess: () => {
       if (mode === "rebook" && data?.experience?.id) {
         setActionTaken("rebooked");
-        setLocation(`/book/${data.experience.id}`);
+        setLocation(reservationHref(data.experience));
         return;
       }
       setActionTaken("cancelled");
@@ -158,7 +160,7 @@ export default function ConfirmReservation() {
               We're sorry we won't be seeing you this time. If you'd like a different time, book again to see what is available.
             </p>
             {experience?.id && (
-              <Button className="mb-4" onClick={() => setLocation(`/book/${experience.id}`)}>
+              <Button className="mb-4" onClick={() => setLocation(reservationHref(experience))}>
                 Book a new time
               </Button>
             )}

@@ -21,6 +21,7 @@ import { Plus, Pencil, Trash2, ExternalLink, Loader2, Upload, X, Tag, Percent, D
 import type { Experience, InsertExperience, TimeSlot, ExperienceDiscount, InsertExperienceDiscount } from "@shared/schema";
 import { insertExperienceSchema, insertExperienceDiscountSchema } from "@shared/schema";
 import { ObjectUploader } from "@/components/ResyObjectUploader";
+import { reservationHref } from "@/lib/reservationLink";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "Sunday" },
@@ -250,18 +251,15 @@ function ExperienceCard({ experience, onEdit }: { experience: Experience; onEdit
         {!experience.isExternal && (
           <div className="space-y-1 mb-4">
             <a
-              href={`/book/${experience.id}`}
+              href={reservationHref(experience)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
               data-testid={`link-experience-booking-${experience.id}`}
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              Guest reservation link
+              {window.location.origin}{reservationHref(experience)}
             </a>
-            <p className="text-xs text-muted-foreground break-all">
-              {window.location.origin}/book/{experience.id}
-            </p>
           </div>
         )}
         <div className="flex gap-2 flex-wrap">
@@ -836,6 +834,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
     resolver: zodResolver(insertExperienceSchema),
     defaultValues: experience ? {
       name: experience.name,
+      bookingSlug: experience.bookingSlug || "",
       shortDescription: experience.shortDescription || "",
       longDescription: experience.longDescription || "",
       imageUrl: experience.imageUrl || "",
@@ -850,6 +849,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
       pointsEarned: experience.pointsEarned ?? 0,
     } : {
       name: "",
+      bookingSlug: "",
       shortDescription: "",
       longDescription: "",
       imageUrl: "",
@@ -945,12 +945,27 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
   });
 
   const onSubmit = (data: InsertExperience) => {
-    saveMutation.mutate(data);
+    saveMutation.mutate({ ...data, bookingSlug: data.bookingSlug?.trim() || null });
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="bookingSlug"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Reservation link</FormLabel>
+              <FormControl>
+                <Input placeholder="knollresy" {...field} value={field.value || ""} data-testid="input-booking-slug" />
+              </FormControl>
+              <FormDescription>Short address, such as knollresy. The public link becomes /knollresy.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="name"

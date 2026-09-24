@@ -16,7 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight, Copy, Home, Eye, EyeOff, ExternalLink } from "lucide-react";
-import type { Location, LocationTable, InsertLocationTable, InsertLocation } from "@shared/schema";
+import type { Experience, Location, LocationTable, InsertLocationTable, InsertLocation } from "@shared/schema";
+import { reservationHref } from "@/lib/reservationLink";
 import { insertLocationTableSchema, insertLocationSchema } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -28,6 +29,10 @@ export default function AdminLocations() {
 
   const { data: locations, isLoading: locationsLoading } = useQuery<Location[]>({
     queryKey: ["/api/resy/locations"],
+  });
+
+  const { data: experiences } = useQuery<Experience[]>({
+    queryKey: ["/api/resy/experiences"],
   });
 
   const { data: allTables, isLoading: tablesLoading } = useQuery<LocationTable[]>({
@@ -192,19 +197,19 @@ export default function AdminLocations() {
                     <span>{tableCount} {tableCount === 1 ? 'table' : 'tables'}</span>
                   </div>
                   <div className="space-y-1">
-                    <a
-                      href={`/reservations/locations/${location.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                      data-testid={`link-booking-page-${location.id}`}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Guest reservation link
-                    </a>
-                    <p className="text-xs text-muted-foreground break-all">
-                      {window.location.origin}/reservations/locations/{location.id}
-                    </p>
+                    {(experiences || []).filter((experience) => experience.locationId === location.id && !experience.isExternal).map((experience) => (
+                      <a
+                        key={experience.id}
+                        href={reservationHref(experience)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline break-all"
+                        data-testid={`link-booking-page-${experience.id}`}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                        {window.location.origin}{reservationHref(experience)}
+                      </a>
+                    ))}
                   </div>
                   <Button
                     variant={location.showOnMasterPage === false ? "outline" : "secondary"}

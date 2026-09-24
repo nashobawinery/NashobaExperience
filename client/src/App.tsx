@@ -169,6 +169,7 @@ const ResyAdminHome = lazy(() => import("@/pages/reservations/admin-home"));
 const ResyAdminCalendar = lazy(() => import("@/pages/reservations/admin-calendar"));
 const ResyAdminExperiences = lazy(() => import("@/pages/reservations/admin-experiences"));
 const ResyAdminReservations = lazy(() => import("@/pages/reservations/admin-reservations"));
+const ResyFloorPlan = lazy(() => import("@/pages/reservations/floor-plan"));
 const ResyAdminLocations = lazy(() => import("@/pages/reservations/admin-locations"));
 const ResyAdminLocationDetail = lazy(() => import("@/pages/reservations/admin-location-detail"));
 const ResyAdminCustomers = lazy(() => import("@/pages/reservations/admin-customers"));
@@ -1185,6 +1186,22 @@ function ResyAdminReservationsRoute() {
   );
 }
 
+function ResyFloorPlanRoute() {
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyFloorPlan /></Suspense>
+    </ResyAuthGuard>
+  );
+}
+
+function ResyHostStationRoute() {
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyFloorPlan hostStation /></Suspense>
+    </ResyAuthGuard>
+  );
+}
+
 function ResyAdminLocationsRoute() {
   return (
     <ResyAuthGuard>
@@ -1525,6 +1542,10 @@ function Router() {
         <Route path="/reservations/admin/calendar" component={ResyAdminCalendarRoute} />
         <Route path="/reservations/admin/experiences" component={ResyAdminExperiencesRoute} />
         <Route path="/reservations/admin/reservations" component={ResyAdminReservationsRoute} />
+        <Route path="/reservations/admin/floor" component={ResyFloorPlanRoute} />
+        <Route path="/reservations/admin/host" component={ResyHostStationRoute} />
+        <Route path="/knoll-tracker" component={ResyFloorPlanRoute} />
+        <Route path="/host" component={ResyHostStationRoute} />
         <Route path="/reservations/admin/locations" component={ResyAdminLocationsRoute} />
         <Route path="/reservations/admin/locations/:id" component={ResyAdminLocationDetailRoute} />
         <Route path="/reservations/admin/customers" component={ResyAdminCustomersRoute} />
@@ -1537,6 +1558,7 @@ function Router() {
         <Route path="/reservations/admin/flow-settings" component={ResyAdminFlowSettingsRoute} />
         <Route path="/reservations/admin/settings" component={ResyAdminSettingsRoute} />
         <Route path="/reservations/admin/documentation" component={ResyAdminDocumentationRoute} />
+        <Route path="/:bookingSlug" component={ResyBookingRoute} />
         <Route component={NotFound} />
       </Switch>
     </div>

@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, CreditCard, Mail, Bell } from "lucide-react";
 import type { Reservation, Experience } from "@shared/schema";
+import { reservationHref } from "@/lib/reservationLink";
 import { format } from "date-fns";
 
 function formatTo12Hour(time24: string): string {
@@ -243,7 +244,7 @@ export default function Checkout() {
       <header className="border-b sticky top-0 bg-background z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center">
           <Button variant="ghost" asChild data-testid="button-back">
-            <Link href={`/book/${experience.id}`}>
+            <Link href={reservationHref(experience)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Link>

@@ -18,7 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink, Settings, Check, X, Download, Upload, FileSpreadsheet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Location, LocationTable, InsertLocationTable, MealPeriod, InsertMealPeriod, OperatingHours, InsertOperatingHours, FlowControl, InsertFlowControl, TurnTimeSettings, InsertTurnTimeSettings } from "@shared/schema";
+import type { Experience, Location, LocationTable, InsertLocationTable, MealPeriod, InsertMealPeriod, OperatingHours, InsertOperatingHours, FlowControl, InsertFlowControl, TurnTimeSettings, InsertTurnTimeSettings } from "@shared/schema";
+import { reservationHref } from "@/lib/reservationLink";
 import { insertLocationTableSchema, insertMealPeriodSchema, insertOperatingHoursSchema, insertFlowControlSchema, insertTurnTimeSettingsSchema } from "@shared/schema";
 
 const MEAL_PERIOD_NAMES = ["breakfast", "lunch", "dinner", "brunch", "retail", "other"];
@@ -129,6 +130,11 @@ export default function AdminLocationDetail() {
     enabled: !!locationId,
   });
 
+  const { data: experiences } = useQuery<Experience[]>({
+    queryKey: ["/api/resy/experiences"],
+    enabled: !!locationId,
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-8">
@@ -171,19 +177,19 @@ export default function AdminLocationDetail() {
           </Button>
           <h1 className="font-serif text-3xl md:text-4xl font-semibold">{location.name}</h1>
           <div className="space-y-1">
-            <a
-              href={`/reservations/locations/${location.id}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-              data-testid="link-location-booking-page"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Guest reservation link
-            </a>
-            <p className="text-xs text-muted-foreground break-all" data-testid="text-location-booking-url">
-              {window.location.origin}/reservations/locations/{location.id}
-            </p>
+            {(experiences || []).filter((experience) => experience.locationId === location.id && !experience.isExternal).map((experience) => (
+              <a
+                key={experience.id}
+                href={reservationHref(experience)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline break-all"
+                data-testid={`link-location-booking-page-${experience.id}`}
+              >
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                {window.location.origin}{reservationHref(experience)}
+              </a>
+            ))}
           </div>
           {location.description && (
             <p className="text-muted-foreground">{location.description}</p>

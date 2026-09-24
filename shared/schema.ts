@@ -2674,6 +2674,7 @@ export const resyExperiences = pgTable("resy_experiences", {
   showOnMasterPage: boolean("show_on_master_page").notNull().default(true),
   location: text("location"),
   locationId: varchar("location_id"),
+  bookingSlug: varchar("booking_slug", { length: 80 }),
   showWaitlist: boolean("show_waitlist").notNull().default(false),
   closedMessage: text("closed_message"),
   fullyBookedMessage: text("fully_booked_message"),
@@ -2758,6 +2759,7 @@ export const resyReservations = pgTable("resy_reservations", {
   holdStart: varchar("hold_start", { length: 5 }), // Time when table hold starts (HH:MM)
   holdEnd: varchar("hold_end", { length: 5 }), // Time when table hold ends (HH:MM based on turn time)
   turnDuration: integer("turn_duration"), // Duration in minutes for this reservation
+  seatedAt: timestamp("seated_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -2995,8 +2997,21 @@ export const resyLocationTables = pgTable("resy_location_tables", {
   isCommunal: boolean("is_communal").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   isPaused: boolean("is_paused").notNull().default(false),
+  posX: integer("pos_x"),
+  posY: integer("pos_y"),
+  floorSection: varchar("floor_section", { length: 40 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const resyTableWalkins = pgTable("resy_table_walkins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  tableId: varchar("table_id").notNull(),
+  serviceDate: varchar("service_date", { length: 10 }).notNull(),
+  label: text("label").notNull().default("Pirates!!!"),
+  clearedAt: timestamp("cleared_at"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const insertResyLocationTableSchema = createInsertSchema(resyLocationTables).omit({ id: true, createdAt: true, updatedAt: true });

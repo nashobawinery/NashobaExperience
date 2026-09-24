@@ -12,6 +12,76 @@ import multer from "multer";
 
 const requireResyAdmin = requireModuleAccess('reservations');
 
+const RESERVED_BOOKING_SLUGS = new Set([
+  "accounting", "admin", "admin-hub", "apple-game", "b2b", "book", "boomerang", "cellartraks",
+  "checkout", "command-center", "company-info", "compliance", "confirmation", "contact", "contracts",
+  "daily-report", "daily-reports", "department-calendar", "display", "enhancement-requests",
+  "event-calendar", "event-registration", "events", "faq", "faq-widget", "food-trucks", "future-concepts",
+  "hub", "host", "knoll-tracker", "lms", "maintenance", "media", "media-center", "media-library", "module-management", "modules",
+  "music", "operations", "procedures", "rcc", "reservations", "reset-password", "spot-inventory",
+  "staff", "staff-dashboard", "staff-reporting", "support", "tasting", "toast-connect", "training",
+  "unsubscribe",
+]);
+
+async function normalizeBookingSlug(data: Record<string, unknown>, currentId?: string) {
+  if (!Object.prototype.hasOwnProperty.call(data, "bookingSlug")) return data;
+  const raw = data.bookingSlug;
+  if (raw == null || String(raw).trim() === "") {
+    data.bookingSlug = null;
+    return data;
+  }
+  const slug = String(raw).trim().toLowerCase();
+  if (!/^[a-z0-9]{3,80}$/.test(slug)) {
+    throw new Error("Reservation link must be 3 to 80 letters or numbers, with no spaces or symbols.");
+  }
+  if (RESERVED_BOOKING_SLUGS.has(slug)) {
+    throw new Error("Choose a different reservation link. That address is already used by the site.");
+  }
+  const [existing] = await db.select({ id: resyExperiences.id }).from(resyExperiences).where(eq(resyExperiences.bookingSlug, slug));
+  if (existing && existing.id !== currentId) {
+    throw new Error("That reservation link is already used by another experience.");
+  }
+  data.bookingSlug = slug;
+  return data;
+}
+
+const KNOLL_LOCATION_ID = "b8ab57a7-e755-4e2c-910f-439909a148b3";
+
+const KNOLL_FLOOR_SECTIONS: Array<{ section: string; test: (label: string) => boolean; y: number }> = [
+  { section: "A", test: (label) => /^A\d+$/.test(label), y: 70 },
+  { section: "B", test: (label) => /^B\d+$/.test(label), y: 200 },
+  { section: "C", test: (label) => /^C\d+$/.test(label), y: 330 },
+  { section: "D", test: (label) => /^D\d+$/.test(label), y: 460 },
+  { section: "E", test: (label) => /^E\d+$/.test(label), y: 590 },
+  { section: "F", test: (label) => /^F\d+$/.test(label), y: 720 },
+  { section: "G", test: (label) => /^G\d+$/.test(label), y: 850 },
+  { section: "V", test: (label) => /^V\d+$/.test(label), y: 980 },
+  { section: "P", test: (label) => /^P\d+$/.test(label), y: 1110 },
+  { section: "Deck 1", test: (label) => /^1D\d+$/.test(label), y: 1280 },
+  { section: "Deck 2", test: (label) => /^2D\d+$/.test(label), y: 1410 },
+];
+
+function tableLabelNumber(label: string): number {
+  const match = label.match(/(\d+)$/);
+  return match ? Number(match[1]) : 0;
+}
+
+async function seedKnollFloorLayout() {
+  const tables = await db.select().from(resyLocationTables).where(eq(resyLocationTables.locationId, KNOLL_LOCATION_ID));
+  for (const group of KNOLL_FLOOR_SECTIONS) {
+    const members = tables
+      .filter((table) => table.isActive && !table.isPaused && group.test(table.tableLabel) && table.posX == null)
+      .sort((a, b) => tableLabelNumber(a.tableLabel) - tableLabelNumber(b.tableLabel) || a.tableLabel.localeCompare(b.tableLabel));
+    for (let index = 0; index < members.length; index++) {
+      await db.update(resyLocationTables).set({
+        posX: 70 + index * 110,
+        posY: group.y,
+        floorSection: group.section,
+      }).where(eq(resyLocationTables.id, members[index].id));
+    }
+  }
+}
+
 export async function ensureResyMasterPageFlags() {
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS show_on_master_page boolean NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE resy_experiences ADD COLUMN IF NOT EXISTS show_on_master_page boolean NOT NULL DEFAULT true`);
@@ -22,6 +92,30 @@ export async function ensureResyMasterPageFlags() {
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_contact_email varchar(255)`);
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_contact_phone varchar(30)`);
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS ai_knowledge text`);
+  await db.execute(sql`ALTER TABLE resy_experiences ADD COLUMN IF NOT EXISTS booking_slug varchar(80)`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS resy_experiences_booking_slug_key ON resy_experiences (booking_slug)`);
+  await db.execute(sql`
+    UPDATE resy_experiences
+    SET booking_slug = 'knollresy'
+    WHERE id = 'fd589420-3c4f-4c93-b1e8-069c66db7516'
+      AND (booking_slug IS NULL OR booking_slug = '')
+  `);
+  await db.execute(sql`ALTER TABLE resy_location_tables ADD COLUMN IF NOT EXISTS pos_x integer`);
+  await db.execute(sql`ALTER TABLE resy_location_tables ADD COLUMN IF NOT EXISTS pos_y integer`);
+  await db.execute(sql`ALTER TABLE resy_location_tables ADD COLUMN IF NOT EXISTS floor_section varchar(40)`);
+  await db.execute(sql`ALTER TABLE resy_reservations ADD COLUMN IF NOT EXISTS seated_at timestamp`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS resy_table_walkins (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      location_id varchar NOT NULL,
+      table_id varchar NOT NULL,
+      service_date varchar(10) NOT NULL,
+      label text NOT NULL DEFAULT 'Pirates!!!',
+      cleared_at timestamp,
+      created_at timestamp DEFAULT now()
+    )
+  `);
+  await seedKnollFloorLayout();
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS resy_location_questions (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -59,6 +153,7 @@ import {
   resySpecialDates,
   resyLocationHolidays,
   resyLocationTables,
+  resyTableWalkins,
   resyFlowControls,
   resyTurnTimeSettings,
   resyExperienceDiscounts,
@@ -270,7 +365,9 @@ class ResyStorage {
 
   async getExperience(id: string): Promise<ResyExperience | undefined> {
     const [experience] = await db.select().from(resyExperiences).where(eq(resyExperiences.id, id));
-    return experience;
+    if (experience) return experience;
+    const [bySlug] = await db.select().from(resyExperiences).where(eq(resyExperiences.bookingSlug, id));
+    return bySlug;
   }
 
   async createExperience(data: any): Promise<ResyExperience> {
@@ -1146,7 +1243,7 @@ router.get("/api/resy/experiences/:id", async (req, res) => {
 
 router.post("/api/resy/experiences", requireResyAdmin, async (req, res) => {
   try {
-    const validated = insertResyExperienceSchema.parse(req.body);
+    const validated = await normalizeBookingSlug(insertResyExperienceSchema.parse(req.body) as Record<string, unknown>);
     const experience = await resyStorage.createExperience(validated);
     res.json(experience);
   } catch (error: any) {
@@ -1156,7 +1253,7 @@ router.post("/api/resy/experiences", requireResyAdmin, async (req, res) => {
 
 router.patch("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => {
   try {
-    const validated = insertResyExperienceSchema.partial().parse(req.body);
+    const validated = await normalizeBookingSlug(insertResyExperienceSchema.partial().parse(req.body) as Record<string, unknown>, req.params.id);
     const experience = await resyStorage.updateExperience(req.params.id, validated);
     if (!experience) return res.status(404).json({ message: "Experience not found" });
     res.json(experience);
@@ -1167,7 +1264,7 @@ router.patch("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => 
 
 router.put("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => {
   try {
-    const validated = insertResyExperienceSchema.partial().parse(req.body);
+    const validated = await normalizeBookingSlug(insertResyExperienceSchema.partial().parse(req.body) as Record<string, unknown>, req.params.id);
     const experience = await resyStorage.updateExperience(req.params.id, validated);
     if (!experience) return res.status(404).json({ message: "Experience not found" });
     res.json(experience);
@@ -1210,6 +1307,7 @@ router.post("/api/resy/experiences/:id/clone", requireResyAdmin, async (req, res
       ...cloneData,
       name: `${original.name} copy`,
       isActive: false,
+      bookingSlug: null,
     });
     res.json(cloned);
   } catch (error: any) {
@@ -1324,7 +1422,7 @@ router.get("/api/resy/experiences/:experienceId/timeslots", async (req, res) => 
     }
     
     // Fall back to legacy timeslots table
-    const slots = await resyStorage.getTimeSlotsByExperience(req.params.experienceId);
+    const slots = await resyStorage.getTimeSlotsByExperience(experience?.id || req.params.experienceId);
     res.json(slots);
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch timeslots: " + error.message });
@@ -1483,7 +1581,8 @@ router.post("/api/resy/reservations", async (req, res) => {
         const dayReservations = await db.select().from(resyReservations).where(and(
           eq(resyReservations.locationId, bookingLocationId),
           eq(resyReservations.reservationDate, String(data.reservationDate)),
-          not(eq(resyReservations.status, "cancelled"))
+          not(eq(resyReservations.status, "cancelled")),
+          not(eq(resyReservations.status, "completed"))
         ));
         const dailyUsed = dayReservations.reduce((sum, reservation) => sum + (reservation.partySize || 0), 0);
         const flowControls = await resyStorage.getFlowControlsByLocation(bookingLocationId);
@@ -2240,6 +2339,540 @@ router.get("/api/resy/locations/:locationId/tables", async (req, res) => {
   }
 });
 
+function reservationUsesTable(reservation: { assignedTableId: string | null; tableId: string | null }, tableId: string) {
+  if (reservation.tableId === tableId) return true;
+  return (reservation.assignedTableId || "").split(",").filter(Boolean).includes(tableId);
+}
+
+function replaceReservationTable(
+  reservation: { assignedTableId: string | null; tableId: string | null; tableAssignment: string | null },
+  fromId: string,
+  toId: string,
+  fromLabel: string,
+  toLabel: string,
+) {
+  const assignedIds = (reservation.assignedTableId || "").split(",").filter(Boolean);
+  const nextIds = assignedIds.map((id) => (id === fromId ? toId : id));
+  const nextAssignment = (reservation.tableAssignment || "")
+    .split(",")
+    .map((label) => label.trim())
+    .filter(Boolean)
+    .map((label) => (label === fromLabel ? toLabel : label))
+    .join(", ");
+  return {
+    assignedTableId: nextIds.length ? nextIds.join(",") : toId,
+    tableId: reservation.tableId === fromId ? toId : reservation.tableId,
+    tableAssignment: nextAssignment || toLabel,
+  };
+}
+
+async function openWalkinTableIds(locationId: string, date: string) {
+  const rows = await db.select({ tableId: resyTableWalkins.tableId }).from(resyTableWalkins).where(and(
+    eq(resyTableWalkins.locationId, locationId),
+    eq(resyTableWalkins.serviceDate, date),
+    sql`${resyTableWalkins.clearedAt} IS NULL`,
+  ));
+  return new Set(rows.map((row) => row.tableId));
+}
+
+router.get("/api/resy/locations/:locationId/floor", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const date = String(req.query.date || new Date().toISOString().slice(0, 10));
+    const [tables, reservations, walkins] = await Promise.all([
+      db.select().from(resyLocationTables).where(and(
+        eq(resyLocationTables.locationId, locationId),
+        eq(resyLocationTables.isActive, true),
+        eq(resyLocationTables.isPaused, false),
+      )),
+      db.select().from(resyReservations).where(and(
+        eq(resyReservations.locationId, locationId),
+        eq(resyReservations.reservationDate, date),
+        not(eq(resyReservations.status, "cancelled")),
+      )),
+      db.select().from(resyTableWalkins).where(and(
+        eq(resyTableWalkins.locationId, locationId),
+        eq(resyTableWalkins.serviceDate, date),
+        sql`${resyTableWalkins.clearedAt} IS NULL`,
+      )),
+    ]);
+    const turnRows = await db.select().from(resyTurnTimeSettings).where(and(
+      eq(resyTurnTimeSettings.locationId, locationId),
+      eq(resyTurnTimeSettings.isActive, true),
+    ));
+    const turnMinutes = turnRows[0]?.durationMinutes || 180;
+    res.json({ date, tables, reservations, walkins, turnMinutes });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to load the floor plan: " + error.message });
+  }
+});
+
+router.patch("/api/resy/location-tables/:id/position", requireResyAdmin, async (req, res) => {
+  try {
+    const posX = Number(req.body.posX);
+    const posY = Number(req.body.posY);
+    if (!Number.isFinite(posX) || !Number.isFinite(posY)) {
+      return res.status(400).json({ message: "A table position is required." });
+    }
+    const [table] = await db.update(resyLocationTables).set({
+      posX: Math.round(posX),
+      posY: Math.round(posY),
+      updatedAt: new Date(),
+    }).where(eq(resyLocationTables.id, req.params.id)).returning();
+    if (!table) return res.status(404).json({ message: "Table not found" });
+    res.json(table);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to move the table: " + error.message });
+  }
+});
+
+router.post("/api/resy/reservations/:id/arrive", requireResyAdmin, async (req, res) => {
+  try {
+    const reservation = await resyStorage.getReservation(req.params.id);
+    if (!reservation) return res.status(404).json({ message: "Reservation not found" });
+    if (reservation.status === "cancelled" || reservation.status === "completed") {
+      return res.status(400).json({ message: "This reservation is no longer active." });
+    }
+    if (!reservation.assignedTableId && !reservation.tableId) {
+      return res.status(400).json({ message: "Assign this reservation to a table before seating the party." });
+    }
+    const tableIds = (reservation.assignedTableId || reservation.tableId || "").split(",").filter(Boolean);
+    const sameDay = await db.select().from(resyReservations).where(and(
+      eq(resyReservations.locationId, reservation.locationId || ""),
+      eq(resyReservations.reservationDate, reservation.reservationDate),
+      eq(resyReservations.status, "seated"),
+    ));
+    const alreadySeated = sameDay.find((row) => row.id !== reservation.id && tableIds.some((tableId) => reservationUsesTable(row, tableId)));
+    if (alreadySeated) {
+      return res.status(400).json({ message: `${alreadySeated.customerName} is already seated at that table.` });
+    }
+    const updated = await resyStorage.updateReservation(reservation.id, { status: "seated", seatedAt: new Date() });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to seat the reservation: " + error.message });
+  }
+});
+
+router.post("/api/resy/locations/:locationId/tables/:tableId/clear", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId, tableId } = req.params;
+    const date = String(req.body.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ message: "A service date is required." });
+    const [walkin] = await db.select().from(resyTableWalkins).where(and(
+      eq(resyTableWalkins.locationId, locationId),
+      eq(resyTableWalkins.tableId, tableId),
+      eq(resyTableWalkins.serviceDate, date),
+      sql`${resyTableWalkins.clearedAt} IS NULL`,
+    ));
+    if (walkin) {
+      await db.update(resyTableWalkins).set({ clearedAt: new Date() }).where(eq(resyTableWalkins.id, walkin.id));
+      return res.json({ cleared: "walkin" });
+    }
+    const reservations = await db.select().from(resyReservations).where(and(
+      eq(resyReservations.locationId, locationId),
+      eq(resyReservations.reservationDate, date),
+      eq(resyReservations.status, "seated"),
+    ));
+    const seated = reservations.find((reservation) => reservationUsesTable(reservation, tableId));
+    if (!seated) return res.status(400).json({ message: "That table does not have a seated party." });
+    await resyStorage.updateReservation(seated.id, { status: "completed" });
+    res.json({ cleared: "reservation", reservationId: seated.id });
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to clear the table: " + error.message });
+  }
+});
+
+router.post("/api/resy/locations/:locationId/tables/swap", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const { date, fromTableId, toTableId } = req.body || {};
+    if (!fromTableId || !toTableId || fromTableId === toTableId) {
+      return res.status(400).json({ message: "Choose two different tables." });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return res.status(400).json({ message: "A service date is required." });
+    const tables = await db.select().from(resyLocationTables).where(eq(resyLocationTables.locationId, locationId));
+    const fromTable = tables.find((table) => table.id === fromTableId);
+    const toTable = tables.find((table) => table.id === toTableId);
+    if (!fromTable || !toTable) return res.status(404).json({ message: "Table not found" });
+    const reservations = await db.select().from(resyReservations).where(and(
+      eq(resyReservations.locationId, locationId),
+      eq(resyReservations.reservationDate, String(date)),
+      not(eq(resyReservations.status, "cancelled")),
+      not(eq(resyReservations.status, "completed")),
+    ));
+    const moving = reservations.filter((reservation) => reservationUsesTable(reservation, fromTableId) || reservationUsesTable(reservation, toTableId));
+    for (const reservation of moving) {
+      const sourceId = reservationUsesTable(reservation, fromTableId) ? fromTableId : toTableId;
+      const target = sourceId === fromTableId ? toTable : fromTable;
+      const source = sourceId === fromTableId ? fromTable : toTable;
+      const next = replaceReservationTable(reservation, source.id, target.id, source.tableLabel, target.tableLabel);
+      await resyStorage.updateReservation(reservation.id, next);
+    }
+    res.json({ moved: moving.length });
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to move the reservations: " + error.message });
+  }
+});
+
+router.post("/api/resy/locations/:locationId/host-walkin", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const date = String(req.body?.date || "");
+    const customerName = String(req.body?.customerName || "").trim();
+    const customerPhone = String(req.body?.customerPhone || "").trim();
+    const partySize = Number(req.body?.partySize);
+    const tableId = String(req.body?.tableId || "");
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    if (date !== todayKey) return res.status(400).json({ message: "A host walk-in is seated today." });
+    if (!customerName || !customerPhone) return res.status(400).json({ message: "A name and phone number are required." });
+    if (!Number.isInteger(partySize) || partySize < 1) return res.status(400).json({ message: "A party size is required." });
+    const [table] = await db.select().from(resyLocationTables).where(and(
+      eq(resyLocationTables.id, tableId),
+      eq(resyLocationTables.locationId, locationId),
+      eq(resyLocationTables.isActive, true),
+      eq(resyLocationTables.isPaused, false),
+    ));
+    if (!table) return res.status(404).json({ message: "Table not found" });
+    if (partySize < table.minCapacity || partySize > table.maxCapacity) {
+      return res.status(400).json({ message: `${table.tableLabel} seats ${table.minCapacity} to ${table.maxCapacity}.` });
+    }
+    const walkins = await openWalkinTableIds(locationId, date);
+    if (walkins.has(tableId)) return res.status(400).json({ message: `${table.tableLabel} is occupied by Pirates!!!.` });
+    const reservations = await db.select().from(resyReservations).where(and(
+      eq(resyReservations.locationId, locationId),
+      eq(resyReservations.reservationDate, date),
+      not(eq(resyReservations.status, "cancelled")),
+      not(eq(resyReservations.status, "completed")),
+    ));
+    if (reservations.some((reservation) => reservation.status === "seated" && reservationUsesTable(reservation, tableId))) {
+      return res.status(400).json({ message: `${table.tableLabel} is already occupied.` });
+    }
+    const start = today.getHours() * 60 + today.getMinutes();
+    const duration = await getTurnDuration(locationId, null, partySize);
+    const end = start + duration;
+    const conflict = reservations.some((reservation) => {
+      if (!reservationUsesTable(reservation, tableId)) return false;
+      const window = reservationSpan(reservation);
+      return start < window.end && window.start < end;
+    });
+    if (conflict) return res.status(400).json({ message: `${table.tableLabel} has a reservation during this seating.` });
+    const [experience] = await db.select().from(resyExperiences).where(and(
+      eq(resyExperiences.locationId, locationId),
+      eq(resyExperiences.isActive, true),
+    ));
+    if (!experience) return res.status(400).json({ message: "This location does not have a reservation to attach the walk-in to." });
+    const holdStart = minutesToTime(start);
+    const holdEnd = minutesToTime(end);
+    const phoneDigits = customerPhone.replace(/\D/g, "") || String(Date.now());
+    const reservation = await resyStorage.createReservation({
+      experienceId: experience.id,
+      locationId,
+      reservationDate: date,
+      reservationTime: holdStart,
+      partySize,
+      customerName,
+      customerEmail: `walkin-${phoneDigits}@guest.nashobawinery.org`,
+      customerPhone,
+      status: "seated",
+      notes: "Seated by the host as a walk-in.",
+      assignedTableId: table.id,
+      tableId: table.id,
+      tableAssignment: table.tableLabel,
+      holdStart,
+      holdEnd,
+      turnDuration: duration,
+      seatedAt: new Date(),
+      confirmationCode: `W${phoneDigits.slice(-4)}${start}`,
+    });
+    res.json(reservation);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to seat the walk-in: " + error.message });
+  }
+});
+
+router.post("/api/resy/locations/:locationId/tables/:tableId/pirates", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId, tableId } = req.params;
+    const date = String(req.body.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ message: "A service date is required." });
+    const walkins = await openWalkinTableIds(locationId, date);
+    if (walkins.has(tableId)) return res.status(400).json({ message: "Pirates!!! are already seated at that table." });
+    const tables = await db.select().from(resyLocationTables).where(and(
+      eq(resyLocationTables.locationId, locationId),
+      eq(resyLocationTables.isActive, true),
+      eq(resyLocationTables.isPaused, false),
+    ));
+    const source = tables.find((table) => table.id === tableId);
+    if (!source) return res.status(404).json({ message: "Table not found" });
+    const reservations = await db.select().from(resyReservations).where(and(
+      eq(resyReservations.locationId, locationId),
+      eq(resyReservations.reservationDate, date),
+      not(eq(resyReservations.status, "cancelled")),
+      not(eq(resyReservations.status, "completed")),
+    ));
+    const onTable = reservations.filter((reservation) => reservationUsesTable(reservation, tableId));
+    if (onTable.some((reservation) => reservation.status === "seated")) {
+      return res.status(400).json({ message: "Clear the seated party before seating a walk-in." });
+    }
+    const displaced: string[] = [];
+    const placed: string[] = [];
+    const windows = (reservation: typeof onTable[number]) => ({
+      start: timeToMinutes(reservation.holdStart || reservation.reservationTime),
+      end: timeToMinutes(reservation.holdEnd || reservation.reservationTime) + (reservation.holdEnd ? 0 : (reservation.turnDuration || 180)),
+    });
+    const conflicts = (candidateId: string, reservation: typeof onTable[number]) => {
+      const window = windows(reservation);
+      return reservations.some((other) => {
+        if (other.id === reservation.id || !reservationUsesTable(other, candidateId)) return false;
+        const otherWindow = windows(other);
+        return window.start < otherWindow.end && otherWindow.start < window.end;
+      });
+    };
+    for (const reservation of onTable) {
+      const candidate = tables.find((table) =>
+        table.id !== tableId &&
+        !walkins.has(table.id) &&
+        table.minCapacity <= reservation.partySize &&
+        table.maxCapacity >= reservation.partySize &&
+        !conflicts(table.id, reservation)
+      );
+      if (!candidate) {
+        await resyStorage.updateReservation(reservation.id, { assignedTableId: null, tableId: null, tableAssignment: null });
+        displaced.push(reservation.customerName);
+        continue;
+      }
+      const next = replaceReservationTable(reservation, tableId, candidate.id, source.tableLabel, candidate.tableLabel);
+      await resyStorage.updateReservation(reservation.id, next);
+      reservation.assignedTableId = next.assignedTableId;
+      reservation.tableId = next.tableId;
+      placed.push(`${reservation.customerName} to ${candidate.tableLabel}`);
+    }
+    const [walkin] = await db.insert(resyTableWalkins).values({
+      locationId,
+      tableId,
+      serviceDate: date,
+      label: "Pirates!!!",
+    }).returning();
+    res.json({ walkin, placed, displaced });
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to seat the walk-in: " + error.message });
+  }
+});
+
+function clockMinutes(time: string): number {
+  const match = String(time || "").trim().match(/^(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?/);
+  if (!match) return 0;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const period = match[3]?.toLowerCase();
+  if (period === "pm" && hours < 12) hours += 12;
+  if (period === "am" && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function reservationSpan(reservation: { holdStart: string | null; holdEnd: string | null; reservationTime: string; turnDuration: number | null }) {
+  const start = clockMinutes(reservation.holdStart || reservation.reservationTime);
+  const end = reservation.holdEnd ? clockMinutes(reservation.holdEnd) : start + (reservation.turnDuration || 180);
+  return { start, end: Math.max(end, start + 15) };
+}
+
+function spansOverlap(left: { start: number; end: number }, right: { start: number; end: number }) {
+  return left.start < right.end && right.start < left.end;
+}
+
+router.post("/api/resy/locations/:locationId/floor/suggest", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const date = String(req.body?.date || "");
+    const reservationId = String(req.body?.reservationId || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !reservationId) {
+      return res.status(400).json({ message: "A reservation and service date are required." });
+    }
+    const [tables, reservations, walkinRows] = await Promise.all([
+      db.select().from(resyLocationTables).where(and(
+        eq(resyLocationTables.locationId, locationId),
+        eq(resyLocationTables.isActive, true),
+        eq(resyLocationTables.isPaused, false),
+      )),
+      db.select().from(resyReservations).where(and(
+        eq(resyReservations.locationId, locationId),
+        eq(resyReservations.reservationDate, date),
+        not(eq(resyReservations.status, "cancelled")),
+        not(eq(resyReservations.status, "completed")),
+      )),
+      db.select().from(resyTableWalkins).where(and(
+        eq(resyTableWalkins.locationId, locationId),
+        eq(resyTableWalkins.serviceDate, date),
+        sql`${resyTableWalkins.clearedAt} IS NULL`,
+      )),
+    ]);
+    const walkins = new Set(walkinRows.map((row) => row.tableId));
+    const target = reservations.find((reservation) => reservation.id === reservationId);
+    if (!target) return res.status(404).json({ message: "Reservation not found" });
+    const assignment = new Map<string, string | null>();
+    const tableFor = (reservation: typeof target) => {
+      if (assignment.has(reservation.id)) return assignment.get(reservation.id) || null;
+      const ids = (reservation.assignedTableId || reservation.tableId || "").split(",").filter(Boolean);
+      return ids.find((id) => tables.some((table) => table.id === id)) || null;
+    };
+    const clashes = (tableId: string, reservation: typeof target) => reservations.some((other) => {
+      if (other.id === reservation.id || tableFor(other) !== tableId) return false;
+      return spansOverlap(reservationSpan(reservation), reservationSpan(other));
+    });
+    const fits = (table: typeof tables[number], partySize: number) => table.minCapacity <= partySize && table.maxCapacity >= partySize;
+    const current = tables.find((table) => table.id === tableFor(target));
+    let problem = "This reservation needs a table.";
+    if (!current) problem = `${target.customerName} does not have a table.`;
+    else if (!fits(current, target.partySize)) problem = `${current.tableLabel} cannot seat a party of ${target.partySize}.`;
+    else if (walkins.has(current.id)) problem = `${current.tableLabel} is occupied by Pirates!!!.`;
+    else if (clashes(current.id, target)) problem = `${current.tableLabel} is already reserved during ${target.customerName}'s time.`;
+
+    const openFor = (reservation: typeof target, blocked: Set<string>) => tables.find((table) =>
+      !blocked.has(table.id) && !walkins.has(table.id) && fits(table, reservation.partySize) && !clashes(table.id, reservation)
+    );
+    let planned: Array<{ reservationId: string; toTableId: string }> = [];
+    const direct = openFor(target, new Set(current ? [current.id] : []));
+    if (direct) planned = [{ reservationId: target.id, toTableId: direct.id }];
+    if (!planned.length) {
+      const candidates = tables.filter((table) => fits(table, target.partySize) && !walkins.has(table.id));
+      for (const candidate of candidates) {
+        const blockers = reservations.filter((reservation) =>
+          reservation.id !== target.id &&
+          reservation.status !== "seated" &&
+          tableFor(reservation) === candidate.id &&
+          spansOverlap(reservationSpan(target), reservationSpan(reservation))
+        );
+        if (!blockers.length || blockers.length > 4) continue;
+        assignment.clear();
+        assignment.set(target.id, candidate.id);
+        const plan: Array<{ reservationId: string; toTableId: string }> = [];
+        let possible = true;
+        for (const blocker of blockers) {
+          const next = tables.find((table) =>
+            table.id !== candidate.id &&
+            !walkins.has(table.id) &&
+            fits(table, blocker.partySize) &&
+            !clashes(table.id, blocker)
+          );
+          if (!next) { possible = false; break; }
+          assignment.set(blocker.id, next.id);
+          plan.push({ reservationId: blocker.id, toTableId: next.id });
+        }
+        if (!possible || clashes(candidate.id, target)) continue;
+        planned = [{ reservationId: target.id, toTableId: candidate.id }, ...plan];
+        break;
+      }
+      assignment.clear();
+    }
+
+    const moves = planned.map((move) => {
+      const reservation = reservations.find((item) => item.id === move.reservationId)!;
+      const from = tables.find((table) => table.id === tableFor(reservation));
+      const to = tables.find((table) => table.id === move.toTableId)!;
+      return {
+        reservationId: reservation.id,
+        customerName: reservation.customerName,
+        time: reservation.reservationTime,
+        partySize: reservation.partySize,
+        fromLabel: from?.tableLabel || "unassigned",
+        toTableId: to.id,
+        toLabel: to.tableLabel,
+      };
+    });
+    let summary = moves.length
+      ? moves.map((move) => `Seat ${move.customerName} (${move.partySize}) at ${move.toLabel} instead of ${move.fromLabel}.`).join(" ")
+      : `No open table can seat ${target.customerName}'s party of ${target.partySize} without overlapping another reservation.`;
+    if (moves.length && process.env.OPENAI_API_KEY) {
+      try {
+        const { default: OpenAI } = await import("openai");
+        const openai = new OpenAI();
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          temperature: 0.2,
+          messages: [
+            { role: "system", content: "Explain a seating change to a restaurant host. Use only the moves provided. Do not invent tables, times, or guests. Two or three short sentences." },
+            { role: "user", content: `Problem: ${problem}\nMoves:\n${moves.map((move) => `${move.customerName}, party of ${move.partySize} at ${move.time}, from ${move.fromLabel} to ${move.toLabel}`).join("\n")}` },
+          ],
+        });
+        summary = completion.choices[0]?.message?.content?.trim() || summary;
+      } catch (error) {
+        console.error("Host seating suggestion failed:", error);
+      }
+    }
+    res.json({ problem, summary, moves });
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to suggest seating: " + error.message });
+  }
+});
+
+router.post("/api/resy/locations/:locationId/floor/apply", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const date = String(req.body?.date || "");
+    const requested = Array.isArray(req.body?.moves) ? req.body.moves : [];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || requested.length === 0) {
+      return res.status(400).json({ message: "A seating recommendation is required." });
+    }
+    const [tables, reservations, walkinRows] = await Promise.all([
+      db.select().from(resyLocationTables).where(and(
+        eq(resyLocationTables.locationId, locationId),
+        eq(resyLocationTables.isActive, true),
+        eq(resyLocationTables.isPaused, false),
+      )),
+      db.select().from(resyReservations).where(and(
+        eq(resyReservations.locationId, locationId),
+        eq(resyReservations.reservationDate, date),
+        not(eq(resyReservations.status, "cancelled")),
+        not(eq(resyReservations.status, "completed")),
+      )),
+      db.select().from(resyTableWalkins).where(and(
+        eq(resyTableWalkins.locationId, locationId),
+        eq(resyTableWalkins.serviceDate, date),
+        sql`${resyTableWalkins.clearedAt} IS NULL`,
+      )),
+    ]);
+    const walkins = new Set(walkinRows.map((row) => row.tableId));
+    const assignment = new Map<string, string | null>();
+    for (const reservation of reservations) {
+      const ids = (reservation.assignedTableId || reservation.tableId || "").split(",").filter(Boolean);
+      assignment.set(reservation.id, ids.find((id) => tables.some((table) => table.id === id)) || null);
+    }
+    for (const move of requested) {
+      const reservation = reservations.find((item) => item.id === move.reservationId);
+      const table = tables.find((item) => item.id === move.toTableId);
+      if (!reservation || !table) return res.status(400).json({ message: "That recommendation no longer matches the floor." });
+      if (reservation.partySize < table.minCapacity || reservation.partySize > table.maxCapacity) {
+        return res.status(400).json({ message: `${table.tableLabel} cannot seat ${reservation.customerName}.` });
+      }
+      if (walkins.has(table.id)) return res.status(400).json({ message: `${table.tableLabel} is occupied by Pirates!!!.` });
+      assignment.set(reservation.id, table.id);
+    }
+    for (const reservation of reservations) {
+      const tableId = assignment.get(reservation.id);
+      if (!tableId) continue;
+      const window = reservationSpan(reservation);
+      const overlap = reservations.some((other) => {
+        if (other.id === reservation.id || assignment.get(other.id) !== tableId) return false;
+        const otherWindow = reservationSpan(other);
+        return window.start < otherWindow.end && otherWindow.start < window.end;
+      });
+      if (overlap) return res.status(400).json({ message: "Those moves would put two parties at the same table at the same time." });
+    }
+    for (const move of requested) {
+      const table = tables.find((item) => item.id === move.toTableId)!;
+      await resyStorage.updateReservation(move.reservationId, {
+        assignedTableId: table.id,
+        tableId: table.id,
+        tableAssignment: table.tableLabel,
+      });
+    }
+    res.json({ applied: requested.length });
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to apply the seating: " + error.message });
+  }
+});
+
 // Export tables for a location to Excel (for syncing with TOAST POS etc.)
 router.get("/api/resy/locations/:locationId/tables/export", requireResyAdmin, async (req, res) => {
   try {
@@ -2489,7 +3122,8 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
     const dayReservations = await db.select().from(resyReservations).where(and(
       eq(resyReservations.locationId, locationId),
       eq(resyReservations.reservationDate, date as string),
-      not(eq(resyReservations.status, "cancelled"))
+      not(eq(resyReservations.status, "cancelled")),
+      not(eq(resyReservations.status, "completed"))
     ));
     const dailyUsed = dayReservations.reduce((sum, reservation) => sum + (reservation.partySize || 0), 0);
     const dailyCap = flowControls.find((control) => control.isActive && control.maxDailyCovers)?.maxDailyCovers ?? null;
@@ -3281,7 +3915,8 @@ router.get("/api/timeslots/:id/availability", async (req, res) => {
     const bookedCount = reservations.filter(r => 
       r.timeSlotId === id && 
       r.reservationDate === date &&
-      r.status !== 'cancelled'
+      r.status !== 'cancelled' &&
+      r.status !== 'completed'
     ).reduce((sum, r) => sum + (r.ticketQuantity || 1), 0);
     
     const available = Math.max(0, capacity - bookedCount);
@@ -3576,7 +4211,8 @@ async function getRemainingCovers(
     .where(and(
       eq(resyReservations.locationId, locationId),
       eq(resyReservations.reservationDate, date),
-      not(eq(resyReservations.status, "cancelled"))
+      not(eq(resyReservations.status, "cancelled")),
+      not(eq(resyReservations.status, "completed"))
     ));
   
   // Count covers in this interval
@@ -3656,13 +4292,14 @@ async function getAvailableTables(
   excludeReservationId?: string
 ): Promise<AvailableTable[]> {
   // Get all active tables for this location
-  const tables = await db.select()
+  const walkins = await openWalkinTableIds(locationId, date);
+  const tables = (await db.select()
     .from(resyLocationTables)
     .where(and(
       eq(resyLocationTables.locationId, locationId),
       eq(resyLocationTables.isActive, true),
       eq(resyLocationTables.isPaused, false)
-    ));
+    ))).filter((table) => !walkins.has(table.id));
   
   // Get existing reservations for this date to check conflicts
   // Optionally exclude a specific reservation (for reschedule scenarios)
@@ -3671,7 +4308,8 @@ async function getAvailableTables(
     .where(and(
       eq(resyReservations.locationId, locationId),
       eq(resyReservations.reservationDate, date),
-      not(eq(resyReservations.status, "cancelled"))
+      not(eq(resyReservations.status, "cancelled")),
+      not(eq(resyReservations.status, "completed"))
     ));
   
   // Exclude the reservation being rescheduled from conflict checks
@@ -3895,7 +4533,8 @@ router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
         .where(and(
           eq(resyReservations.locationId, locationId),
           eq(resyReservations.reservationDate, date as string),
-          not(eq(resyReservations.status, "cancelled"))
+          not(eq(resyReservations.status, "cancelled")),
+          not(eq(resyReservations.status, "completed"))
         )),
       db.select()
         .from(resyFlowControls)
@@ -3910,6 +4549,10 @@ router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
           eq(resyTurnTimeSettings.isActive, true)
         ))
     ]);
+    const walkins = await openWalkinTableIds(locationId, String(date));
+    for (let index = allTables.length - 1; index >= 0; index--) {
+      if (walkins.has(allTables[index].id)) allTables.splice(index, 1);
+    }
     
     // Helper to infer which tables a reservation would use based on party size
     const inferTablesForReservation = (resPartySize: number): string[] => {
@@ -4461,7 +5104,8 @@ router.get("/api/resy/confirm/:token", async (req, res) => {
       experience: experience ? {
         id: experience.id,
         name: experience.name,
-        description: experience.description
+        description: experience.description,
+        bookingSlug: experience.bookingSlug,
       } : null
     });
   } catch (error: any) {

@@ -1,4 +1,4 @@
-import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, CalendarHeart, MapPin, Settings, LogOut, BookOpen, Users, Crown, CalendarPlus } from "lucide-react";
+import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, CalendarHeart, MapPin, Settings, LogOut, BookOpen, Users, Crown, CalendarPlus, LayoutGrid } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -58,6 +58,16 @@ const menuItems = [
     title: "Reservations",
     url: "/reservations/admin/reservations",
     icon: Calendar,
+  },
+  {
+    title: "Knoll Table Tracker",
+    url: "/knoll-tracker",
+    icon: LayoutGrid,
+  },
+  {
+    title: "Host/Information Center",
+    url: "/host",
+    icon: Users,
   },
   {
     title: "Customers",
