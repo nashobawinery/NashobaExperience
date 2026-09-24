@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ExternalLink, Calendar, Wine, Users, Link2, ShoppingCart, Check, AlertTriangle } from "lucide-react";
+import { ExternalLink, Calendar, Wine, Users, Link2, ShoppingCart, Check, AlertTriangle, Ticket } from "lucide-react";
 import type { Experience, Location, ResySiteSetting, FooterLink } from "@shared/schema";
 import heroImageDefault from "@/assets/winery-vineyard.jpg";
 import { useReservationCart } from "@/contexts/reservation-cart-context";
@@ -35,15 +35,11 @@ export default function Landing() {
 
   const { isInCart, cartCount } = useReservationCart();
 
-  const { data: locations, isLoading: locationsLoading } = useQuery<Location[]>({
+  const { isLoading: locationsLoading } = useQuery<Location[]>({
     queryKey: ["/api/resy/locations"],
   });
 
   const activeExperiences = experiences?.filter(exp => exp.isActive && exp.showOnMasterPage !== false) || [];
-  const masterLocations = (locations || [])
-    .filter((location) => location.isActive && location.showOnMasterPage !== false)
-    .sort((a, b) => a.displayOrder - b.displayOrder);
-  
   const siteRow = settingsArray[0];
 
   const headerImage = siteRow?.headerImageUrl?.trim() ? siteRow.headerImageUrl : heroImageDefault;
@@ -55,142 +51,47 @@ export default function Landing() {
     "Experience the finest wines, spirits, and cuisine at our multi-location destination";
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <div className="relative h-80 overflow-hidden">
-        <img
-          src={headerImage}
-          alt={headerTitle}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-semibold text-white mb-4 max-w-4xl">
-            {headerTitle}
-          </h1>
-          <p className="text-lg md:text-xl text-white/90 max-w-2xl">
-            {headerSubtitle}
-          </p>
-        </div>
-      </div>
-
-      {/* Cart Banner */}
-      {cartCount > 0 && (
-        <div className="bg-primary/10 border-b border-primary/20">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-primary" />
-              <span className="text-sm font-medium">
-                You have {cartCount} reservation{cartCount > 1 ? 's' : ''} in your cart
+    <div className="relative min-h-screen">
+      <img src={heroImageDefault} alt="" className="fixed inset-0 h-full w-full object-cover" />
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-xl flex-col px-4 py-8 md:py-14">
+        <div className="rounded-2xl bg-white/90 p-4 shadow-xl backdrop-blur-sm md:p-5">
+          <img
+            src={headerImage}
+            alt={headerTitle}
+            className="mb-4 aspect-[16/10] w-full rounded-xl object-cover"
+          />
+          <h1 className="sr-only">{headerTitle}</h1>
+          <p className="sr-only">{headerSubtitle}</p>
+          {cartCount > 0 && (
+            <div className="mb-3 flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <ShoppingCart className="h-4 w-4" />
+                {cartCount} in your cart
               </span>
+              <Link href="/reservations/cart">
+                <Button size="sm" variant="outline" className="rounded-full" data-testid="button-view-cart-banner">View cart</Button>
+              </Link>
             </div>
-            <Link href="/reservations/cart">
-              <Button size="sm" data-testid="button-view-cart-banner">
-                View Cart & Checkout
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-12 md:py-16">
-        <div className="text-center mb-12">
-          <h2 className="font-serif text-3xl md:text-4xl font-medium text-foreground mb-4">
-            Reserve Your Experience
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            From intimate tastings to guided tours and fine dining, discover all that Nashoba Valley has to offer
-          </p>
-        </div>
-
-        <div className="mb-16">
-          <h3 className="font-serif text-2xl font-medium mb-6">Locations</h3>
-          {locationsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, i) => (
-                <Card key={i} className="overflow-hidden">
-                  <div className="h-32 bg-muted animate-pulse" />
-                </Card>
-              ))}
-            </div>
-          ) : masterLocations.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {masterLocations.map((location) => {
-                const linkedImage = (experiences || []).find(
-                  (experience) => experience.locationId === location.id && experience.imageUrl && !experience.imageUrl.startsWith("/@fs/")
-                )?.imageUrl;
-                const image = location.imageUrl || linkedImage || "";
-                return (
-                <Card key={location.id} className="overflow-hidden h-full" data-testid={`card-location-${location.id}`}>
-                  {image && (
-                    <div className="aspect-[4/3] overflow-hidden">
-                      <img src={image} alt={location.name} className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                  <CardContent className="p-6">
-                    <h3 className="font-sans text-xl font-semibold mb-2">{location.name}</h3>
-                    <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
-                      {location.headline || location.bookingDetails || location.description}
-                    </p>
-                    <Link href={`/reservations/locations/${location.id}`}>
-                      <Button className="w-full" data-testid={`button-location-${location.id}`}>
-                        <Calendar className="w-4 h-4 mr-2" />
-                        View reservations
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">No locations are listed on this page yet.</p>
           )}
-        </div>
-
-        <h3 className="font-serif text-2xl font-medium mb-6">Experiences</h3>
-
-        {/* Experiences Grid */}
-        {experiencesLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <div className="aspect-[4/3] bg-muted animate-pulse" />
-                <CardContent className="p-6">
-                  <div className="h-6 bg-muted rounded animate-pulse mb-3" />
-                  <div className="h-4 bg-muted rounded animate-pulse mb-2 w-3/4" />
-                  <div className="h-10 bg-muted rounded animate-pulse mt-4" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activeExperiences.map((experience) => (
-              <ExperienceCard 
-                key={experience.id} 
-                experience={experience} 
+          <div className="space-y-3">
+            {(experiencesLoading || locationsLoading) && (
+              [...Array(3)].map((_, index) => <div key={index} className="h-24 animate-pulse rounded-xl bg-white" />)
+            )}
+            {!experiencesLoading && activeExperiences.map((experience) => (
+              <MasterBookingRow
+                key={experience.id}
+                experience={experience}
                 inCart={isInCart(experience.id)}
                 cartCount={cartCount}
               />
             ))}
+            {!experiencesLoading && activeExperiences.length === 0 && (
+              <p className="rounded-xl bg-white px-4 py-6 text-center text-sm text-muted-foreground">No reservations are open right now.</p>
+            )}
           </div>
-        )}
-
-        {activeExperiences.length === 0 && !experiencesLoading && (
-          <div className="text-center py-12">
-            <Wine className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <p className="text-lg text-muted-foreground">
-              No experiences available at this time. Please check back soon.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <footer className="border-t mt-16">
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        </div>
+        <footer className="mt-6 pb-6 text-center text-white drop-shadow">
+        <div className="px-4 py-6">
           {footerLinks.length > 0 && (
             <div className="flex flex-wrap justify-center gap-6 mb-6">
               {footerLinks.sort((a, b) => a.displayOrder - b.displayOrder).map((link) => (
@@ -233,6 +134,56 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      </div>
+    </div>
+  );
+}
+
+function MasterBookingRow({ experience, inCart, cartCount }: { experience: Experience; inCart: boolean; cartCount: number }) {
+  const [showExternalWarning, setShowExternalWarning] = useState(false);
+  const price = experience.showPrice !== false && experience.price ? parseFloat(experience.price) : null;
+  const label = experience.reservationType === "ticketed" ? "Experience" : "Reservation";
+  const book = (
+    <Button variant="outline" className="h-10 shrink-0 rounded-full px-5" disabled={inCart} data-testid={`button-book-${experience.id}`}>
+      {inCart ? "In cart" : "Book"}
+    </Button>
+  );
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-[#f4f4f5] px-4 py-3" data-testid={`card-experience-${experience.id}`}>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="truncate text-lg font-semibold">{experience.name}</p>
+        {price != null && !Number.isNaN(price) && (
+          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Ticket className="h-3.5 w-3.5" />
+            ${price % 1 === 0 ? price.toFixed(0) : price.toFixed(2)} per {experience.reservationType === "ticketed" ? "ticket" : "person"}
+          </p>
+        )}
+      </div>
+      {inCart ? book : experience.isExternal ? (
+        <>
+          <Button variant="outline" className="h-10 shrink-0 rounded-full px-5" onClick={() => cartCount > 0 ? setShowExternalWarning(true) : experience.externalUrl && window.open(experience.externalUrl, "_blank", "noopener,noreferrer")} data-testid={`button-book-${experience.id}`}>
+            Book
+          </Button>
+          <AlertDialog open={showExternalWarning} onOpenChange={setShowExternalWarning}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>External reservation system</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This booking opens another reservation system. Finish the items in your cart first, or continue and leave the cart behind.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => { setShowExternalWarning(false); window.location.href = "/reservations/cart"; }}>Return to cart</AlertDialogCancel>
+                <AlertDialogAction onClick={() => experience.externalUrl && window.open(experience.externalUrl, "_blank", "noopener,noreferrer")}>Continue anyway</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      ) : (
+        <Link href={reservationHref(experience)}>{book}</Link>
+      )}
     </div>
   );
 }
