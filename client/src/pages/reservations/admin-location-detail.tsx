@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink, Settings, Check, X, Download, Upload, FileSpreadsheet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -3578,6 +3579,10 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
   const [maxReservationSize, setMaxReservationSize] = useState<string>(
     (location as any).maxReservationSize?.toString() || "10"
   );
+  const [confirmationIntro, setConfirmationIntro] = useState(location.confirmationIntro || "");
+  const [confirmationClosing, setConfirmationClosing] = useState(location.confirmationClosing || "");
+  const [confirmationContactEmail, setConfirmationContactEmail] = useState(location.confirmationContactEmail || "");
+  const [confirmationContactPhone, setConfirmationContactPhone] = useState(location.confirmationContactPhone || "");
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -3588,6 +3593,10 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
       await apiRequest("PATCH", `/api/resy/locations/${locationId}`, {
         advanceBookingDays: advanceValue,
         maxReservationSize: maxSizeValue,
+        confirmationIntro: confirmationIntro.trim() || null,
+        confirmationClosing: confirmationClosing.trim() || null,
+        confirmationContactEmail: confirmationContactEmail.trim() || null,
+        confirmationContactPhone: confirmationContactPhone.trim() || null,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", locationId] });
@@ -3656,6 +3665,56 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
                 data-testid="input-max-reservation-size"
               />
               <span className="text-sm text-muted-foreground">guests</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <h3 className="text-sm font-medium">Confirmation email</h3>
+            <p className="text-sm text-muted-foreground">
+              Sent when a guest books at this location. The letter names this location and whether the booking is a table reservation or a ticketed reservation. Leave a field blank to use the automatic wording.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="confirmation-intro">Opening</label>
+            <Textarea
+              id="confirmation-intro"
+              value={confirmationIntro}
+              onChange={(e) => setConfirmationIntro(e.target.value)}
+              placeholder="Your table reservation at this location is confirmed."
+              data-testid="input-confirmation-intro"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="confirmation-closing">Closing</label>
+            <Textarea
+              id="confirmation-closing"
+              value={confirmationClosing}
+              onChange={(e) => setConfirmationClosing(e.target.value)}
+              placeholder="We look forward to seeing you."
+              data-testid="input-confirmation-closing"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="confirmation-email">Contact email</label>
+              <Input
+                id="confirmation-email"
+                type="email"
+                value={confirmationContactEmail}
+                onChange={(e) => setConfirmationContactEmail(e.target.value)}
+                placeholder="support@nashobawinery.com"
+                data-testid="input-confirmation-contact-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="confirmation-phone">Contact phone</label>
+              <Input
+                id="confirmation-phone"
+                value={confirmationContactPhone}
+                onChange={(e) => setConfirmationContactPhone(e.target.value)}
+                placeholder="(978) 779-5521"
+                data-testid="input-confirmation-contact-phone"
+              />
             </div>
           </div>
         </div>

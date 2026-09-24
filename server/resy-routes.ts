@@ -17,6 +17,10 @@ export async function ensureResyMasterPageFlags() {
   await db.execute(sql`ALTER TABLE resy_experiences ADD COLUMN IF NOT EXISTS show_on_master_page boolean NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS headline text`);
   await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS booking_details text`);
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_intro text`);
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_closing text`);
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_contact_email varchar(255)`);
+  await db.execute(sql`ALTER TABLE resy_locations ADD COLUMN IF NOT EXISTS confirmation_contact_phone varchar(30)`);
 }
 const isAuthenticated = isPlatformAuthenticated;
 
@@ -1244,6 +1248,45 @@ router.get("/api/resy/reservations/:id", async (req, res) => {
   }
 });
 
+async function reservationConfirmationContent(
+  experience: { name: string; locationId?: string | null; reservationType?: string | null },
+  fields: {
+    customerName: string;
+    customerEmail: string;
+    reservationDate: string;
+    reservationTime: string;
+    ticketQuantity?: number;
+    partySize?: number;
+    totalAmount?: string;
+    confirmationCode?: string;
+    specialRequests?: string;
+    locationId?: string | null;
+  },
+) {
+  const locationId = fields.locationId || experience.locationId;
+  const location = locationId ? await resyStorage.getLocation(locationId) : undefined;
+  return {
+    customerName: fields.customerName,
+    customerEmail: fields.customerEmail,
+    experienceName: experience.name,
+    reservationDate: fields.reservationDate,
+    reservationTime: fields.reservationTime,
+    ticketQuantity: fields.ticketQuantity,
+    partySize: fields.partySize,
+    totalAmount: fields.totalAmount,
+    confirmationCode: fields.confirmationCode,
+    specialRequests: fields.specialRequests,
+    locationName: location?.name,
+    locationAddress: location?.address || undefined,
+    reservationType: experience.reservationType || undefined,
+    bookingDetails: location?.bookingDetails || undefined,
+    intro: location?.confirmationIntro || undefined,
+    closing: location?.confirmationClosing || undefined,
+    contactEmail: location?.confirmationContactEmail || undefined,
+    contactPhone: location?.confirmationContactPhone || undefined,
+  };
+}
+
 function outsideAdvanceBookingWindow(advanceBookingDays: number | null | undefined, reservationDate: string): string | null {
   if (!advanceBookingDays || advanceBookingDays < 1 || !reservationDate) return null;
   const [year, month, day] = reservationDate.split("-").map(Number);
@@ -1333,10 +1376,9 @@ router.post("/api/resy/reservations", async (req, res) => {
     if (shouldSendEmail) {
       try {
         if (experience) {
-          const emailData = {
+          const emailData = await reservationConfirmationContent(experience, {
             customerName: reservation.customerName,
             customerEmail: reservation.customerEmail,
-            experienceName: experience.name,
             reservationDate: reservation.reservationDate,
             reservationTime: reservation.reservationTime || "TBD",
             ticketQuantity: reservation.ticketQuantity || undefined,
@@ -1344,7 +1386,8 @@ router.post("/api/resy/reservations", async (req, res) => {
             totalAmount: reservation.totalAmount || undefined,
             confirmationCode: reservation.confirmationCode || undefined,
             specialRequests: reservation.specialRequests || undefined,
-          };
+            locationId: reservation.locationId,
+          });
           const { subject, html, text } = generateReservationConfirmationEmail(emailData);
           await sendEmail(reservation.customerEmail, subject, html, text);
           console.log(`Confirmation email sent to ${reservation.customerEmail}`);
@@ -4064,16 +4107,16 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
     
     // Send confirmation email
     try {
-      const emailContent = generateReservationConfirmationEmail({
+      const emailContent = generateReservationConfirmationEmail(await reservationConfirmationContent(experience, {
         customerName,
         customerEmail,
-        experienceName: experience.name,
         reservationDate: date,
         reservationTime: time,
         partySize,
         confirmationCode,
-        specialRequests: specialRequests || undefined
-      });
+        specialRequests: specialRequests || undefined,
+        locationId: experience.locationId,
+      }));
       await sendEmail(customerEmail, emailContent.subject, emailContent.html, emailContent.text);
     } catch (emailError) {
       console.error("Failed to send confirmation email:", emailError);

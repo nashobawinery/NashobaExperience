@@ -1236,6 +1236,14 @@ function formatTo12Hour(timeStr: string): string {
   return `${hour}:${minute} ${period}`;
 }
 
+function escapeEmailText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 // Reservation confirmation email for ticketed events and table reservations
 export interface ReservationConfirmationData {
   customerName: string;
@@ -1248,6 +1256,14 @@ export interface ReservationConfirmationData {
   totalAmount?: string;
   confirmationCode?: string;
   specialRequests?: string;
+  locationName?: string;
+  locationAddress?: string;
+  reservationType?: string;
+  bookingDetails?: string;
+  intro?: string;
+  closing?: string;
+  contactEmail?: string;
+  contactPhone?: string;
 }
 
 export function generateReservationConfirmationEmail(data: ReservationConfirmationData): { subject: string; html: string; text: string } {
@@ -1260,11 +1276,25 @@ export function generateReservationConfirmationEmail(data: ReservationConfirmati
     partySize,
     totalAmount,
     confirmationCode,
-    specialRequests
+    specialRequests,
+    locationName,
+    locationAddress,
+    reservationType,
+    bookingDetails,
+    intro,
+    closing,
+    contactEmail,
+    contactPhone,
   } = data;
 
-  const isTicketed = ticketQuantity && ticketQuantity > 0;
-  const guestCount = isTicketed ? ticketQuantity : (partySize || 1);
+  const isTicketed = reservationType === "ticketed" || Boolean(ticketQuantity && ticketQuantity > 0);
+  const guestCount = isTicketed ? (ticketQuantity || partySize || 1) : (partySize || 1);
+  const placeName = locationName || "Nashoba Valley Winery";
+  const typeLabel = isTicketed ? "Ticketed reservation" : "Table reservation";
+  const replyEmail = contactEmail || "support@nashobawinery.com";
+  const replyPhone = contactPhone || "(978) 779-5521";
+  const opening = intro || `Your ${typeLabel.toLowerCase()} at ${placeName} is confirmed.`;
+  const signoff = closing || `We look forward to seeing you at ${placeName}.`;
   const formattedDate = new Date(reservationDate + 'T00:00:00').toLocaleDateString('en-US', { 
     weekday: 'long', 
     year: 'numeric', 
@@ -1273,33 +1303,36 @@ export function generateReservationConfirmationEmail(data: ReservationConfirmati
   });
   const formattedTime = formatTo12Hour(reservationTime);
 
-  const subject = `You're All Set! ${experienceName} - ${formattedDate}`;
+  const subject = `${placeName}: ${experienceName} confirmed — ${formattedDate}`;
   
   const text = `
 Your Reservation is Confirmed!
 
 Hi ${customerName},
 
-Great news - your reservation at Nashoba Valley Winery is confirmed! We can't wait to welcome you.
+${opening}
 
 RESERVATION DETAILS
-Experience: ${experienceName}
+Location: ${placeName}
+Reservation: ${experienceName}
+Type: ${typeLabel}
 Date: ${formattedDate}
 Time: ${formattedTime}
-${isTicketed ? `Tickets: ${ticketQuantity}` : `Party Size: ${partySize}`}
+${isTicketed ? `Tickets: ${guestCount}` : `Party Size: ${guestCount}`}
+${locationAddress ? `Address: ${locationAddress}` : ''}
+${bookingDetails ? `Details: ${bookingDetails}` : ''}
 ${totalAmount && parseFloat(totalAmount) > 0 ? `Amount: $${parseFloat(totalAmount).toFixed(2)}` : ''}
 ${confirmationCode ? `Confirmation #: ${confirmationCode}` : ''}
 ${specialRequests ? `Special Requests: ${specialRequests}` : ''}
 
 NEED TO MAKE CHANGES?
-To modify or cancel your reservation, please contact us at:
-Email: support@nashobawinery.com
-Phone: (978) 779-5521
+To modify or cancel your reservation, please contact ${placeName}:
+Email: ${replyEmail}
+Phone: ${replyPhone}
 
-We look forward to seeing you soon!
+${signoff}
 
-Cheers,
-The Nashoba Valley Winery Team
+${placeName}
 
 100 Wattaquadock Hill Road, Bolton, MA 01740
   `.trim();
@@ -1346,18 +1379,31 @@ The Nashoba Valley Winery Team
 </head>
 <body>
   <div class="email-container">
-    ${generateBrandedEmailHeader('Reservation Confirmed!', 'We can\'t wait to see you')}
+    ${generateBrandedEmailHeader(`${placeName}`, typeLabel)}
     <div class="content">
-      <p>Hi <strong>${customerName}</strong>,</p>
+      <p>Hi <strong>${escapeEmailText(customerName)}</strong>,</p>
       
-      <p>Great news - your reservation at Nashoba Valley Winery is confirmed! We're excited to welcome you for a wonderful experience.</p>
+      <p>${escapeEmailText(opening)}</p>
       
       <div class="confirmation-box">
         <h2>Your Reservation Details</h2>
         <div class="detail-row">
-          <span class="detail-label">Experience</span>
-          <span class="detail-value">${experienceName}</span>
+          <span class="detail-label">Location</span>
+          <span class="detail-value">${escapeEmailText(placeName)}</span>
         </div>
+        <div class="detail-row">
+          <span class="detail-label">Reservation</span>
+          <span class="detail-value">${escapeEmailText(experienceName)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Type</span>
+          <span class="detail-value">${typeLabel}</span>
+        </div>
+        ${locationAddress ? `
+        <div class="detail-row">
+          <span class="detail-label">Address</span>
+          <span class="detail-value">${escapeEmailText(locationAddress)}</span>
+        </div>` : ''}
         <div class="detail-row">
           <span class="detail-label">Date</span>
           <span class="detail-value">${formattedDate}</span>
@@ -1384,22 +1430,28 @@ The Nashoba Valley Winery Team
         ` : ''}
       </div>
       
-      ${specialRequests ? `
+        ${bookingDetails ? `
+      <div class="info-box">
+        <h3 style="margin: 0 0 15px 0; color: #5C2535;">What you booked</h3>
+        <p style="margin: 0;">${escapeEmailText(bookingDetails)}</p>
+      </div>
+      ` : ''}
+        ${specialRequests ? `
       <div class="special-requests">
         <h4>Your Special Requests</h4>
-        <p>${specialRequests}</p>
+        <p>${escapeEmailText(specialRequests)}</p>
       </div>
       ` : ''}
       
       <div class="info-box">
         <h3 style="margin: 0 0 15px 0; color: #5C2535;">Need to Make Changes?</h3>
-        <p style="margin: 0;">To modify or cancel your reservation, please contact us:</p>
-        <p style="margin: 8px 0 0;"><strong>Email:</strong> <a href="mailto:support@nashobawinery.com" style="color: #5C2535;">support@nashobawinery.com</a></p>
-        <p style="margin: 8px 0 0;"><strong>Phone:</strong> (978) 779-5521</p>
+        <p style="margin: 0;">To modify or cancel your reservation, contact ${escapeEmailText(placeName)}:</p>
+        <p style="margin: 8px 0 0;"><strong>Email:</strong> <a href="mailto:${escapeEmailText(replyEmail)}" style="color: #5C2535;">${escapeEmailText(replyEmail)}</a></p>
+        <p style="margin: 8px 0 0;"><strong>Phone:</strong> ${escapeEmailText(replyPhone)}</p>
       </div>
       
-      <p style="margin-top: 25px;">We look forward to seeing you soon!</p>
-      <p>Cheers,<br><strong>The Nashoba Valley Winery Team</strong></p>
+      <p style="margin-top: 25px;">${escapeEmailText(signoff)}</p>
+      <p><strong>${escapeEmailText(placeName)}</strong></p>
     </div>
     ${generateBrandedEmailFooter()}
   </div>
