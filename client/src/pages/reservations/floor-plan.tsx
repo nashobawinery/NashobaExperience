@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Loader2, Minus, Plus, Sparkles } from "lucide-react";
+import { Loader2, Maximize2, Minimize2, Minus, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { apiRequest, floorAccessHeaders, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Location, ResyLocationTable, ResyReservation } from "@shared/schema";
@@ -97,6 +99,16 @@ function timeLabel(time: string) {
   return `${hours}:${minutes} ${period}`;
 }
 
+function timeInputValue(time: string) {
+  const total = clockMinutes(time);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function addMinutes(time: string, minutes: number) {
+  const total = (clockMinutes(time) + minutes) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function FloorCodeGate({ area, title, children }: { area: "host" | "tracker"; title: string; children: ReactNode }) {
   const { toast } = useToast();
   const [code, setCode] = useState("");
@@ -165,6 +177,15 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
   const [walkInPhone, setWalkInPhone] = useState("");
   const [walkInParty, setWalkInParty] = useState(2);
   const [walkInTableId, setWalkInTableId] = useState("");
+  const [hostPane, setHostPane] = useState<"both" | "map" | "list">("both");
+  const [editing, setEditing] = useState<ResyReservation | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editParty, setEditParty] = useState(2);
+  const [editTime, setEditTime] = useState("");
+  const [editTableId, setEditTableId] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [cancelTarget, setCancelTarget] = useState<ResyReservation | null>(null);
   const [scale, setScale] = useState(0.85);
   const [origin, setOrigin] = useState({ x: 12, y: 12 });
   const drag = useRef<{ x: number; y: number; ox: number; oy: number; tableId?: string; moved: boolean } | null>(null);
@@ -254,6 +275,43 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
     mutationFn: async (payload: { id: string; posX: number; posY: number }) =>
       apiRequest("PATCH", `/api/resy/location-tables/${payload.id}/position`, payload),
   });
+  const cancelReservation = useMutation({
+    mutationFn: async (id: string) => apiRequest("PUT", `/api/resy/reservations/${id}`, { status: "cancelled" }),
+    onSuccess: () => { setCancelTarget(null); refresh(); },
+    onError: fail,
+  });
+  const saveEdit = useMutation({
+    mutationFn: async () => {
+      if (!editing) throw new Error("Nothing to save.");
+      const table = tables.find((item) => item.id === editTableId);
+      const turn = editing.turnDuration || data?.turnMinutes || 180;
+      return apiRequest("PUT", `/api/resy/reservations/${editing.id}`, {
+        customerName: editName.trim(),
+        customerPhone: editPhone.trim(),
+        partySize: editParty,
+        reservationTime: editTime,
+        holdStart: editTime,
+        holdEnd: addMinutes(editTime, turn),
+        specialRequests: editNotes,
+        assignedTableId: table?.id || null,
+        tableId: table?.id || null,
+        tableAssignment: table?.tableLabel || null,
+      });
+    },
+    onSuccess: () => { setEditing(null); refresh(); },
+    onError: fail,
+  });
+
+  const openEdit = (reservation: ResyReservation) => {
+    const assigned = (reservation.assignedTableId || reservation.tableId || "").split(",").filter(Boolean);
+    setEditing(reservation);
+    setEditName(reservation.customerName);
+    setEditPhone(reservation.customerPhone || "");
+    setEditParty(reservation.partySize);
+    setEditTime(timeInputValue(reservation.reservationTime));
+    setEditTableId(assigned[0] || "");
+    setEditNotes(reservation.specialRequests || "");
+  };
 
   const tables = data?.tables || [];
   const reservations = data?.reservations || [];
@@ -328,7 +386,7 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
       <div className="flex flex-wrap items-center gap-2 border-b bg-background px-3 py-2">
         <div className="min-w-0">
           <h1 className="font-serif text-xl leading-none">{hostStation ? "Host/Information Center" : "Knoll Table Tracker"}</h1>
-          <p className="text-xs text-muted-foreground">{hostStation ? "Drag the floor to look around. Reservations for the day are below." : "Today’s reservations. Drag to look around."}</p>
+          <p className="text-xs text-muted-foreground">{hostStation ? "Tables on the left. Reservations on the right." : "Today’s reservations. Drag to look around."}</p>
         </div>
         <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm" />
         {hostStation && <Button type="button" size="sm" onClick={() => { setWalkInOpen(true); setWalkInTableId(""); }}>Seat walk-in</Button>}
@@ -347,8 +405,20 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
         <Legend color={COLORS.occupied} label="Seated" />
         <Legend color={COLORS.pirates} label="Pirates!!!" />
       </div>
+      <div className={hostStation ? "flex min-h-0 flex-1" : "contents"}>
+      {(!hostStation || hostPane !== "list") && (
+      <div className={hostStation ? "flex min-h-0 min-w-0 flex-1 flex-col border-r" : "contents"}>
+      {hostStation && (
+        <div className="flex items-center justify-between border-b bg-background px-3 py-1.5">
+          <span className="text-sm font-medium">Tables</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => setHostPane(hostPane === "map" ? "both" : "map")}>
+            {hostPane === "map" ? <Minimize2 className="mr-1 h-3.5 w-3.5" /> : <Maximize2 className="mr-1 h-3.5 w-3.5" />}
+            {hostPane === "map" ? "Dual view" : "Full screen"}
+          </Button>
+        </div>
+      )}
       <div
-        className={hostStation ? "relative h-[42vh] shrink-0 overflow-hidden border-b touch-none" : "relative min-h-0 flex-1 overflow-hidden touch-none"}
+        className="relative min-h-0 flex-1 overflow-hidden touch-none"
         onPointerDown={(event) => onPointerDown(event)}
         onPointerMove={onPointerMove}
         onPointerUp={() => onPointerUp()}
@@ -381,49 +451,62 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
           })}
         </div>
       </div>
-      {(showHost || hostStation) && (
-        <div className={hostStation ? "min-h-0 flex-1 overflow-auto bg-background" : "max-h-56 overflow-auto border-t bg-background"}>
-          {hostStation && walkInOpen && (
-            <form
-              className="grid gap-2 border-b bg-[#f8f4ea] p-3 sm:grid-cols-2"
-              onSubmit={(event) => { event.preventDefault(); hostWalkIn.mutate(); }}
-            >
-              <p className="sm:col-span-2 text-sm font-medium">Seat a walk-in. They get a reservation in their name. The table must be empty for their whole seating.</p>
-              <input className="h-10 rounded-md border bg-background px-2" placeholder="Name" value={walkInName} onChange={(event) => setWalkInName(event.target.value)} required />
-              <input className="h-10 rounded-md border bg-background px-2" placeholder="Phone" value={walkInPhone} onChange={(event) => setWalkInPhone(event.target.value)} required />
-              <input className="h-10 rounded-md border bg-background px-2" type="number" min={1} value={walkInParty} onChange={(event) => setWalkInParty(Number(event.target.value))} required />
-              <select className="h-10 rounded-md border bg-background px-2" value={walkInTableId} onChange={(event) => setWalkInTableId(event.target.value)} required>
-                <option value="">Empty table</option>
-                {tables.filter((table) => tableIsOpen(table, walkInParty, reservations, walkins, data?.turnMinutes || 180, date)).map((table) => (
-                  <option key={table.id} value={table.id}>{table.tableLabel} · {table.minCapacity}-{table.maxCapacity}</option>
-                ))}
-              </select>
-              <div className="flex gap-2 sm:col-span-2">
-                <Button type="submit" disabled={hostWalkIn.isPending}>Save reservation</Button>
-                <Button type="button" variant="outline" onClick={() => setWalkInOpen(false)}>Cancel</Button>
-              </div>
-            </form>
+      </div>
+      )}
+      {(showHost || (hostStation && hostPane !== "map")) && (
+        <div className={hostStation ? "flex min-h-0 min-w-0 flex-1 flex-col bg-background" : "max-h-56 overflow-auto border-t bg-background"}>
+          {hostStation && (
+            <div className="flex items-center justify-between border-b px-3 py-1.5">
+              <span className="text-sm font-medium">Reservations</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => setHostPane(hostPane === "list" ? "both" : "list")}>
+                {hostPane === "list" ? <Minimize2 className="mr-1 h-3.5 w-3.5" /> : <Maximize2 className="mr-1 h-3.5 w-3.5" />}
+                {hostPane === "list" ? "Dual view" : "Full screen"}
+              </Button>
+            </div>
           )}
-          {hostList.map((reservation) => {
+          <div className={hostStation ? "min-h-0 flex-1 overflow-auto" : undefined}>
+          {hostList.filter((reservation) => !hostStation || reservation.status !== "completed").map((reservation) => {
             const table = tables.find((item) => usesTable(reservation, item.id));
             const problem = tableProblem(reservation, tables, reservations, walkins);
             const showing = suggestionFor === reservation.id ? suggestion : null;
             return (
               <div key={reservation.id} className="border-b px-3 py-2 text-sm">
-                <div className="flex items-center gap-2">
+                <div className={hostStation ? "flex flex-col gap-2" : "flex items-center gap-2"}>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{reservation.customerName}</div>
                     <div className="text-xs text-muted-foreground">{timeLabel(reservation.reservationTime)} · {reservation.partySize} · {table?.tableLabel || "No table"} · {reservation.status}{reservation.customerPhone ? ` · ${reservation.customerPhone}` : ""}</div>
                     {problem && <div className="text-xs text-red-700">{problem}</div>}
                   </div>
-                  {problem && (
-                    <Button size="sm" variant="outline" disabled={suggest.isPending} onClick={() => suggest.mutate(reservation.id)}>
-                      <Sparkles className="mr-1 h-3.5 w-3.5" />
-                      AI
-                    </Button>
-                  )}
-                  {reservation.status !== "seated" && reservation.status !== "completed" && (
-                    <Button size="sm" disabled={arrive.isPending} onClick={() => arrive.mutate(reservation.id)}>Arrive</Button>
+                  {hostStation ? (
+                    <div className="flex flex-wrap gap-1">
+                      {reservation.status !== "completed" && (
+                        <Button size="sm" variant="outline" onClick={() => setCancelTarget(reservation)}>Cancel</Button>
+                      )}
+                      {reservation.status !== "completed" && (
+                        <Button size="sm" variant="outline" onClick={() => openEdit(reservation)}>Edit</Button>
+                      )}
+                      {reservation.status !== "seated" && reservation.status !== "completed" && (
+                        <Button size="sm" disabled={arrive.isPending} onClick={() => arrive.mutate(reservation.id)}>Seat</Button>
+                      )}
+                      {problem && (
+                        <Button size="sm" variant="outline" disabled={suggest.isPending} onClick={() => suggest.mutate(reservation.id)}>
+                          <Sparkles className="mr-1 h-3.5 w-3.5" />
+                          AI
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {problem && (
+                        <Button size="sm" variant="outline" disabled={suggest.isPending} onClick={() => suggest.mutate(reservation.id)}>
+                          <Sparkles className="mr-1 h-3.5 w-3.5" />
+                          AI
+                        </Button>
+                      )}
+                      {reservation.status !== "seated" && reservation.status !== "completed" && (
+                        <Button size="sm" disabled={arrive.isPending} onClick={() => arrive.mutate(reservation.id)}>Arrive</Button>
+                      )}
+                    </>
                   )}
                 </div>
                 {showing && (
@@ -447,9 +530,11 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
               </div>
             );
           })}
-          {hostList.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">No reservations for this day.</p>}
+          {hostList.filter((reservation) => !hostStation || reservation.status !== "completed").length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">No reservations for this day.</p>}
+          </div>
         </div>
       )}
+      </div>
       {selected && (
         <div className="absolute inset-x-0 bottom-0 z-20 max-h-[70%] overflow-auto rounded-t-2xl border bg-background p-4 shadow-xl">
           {(() => {
@@ -499,6 +584,70 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
           })()}
         </div>
       )}
+      <Dialog open={walkInOpen} onOpenChange={setWalkInOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Seat a walk-in</DialogTitle>
+          </DialogHeader>
+          <form className="grid gap-2" onSubmit={(event) => { event.preventDefault(); hostWalkIn.mutate(); }}>
+            <p className="text-sm text-muted-foreground">They get a reservation in their name. The table must be empty for their whole seating.</p>
+            <input className="h-10 rounded-md border bg-background px-2" placeholder="Name" value={walkInName} onChange={(event) => setWalkInName(event.target.value)} required />
+            <input className="h-10 rounded-md border bg-background px-2" placeholder="Phone" value={walkInPhone} onChange={(event) => setWalkInPhone(event.target.value)} required />
+            <input className="h-10 rounded-md border bg-background px-2" type="number" min={1} value={walkInParty} onChange={(event) => setWalkInParty(Number(event.target.value))} required />
+            <select className="h-10 rounded-md border bg-background px-2" value={walkInTableId} onChange={(event) => setWalkInTableId(event.target.value)} required>
+              <option value="">Empty table</option>
+              {tables.filter((table) => tableIsOpen(table, walkInParty, reservations, walkins, data?.turnMinutes || 180, date)).map((table) => (
+                <option key={table.id} value={table.id}>{table.tableLabel} · {table.minCapacity}-{table.maxCapacity}</option>
+              ))}
+            </select>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setWalkInOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={hostWalkIn.isPending}>Save reservation</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit reservation</DialogTitle>
+          </DialogHeader>
+          <form
+            className="grid gap-2"
+            onSubmit={(event) => { event.preventDefault(); saveEdit.mutate(); }}
+          >
+            <input className="h-10 rounded-md border bg-background px-2" placeholder="Name" value={editName} onChange={(event) => setEditName(event.target.value)} required />
+            <input className="h-10 rounded-md border bg-background px-2" placeholder="Phone" value={editPhone} onChange={(event) => setEditPhone(event.target.value)} />
+            <input className="h-10 rounded-md border bg-background px-2" type="number" min={1} value={editParty} onChange={(event) => setEditParty(Number(event.target.value))} required />
+            <input className="h-10 rounded-md border bg-background px-2" type="time" value={editTime} onChange={(event) => setEditTime(event.target.value)} required />
+            <select className="h-10 rounded-md border bg-background px-2" value={editTableId} onChange={(event) => setEditTableId(event.target.value)}>
+              <option value="">No table</option>
+              {tables.map((table) => (
+                <option key={table.id} value={table.id}>{table.tableLabel} · {table.minCapacity}-{table.maxCapacity}</option>
+              ))}
+            </select>
+            <input className="h-10 rounded-md border bg-background px-2" placeholder="Special requests" value={editNotes} onChange={(event) => setEditNotes(event.target.value)} />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button type="submit" disabled={saveEdit.isPending || !editName.trim()}>Save</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this reservation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cancelTarget ? `${cancelTarget.customerName} at ${timeLabel(cancelTarget.reservationTime)} will be cancelled and the table released.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep reservation</AlertDialogCancel>
+            <AlertDialogAction disabled={cancelReservation.isPending} onClick={() => cancelTarget && cancelReservation.mutate(cancelTarget.id)}>Cancel reservation</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
