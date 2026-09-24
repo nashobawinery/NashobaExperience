@@ -1264,6 +1264,8 @@ export interface ReservationConfirmationData {
   closing?: string;
   contactEmail?: string;
   contactPhone?: string;
+  confirmationToken?: string;
+  experienceId?: string;
 }
 
 export function generateReservationConfirmationEmail(data: ReservationConfirmationData): { subject: string; html: string; text: string } {
@@ -1285,6 +1287,7 @@ export function generateReservationConfirmationEmail(data: ReservationConfirmati
     closing,
     contactEmail,
     contactPhone,
+    confirmationToken,
   } = data;
 
   const isTicketed = reservationType === "ticketed" || Boolean(ticketQuantity && ticketQuantity > 0);
@@ -1302,6 +1305,9 @@ export function generateReservationConfirmationEmail(data: ReservationConfirmati
     day: 'numeric' 
   });
   const formattedTime = formatTo12Hour(reservationTime);
+  const baseUrl = getBaseUrl();
+  const cancelUrl = confirmationToken ? `${baseUrl}/reservations/cancel/${confirmationToken}` : null;
+  const rebookUrl = confirmationToken ? `${baseUrl}/reservations/rebook/${confirmationToken}` : null;
 
   const subject = `${placeName}: ${experienceName} confirmed — ${formattedDate}`;
   
@@ -1326,7 +1332,10 @@ ${confirmationCode ? `Confirmation #: ${confirmationCode}` : ''}
 ${specialRequests ? `Special Requests: ${specialRequests}` : ''}
 
 NEED TO MAKE CHANGES?
-To modify or cancel your reservation, please contact ${placeName}:
+If you need to change your reservation time, cancel and rebook to see if the time is available.
+${cancelUrl ? `Cancel: ${cancelUrl}` : ""}
+${rebookUrl ? `Cancel and rebook: ${rebookUrl}` : ""}
+You can also contact ${placeName}:
 Email: ${replyEmail}
 Phone: ${replyPhone}
 
@@ -1445,7 +1454,13 @@ ${placeName}
       
       <div class="info-box">
         <h3 style="margin: 0 0 15px 0; color: #5C2535;">Need to Make Changes?</h3>
-        <p style="margin: 0;">To modify or cancel your reservation, contact ${escapeEmailText(placeName)}:</p>
+        <p style="margin: 0 0 16px;">If you need to change your reservation time, cancel and rebook to see if the time is available. You can cancel at any time.</p>
+        ${cancelUrl && rebookUrl ? `
+        <p style="margin: 0 0 12px;">
+          <a href="${cancelUrl}" style="display: inline-block; background: #5C2535; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 6px; margin-right: 8px;">Cancel reservation</a>
+          <a href="${rebookUrl}" style="display: inline-block; background: #ffffff; color: #5C2535; text-decoration: none; padding: 12px 18px; border-radius: 6px; border: 1px solid #5C2535;">Cancel and rebook</a>
+        </p>` : ""}
+        <p style="margin: 8px 0 0;">You can also contact ${escapeEmailText(placeName)}:</p>
         <p style="margin: 8px 0 0;"><strong>Email:</strong> <a href="mailto:${escapeEmailText(replyEmail)}" style="color: #5C2535;">${escapeEmailText(replyEmail)}</a></p>
         <p style="margin: 8px 0 0;"><strong>Phone:</strong> ${escapeEmailText(replyPhone)}</p>
       </div>

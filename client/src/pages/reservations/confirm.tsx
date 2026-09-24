@@ -19,6 +19,7 @@ interface ReservationDetails {
     confirmationCode?: string;
   };
   experience: {
+    id: string;
     name: string;
     description?: string;
   } | null;
@@ -26,8 +27,9 @@ interface ReservationDetails {
 
 export default function ConfirmReservation() {
   const params = useParams<{ token: string }>();
-  const [, setLocation] = useLocation();
-  const [actionTaken, setActionTaken] = useState<"confirmed" | "cancelled" | null>(null);
+  const [path, setLocation] = useLocation();
+  const mode = path.includes("/rebook/") ? "rebook" : path.includes("/cancel/") ? "cancel" : "confirm";
+  const [actionTaken, setActionTaken] = useState<"confirmed" | "cancelled" | "rebooked" | null>(null);
 
   const { data, isLoading, error } = useQuery<ReservationDetails>({
     queryKey: ["/api/resy/confirm", params.token],
@@ -48,6 +50,11 @@ export default function ConfirmReservation() {
       return await apiRequest("POST", `/api/resy/cancel/${params.token}`);
     },
     onSuccess: () => {
+      if (mode === "rebook" && data?.experience?.id) {
+        setActionTaken("rebooked");
+        setLocation(`/book/${data.experience.id}`);
+        return;
+      }
       setActionTaken("cancelled");
     },
   });
@@ -95,7 +102,7 @@ export default function ConfirmReservation() {
   const { reservation, experience } = data;
 
   // Already confirmed or cancelled
-  if (actionTaken === "confirmed" || reservation.status === "confirmed") {
+  if ((actionTaken === "confirmed" || reservation.status === "confirmed") && actionTaken !== "cancelled") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted p-4">
         <Card className="w-full max-w-md">
@@ -148,8 +155,13 @@ export default function ConfirmReservation() {
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-muted-foreground mb-4">
-              We're sorry we won't be seeing you this time. If you'd like to book a new reservation, please visit our website.
+              We're sorry we won't be seeing you this time. If you'd like a different time, book again to see what is available.
             </p>
+            {experience?.id && (
+              <Button className="mb-4" onClick={() => setLocation(`/book/${experience.id}`)}>
+                Book a new time
+              </Button>
+            )}
             <p className="text-sm text-muted-foreground">
               Questions? Contact us at (978) 779-5521.
             </p>
@@ -195,29 +207,31 @@ export default function ConfirmReservation() {
             </div>
 
             <div className="flex flex-col gap-3">
+              {mode === "confirm" && (
+                <Button
+                  size="lg"
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={() => confirmMutation.mutate()}
+                  disabled={confirmMutation.isPending || cancelMutation.isPending}
+                  data-testid="button-confirm-reservation"
+                >
+                  {confirmMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Confirming...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Yes, I'm Coming!
+                    </>
+                  )}
+                </Button>
+              )}
+
               <Button
                 size="lg"
-                className="w-full bg-green-600 hover:bg-green-700"
-                onClick={() => confirmMutation.mutate()}
-                disabled={confirmMutation.isPending || cancelMutation.isPending}
-                data-testid="button-confirm-reservation"
-              >
-                {confirmMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Confirming...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Yes, I'm Coming!
-                  </>
-                )}
-              </Button>
-              
-              <Button
-                size="lg"
-                variant="destructive"
+                variant={mode === "rebook" ? "default" : "destructive"}
                 className="w-full"
                 onClick={() => cancelMutation.mutate()}
                 disabled={confirmMutation.isPending || cancelMutation.isPending}
@@ -228,6 +242,8 @@ export default function ConfirmReservation() {
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Cancelling...
                   </>
+                ) : mode === "rebook" ? (
+                  "Cancel and choose a new time"
                 ) : (
                   <>
                     <XCircle className="w-4 h-4 mr-2" />
@@ -238,7 +254,9 @@ export default function ConfirmReservation() {
             </div>
 
             <p className="text-center text-sm text-muted-foreground">
-              Need to make changes? Contact us at (978) 779-5521.
+              {mode === "rebook"
+                ? "If you need to change your reservation time, cancel and rebook to see if the time is available."
+                : "You can cancel at any time. To change the time, cancel and rebook."}
             </p>
           </div>
         </CardContent>

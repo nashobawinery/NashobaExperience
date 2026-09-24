@@ -88,6 +88,8 @@ type AvailableTimeSlot = {
   time: string;
   available: boolean;
   mealPeriod: string;
+  reason?: string;
+  walkIn?: boolean;
 };
 
 export default function Booking() {
@@ -108,6 +110,7 @@ export default function Booking() {
     closedMessage?: string;
     fullyBookedMessage?: string;
     privateEventMessage?: string;
+    suggestion?: string;
   }>({});
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [discountCode, setDiscountCode] = useState("");
@@ -1184,9 +1187,10 @@ export default function Booking() {
                       // Filter to only show available times (hide unavailable slots entirely)
                       const onlyAvailableTimes = availableTableTimes.filter(slot => slot.available);
                       const hasAvailableTimes = onlyAvailableTimes.length > 0;
-                      
-                      // Check if there were times returned but none available for party size
-                      const hasTimesButNoneAvailable = availableTableTimes.length > 0 && !hasAvailableTimes;
+                      const refusalReasons = Array.from(new Set(
+                        availableTableTimes.filter((slot) => !slot.available && slot.reason).map((slot) => slot.reason as string)
+                      ));
+                      const showWalkIn = availableTableTimes.some((slot) => !slot.available && slot.walkIn);
 
                       return (
                         <div className="space-y-4">
@@ -1201,13 +1205,22 @@ export default function Booking() {
                           )}
                           
                           {/* Show party size accommodation message when times exist but none fit party */}
-                          {hasTimesButNoneAvailable && !displayMessage && (
+                          {refusalReasons.length > 0 && !displayMessage && (
                             <div
                               className="rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm text-amber-700 dark:text-amber-300"
                               data-testid="text-party-size-unavailable"
                             >
-                              <strong>Unable to accommodate your party size.</strong>
-                              <p className="mt-1">Unfortunately, we don't have availability for a party of {watchedPartySize || 2} on this date. Please try a different date or adjust your party size.</p>
+                              {refusalReasons.map((reason) => (
+                                <p key={reason}>{reason}</p>
+                              ))}
+                              {hasAvailableTimes && (
+                                <p className="mt-1">The times we can offer for {watchedPartySize || 2} people are shown below.</p>
+                              )}
+                              {availabilityMessages.suggestion ? (
+                                <p className="mt-2">{availabilityMessages.suggestion}</p>
+                              ) : showWalkIn ? (
+                                <p className="mt-2">We do have some tables for walk-ins and invite you to join us as a walk-in customer. Wait times may vary based on the number of people that show up without reservations.</p>
+                              ) : null}
                             </div>
                           )}
 

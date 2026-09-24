@@ -1519,6 +1519,7 @@ function Router() {
         <Route path="/reservations/confirmation" component={ResyConfirmationRoute} />
         <Route path="/reservations/confirm/:token" component={ResyConfirmReservationRoute} />
         <Route path="/reservations/cancel/:token" component={ResyConfirmReservationRoute} />
+        <Route path="/reservations/rebook/:token" component={ResyConfirmReservationRoute} />
         {/* Reservation Routes - Admin */}
         <Route path="/reservations/admin" component={ResyAdminHomeRoute} />
         <Route path="/reservations/admin/calendar" component={ResyAdminCalendarRoute} />

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "./db";
-import { eq, and, desc, sql, inArray, notInArray, not } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, notInArray, not, lte, gte } from "drizzle-orm";
 import { isPlatformAuthenticated } from "./platformAuth";
 import { requireModuleAccess } from "./rbac";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -1385,6 +1385,8 @@ async function reservationConfirmationContent(
     confirmationCode?: string;
     specialRequests?: string;
     locationId?: string | null;
+    confirmationToken?: string;
+    experienceId?: string;
   },
 ) {
   const locationId = fields.locationId || experience.locationId;
@@ -1408,7 +1410,15 @@ async function reservationConfirmationContent(
     closing: location?.confirmationClosing || undefined,
     contactEmail: location?.confirmationContactEmail || undefined,
     contactPhone: location?.confirmationContactPhone || undefined,
+    confirmationToken: fields.confirmationToken,
+    experienceId: fields.experienceId,
   };
+}
+
+const WALK_IN_INVITE = "We do have some tables for walk-ins and invite you to join us as a walk-in customer. Wait times may vary based on the number of people that show up without reservations.";
+
+function withWalkInInvite(message: string): string {
+  return `${message} ${WALK_IN_INVITE}`;
 }
 
 function outsideAdvanceBookingWindow(advanceBookingDays: number | null | undefined, reservationDate: string): string | null {
@@ -1451,6 +1461,66 @@ router.post("/api/resy/reservations", async (req, res) => {
       const bookingLocation = await resyStorage.getLocation(bookingLocationId);
       const windowMessage = outsideAdvanceBookingWindow(bookingLocation?.advanceBookingDays, String(data.reservationDate));
       if (windowMessage) return res.status(400).json({ message: windowMessage });
+
+      if (experience?.reservationType === "table" && data.reservationTime && data.partySize) {
+        const party = Number(data.partySize);
+        if (bookingLocation?.maxReservationSize && party > bookingLocation.maxReservationSize) {
+          return res.status(400).json({ message: `The largest party we can reserve is ${bookingLocation.maxReservationSize}.` });
+        }
+        const schedule = await getNormalizedSchedule(bookingLocationId, String(data.reservationDate));
+        if (schedule.isClosed) {
+          return res.status(400).json({ message: schedule.closureReason || "This location is closed on that day." });
+        }
+        const period = schedule.servicePeriods.find((item) => {
+          const start = timeToMinutes(item.startTime);
+          const end = timeToMinutes(item.lastReservationTime || item.endTime);
+          const requested = timeToMinutes(String(data.reservationTime));
+          return requested >= start && requested < end;
+        });
+        if (!period) {
+          return res.status(400).json({ message: "That time is outside the hours for this location." });
+        }
+        const dayReservations = await db.select().from(resyReservations).where(and(
+          eq(resyReservations.locationId, bookingLocationId),
+          eq(resyReservations.reservationDate, String(data.reservationDate)),
+          not(eq(resyReservations.status, "cancelled"))
+        ));
+        const dailyUsed = dayReservations.reduce((sum, reservation) => sum + (reservation.partySize || 0), 0);
+        const flowControls = await resyStorage.getFlowControlsByLocation(bookingLocationId);
+        const dailyCap = flowControls.find((control) => control.isActive && control.maxDailyCovers)?.maxDailyCovers ?? null;
+        if (dailyCap !== null && dailyUsed + party > dailyCap) {
+          return res.status(400).json({ message: withWalkInInvite("Sorry, we have reached the maximum number of guests we can seat on this day.") });
+        }
+        const flowResult = await getRemainingCovers(bookingLocationId, String(data.reservationDate), String(data.reservationTime), period.periodId);
+        if (flowResult.remainingCovers < party) {
+          return res.status(400).json({ message: withWalkInInvite(`Sorry, the time selected is not available for a party of ${party}.`) });
+        }
+        const turnDuration = await getTurnDuration(bookingLocationId, period.periodId, party);
+        const availableTables = await getAvailableTables(bookingLocationId, String(data.reservationDate), String(data.reservationTime), party, turnDuration);
+        if (availableTables.length === 0) {
+          const fittingTables = await db.select().from(resyLocationTables).where(and(
+            eq(resyLocationTables.locationId, bookingLocationId),
+            eq(resyLocationTables.isActive, true),
+            eq(resyLocationTables.isPaused, false),
+            lte(resyLocationTables.minCapacity, party),
+            gte(resyLocationTables.maxCapacity, party)
+          ));
+          return res.status(400).json({
+            message: fittingTables.length === 0
+              ? `Sorry, we do not have a table that can seat ${party} people.`
+              : withWalkInInvite(`Sorry, you are booking a table for ${party} people and all of the tables that can seat ${party} are already booked.`),
+          });
+        }
+        data.assignedTableId = availableTables[0].tableId;
+        data.tableAssignment = availableTables[0].tableLabel;
+        data.turnDuration = turnDuration;
+        data.holdStart = data.reservationTime;
+        data.holdEnd = minutesToTime(timeToMinutes(String(data.reservationTime)) + turnDuration);
+      }
+    }
+
+    if (!data.confirmationToken) {
+      data.confirmationToken = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`.toUpperCase();
     }
 
     const validated = insertResyReservationSchema.parse(data);
@@ -1511,6 +1581,8 @@ router.post("/api/resy/reservations", async (req, res) => {
             confirmationCode: reservation.confirmationCode || undefined,
             specialRequests: reservation.specialRequests || undefined,
             locationId: reservation.locationId,
+            confirmationToken: reservation.confirmationToken || undefined,
+            experienceId: reservation.experienceId,
           });
           const { subject, html, text } = generateReservationConfirmationEmail(emailData);
           await sendEmail(reservation.customerEmail, subject, html, text);
@@ -2414,12 +2486,29 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
     const flowControls = await resyStorage.getFlowControlsByLocation(locationId);
     
     // Generate time slots based on service periods
+    const dayReservations = await db.select().from(resyReservations).where(and(
+      eq(resyReservations.locationId, locationId),
+      eq(resyReservations.reservationDate, date as string),
+      not(eq(resyReservations.status, "cancelled"))
+    ));
+    const dailyUsed = dayReservations.reduce((sum, reservation) => sum + (reservation.partySize || 0), 0);
+    const dailyCap = flowControls.find((control) => control.isActive && control.maxDailyCovers)?.maxDailyCovers ?? null;
+    const fittingTables = await db.select().from(resyLocationTables).where(and(
+      eq(resyLocationTables.locationId, locationId),
+      eq(resyLocationTables.isActive, true),
+      eq(resyLocationTables.isPaused, false),
+      lte(resyLocationTables.minCapacity, requestedSize),
+      gte(resyLocationTables.maxCapacity, requestedSize)
+    ));
+
     const availableTimes: Array<{
       time: string;
       available: boolean;
       capacity?: number;
       mealPeriod?: string;
       tablesAvailable?: number;
+      reason?: string;
+      walkIn?: boolean;
     }> = [];
     
     for (const period of schedule.servicePeriods) {
@@ -2464,13 +2553,35 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
         // 2. At least one table is available
         const hasFlowCapacity = flowResult.remainingCovers >= requestedSize;
         const hasTableAvailable = availableTables.length > 0;
+        const overDailyCap = dailyCap !== null && dailyUsed + requestedSize > dailyCap;
+        const overPartyCap = !!location.maxReservationSize && requestedSize > location.maxReservationSize;
+        let reason: string | undefined;
+        let walkIn = false;
+        if (overPartyCap) {
+          reason = `The largest party we can reserve is ${location.maxReservationSize}.`;
+        } else if (overDailyCap) {
+          reason = "Sorry, we have reached the maximum number of guests we can seat on this day.";
+          walkIn = true;
+        } else if (!hasFlowCapacity) {
+          reason = `Sorry, the time selected is not available for a party of ${requestedSize}.`;
+          walkIn = true;
+        } else if (!hasTableAvailable) {
+          if (fittingTables.length === 0) {
+            reason = `Sorry, we do not have a table that can seat ${requestedSize} people.`;
+          } else {
+            reason = `Sorry, you are booking a table for ${requestedSize} people and all of the tables that can seat ${requestedSize} are already booked.`;
+            walkIn = true;
+          }
+        }
         
         availableTimes.push({
           time: timeStr,
-          available: hasFlowCapacity && hasTableAvailable,
+          available: !overPartyCap && !overDailyCap && hasFlowCapacity && hasTableAvailable,
           capacity: flowResult.remainingCovers,
           mealPeriod: period.periodName,
-          tablesAvailable: availableTables.length
+          tablesAvailable: availableTables.length,
+          reason,
+          walkIn,
         });
         
         // Advance by interval
@@ -2478,7 +2589,40 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
       }
     }
     
-    res.json({ availableTimes, messages: {} });
+    const openTimes = availableTimes.filter((slot) => slot.available).map((slot) => slot.time);
+    const blockedReasons = Array.from(new Set(availableTimes.filter((slot) => slot.reason).map((slot) => slot.reason as string)));
+    const offerWalkIn = availableTimes.some((slot) => slot.walkIn);
+    let suggestion = "";
+    if (blockedReasons.length > 0 && process.env.OPENAI_API_KEY) {
+      try {
+        const { default: OpenAI } = await import("openai");
+        const openai = new OpenAI();
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          temperature: 0.2,
+          messages: [
+            {
+              role: "system",
+              content: "You help a guest whose reservation request cannot be fully met. Use only the facts given. Do not invent times, table counts, or wait times. Suggest the open times if any, or a smaller party or another day if none are open. Two or three short sentences.",
+            },
+            {
+              role: "user",
+              content: `Party size: ${requestedSize}
+Date: ${date}
+Reasons some times are unavailable: ${blockedReasons.join(" | ") || "none"}
+Open times for this party: ${openTimes.join(", ") || "none"}
+Walk-in tables exist: ${offerWalkIn ? "yes" : "no"}
+If walk-in is yes, include this sentence exactly: ${WALK_IN_INVITE}`,
+            },
+          ],
+        });
+        suggestion = completion.choices[0]?.message?.content?.trim() || "";
+      } catch (error) {
+        console.error("Availability suggestion failed:", error);
+      }
+    }
+
+    res.json({ availableTimes, messages: { suggestion } });
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch available times: " + error.message });
   }
@@ -4240,6 +4384,8 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
         confirmationCode,
         specialRequests: specialRequests || undefined,
         locationId: experience.locationId,
+        confirmationToken,
+        experienceId,
       }));
       await sendEmail(customerEmail, emailContent.subject, emailContent.html, emailContent.text);
     } catch (emailError) {
@@ -4313,6 +4459,7 @@ router.get("/api/resy/confirm/:token", async (req, res) => {
         confirmationCode: reservation.confirmationCode
       },
       experience: experience ? {
+        id: experience.id,
         name: experience.name,
         description: experience.description
       } : null
