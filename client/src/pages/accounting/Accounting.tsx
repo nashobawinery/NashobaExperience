@@ -95,6 +95,19 @@ type AllocationLine = {
   elections: AllocationElection[];
 };
 
+type AnniversaryRow = {
+  fullName: string;
+  companyName: string;
+  hireDate: string;
+  serviceMonths: number;
+  currentMedical: string;
+  currentDental: string;
+  nextMonth: string | null;
+  nextServiceMonths: number | null;
+  nextMedical: string | null;
+  nextDental: string | null;
+};
+
 type Allocation = {
   ready: boolean;
   warnings: string[];
@@ -102,6 +115,7 @@ type Allocation = {
   total: number;
   employer: number;
   employee: number;
+  anniversaries?: { rows: AnniversaryRow[] };
   companies: {
     companyId: string;
     companyName: string;
@@ -186,6 +200,7 @@ type Provider = {
   rateGuaranteeThrough: string | null;
   isCurrent: boolean;
   notes: string | null;
+  billRequestEmail: string | null;
   programs: Program[];
 };
 
@@ -241,6 +256,15 @@ type EnrollmentPreview = {
   attachments: { title: string; originalFilename: string }[];
 };
 
+type UploadRequest = {
+  id: string;
+  providerId: string;
+  billingMonth: string;
+  recipientEmail: string;
+  sentAt: string | null;
+  uploadedFilename: string | null;
+};
+
 type HealthcarePayload = {
   companies: Company[];
   providers: Provider[];
@@ -250,6 +274,7 @@ type HealthcarePayload = {
   contributionBands: ContributionBand[];
   accountMappings: AccountMapping[];
   documents: BenefitDocument[];
+  uploadRequests: UploadRequest[];
   inquiries: BenefitInquiry[];
   statements: Statement[];
 };
@@ -465,6 +490,7 @@ export default function AccountingPage() {
   const [bandDraft, setBandDraft] = useState<Record<string, string>>({});
   const [mappingDraft, setMappingDraft] = useState<Record<string, { accountName: string; accountType: string }>>({});
   const [participantOpen, setParticipantOpen] = useState(false);
+  const [ledgerParticipantId, setLedgerParticipantId] = useState<string | null>(null);
   const [participantForm, setParticipantForm] = useState({
     id: "",
     fullName: "",
@@ -473,6 +499,7 @@ export default function AccountingPage() {
     companyId: "",
     elections: {} as Record<string, { programId: string; tier: string }>,
   });
+  const [billRequestEmail, setBillRequestEmail] = useState("aparrow@nashobawinery.com");
   const [docTitle, setDocTitle] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
   const [inquiryForm, setInquiryForm] = useState({ fullName: "", email: "", hireDate: "", eventType: "new_hire", eventDetail: "" });
@@ -490,6 +517,9 @@ export default function AccountingPage() {
   useEffect(() => {
     if (!data) return;
     const emails: Record<string, string> = {};
+    const requestEmail = (data.providers ?? []).find((provider) => provider.isCurrent)?.billRequestEmail
+      ?? data.providers?.[0]?.billRequestEmail;
+    if (requestEmail) setBillRequestEmail(requestEmail);
     for (const company of data.companies) emails[company.id] = company.billingEmail ?? "";
     const rules: Record<string, { basis: string; employerPercent: string }> = {};
     for (const rule of data.contributionRules) {
@@ -537,6 +567,19 @@ export default function AccountingPage() {
       toast({ title: "Payroll deductions logged", description: `Recorded for the period ending ${periodEnd}.` });
     },
     onError: (err: Error) => toast({ title: "Could not log payroll", description: err.message, variant: "destructive" }),
+  });
+
+  const { data: ledger, isLoading: ledgerLoading } = useQuery<{
+    fullName: string;
+    planYearStart: string;
+    lines: { periodEnd: string; coverageMonth: string; monthlyEmployer: number; monthlyEmployee: number; employerPay: number; employeePay: number }[];
+  }>({
+    queryKey: ["/api/accounting/healthcare/participants", ledgerParticipantId, "ledger"],
+    enabled: Boolean(ledgerParticipantId),
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/accounting/healthcare/participants/${ledgerParticipantId}/ledger`);
+      return res.json();
+    },
   });
 
   const { data: allocation } = useQuery<Allocation>({
@@ -676,11 +719,14 @@ export default function AccountingPage() {
   });
 
   const emailUploadLink = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/accounting/healthcare/bill-upload-link", { billingMonth });
-      return res.json() as Promise<{ email: string }>;
+    mutationFn: async (month: string) => {
+      const res = await apiRequest("POST", "/api/accounting/healthcare/bill-upload-link", { billingMonth: month, email: billRequestEmail });
+      return res.json() as Promise<{ email: string; month: string }>;
     },
-    onSuccess: (result) => toast({ title: "Upload link emailed", description: result.email }),
+    onSuccess: async (result) => {
+      await invalidate();
+      toast({ title: "Upload link emailed", description: `${result.email} · ${formatMonth(`${result.month}-01`)}` });
+    },
     onError: (err: Error) => toast({ title: "Could not email the upload link", description: err.message, variant: "destructive" }),
   });
 
@@ -972,7 +1018,7 @@ export default function AccountingPage() {
                 <CardHeader>
                   <CardTitle>Company contribution</CardTitle>
                   <CardDescription>
-                    From the 2026–27 enrollment package. Medical and dental use months since hire. Vision is paid by the employee. The same amounts apply at Nashoba Valley and The Gables. The employee pays the rest of the premium for the tier they elected.
+                    Dental is 25% of the employee-only premium from 3 to 59 months, 50% from 60 to 119 months, and 100% at 120 months. Medical is $450, $625, or $700 at those same anniversaries. Vision stays at $0. A hire date after the 1st does not count as a full month. The same schedule applies at Nashoba Valley and The Gables.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -1026,6 +1072,41 @@ export default function AccountingPage() {
                     </table>
                   </div>
                   <Button onClick={() => saveRules.mutate()} disabled={saveRules.isPending} data-testid="button-save-rules">Save contribution rates</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Contribution anniversaries</CardTitle>
+                  <CardDescription>
+                    Each enrolled employee, and the hire-date anniversary that moves medical and dental to the next company contribution. This ledger is included in the monthly invoice upload email.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(allocation?.anniversaries?.rows.length ?? 0) === 0 ? (
+                    <p className="text-sm text-muted-foreground">No enrolled employees for this month.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="py-2 pr-3 font-medium">Employee</th>
+                            <th className="py-2 pr-3 font-medium">As of {formatMonth(`${billingMonth}-01`)}</th>
+                            <th className="py-2 font-medium">Next rate change</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allocation?.anniversaries?.rows.map((row) => (
+                            <tr key={`${row.fullName}-${row.hireDate}`} className="border-b last:border-0">
+                              <td className="py-2 pr-3">{row.fullName}<br /><span className="text-muted-foreground">{row.companyName} · hired {formatDay(row.hireDate)}</span></td>
+                              <td className="py-2 pr-3">{row.serviceMonths} months<br />Medical {row.currentMedical}<br />Dental {row.currentDental}</td>
+                              <td className="py-2">{row.nextMonth ? <>{formatMonth(`${row.nextMonth}-01`)} · {row.nextServiceMonths} months<br />Medical {row.nextMedical}<br />Dental {row.nextDental}</> : "Highest rate is already in effect"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1086,6 +1167,7 @@ export default function AccountingPage() {
                                 <td className="py-2 pr-3">{line ? money(line.employer) : "—"}</td>
                                 <td className="py-2 pr-3">{line ? money(line.employee) : "—"}</td>
                                 <td className="py-2 text-right whitespace-nowrap">
+                                  <Button variant="ghost" size="sm" onClick={() => setLedgerParticipantId(participant.id)} data-testid={`button-ledger-${participant.id}`}>Ledger</Button>
                                   <Button variant="ghost" size="icon" onClick={() => openParticipant(participant)} data-testid={`button-edit-participant-${participant.id}`}>
                                     <Pencil className="h-4 w-4" />
                                   </Button>
@@ -1142,6 +1224,25 @@ export default function AccountingPage() {
             </TabsContent>
 
             <TabsContent value="bills" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Invoice request email</CardTitle>
+                  <CardDescription>This address receives the monthly request to upload the UnitedHealthcare bill, including the ledger of upcoming contribution changes.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-w-md">
+                    <Label htmlFor="bill-request-email">Send invoice requests to</Label>
+                    <Input
+                      id="bill-request-email"
+                      type="email"
+                      value={billRequestEmail}
+                      onChange={(event) => setBillRequestEmail(event.target.value)}
+                      data-testid="input-bill-request-email"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle>Upload or scan a monthly bill</CardTitle>
@@ -1210,10 +1311,48 @@ export default function AccountingPage() {
                     <Button className="ml-auto" disabled={!billFile || uploadBill.isPending} onClick={() => uploadBill.mutate()} data-testid="button-save-bill">
                       Save bill
                     </Button>
-                    <Button variant="outline" disabled={emailUploadLink.isPending} onClick={() => emailUploadLink.mutate()} data-testid="button-email-upload-link">
+                    <Button variant="outline" disabled={emailUploadLink.isPending || !billRequestEmail.trim()} onClick={() => emailUploadLink.mutate(billingMonth)} data-testid="button-email-upload-link">
                       Email upload link
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Upload requests</CardTitle>
+                  <CardDescription>Emails asking for the bill, and whether that month’s file has been uploaded.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.uploadRequests ?? []).filter((request) => request.providerId === selectedProvider?.id).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No upload requests have been sent.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {(data?.uploadRequests ?? []).filter((request) => request.providerId === selectedProvider?.id).map((request) => (
+                        <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3" data-testid={`upload-request-${request.id}`}>
+                          <div>
+                            <p className="font-medium">{formatMonth(request.billingMonth)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Sent to {request.recipientEmail}{request.sentAt ? ` · ${formatDay(request.sentAt)}` : ""}
+                            </p>
+                            <p className="text-sm">{request.uploadedFilename ? `Uploaded · ${request.uploadedFilename}` : "Not uploaded yet"}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={request.uploadedFilename ? "secondary" : "outline"}>{request.uploadedFilename ? "Uploaded" : "Waiting"}</Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={emailUploadLink.isPending || !billRequestEmail.trim()}
+                              onClick={() => emailUploadLink.mutate(request.billingMonth.slice(0, 7))}
+                              data-testid={`button-resend-upload-${request.id}`}
+                            >
+                              Resend
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1583,6 +1722,45 @@ export default function AccountingPage() {
               Save program
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(ledgerParticipantId)} onOpenChange={(open) => { if (!open) setLedgerParticipantId(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{ledger?.fullName ?? "Contribution ledger"}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Each biweekly paycheck in the current plan year. The employee amount is the monthly share times 12 divided by 26. The company amount uses the same pay periods.
+          </p>
+          {ledgerLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : (ledger?.lines.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground">No pay periods in this plan year yet.</p>
+          ) : (
+            <div className="max-h-[60vh] overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="py-2 pr-3 font-medium">Pay period ends</th>
+                    <th className="py-2 pr-3 font-medium">Coverage</th>
+                    <th className="py-2 pr-3 font-medium">Company this paycheck</th>
+                    <th className="py-2 font-medium">Employee this paycheck</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledger?.lines.map((line) => (
+                    <tr key={line.periodEnd} className="border-b last:border-0">
+                      <td className="py-2 pr-3">{formatDay(line.periodEnd)}</td>
+                      <td className="py-2 pr-3">{formatMonth(`${line.coverageMonth}-01`)}</td>
+                      <td className="py-2 pr-3">{money(line.employerPay)}</td>
+                      <td className="py-2">{money(line.employeePay)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

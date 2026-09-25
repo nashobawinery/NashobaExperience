@@ -501,6 +501,15 @@ export async function ensureAccountingTables() {
     }
   }
 
+  await db.execute(sql`
+    ALTER TABLE accounting_payroll_deductions ADD COLUMN IF NOT EXISTS monthly_employer_amount numeric(12, 2);
+    ALTER TABLE accounting_payroll_deductions ADD COLUMN IF NOT EXISTS employer_deduction numeric(12, 2);
+    ALTER TABLE accounting_benefit_providers ADD COLUMN IF NOT EXISTS bill_request_email varchar;
+    UPDATE accounting_benefit_providers
+    SET bill_request_email = 'aparrow@nashobawinery.com'
+    WHERE bill_request_email IS NULL;
+  `);
+
   prepared = true;
 }
 
@@ -512,6 +521,7 @@ function mapProvider(row: Record<string, unknown>) {
     policyHolder: row.policyHolder,
     planYearStart: row.planYearStart,
     rateGuaranteeThrough: row.rateGuaranteeThrough,
+    billRequestEmail: row.billRequestEmail,
     isCurrent: row.isCurrent,
     notes: row.notes,
   };
@@ -559,6 +569,101 @@ function monthsOfService(hireDate: string, billingMonth: string) {
   let months = (year - hireYear) * 12 + (month - hireMonth);
   if (1 < hireDay) months -= 1;
   return Math.max(0, months);
+}
+
+function bandAmount(
+  category: string,
+  months: number,
+  bands: { category: string; minMonths: number; maxMonths: number | null; employerAmount: number }[],
+) {
+  const band = bands.find((item) => item.category === category && months >= item.minMonths && (item.maxMonths === null || months <= item.maxMonths));
+  return band ? band.employerAmount : 0;
+}
+
+function rateShareLabel(amount: number, employeeOnlyPremium: number | null) {
+  const dollars = moneyText(amount);
+  if (!employeeOnlyPremium || employeeOnlyPremium <= 0 || amount <= 0) return dollars;
+  const percent = (amount / employeeOnlyPremium) * 100;
+  const rounded = Math.round(percent);
+  if (Math.abs(percent - rounded) > 0.05) return dollars;
+  return `${dollars} (${rounded}% of employee-only)`;
+}
+
+function nextServiceMonth(hireDate: string, targetMonths: number) {
+  const start = String(hireDate).slice(0, 7);
+  for (let i = 0; i < 480; i += 1) {
+    const month = shiftMonth(start, i);
+    if (monthsOfService(hireDate, month) >= targetMonths) return month;
+  }
+  return null;
+}
+
+export async function contributionAnniversaryLedger(billingMonth: string) {
+  const company = await db.execute(sql`SELECT id FROM accounting_companies ORDER BY sort_order, name LIMIT 1`);
+  const companyId = (company.rows[0] as { id?: string } | undefined)?.id;
+  const bandRows = await db.execute(sql`
+    SELECT category, min_months as "minMonths", max_months as "maxMonths", employer_amount as "employerAmount"
+    FROM accounting_contribution_bands
+    WHERE company_id = ${companyId}
+  `);
+  const bands = (bandRows.rows as { category: string; minMonths: number; maxMonths: number | null; employerAmount: string }[]).map((band) => ({
+    category: band.category,
+    minMonths: Number(band.minMonths),
+    maxMonths: band.maxMonths === null ? null : Number(band.maxMonths),
+    employerAmount: Number(band.employerAmount),
+  }));
+  const steps = Array.from(new Set(bands.filter((band) => band.minMonths > 0).map((band) => band.minMonths))).sort((a, b) => a - b);
+  const dental = await db.execute(sql`
+    SELECT rates FROM accounting_benefit_programs
+    WHERE category = 'dental' AND active = true
+    ORDER BY sort_order LIMIT 1
+  `);
+  const dentalRates = (dental.rows[0] as { rates?: { tiers?: { tier: string; renewal: number | null }[] } } | undefined)?.rates;
+  const dentalEmployeeOnly = dentalRates?.tiers?.find((tier) => tier.tier === "Employee")?.renewal ?? null;
+
+  const people = await db.execute(sql`
+    SELECT p.full_name as "fullName", p.hire_date as "hireDate", c.name as "companyName"
+    FROM accounting_participants p
+    JOIN accounting_companies c ON c.id = p.company_id
+    WHERE p.active = true
+      AND p.hire_date <= (${monthDate(billingMonth)}::date + interval '1 month' - interval '1 day')
+      AND (p.coverage_end IS NULL OR p.coverage_end >= ${monthDate(billingMonth)}::date)
+    ORDER BY p.full_name
+  `);
+
+  const rows = (people.rows as { fullName: string; hireDate: string; companyName: string }[]).map((person) => {
+    const hireDate = String(person.hireDate).slice(0, 10);
+    const serviceMonths = monthsOfService(hireDate, billingMonth);
+    const nextStep = steps.find((step) => serviceMonths < step) ?? null;
+    const nextMonth = nextStep === null ? null : nextServiceMonth(hireDate, nextStep);
+    const current = {
+      medical: bandAmount("medical", serviceMonths, bands),
+      dental: bandAmount("dental", serviceMonths, bands),
+    };
+    const upcoming = nextStep === null ? null : {
+      medical: bandAmount("medical", nextStep, bands),
+      dental: bandAmount("dental", nextStep, bands),
+    };
+    return {
+      fullName: person.fullName,
+      companyName: person.companyName,
+      hireDate,
+      serviceMonths,
+      currentMedical: rateShareLabel(current.medical, null),
+      currentDental: rateShareLabel(current.dental, dentalEmployeeOnly),
+      nextMonth,
+      nextServiceMonths: nextStep,
+      nextMedical: upcoming ? rateShareLabel(upcoming.medical, null) : null,
+      nextDental: upcoming ? rateShareLabel(upcoming.dental, dentalEmployeeOnly) : null,
+    };
+  });
+  rows.sort((a, b) => {
+    if (a.nextMonth && b.nextMonth) return a.nextMonth.localeCompare(b.nextMonth) || a.fullName.localeCompare(b.fullName);
+    if (a.nextMonth) return -1;
+    if (b.nextMonth) return 1;
+    return a.fullName.localeCompare(b.fullName);
+  });
+  return { month: billingMonth, dentalEmployeeOnly, rows };
 }
 
 function employerShare(
@@ -748,6 +853,7 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
     const providers = await db.execute(sql`
       SELECT id, name, group_number as "groupNumber", policy_holder as "policyHolder",
              plan_year_start as "planYearStart", rate_guarantee_through as "rateGuaranteeThrough",
+             bill_request_email as "billRequestEmail",
              is_current as "isCurrent", notes
       FROM accounting_benefit_providers
       ORDER BY is_current DESC, name
@@ -812,6 +918,19 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
       ORDER BY created_at DESC
       LIMIT 20
     `);
+    const uploadRequests = await db.execute(sql`
+      SELECT l.id, l.provider_id as "providerId", l.billing_month as "billingMonth",
+             l.recipient_email as "recipientEmail", l.sent_at as "sentAt",
+             (
+               SELECT b.original_filename
+               FROM accounting_benefit_bills b
+               WHERE b.provider_id = l.provider_id AND b.billing_month = l.billing_month
+               ORDER BY b.created_at DESC
+               LIMIT 1
+             ) as "uploadedFilename"
+      FROM accounting_benefit_upload_links l
+      ORDER BY l.billing_month DESC
+    `);
     const statements = await db.execute(sql`
       SELECT id, billing_month as "billingMonth", kind, invoice_number as "invoiceNumber",
              recipient_email as "recipientEmail", recipient_name as "recipientName",
@@ -852,7 +971,8 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
       contributionBands: contributionBandsResult.rows,
       accountMappings: accountMappings.rows,
       documents: documents.rows,
-      inquiries: inquiries.rows,
+      uploadRequests: uploadRequests.rows,
+      inquiries: inquiries.rows
       statements: statements.rows,
     });
   } catch (error) {
@@ -1032,7 +1152,9 @@ router.get("/healthcare/allocation", isAdmin, async (req, res) => {
     if (!/^\d{4}-\d{2}$/.test(billingMonth) || !providerId) {
       return res.status(400).json({ message: "Month and provider are required" });
     }
-    res.json(await calculateHealthcareAllocation(billingMonth, providerId));
+    const allocation = await calculateHealthcareAllocation(billingMonth, providerId);
+    const anniversaries = await contributionAnniversaryLedger(billingMonth);
+    res.json({ ...allocation, anniversaries });
   } catch (error) {
     console.error("Error calculating healthcare allocation:", error);
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to calculate allocation" });
@@ -1262,11 +1384,14 @@ router.post("/healthcare/payroll", isAdmin, async (req, res) => {
     for (const company of allocation.companies) {
       for (const person of company.participants) {
         const deduction = paycheckDeduction(person.employee);
+        const employerDeduction = paycheckDeduction(person.employer);
         await db.execute(sql`
           INSERT INTO accounting_payroll_deductions (
-            participant_id, period_end, coverage_month, monthly_employee_amount, deduction_amount
+            participant_id, period_end, coverage_month, monthly_employee_amount, deduction_amount,
+            monthly_employer_amount, employer_deduction
           ) VALUES (
-            ${person.participantId}, ${periodEnd}::date, ${monthDate(coverageMonth)}::date, ${person.employee}, ${deduction}
+            ${person.participantId}, ${periodEnd}::date, ${monthDate(coverageMonth)}::date, ${person.employee}, ${deduction},
+            ${person.employer}, ${employerDeduction}
           )
           ON CONFLICT (participant_id, period_end) DO NOTHING
         `);
@@ -1277,6 +1402,107 @@ router.post("/healthcare/payroll", isAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error logging payroll deductions:", error);
     res.status(500).json({ message: "Failed to log the payroll deductions" });
+  }
+});
+
+function isoDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function payPeriodEnds(anchor: string, earliest: string) {
+  const ends: string[] = [];
+  const cursor = new Date(`${anchor}T00:00:00`);
+  const floor = new Date(`${earliest}T00:00:00`);
+  while (cursor >= floor) {
+    ends.push(isoDate(cursor));
+    cursor.setDate(cursor.getDate() - 14);
+  }
+  return ends.reverse();
+}
+
+router.get("/healthcare/participants/:id/ledger", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const personResult = await db.execute(sql`
+      SELECT id, full_name as "fullName", hire_date as "hireDate", coverage_end as "coverageEnd"
+      FROM accounting_participants WHERE id = ${req.params.id}
+    `);
+    const person = personResult.rows[0] as { id: string; fullName: string; hireDate: string; coverageEnd: string | null } | undefined;
+    if (!person) return res.status(404).json({ message: "Employee not found" });
+
+    const providerResult = await db.execute(sql`
+      SELECT id, plan_year_start as "planYearStart"
+      FROM accounting_benefit_providers WHERE is_current = true ORDER BY name LIMIT 1
+    `);
+    const provider = providerResult.rows[0] as { id: string; planYearStart: string | null } | undefined;
+    if (!provider) return res.status(400).json({ message: "Add the current health insurance provider first." });
+
+    const hireDate = String(person.hireDate).slice(0, 10);
+    const planStart = String(provider.planYearStart ?? "2026-05-01").slice(0, 10);
+    const earliest = hireDate > planStart ? hireDate : planStart;
+    const periods = payPeriodEnds(payrollAnchor, earliest).filter((periodEnd) => {
+      if (periodEnd < hireDate) return false;
+      if (!person.coverageEnd) return true;
+      return String(person.coverageEnd).slice(0, 10) >= periodEnd;
+    });
+
+    const months = Array.from(new Set(periods.map((periodEnd) => periodEnd.slice(0, 7))));
+    const byMonth = new Map<string, { employer: number; employee: number }>();
+    for (const month of months) {
+      const allocation = await calculateHealthcareAllocation(month, provider.id);
+      const match = allocation.companies.flatMap((company) => company.participants).find((row) => row.participantId === person.id);
+      if (match) byMonth.set(month, { employer: match.employer, employee: match.employee });
+    }
+
+    const existing = await db.execute(sql`
+      SELECT period_end as "periodEnd"
+      FROM accounting_payroll_deductions
+      WHERE participant_id = ${person.id}
+    `);
+    const saved = new Set((existing.rows as { periodEnd: string }[]).map((row) => String(row.periodEnd).slice(0, 10)));
+
+    const lines = periods.flatMap((periodEnd) => {
+      const amounts = byMonth.get(periodEnd.slice(0, 7));
+      if (!amounts) return [];
+      const employeePay = paycheckDeduction(amounts.employee);
+      const employerPay = paycheckDeduction(amounts.employer);
+      return [{
+        periodEnd,
+        coverageMonth: periodEnd.slice(0, 7),
+        monthlyEmployer: amounts.employer,
+        monthlyEmployee: amounts.employee,
+        employerPay,
+        employeePay,
+        recorded: saved.has(periodEnd),
+      }];
+    });
+
+    for (const line of lines) {
+      if (line.recorded) continue;
+      await db.execute(sql`
+        INSERT INTO accounting_payroll_deductions (
+          participant_id, period_end, coverage_month, monthly_employee_amount, deduction_amount,
+          monthly_employer_amount, employer_deduction
+        ) VALUES (
+          ${person.id}, ${line.periodEnd}::date, ${monthDate(line.coverageMonth)}::date,
+          ${line.monthlyEmployee}, ${line.employeePay}, ${line.monthlyEmployer}, ${line.employerPay}
+        )
+        ON CONFLICT (participant_id, period_end) DO NOTHING
+      `);
+    }
+
+    res.json({
+      participantId: person.id,
+      fullName: person.fullName,
+      hireDate,
+      planYearStart: planStart,
+      anchor: payrollAnchor,
+      payPeriodsPerYear,
+      lines: lines.slice().reverse(),
+    });
+  } catch (error) {
+    console.error("Error building contribution ledger:", error);
+    res.status(500).json({ message: "Failed to build the contribution ledger" });
   }
 });
 
@@ -1836,14 +2062,19 @@ function portalBaseUrl() {
   return process.env.APP_URL || "https://nashobawinery.org";
 }
 
-async function billUploadLinkForMonth(billingMonth: string) {
+async function billUploadLinkForMonth(billingMonth: string, recipientOverride?: string) {
   await ensureAccountingTables();
   const providerResult = await db.execute(sql`
-    SELECT id, name FROM accounting_benefit_providers WHERE is_current = true ORDER BY name LIMIT 1
+    SELECT id, name, bill_request_email as "billRequestEmail"
+    FROM accounting_benefit_providers WHERE is_current = true ORDER BY name LIMIT 1
   `);
-  const provider = providerResult.rows[0] as { id: string; name: string } | undefined;
+  const provider = providerResult.rows[0] as { id: string; name: string; billRequestEmail: string | null } | undefined;
   if (!provider) throw new Error("Add the current health insurance provider first.");
-  const recipient = "aparrow@nashobawinery.com";
+  const recipient = (recipientOverride || provider.billRequestEmail || "aparrow@nashobawinery.com").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) throw new Error("Enter a valid email address for the invoice request.");
+  await db.execute(sql`
+    UPDATE accounting_benefit_providers SET bill_request_email = ${recipient} WHERE id = ${provider.id}
+  `);
 
   const existing = await db.execute(sql`
     SELECT token FROM accounting_benefit_upload_links
@@ -1868,15 +2099,40 @@ async function billUploadLinkForMonth(billingMonth: string) {
   return { provider, recipient, token, url, label: monthLabel(billingMonth) };
 }
 
-export async function emailBillUploadLink(billingMonth: string) {
-  const link = await billUploadLinkForMonth(billingMonth);
+export async function emailBillUploadLink(billingMonth: string, recipient?: string) {
+  const link = await billUploadLinkForMonth(billingMonth, recipient);
   const subject = `Upload the ${link.provider.name} bill for ${link.label}`;
-  const html = `<div style="font-family:Georgia,serif;color:#222;max-width:640px;">
+  const ledger = await contributionAnniversaryLedger(billingMonth);
+  const ledgerRows = ledger.rows.map((row) => `<tr>
+    <td style="padding:6px 8px;border-bottom:1px solid #e5e5e5;">${esc(row.fullName)}<br><span style="color:#666;font-size:12px;">${esc(row.companyName)} · hired ${esc(row.hireDate)}</span></td>
+    <td style="padding:6px 8px;border-bottom:1px solid #e5e5e5;">${row.serviceMonths} months<br>Medical ${esc(row.currentMedical)}<br>Dental ${esc(row.currentDental)}</td>
+    <td style="padding:6px 8px;border-bottom:1px solid #e5e5e5;">${row.nextMonth ? `${esc(monthLabel(row.nextMonth))}<br>${row.nextServiceMonths} months of service<br>Medical ${esc(row.nextMedical ?? "")}<br>Dental ${esc(row.nextDental ?? "")}` : "Highest rate is already in effect"}</td>
+  </tr>`).join("");
+  const html = `<div style="font-family:Georgia,serif;color:#222;max-width:760px;">
     <p>The ${esc(link.provider.name)} bill for ${esc(link.label)} can be added without signing in.</p>
     <p><a href="${esc(link.url)}">Upload the PDF</a></p>
     <p>The file is saved on Monthly Bills for that month. This link works for 45 days.</p>
+    <h3>Contribution anniversaries</h3>
+    <p>Dental is a percent of the employee-only premium: 25% from 3 to 59 months, 50% from 60 to 119 months, and 100% at 120 months. Medical is a flat monthly amount at those same anniversaries. Vision stays at $0. A hire date after the 1st does not count as a full month.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead><tr style="text-align:left;background:#f6f3ee;">
+        <th style="padding:6px 8px;">Employee</th>
+        <th style="padding:6px 8px;">As of ${esc(link.label)}</th>
+        <th style="padding:6px 8px;">Next rate change</th>
+      </tr></thead>
+      <tbody>${ledgerRows}</tbody>
+    </table>
   </div>`;
-  const text = `Upload the ${link.provider.name} bill for ${link.label}: ${link.url}\nThe file is saved on Monthly Bills. This link works for 45 days.`;
+  const text = [
+    `Upload the ${link.provider.name} bill for ${link.label}: ${link.url}`,
+    "The file is saved on Monthly Bills. This link works for 45 days.",
+    "",
+    "Contribution anniversaries",
+    "Dental is 25% of the employee-only premium from 3 to 59 months, 50% from 60 to 119 months, and 100% at 120 months. Medical changes to a flat monthly amount at those same anniversaries.",
+    ...ledger.rows.map((row) => row.nextMonth
+      ? `${row.fullName} (${row.companyName}), hired ${row.hireDate}: ${row.serviceMonths} months, medical ${row.currentMedical}, dental ${row.currentDental}. Next change ${monthLabel(row.nextMonth)} at ${row.nextServiceMonths} months: medical ${row.nextMedical}, dental ${row.nextDental}.`
+      : `${row.fullName} (${row.companyName}), hired ${row.hireDate}: ${row.serviceMonths} months, medical ${row.currentMedical}, dental ${row.currentDental}. Highest rate is already in effect.`),
+  ].join("\n");
   await sendStatementEmail(link.recipient, subject, html, text);
   await db.execute(sql`
     UPDATE accounting_benefit_upload_links SET sent_at = now(), recipient_email = ${link.recipient}
@@ -1988,8 +2244,9 @@ router.post("/healthcare/bill-upload/:token", (req, res) => {
 router.post("/healthcare/bill-upload-link", isAdmin, async (req, res) => {
   try {
     const billingMonth = String(req.body?.billingMonth ?? "");
+    const email = String(req.body?.email ?? "").trim();
     if (!/^\d{4}-\d{2}$/.test(billingMonth)) return res.status(400).json({ message: "Billing month is required" });
-    res.json(await emailBillUploadLink(billingMonth));
+    res.json(await emailBillUploadLink(billingMonth, email || undefined));
   } catch (error) {
     console.error("Error emailing bill upload link:", error);
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to email the upload link" });
