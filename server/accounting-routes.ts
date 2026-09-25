@@ -1,7 +1,7 @@
 import { Router } from "express";
 import fs from "fs";
 import path from "path";
-import { randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import multer from "multer";
 import sgMail from "@sendgrid/mail";
 import { sql } from "drizzle-orm";
@@ -22,6 +22,20 @@ const upload = multer({
       || /\.(pdf|jpe?g|png|webp|gif|heic|heif)$/i.test(file.originalname);
     if (!allowed) {
       cb(new Error("Upload a PDF or an image of the bill."));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+const documentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /^(application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|image\/(jpeg|png|webp))$/i.test(file.mimetype)
+      || /\.(pdf|docx?|jpe?g|png|webp)$/i.test(file.originalname);
+    if (!allowed) {
+      cb(new Error("Upload a PDF, Word document, or image."));
       return;
     }
     cb(null, true);
@@ -379,6 +393,43 @@ export async function ensureAccountingTables() {
       program_id varchar NOT NULL REFERENCES accounting_benefit_programs(id) ON DELETE CASCADE,
       tier varchar NOT NULL,
       CONSTRAINT uq_accounting_participant_program UNIQUE (participant_id, program_id)
+    );
+    CREATE TABLE IF NOT EXISTS accounting_benefit_documents (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      provider_id varchar NOT NULL REFERENCES accounting_benefit_providers(id) ON DELETE CASCADE,
+      title varchar NOT NULL,
+      original_filename text NOT NULL,
+      mime_type varchar,
+      file_size integer NOT NULL,
+      file_data bytea NOT NULL,
+      attach_to_inquiries boolean NOT NULL DEFAULT true,
+      created_at timestamp NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS accounting_benefit_upload_links (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      provider_id varchar NOT NULL REFERENCES accounting_benefit_providers(id) ON DELETE CASCADE,
+      billing_month date NOT NULL,
+      token varchar NOT NULL UNIQUE,
+      recipient_email varchar NOT NULL,
+      expires_at timestamp NOT NULL,
+      sent_at timestamp,
+      created_at timestamp NOT NULL DEFAULT now(),
+      CONSTRAINT uq_accounting_upload_link_month UNIQUE (provider_id, billing_month)
+    );
+    CREATE TABLE IF NOT EXISTS accounting_benefit_inquiries (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      provider_id varchar NOT NULL REFERENCES accounting_benefit_providers(id) ON DELETE CASCADE,
+      full_name varchar NOT NULL,
+      email varchar NOT NULL,
+      hire_date date NOT NULL,
+      event_type varchar NOT NULL,
+      event_detail text,
+      attachment_names jsonb NOT NULL DEFAULT '[]'::jsonb,
+      explanation text NOT NULL,
+      status varchar NOT NULL DEFAULT 'sent',
+      email_error text,
+      sent_at timestamp,
+      created_at timestamp NOT NULL DEFAULT now()
     );
     CREATE TABLE IF NOT EXISTS accounting_benefit_statements (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -745,6 +796,22 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
       FROM accounting_account_mappings
       ORDER BY company_id, role
     `);
+    const documents = await db.execute(sql`
+      SELECT id, provider_id as "providerId", title, original_filename as "originalFilename",
+             mime_type as "mimeType", file_size as "fileSize",
+             attach_to_inquiries as "attachToInquiries", created_at as "createdAt"
+      FROM accounting_benefit_documents
+      ORDER BY created_at DESC
+    `);
+    const inquiries = await db.execute(sql`
+      SELECT id, provider_id as "providerId", full_name as "fullName", email,
+             hire_date as "hireDate", event_type as "eventType", event_detail as "eventDetail",
+             attachment_names as "attachmentNames", status, email_error as "emailError",
+             sent_at as "sentAt", created_at as "createdAt"
+      FROM accounting_benefit_inquiries
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
     const statements = await db.execute(sql`
       SELECT id, billing_month as "billingMonth", kind, invoice_number as "invoiceNumber",
              recipient_email as "recipientEmail", recipient_name as "recipientName",
@@ -784,6 +851,8 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
       contributionRules: contributionRules.rows,
       contributionBands: contributionBandsResult.rows,
       accountMappings: accountMappings.rows,
+      documents: documents.rows,
+      inquiries: inquiries.rows,
       statements: statements.rows,
     });
   } catch (error) {
@@ -1249,7 +1318,7 @@ function statementHtml(title: string, intro: string, rows: AllocationLine[], tot
   </div>`;
 }
 
-async function sendStatementEmail(to: string, subject: string, html: string, text: string, attachment?: { filename: string; type: string; content: string }) {
+async function sendStatementEmail(to: string, subject: string, html: string, text: string, attachments?: { filename: string; type: string; content: string }[]) {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) throw new Error("Email is not configured");
   sgMail.setApiKey(apiKey);
@@ -1259,7 +1328,9 @@ async function sendStatementEmail(to: string, subject: string, html: string, tex
     subject,
     html,
     text,
-    attachments: attachment ? [{ content: attachment.content, filename: attachment.filename, type: attachment.type, disposition: "attachment" }] : undefined,
+    attachments: attachments?.length
+      ? attachments.map((file) => ({ content: file.content, filename: file.filename, type: file.type, disposition: "attachment" as const }))
+      : undefined,
   });
 }
 
@@ -1400,7 +1471,7 @@ router.post("/healthcare/statements", isAdmin, async (req, res) => {
       `);
       const id = (recorded.rows[0] as { id: string }).id;
       try {
-        await sendStatementEmail(document.email, document.subject, html, text, document.attach ? attachment : undefined);
+        await sendStatementEmail(document.email, document.subject, html, text, document.attach && attachment ? [attachment] : undefined);
         await db.execute(sql`
           UPDATE accounting_benefit_statements
           SET status = 'sent', sent_at = now(), email_error = NULL, updated_at = now()
@@ -1424,5 +1495,513 @@ router.post("/healthcare/statements", isAdmin, async (req, res) => {
     res.status(500).json({ message: "Failed to record the bill and invoice" });
   }
 });
+
+function shiftMonth(billingMonth: string, delta: number) {
+  const [year, month] = billingMonth.split("-").map(Number);
+  const date = new Date(year, month - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function firstContributionMonth(hireDate: string) {
+  const start = String(hireDate).slice(0, 7);
+  for (let i = 0; i < 240; i += 1) {
+    const month = shiftMonth(start, i);
+    if (monthsOfService(hireDate, month) >= 3) return month;
+  }
+  return shiftMonth(start, 3);
+}
+
+function upcomingCoverageMonth(today = new Date()) {
+  const date = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+type EnrollmentRequest = {
+  fullName: string;
+  email: string;
+  hireDate: string;
+  eventType: string;
+  eventDetail: string;
+};
+
+export async function buildEnrollmentPacket(providerId: string, request: EnrollmentRequest) {
+  const providerResult = await db.execute(sql`
+    SELECT id, name, group_number as "groupNumber", policy_holder as "policyHolder",
+           plan_year_start as "planYearStart", rate_guarantee_through as "rateGuaranteeThrough"
+    FROM accounting_benefit_providers WHERE id = ${providerId}
+  `);
+  const provider = providerResult.rows[0] as {
+    id: string; name: string; groupNumber: string | null; policyHolder: string | null;
+    planYearStart: string | null; rateGuaranteeThrough: string | null;
+  } | undefined;
+  if (!provider) throw new Error("Provider not found");
+
+  const company = await db.execute(sql`SELECT id FROM accounting_companies ORDER BY sort_order, name LIMIT 1`);
+  const companyId = (company.rows[0] as { id?: string } | undefined)?.id;
+  const bandsResult = await db.execute(sql`
+    SELECT category, min_months as "minMonths", max_months as "maxMonths", employer_amount as "employerAmount"
+    FROM accounting_contribution_bands
+    WHERE company_id = ${companyId}
+  `);
+  const bands = (bandsResult.rows as { category: string; minMonths: number; maxMonths: number | null; employerAmount: string }[]).map((band) => ({
+    category: band.category,
+    minMonths: Number(band.minMonths),
+    maxMonths: band.maxMonths === null ? null : Number(band.maxMonths),
+    employerAmount: Number(band.employerAmount),
+  }));
+  const programsResult = await db.execute(sql`
+    SELECT category, plan_name as "planName", rates
+    FROM accounting_benefit_programs
+    WHERE provider_id = ${providerId} AND active = true
+    ORDER BY sort_order, plan_name
+  `);
+
+  const hireDate = request.hireDate.slice(0, 10);
+  const contributionMonth = firstContributionMonth(hireDate);
+  const nextMonth = upcomingCoverageMonth();
+  const asOfMonth = contributionMonth > nextMonth ? contributionMonth : nextMonth;
+  const serviceMonths = monthsOfService(hireDate, asOfMonth);
+  const renewal = usesRenewalRates(asOfMonth, provider.planYearStart);
+  const contributionStarted = contributionMonth <= nextMonth;
+
+  const plans = (programsResult.rows as { category: string; planName: string; rates: any }[]).map((program) => {
+    const tiers = (program.rates?.tiers ?? []).flatMap((row: { tier: string }) => {
+      const premium = tierRate(program, row.tier, renewal);
+      if (premium === null) return [];
+      const split = employerShare(premium, program.category, serviceMonths, bands);
+      return [{ tier: row.tier, premium, employer: split.employer ?? 0, employee: split.employee ?? premium }];
+    });
+    return { category: program.category, planName: program.planName, tiers };
+  }).filter((program) => program.tiers.length > 0);
+
+  const contributionFor = (category: string) => {
+    const sample = plans.find((program) => program.category === category)?.tiers[0];
+    return sample ? sample.employer : 0;
+  };
+
+  const eventSentence = request.eventType === "annual"
+    ? `This packet is for annual enrollment. The plan year runs ${monthLabel(String(provider.planYearStart ?? "2026-05").slice(0, 7))} through ${monthLabel(String(provider.rateGuaranteeThrough ?? "2027-04").slice(0, 7))}.`
+    : request.eventType === "qualifying_event"
+      ? `This packet is for this enrollment event: ${request.eventDetail.trim()}.`
+      : contributionStarted
+        ? `This packet is for your new-hire enrollment. You already have enough service for the company contribution.`
+        : `This packet is for your new-hire enrollment. Sign up so coverage is in place for ${monthLabel(contributionMonth)}.`;
+
+  const tenureSentence = contributionStarted
+    ? `You were hired ${hireDate}. As of ${monthLabel(asOfMonth)} you have ${serviceMonths} completed months of service. A hire date after the 1st does not count as a full month.`
+    : `You were hired ${hireDate}. The company contribution for medical and dental begins ${monthLabel(contributionMonth)}, the first coverage month with 3 completed months of service. Until then you may enroll and you pay the full premium. A hire date after the 1st does not count as a full month.`;
+
+  const paragraphs = [
+    `Hello ${request.fullName.trim()},`,
+    eventSentence,
+    tenureSentence,
+    `For ${monthLabel(asOfMonth)} the company pays ${moneyText(contributionFor("medical"))} toward medical, ${moneyText(contributionFor("dental"))} toward dental, and ${moneyText(contributionFor("vision"))} toward vision. You pay the rest of the premium for the plan and tier you choose. The company contribution is a flat monthly amount, and it is recalculated each coverage month from your hire date.`,
+    `${provider.name} group ${provider.groupNumber ?? "1481121"}, policy holder ${provider.policyHolder ?? "Nashoba Valley Spirits LTD"}. The attached documents describe the plans. This note is not an enrollment form.`,
+  ];
+
+  const subject = `${provider.name} enrollment information`;
+  const planRows = plans.map((program) => {
+    const body = program.tiers.map((tier) => `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #e5e5e5;">${esc(tier.tier)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e5e5e5;text-align:right;">${moneyText(tier.premium)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e5e5e5;text-align:right;">${moneyText(tier.employer)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e5e5e5;text-align:right;">${moneyText(tier.employee)}</td>
+    </tr>`).join("");
+    return `<h3 style="margin:20px 0 8px;">${esc(program.planName)}</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead><tr style="text-align:left;background:#f6f3ee;">
+          <th style="padding:6px 8px;">Tier</th>
+          <th style="padding:6px 8px;text-align:right;">Premium</th>
+          <th style="padding:6px 8px;text-align:right;">Company pays</th>
+          <th style="padding:6px 8px;text-align:right;">You pay</th>
+        </tr></thead><tbody>${body}</tbody>
+      </table>`;
+  }).join("");
+  const html = `<div style="font-family:Georgia,serif;color:#222;max-width:720px;">
+    ${paragraphs.map((paragraph) => `<p>${esc(paragraph)}</p>`).join("")}
+    ${planRows}
+  </div>`;
+  const text = [
+    ...paragraphs,
+    "",
+    ...plans.flatMap((program) => [
+      program.planName,
+      ...program.tiers.map((tier) => `${tier.tier}: premium ${moneyText(tier.premium)}, company ${moneyText(tier.employer)}, you pay ${moneyText(tier.employee)}`),
+    ]),
+  ].join("\n");
+
+  return {
+    subject,
+    paragraphs,
+    html,
+    text,
+    asOfMonth,
+    serviceMonths,
+    contributionMonth,
+    contributionStarted,
+    plans,
+  };
+}
+
+function readEnrollmentRequest(body: Record<string, unknown>) {
+  const fullName = String(body.fullName ?? "").trim();
+  const email = String(body.email ?? "").trim();
+  const hireDate = String(body.hireDate ?? "").trim();
+  const eventType = String(body.eventType ?? "new_hire").trim();
+  const eventDetail = String(body.eventDetail ?? "").trim();
+  if (!fullName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{4}-\d{2}-\d{2}$/.test(hireDate)) {
+    return { error: "Name, a valid email address, and hire date are required." };
+  }
+  if (!["new_hire", "annual", "qualifying_event"].includes(eventType)) {
+    return { error: "Choose a new hire, annual enrollment, or a qualifying event." };
+  }
+  if (eventType === "qualifying_event" && !eventDetail) {
+    return { error: "Describe the enrollment event." };
+  }
+  return { request: { fullName, email, hireDate, eventType, eventDetail } };
+}
+
+router.post("/healthcare/documents", isAdmin, (req, res) => {
+  documentUpload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message || "Upload failed" });
+    try {
+      await ensureAccountingTables();
+      const file = req.file;
+      const providerId = String(req.body?.providerId ?? "").trim();
+      if (!file || !providerId) return res.status(400).json({ message: "Choose a document and a provider." });
+      const title = String(req.body?.title ?? "").trim() || path.basename(file.originalname, path.extname(file.originalname));
+      const inserted = await db.execute(sql`
+        INSERT INTO accounting_benefit_documents (
+          provider_id, title, original_filename, mime_type, file_size, file_data
+        ) VALUES (
+          ${providerId}, ${title}, ${file.originalname}, ${file.mimetype}, ${file.size},
+          decode(${file.buffer.toString("base64")}, 'base64')
+        )
+        RETURNING id
+      `);
+      res.status(201).json({ id: (inserted.rows[0] as { id: string }).id });
+    } catch (error) {
+      console.error("Error saving benefit document:", error);
+      res.status(500).json({ message: "Failed to save the document" });
+    }
+  });
+});
+
+router.get("/healthcare/documents/:id/file", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const result = await db.execute(sql`
+      SELECT original_filename as "originalFilename", mime_type as "mimeType",
+             encode(file_data, 'base64') as "fileData"
+      FROM accounting_benefit_documents
+      WHERE id = ${req.params.id}
+    `);
+    const document = result.rows[0] as { originalFilename: string; mimeType: string | null; fileData: string } | undefined;
+    if (!document) return res.status(404).json({ message: "Document not found" });
+    const downloadName = document.originalFilename.replace(/[^\w.\- ()]/g, "_");
+    res.setHeader("Content-Type", document.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${downloadName}"`);
+    res.send(Buffer.from(document.fileData, "base64"));
+  } catch (error) {
+    console.error("Error reading benefit document:", error);
+    res.status(500).json({ message: "Failed to open the document" });
+  }
+});
+
+router.put("/healthcare/documents/:id", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const attach = Boolean(req.body?.attachToInquiries);
+    const result = await db.execute(sql`
+      UPDATE accounting_benefit_documents
+      SET attach_to_inquiries = ${attach}
+      WHERE id = ${req.params.id}
+      RETURNING id
+    `);
+    if (!result.rows[0]) return res.status(404).json({ message: "Document not found" });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error updating benefit document:", error);
+    res.status(500).json({ message: "Failed to update the document" });
+  }
+});
+
+router.delete("/healthcare/documents/:id", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const result = await db.execute(sql`
+      DELETE FROM accounting_benefit_documents WHERE id = ${req.params.id} RETURNING id
+    `);
+    if (!result.rows[0]) return res.status(404).json({ message: "Document not found" });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error deleting benefit document:", error);
+    res.status(500).json({ message: "Failed to delete the document" });
+  }
+});
+
+router.post("/healthcare/enrollment-preview", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const parsed = readEnrollmentRequest(req.body ?? {});
+    if ("error" in parsed) return res.status(400).json({ message: parsed.error });
+    const providerId = String(req.body?.providerId ?? "").trim();
+    if (!providerId) return res.status(400).json({ message: "Provider is required" });
+    const packet = await buildEnrollmentPacket(providerId, parsed.request);
+    const files = await db.execute(sql`
+      SELECT title, original_filename as "originalFilename"
+      FROM accounting_benefit_documents
+      WHERE provider_id = ${providerId} AND attach_to_inquiries = true
+      ORDER BY created_at
+    `);
+    res.json({
+      subject: packet.subject,
+      paragraphs: packet.paragraphs,
+      asOfMonth: packet.asOfMonth,
+      serviceMonths: packet.serviceMonths,
+      contributionMonth: packet.contributionMonth,
+      plans: packet.plans,
+      attachments: files.rows,
+    });
+  } catch (error) {
+    console.error("Error previewing enrollment email:", error);
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to preview the email" });
+  }
+});
+
+router.post("/healthcare/enrollment-inquiries", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const parsed = readEnrollmentRequest(req.body ?? {});
+    if ("error" in parsed) return res.status(400).json({ message: parsed.error });
+    const providerId = String(req.body?.providerId ?? "").trim();
+    if (!providerId) return res.status(400).json({ message: "Provider is required" });
+    const files = await db.execute(sql`
+      SELECT title, original_filename as "originalFilename", mime_type as "mimeType",
+             encode(file_data, 'base64') as "fileData"
+      FROM accounting_benefit_documents
+      WHERE provider_id = ${providerId} AND attach_to_inquiries = true
+      ORDER BY created_at
+    `);
+    const attachments = files.rows as { title: string; originalFilename: string; mimeType: string | null; fileData: string }[];
+    if (attachments.length === 0) {
+      return res.status(400).json({ message: "Upload a UnitedHealthcare document and leave it marked to attach." });
+    }
+    const packet = await buildEnrollmentPacket(providerId, parsed.request);
+    const names = attachments.map((file) => file.originalFilename);
+    const recorded = await db.execute(sql`
+      INSERT INTO accounting_benefit_inquiries (
+        provider_id, full_name, email, hire_date, event_type, event_detail, attachment_names, explanation, status
+      ) VALUES (
+        ${providerId}, ${parsed.request.fullName}, ${parsed.request.email}, ${parsed.request.hireDate}::date,
+        ${parsed.request.eventType}, ${parsed.request.eventDetail || null},
+        CAST(${JSON.stringify(names)} AS jsonb), ${packet.text}, 'recorded'
+      )
+      RETURNING id
+    `);
+    const id = (recorded.rows[0] as { id: string }).id;
+    try {
+      await sendStatementEmail(
+        parsed.request.email,
+        packet.subject,
+        packet.html,
+        packet.text,
+        attachments.map((file) => ({
+          filename: file.originalFilename,
+          type: file.mimeType || "application/octet-stream",
+          content: file.fileData,
+        })),
+      );
+      await db.execute(sql`
+        UPDATE accounting_benefit_inquiries
+        SET status = 'sent', sent_at = now(), email_error = NULL
+        WHERE id = ${id}
+      `);
+      res.json({ id, status: "sent" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Email failed";
+      await db.execute(sql`
+        UPDATE accounting_benefit_inquiries SET status = 'failed', email_error = ${message} WHERE id = ${id}
+      `);
+      res.status(502).json({ message });
+    }
+  } catch (error) {
+    console.error("Error sending enrollment email:", error);
+    res.status(500).json({ message: "Failed to send the enrollment email" });
+  }
+});
+
+function portalBaseUrl() {
+  if (process.env.NODE_ENV === "production") return "https://nashobawinery.org";
+  return process.env.APP_URL || "https://nashobawinery.org";
+}
+
+async function billUploadLinkForMonth(billingMonth: string) {
+  await ensureAccountingTables();
+  const providerResult = await db.execute(sql`
+    SELECT id, name FROM accounting_benefit_providers WHERE is_current = true ORDER BY name LIMIT 1
+  `);
+  const provider = providerResult.rows[0] as { id: string; name: string } | undefined;
+  if (!provider) throw new Error("Add the current health insurance provider first.");
+  const recipient = "aparrow@nashobawinery.com";
+
+  const existing = await db.execute(sql`
+    SELECT token FROM accounting_benefit_upload_links
+    WHERE provider_id = ${provider.id} AND billing_month = ${monthDate(billingMonth)}::date AND expires_at > now()
+  `);
+  let token = (existing.rows[0] as { token?: string } | undefined)?.token;
+  if (!token) {
+    token = randomBytes(24).toString("hex");
+    await db.execute(sql`
+      INSERT INTO accounting_benefit_upload_links (provider_id, billing_month, token, recipient_email, expires_at)
+      VALUES (
+        ${provider.id}, ${monthDate(billingMonth)}::date, ${token}, ${recipient}, now() + interval '45 days'
+      )
+      ON CONFLICT (provider_id, billing_month) DO UPDATE SET
+        token = EXCLUDED.token,
+        recipient_email = EXCLUDED.recipient_email,
+        expires_at = EXCLUDED.expires_at
+      RETURNING token
+    `);
+  }
+  const url = `${portalBaseUrl()}/api/accounting/healthcare/bill-upload/${token}`;
+  return { provider, recipient, token, url, label: monthLabel(billingMonth) };
+}
+
+export async function emailBillUploadLink(billingMonth: string) {
+  const link = await billUploadLinkForMonth(billingMonth);
+  const subject = `Upload the ${link.provider.name} bill for ${link.label}`;
+  const html = `<div style="font-family:Georgia,serif;color:#222;max-width:640px;">
+    <p>The ${esc(link.provider.name)} bill for ${esc(link.label)} can be added without signing in.</p>
+    <p><a href="${esc(link.url)}">Upload the PDF</a></p>
+    <p>The file is saved on Monthly Bills for that month. This link works for 45 days.</p>
+  </div>`;
+  const text = `Upload the ${link.provider.name} bill for ${link.label}: ${link.url}\nThe file is saved on Monthly Bills. This link works for 45 days.`;
+  await sendStatementEmail(link.recipient, subject, html, text);
+  await db.execute(sql`
+    UPDATE accounting_benefit_upload_links SET sent_at = now(), recipient_email = ${link.recipient}
+    WHERE token = ${link.token}
+  `);
+  return { email: link.recipient, url: link.url, month: billingMonth };
+}
+
+export async function sendMonthlyBillUploadLink() {
+  const today = new Date();
+  if (today.getDate() > 7) return { skipped: true };
+  const billingMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  await ensureAccountingTables();
+  const already = await db.execute(sql`
+    SELECT id FROM accounting_benefit_upload_links
+    WHERE billing_month = ${monthDate(billingMonth)}::date AND sent_at IS NOT NULL
+    LIMIT 1
+  `);
+  if (already.rows[0]) return { skipped: true };
+  const bill = await db.execute(sql`
+    SELECT id FROM accounting_benefit_bills WHERE billing_month = ${monthDate(billingMonth)}::date LIMIT 1
+  `);
+  if (bill.rows[0]) return { skipped: true };
+  return emailBillUploadLink(billingMonth);
+}
+
+function uploadPage(title: string, body: string) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
+    <body style="margin:0;font-family:Georgia,serif;background:#f6f3ee;color:#222;">
+      <main style="max-width:520px;margin:48px auto;background:#fff;padding:28px;border-radius:12px;">
+        <h1 style="font-size:22px;margin-top:0;">${esc(title)}</h1>
+        ${body}
+      </main>
+    </body></html>`;
+}
+
+router.get("/healthcare/bill-upload/:token", async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const link = await db.execute(sql`
+      SELECT billing_month as "billingMonth", p.name as "providerName"
+      FROM accounting_benefit_upload_links l
+      JOIN accounting_benefit_providers p ON p.id = l.provider_id
+      WHERE l.token = ${req.params.token} AND l.expires_at > now()
+    `);
+    const row = link.rows[0] as { billingMonth: string; providerName: string } | undefined;
+    if (!row) {
+      res.status(404).type("html").send(uploadPage("Link expired", "<p>This upload link is no longer active. Ask for a new monthly email.</p>"));
+      return;
+    }
+    const label = monthLabel(String(row.billingMonth).slice(0, 7));
+    res.type("html").send(uploadPage(`Upload the ${row.providerName} bill`, `
+      <p>This file is the ${esc(label)} invoice. It is saved for processing. No sign-in is required.</p>
+      <form method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept="application/pdf,image/*" required style="margin:16px 0;">
+        <div><button type="submit" style="background:#6b2d3c;color:#fff;border:0;border-radius:8px;padding:10px 16px;">Save bill</button></div>
+      </form>
+    `));
+  } catch (error) {
+    console.error("Error opening bill upload link:", error);
+    res.status(500).type("html").send(uploadPage("Upload unavailable", "<p>The upload page could not be opened. Try the link again.</p>"));
+  }
+});
+
+router.post("/healthcare/bill-upload/:token", (req, res) => {
+  upload.single("file")(req, res, async (err) => {
+    if (err) {
+      res.status(400).type("html").send(uploadPage("Upload failed", `<p>${esc(err.message || "Upload failed")}</p>`));
+      return;
+    }
+    try {
+      await ensureAccountingTables();
+      const file = req.file;
+      if (!file) {
+        res.status(400).type("html").send(uploadPage("Choose a file", "<p>Choose the PDF or a photo of the bill.</p>"));
+        return;
+      }
+      const link = await db.execute(sql`
+        SELECT provider_id as "providerId", billing_month as "billingMonth"
+        FROM accounting_benefit_upload_links
+        WHERE token = ${req.params.token} AND expires_at > now()
+      `);
+      const row = link.rows[0] as { providerId: string; billingMonth: string } | undefined;
+      if (!row) {
+        res.status(404).type("html").send(uploadPage("Link expired", "<p>This upload link is no longer active.</p>"));
+        return;
+      }
+      fs.mkdirSync(billDir, { recursive: true });
+      const ext = path.extname(file.originalname).toLowerCase().slice(0, 12);
+      const storedFilename = `${randomUUID()}${ext}`;
+      fs.writeFileSync(path.join(billDir, storedFilename), file.buffer);
+      const billingMonth = String(row.billingMonth).slice(0, 10);
+      await db.execute(sql`
+        INSERT INTO accounting_benefit_bills (
+          provider_id, billing_month, allocations, original_filename, stored_filename, mime_type, file_size, notes
+        ) VALUES (
+          ${row.providerId}, ${billingMonth}::date, '[]'::jsonb, ${file.originalname}, ${storedFilename},
+          ${file.mimetype}, ${file.size}, 'Uploaded from the monthly email link'
+        )
+      `);
+      res.type("html").send(uploadPage("Bill saved", `<p>${esc(file.originalname)} is in Monthly Bills for ${esc(monthLabel(billingMonth.slice(0, 7)))}.</p>`));
+    } catch (error) {
+      console.error("Error saving emailed bill upload:", error);
+      res.status(500).type("html").send(uploadPage("Upload failed", "<p>The bill could not be saved. Try the link again.</p>"));
+    }
+  });
+});
+
+router.post("/healthcare/bill-upload-link", isAdmin, async (req, res) => {
+  try {
+    const billingMonth = String(req.body?.billingMonth ?? "");
+    if (!/^\d{4}-\d{2}$/.test(billingMonth)) return res.status(400).json({ message: "Billing month is required" });
+    res.json(await emailBillUploadLink(billingMonth));
+  } catch (error) {
+    console.error("Error emailing bill upload link:", error);
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to email the upload link" });
+  }
+});
+
+export function initHealthcareBillUploadReminders() {
+  const run = () => {
+    sendMonthlyBillUploadLink().catch((error) => console.error("[Healthcare] Monthly upload email failed:", error));
+  };
+  setTimeout(run, 20_000);
+  setInterval(run, 24 * 60 * 60 * 1000);
+}
 
 export default router;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Building2, Calculator, Camera, Eye, HeartPulse, Pencil, Plus, Smile, Trash2, Upload, Users } from "lucide-react";
+import { Building2, Calculator, Camera, Eye, FileText, HeartPulse, Mail, Pencil, Plus, Smile, Trash2, Upload, Users } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -206,6 +206,41 @@ type Bill = {
   programCategory: string | null;
 };
 
+type BenefitDocument = {
+  id: string;
+  providerId: string;
+  title: string;
+  originalFilename: string;
+  mimeType: string | null;
+  fileSize: number;
+  attachToInquiries: boolean;
+  createdAt: string;
+};
+
+type BenefitInquiry = {
+  id: string;
+  providerId: string;
+  fullName: string;
+  email: string;
+  hireDate: string;
+  eventType: string;
+  eventDetail: string | null;
+  attachmentNames: string[];
+  status: string;
+  emailError: string | null;
+  sentAt: string | null;
+};
+
+type EnrollmentPreview = {
+  subject: string;
+  paragraphs: string[];
+  asOfMonth: string;
+  serviceMonths: number;
+  contributionMonth: string;
+  plans: { category: string; planName: string; tiers: { tier: string; premium: number; employer: number; employee: number }[] }[];
+  attachments: { title: string; originalFilename: string }[];
+};
+
 type HealthcarePayload = {
   companies: Company[];
   providers: Provider[];
@@ -214,6 +249,8 @@ type HealthcarePayload = {
   contributionRules: ContributionRule[];
   contributionBands: ContributionBand[];
   accountMappings: AccountMapping[];
+  documents: BenefitDocument[];
+  inquiries: BenefitInquiry[];
   statements: Statement[];
 };
 
@@ -436,6 +473,10 @@ export default function AccountingPage() {
     companyId: "",
     elections: {} as Record<string, { programId: string; tier: string }>,
   });
+  const [docTitle, setDocTitle] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [inquiryForm, setInquiryForm] = useState({ fullName: "", email: "", hireDate: "", eventType: "new_hire", eventDetail: "" });
+  const [enrollmentPreview, setEnrollmentPreview] = useState<EnrollmentPreview | null>(null);
   const [billProgramId, setBillProgramId] = useState("combined");
   const [billTotal, setBillTotal] = useState("");
   const [billNotes, setBillNotes] = useState("");
@@ -562,6 +603,85 @@ export default function AccountingPage() {
       toast({ title: "Bill saved" });
     },
     onError: (err: Error) => toast({ title: "Could not save bill", description: err.message, variant: "destructive" }),
+  });
+
+  const uploadDocument = useMutation({
+    mutationFn: async () => {
+      if (!selectedProvider || !docFile) throw new Error("Choose a document");
+      const body = new FormData();
+      body.append("file", docFile);
+      body.append("providerId", selectedProvider.id);
+      if (docTitle.trim()) body.append("title", docTitle.trim());
+      const res = await fetch("/api/accounting/healthcare/documents", { method: "POST", body, credentials: "include" });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(payload.message || "Upload failed");
+      }
+      return res.json();
+    },
+    onSuccess: async () => {
+      await invalidate();
+      setDocFile(null);
+      setDocTitle("");
+      toast({ title: "Document saved" });
+    },
+    onError: (err: Error) => toast({ title: "Could not save document", description: err.message, variant: "destructive" }),
+  });
+
+  const toggleDocument = useMutation({
+    mutationFn: async ({ id, attachToInquiries }: { id: string; attachToInquiries: boolean }) => {
+      await apiRequest("PUT", `/api/accounting/healthcare/documents/${id}`, { attachToInquiries });
+    },
+    onSuccess: invalidate,
+    onError: (err: Error) => toast({ title: "Could not update document", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteDocument = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/accounting/healthcare/documents/${id}`);
+    },
+    onSuccess: invalidate,
+    onError: (err: Error) => toast({ title: "Could not delete document", description: err.message, variant: "destructive" }),
+  });
+
+  const previewEnrollment = useMutation({
+    mutationFn: async () => {
+      if (!selectedProvider) throw new Error("Choose a provider");
+      const res = await apiRequest("POST", "/api/accounting/healthcare/enrollment-preview", {
+        ...inquiryForm,
+        providerId: selectedProvider.id,
+      });
+      return res.json() as Promise<EnrollmentPreview>;
+    },
+    onSuccess: (preview) => setEnrollmentPreview(preview),
+    onError: (err: Error) => toast({ title: "Could not preview the email", description: err.message, variant: "destructive" }),
+  });
+
+  const sendEnrollment = useMutation({
+    mutationFn: async () => {
+      if (!selectedProvider) throw new Error("Choose a provider");
+      const res = await apiRequest("POST", "/api/accounting/healthcare/enrollment-inquiries", {
+        ...inquiryForm,
+        providerId: selectedProvider.id,
+      });
+      return res.json();
+    },
+    onSuccess: async () => {
+      await invalidate();
+      setInquiryForm({ fullName: "", email: "", hireDate: "", eventType: "new_hire", eventDetail: "" });
+      setEnrollmentPreview(null);
+      toast({ title: "Enrollment email sent" });
+    },
+    onError: (err: Error) => toast({ title: "Could not send the email", description: err.message, variant: "destructive" }),
+  });
+
+  const emailUploadLink = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/accounting/healthcare/bill-upload-link", { billingMonth });
+      return res.json() as Promise<{ email: string }>;
+    },
+    onSuccess: (result) => toast({ title: "Upload link emailed", description: result.email }),
+    onError: (err: Error) => toast({ title: "Could not email the upload link", description: err.message, variant: "destructive" }),
   });
 
   const saveRules = useMutation({
@@ -752,6 +872,7 @@ export default function AccountingPage() {
               <TabsTrigger value="bills" data-testid="tab-bills">Monthly Bills</TabsTrigger>
               <TabsTrigger value="accounts" data-testid="tab-accounts">Accounts</TabsTrigger>
               <TabsTrigger value="payroll" data-testid="tab-payroll">Payroll</TabsTrigger>
+              <TabsTrigger value="enrollment" data-testid="tab-enrollment">Enrollment</TabsTrigger>
             </TabsList>
 
             <TabsContent value="provider" className="space-y-4 mt-4">
@@ -1089,6 +1210,9 @@ export default function AccountingPage() {
                     <Button className="ml-auto" disabled={!billFile || uploadBill.isPending} onClick={() => uploadBill.mutate()} data-testid="button-save-bill">
                       Save bill
                     </Button>
+                    <Button variant="outline" disabled={emailUploadLink.isPending} onClick={() => emailUploadLink.mutate()} data-testid="button-email-upload-link">
+                      Email upload link
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1256,6 +1380,126 @@ export default function AccountingPage() {
                       </table>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="enrollment" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> UnitedHealthcare documents</CardTitle>
+                  <CardDescription>Keep the enrollment packet here. Documents left marked “Attach” go out with each employee email.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="doc-title">Title</Label>
+                      <Input id="doc-title" value={docTitle} onChange={(event) => setDocTitle(event.target.value)} placeholder="2026-27 enrollment packet" data-testid="input-document-title" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="doc-file">File</Label>
+                      <Input id="doc-file" type="file" accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp" onChange={(event) => setDocFile(event.target.files?.[0] ?? null)} data-testid="input-document-file" />
+                    </div>
+                    <Button disabled={!docFile || uploadDocument.isPending} onClick={() => uploadDocument.mutate()} data-testid="button-save-document">Save document</Button>
+                  </div>
+                  {(data?.documents ?? []).filter((document) => document.providerId === selectedProvider?.id).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {(data?.documents ?? []).filter((document) => document.providerId === selectedProvider?.id).map((document) => (
+                        <div key={document.id} className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3" data-testid={`document-${document.id}`}>
+                          <div>
+                            <p className="font-medium">{document.title}</p>
+                            <p className="text-sm text-muted-foreground">{document.originalFilename}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant={document.attachToInquiries ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => toggleDocument.mutate({ id: document.id, attachToInquiries: !document.attachToInquiries })}
+                              data-testid={`button-attach-document-${document.id}`}
+                            >
+                              {document.attachToInquiries ? "Attach" : "Leave off"}
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={`/api/accounting/healthcare/documents/${document.id}/file`} target="_blank" rel="noreferrer">Open</a>
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => { if (window.confirm("Delete this document?")) deleteDocument.mutate(document.id); }}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Send enrollment information</CardTitle>
+                  <CardDescription>Enter the employee’s name, email, and hire date. The email explains the company contribution, when it starts, and the enrollment event, and attaches the marked documents.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="inquiry-name">Name</Label>
+                      <Input id="inquiry-name" value={inquiryForm.fullName} onChange={(event) => setInquiryForm({ ...inquiryForm, fullName: event.target.value })} data-testid="input-inquiry-name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inquiry-email">Email</Label>
+                      <Input id="inquiry-email" type="email" value={inquiryForm.email} onChange={(event) => setInquiryForm({ ...inquiryForm, email: event.target.value })} data-testid="input-inquiry-email" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inquiry-hire">Hire date</Label>
+                      <Input id="inquiry-hire" type="date" value={inquiryForm.hireDate} onChange={(event) => setInquiryForm({ ...inquiryForm, hireDate: event.target.value })} data-testid="input-inquiry-hire" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Enrollment</Label>
+                      <Select value={inquiryForm.eventType} onValueChange={(value) => setInquiryForm({ ...inquiryForm, eventType: value })}>
+                        <SelectTrigger data-testid="select-inquiry-event"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="new_hire">New hire</SelectItem>
+                          <SelectItem value="annual">Annual enrollment</SelectItem>
+                          <SelectItem value="qualifying_event">Qualifying event</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {inquiryForm.eventType === "qualifying_event" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="inquiry-event">Event</Label>
+                      <Input id="inquiry-event" value={inquiryForm.eventDetail} onChange={(event) => setInquiryForm({ ...inquiryForm, eventDetail: event.target.value })} placeholder="Marriage, birth, or loss of other coverage" data-testid="input-inquiry-event" />
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => previewEnrollment.mutate()} disabled={previewEnrollment.isPending || !inquiryForm.fullName || !inquiryForm.email || !inquiryForm.hireDate} data-testid="button-preview-enrollment">Preview</Button>
+                    <Button onClick={() => sendEnrollment.mutate()} disabled={sendEnrollment.isPending || !inquiryForm.fullName || !inquiryForm.email || !inquiryForm.hireDate} data-testid="button-send-enrollment">Send email</Button>
+                  </div>
+                  {enrollmentPreview && (
+                    <div className="rounded-lg border p-4 space-y-3 text-sm" data-testid="enrollment-preview">
+                      <p className="font-medium">{enrollmentPreview.subject}</p>
+                      {enrollmentPreview.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                      <p className="text-muted-foreground">
+                        Attached: {enrollmentPreview.attachments.length ? enrollmentPreview.attachments.map((file) => file.originalFilename).join(", ") : "none yet"}
+                      </p>
+                      {enrollmentPreview.plans.map((plan) => (
+                        <div key={plan.planName}>
+                          <p className="font-medium">{plan.planName}</p>
+                          {plan.tiers.map((tier) => (
+                            <p key={tier.tier} className="text-muted-foreground">{tier.tier}: premium {money(tier.premium)}, company {money(tier.employer)}, employee {money(tier.employee)}</p>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    {(data?.inquiries ?? []).filter((inquiry) => inquiry.providerId === selectedProvider?.id).map((inquiry) => (
+                      <p key={inquiry.id} className="text-sm text-muted-foreground">
+                        {inquiry.fullName} · {inquiry.email} · {inquiry.status}{inquiry.emailError ? ` · ${inquiry.emailError}` : ""}
+                      </p>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

@@ -31,7 +31,7 @@ import { establishB2bBridgeSession } from "./b2b-auth";
 import resyRouter, { ensureResyMasterPageFlags } from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import staffReportingRouter, { getApprovedStaffPrintMenus, getSharedStaffPortalAccess, syncStaffReportingAssignmentOptions } from "./staff-reporting-routes";
-import accountingRouter, { ensureAccountingTables } from "./accounting-routes";
+import accountingRouter, { ensureAccountingTables, initHealthcareBillUploadReminders } from "./accounting-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
@@ -20634,6 +20634,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   scheduleNightlySync();
 
   initContractReminders();
+  initHealthcareBillUploadReminders();
 
   initComplianceReminders();
 
