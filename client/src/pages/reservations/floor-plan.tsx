@@ -469,12 +469,14 @@ function FloorPlanScreen({ hostStation = false }: { hostStation?: boolean }) {
             const table = tables.find((item) => usesTable(reservation, item.id));
             const problem = tableProblem(reservation, tables, reservations, walkins);
             const showing = suggestionFor === reservation.id ? suggestion : null;
+            const hostNote = [reservation.specialRequests, reservation.notes].map((value) => value?.trim()).filter(Boolean).join(" ");
             return (
-              <div key={reservation.id} className="border-b px-3 py-2 text-sm">
+              <div key={reservation.id} className={hostNote ? "border-b border-l-4 border-l-amber-600 bg-amber-50 px-3 py-2 text-sm" : "border-b px-3 py-2 text-sm"}>
                 <div className={hostStation ? "flex flex-col gap-2" : "flex items-center gap-2"}>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{reservation.customerName}</div>
                     <div className="text-xs text-muted-foreground">{timeLabel(reservation.reservationTime)} · {reservation.partySize} · {table?.tableLabel || "No table"} · {reservation.status}{reservation.customerPhone ? ` · ${reservation.customerPhone}` : ""}</div>
+                    {hostNote && <div className="mt-1 font-medium text-amber-950">Note: {hostNote}</div>}
                     {problem && <div className="text-xs text-red-700">{problem}</div>}
                   </div>
                   {hostStation ? (
