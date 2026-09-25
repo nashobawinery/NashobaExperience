@@ -44,6 +44,23 @@ type ContributionRule = {
   employerPercent: string;
 };
 
+type ContributionBand = {
+  id: string;
+  companyId: string;
+  category: string;
+  minMonths: number;
+  maxMonths: number | null;
+  employerAmount: string;
+};
+
+type AccountMapping = {
+  id: string;
+  companyId: string;
+  role: string;
+  accountName: string;
+  accountType: string;
+};
+
 type Statement = {
   id: string;
   billingMonth: string;
@@ -71,6 +88,7 @@ type AllocationElection = {
 
 type AllocationLine = {
   participantId: string;
+  serviceMonths?: number;
   premium: number;
   employer: number;
   employee: number;
@@ -194,6 +212,8 @@ type HealthcarePayload = {
   bills: Bill[];
   participants: Participant[];
   contributionRules: ContributionRule[];
+  contributionBands: ContributionBand[];
+  accountMappings: AccountMapping[];
   statements: Statement[];
 };
 
@@ -402,8 +422,11 @@ export default function AccountingPage() {
   const [programForm, setProgramForm] = useState({ category: "medical", planName: "", planCode: "", network: "", notes: "" });
 
   const [billingMonth, setBillingMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [periodEnd, setPeriodEnd] = useState("2026-09-27");
   const [billingEmails, setBillingEmails] = useState<Record<string, string>>({});
   const [ruleDraft, setRuleDraft] = useState<Record<string, { basis: string; employerPercent: string }>>({});
+  const [bandDraft, setBandDraft] = useState<Record<string, string>>({});
+  const [mappingDraft, setMappingDraft] = useState<Record<string, { accountName: string; accountType: string }>>({});
   const [participantOpen, setParticipantOpen] = useState(false);
   const [participantForm, setParticipantForm] = useState({
     id: "",
@@ -434,9 +457,46 @@ export default function AccountingPage() {
         employerPercent: String(rule.employerPercent),
       };
     }
+    const firstCompany = data.companies[0]?.id;
+    const bands: Record<string, string> = {};
+    for (const band of data.contributionBands ?? []) {
+      if (band.companyId !== firstCompany) continue;
+      bands[`${band.category}:${band.minMonths}`] = String(band.employerAmount);
+    }
+    const mappings: Record<string, { accountName: string; accountType: string }> = {};
+    for (const mapping of data.accountMappings ?? []) {
+      mappings[`${mapping.companyId}:${mapping.role}`] = {
+        accountName: mapping.accountName,
+        accountType: mapping.accountType,
+      };
+    }
     setBillingEmails(emails);
     setRuleDraft(rules);
+    setBandDraft(bands);
+    setMappingDraft(mappings);
   }, [data]);
+
+  const { data: payroll } = useQuery<{
+    periodEnd: string;
+    coverageMonth: string;
+    payPeriodsPerYear: number;
+    lines: { participantId: string; fullName: string; companyName: string; monthlyEmployee: number; deduction: number; loggedAt: string | null }[];
+    warnings: string[];
+  }>({
+    queryKey: ["/api/accounting/healthcare/payroll", { periodEnd }],
+  });
+
+  const logPayroll = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/accounting/healthcare/payroll", { periodEnd });
+      return res.json();
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/healthcare/payroll"] });
+      toast({ title: "Payroll deductions logged", description: `Recorded for the period ending ${periodEnd}.` });
+    },
+    onError: (err: Error) => toast({ title: "Could not log payroll", description: err.message, variant: "destructive" }),
+  });
 
   const { data: allocation } = useQuery<Allocation>({
     queryKey: ["/api/accounting/healthcare/allocation", { month: billingMonth, providerId: selectedProvider?.id ?? "" }],
@@ -512,9 +572,21 @@ export default function AccountingPage() {
           const [companyId, category] = key.split(":");
           return { companyId, category, basis: rule.basis, employerPercent: Number(rule.employerPercent) };
         });
+      const bands = Object.entries(bandDraft).flatMap(([key, amount]) => {
+        const [category, minMonths] = key.split(":");
+        const sample = (data?.contributionBands ?? []).find((band) => band.category === category && String(band.minMonths) === minMonths);
+        return (data?.companies ?? []).map((company) => ({
+          companyId: company.id,
+          category,
+          minMonths: Number(minMonths),
+          maxMonths: sample?.maxMonths ?? null,
+          employerAmount: Number(amount),
+        }));
+      });
       await apiRequest("PUT", "/api/accounting/healthcare/contribution-rules", {
         companies: (data?.companies ?? []).map((company) => ({ id: company.id, billingEmail: billingEmails[company.id] ?? "" })),
         rules,
+        bands,
       });
     },
     onSuccess: async () => {
@@ -522,6 +594,26 @@ export default function AccountingPage() {
       toast({ title: "Contribution rules saved" });
     },
     onError: (err: Error) => toast({ title: "Could not save contribution rules", description: err.message, variant: "destructive" }),
+  });
+
+  const saveMappings = useMutation({
+    mutationFn: async () => {
+      const mappings = Object.entries(mappingDraft).map(([key, mapping]) => {
+        const separator = key.indexOf(":");
+        return {
+          companyId: key.slice(0, separator),
+          role: key.slice(separator + 1),
+          accountName: mapping.accountName,
+          accountType: mapping.accountType,
+        };
+      });
+      await apiRequest("PUT", "/api/accounting/healthcare/account-mappings", { mappings });
+    },
+    onSuccess: async () => {
+      await invalidate();
+      toast({ title: "Account mapping saved" });
+    },
+    onError: (err: Error) => toast({ title: "Could not save account mapping", description: err.message, variant: "destructive" }),
   });
 
   const saveParticipant = useMutation({
@@ -642,7 +734,7 @@ export default function AccountingPage() {
         <div>
           <h2 className="text-2xl font-semibold">Health Care Insurance Allocation</h2>
           <p className="text-muted-foreground mt-1 max-w-3xl">
-            Nashoba Valley and The Gables share one medical, dental, and vision policy. Participants and each company's contribution determine the employer and employee shares. Nashoba pays the full carrier bill, then invoices The Gables for its employees.
+            Nashoba Valley and The Gables share one medical, dental, and vision policy for May 1, 2026 through April 30, 2027. The company pays a flat monthly amount based on tenure. Nashoba pays the full carrier bill, then invoices The Gables for its employees.
           </p>
         </div>
 
@@ -658,6 +750,8 @@ export default function AccountingPage() {
               <TabsTrigger value="provider" data-testid="tab-provider">Provider</TabsTrigger>
               <TabsTrigger value="participants" data-testid="tab-participants">Participants</TabsTrigger>
               <TabsTrigger value="bills" data-testid="tab-bills">Monthly Bills</TabsTrigger>
+              <TabsTrigger value="accounts" data-testid="tab-accounts">Accounts</TabsTrigger>
+              <TabsTrigger value="payroll" data-testid="tab-payroll">Payroll</TabsTrigger>
             </TabsList>
 
             <TabsContent value="provider" className="space-y-4 mt-4">
@@ -757,58 +851,60 @@ export default function AccountingPage() {
                 <CardHeader>
                   <CardTitle>Company contribution</CardTitle>
                   <CardDescription>
-                    The carrier premium is split by the offer each company makes. “Employee-only rate” means the company pays that percent of single coverage and the employee pays the rest of the tier they elected. “Elected plan” means the company pays that percent of the tier itself.
+                    From the 2026–27 enrollment package. Medical and dental use months since hire. Vision is paid by the employee. The same amounts apply at Nashoba Valley and The Gables. The employee pays the rest of the premium for the tier they elected.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {(data?.companies ?? []).map((company) => (
-                    <div key={company.id} className="space-y-3">
-                      <div className="flex flex-wrap items-end justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{company.name}</p>
-                          <p className="text-xs text-muted-foreground">{company.paysCarrier ? "Pays the carrier, then bills the other company" : "Receives an invoice for its employees"}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor={`email-${company.id}`}>Billing email</Label>
-                          <Input
-                            id={`email-${company.id}`}
-                            type="email"
-                            className="w-64"
-                            value={billingEmails[company.id] ?? ""}
-                            onChange={(event) => setBillingEmails((current) => ({ ...current, [company.id]: event.target.value }))}
-                          />
-                        </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {(data?.companies ?? []).map((company) => (
+                      <div key={company.id} className="space-y-1">
+                        <Label htmlFor={`email-${company.id}`}>{company.name} billing email</Label>
+                        <Input
+                          id={`email-${company.id}`}
+                          type="email"
+                          value={billingEmails[company.id] ?? ""}
+                          onChange={(event) => setBillingEmails((current) => ({ ...current, [company.id]: event.target.value }))}
+                        />
                       </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                        {benefitCategories.map((category) => {
-                          const key = `${company.id}:${category}`;
-                          const rule = ruleDraft[key] ?? { basis: "percent_of_employee_only", employerPercent: "" };
-                          return (
-                            <div key={key} className="border rounded-lg p-3 space-y-2">
-                              <p className="text-sm font-medium capitalize">{category}</p>
-                              <Select
-                                value={rule.basis}
-                                onValueChange={(value) => setRuleDraft((current) => ({ ...current, [key]: { ...rule, basis: value } }))}
-                              >
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="percent_of_employee_only">Percent of employee-only rate</SelectItem>
-                                  <SelectItem value="percent_of_elected">Percent of elected plan</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                inputMode="decimal"
-                                placeholder="Employer %"
-                                value={rule.employerPercent}
-                                onChange={(event) => setRuleDraft((current) => ({ ...current, [key]: { ...rule, employerPercent: event.target.value } }))}
-                              />
-                            </div>
-                          );
+                    ))}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="py-2 pr-3 font-medium">Benefit</th>
+                          <th className="py-2 pr-3 font-medium">Tenure</th>
+                          <th className="py-2 pr-3 font-medium">Employer pays per month</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {benefitCategories.flatMap((category) => {
+                          const rows = (data?.contributionBands ?? []).filter((band) => band.companyId === data?.companies[0]?.id && band.category === category);
+                          return rows.map((band) => {
+                            const key = `${band.category}:${band.minMonths}`;
+                            const tenure = band.maxMonths === null
+                              ? (band.minMonths === 0 ? "All tenure" : `${band.minMonths}+ months`)
+                              : `${band.minMonths}–${band.maxMonths} months`;
+                            return (
+                              <tr key={key} className="border-b last:border-0">
+                                <td className="py-2 pr-3 capitalize">{categoryLabel[category]}</td>
+                                <td className="py-2 pr-3">{tenure}</td>
+                                <td className="py-2 pr-3">
+                                  <Input
+                                    inputMode="decimal"
+                                    className="w-32"
+                                    value={bandDraft[key] ?? ""}
+                                    onChange={(event) => setBandDraft((current) => ({ ...current, [key]: event.target.value }))}
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          });
                         })}
-                      </div>
-                    </div>
-                  ))}
-                  <Button onClick={() => saveRules.mutate()} disabled={saveRules.isPending} data-testid="button-save-rules">Save contribution rules</Button>
+                      </tbody>
+                    </table>
+                  </div>
+                  <Button onClick={() => saveRules.mutate()} disabled={saveRules.isPending} data-testid="button-save-rules">Save contribution rates</Button>
                 </CardContent>
               </Card>
 
@@ -840,6 +936,7 @@ export default function AccountingPage() {
                           <tr className="border-b text-left text-muted-foreground">
                             <th className="py-2 pr-3 font-medium">Employee</th>
                             <th className="py-2 pr-3 font-medium">Hired</th>
+                            <th className="py-2 pr-3 font-medium">Tenure</th>
                             <th className="py-2 pr-3 font-medium">Company</th>
                             <th className="py-2 pr-3 font-medium">Programs</th>
                             <th className="py-2 pr-3 font-medium">Premium</th>
@@ -861,6 +958,7 @@ export default function AccountingPage() {
                               <tr key={participant.id} className="border-b last:border-0" data-testid={`participant-${participant.id}`}>
                                 <td className="py-2 pr-3">{participant.fullName}</td>
                                 <td className="py-2 pr-3">{formatDay(participant.hireDate)}</td>
+                                <td className="py-2 pr-3">{line?.serviceMonths === undefined ? "—" : `${line.serviceMonths} mo`}</td>
                                 <td className="py-2 pr-3">{companyName(participant.companyId)}</td>
                                 <td className="py-2 pr-3">{programs || "—"}</td>
                                 <td className="py-2 pr-3">{line ? money(line.premium) : "—"}</td>
@@ -1039,6 +1137,123 @@ export default function AccountingPage() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="accounts" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>QuickBooks accounts</CardTitle>
+                  <CardDescription>
+                    Emailing the bill posts the total to general Accounts Payable. The lines below are how that bill is split. Nashoba’s bill has its employee share, its employer share, and the full Gables amount. The Gables bill has only its employee share and its employer share.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {(data?.companies ?? []).map((company) => {
+                    const rows = (data?.accountMappings ?? []).filter((mapping) => mapping.companyId === company.id);
+                    return (
+                      <div key={company.id} className="space-y-2">
+                        <p className="font-medium">{company.name}</p>
+                        <p className="text-xs text-muted-foreground">{company.billingEmail || "No billing email"} · {company.paysCarrier ? "Pays UnitedHealthcare" : "Receives the Nashoba invoice"}</p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b text-left text-muted-foreground">
+                                <th className="py-2 pr-3 font-medium">What it records</th>
+                                <th className="py-2 pr-3 font-medium">Account name</th>
+                                <th className="py-2 pr-3 font-medium">Type</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((mapping) => {
+                                const key = `${mapping.companyId}:${mapping.role}`;
+                                const draft = mappingDraft[key] ?? { accountName: mapping.accountName, accountType: mapping.accountType };
+                                const label = mapping.role === "employee_contribution"
+                                  ? "Bill line: employee share"
+                                  : mapping.role === "employer_expense"
+                                    ? "Bill line: employer share"
+                                    : "Bill line: amount to collect from The Gables";
+                                return (
+                                  <tr key={key} className="border-b last:border-0">
+                                    <td className="py-2 pr-3">{label}</td>
+                                    <td className="py-2 pr-3">
+                                      <Input
+                                        value={draft.accountName}
+                                        onChange={(event) => setMappingDraft((current) => ({ ...current, [key]: { ...draft, accountName: event.target.value } }))}
+                                      />
+                                    </td>
+                                    <td className="py-2 pr-3">
+                                      <Select
+                                        value={draft.accountType}
+                                        onValueChange={(value) => setMappingDraft((current) => ({ ...current, [key]: { ...draft, accountType: value } }))}
+                                      >
+                                        <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="balance_sheet">Balance sheet</SelectItem>
+                                          <SelectItem value="expense">Expense</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <Button onClick={() => saveMappings.mutate()} disabled={saveMappings.isPending} data-testid="button-save-accounts">Save account mapping</Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="payroll" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payroll deductions</CardTitle>
+                  <CardDescription>
+                    Nashoba Valley and The Gables both pay every two weeks. The next period ends Sunday, September 27, 2026. Each paycheck deduction is the monthly employee share times 12, divided by 26, so a year of paychecks equals a year of premiums. The coverage month is the month of that period end.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="period-end">Payroll period ends</Label>
+                      <Input id="period-end" type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} className="w-44" />
+                    </div>
+                    <Button onClick={() => logPayroll.mutate()} disabled={logPayroll.isPending || (payroll?.lines.length ?? 0) === 0} data-testid="button-log-payroll">Log this payroll</Button>
+                  </div>
+                  {(payroll?.warnings ?? []).map((warning) => <p key={warning} className="text-sm text-amber-700">{warning}</p>)}
+                  {(payroll?.lines.length ?? 0) === 0 ? (
+                    <p className="text-sm text-muted-foreground">No covered employees for {payroll?.coverageMonth ?? "this month"}.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="py-2 pr-3 font-medium">Employee</th>
+                            <th className="py-2 pr-3 font-medium">Company</th>
+                            <th className="py-2 pr-3 font-medium">Monthly share</th>
+                            <th className="py-2 pr-3 font-medium">This paycheck</th>
+                            <th className="py-2 font-medium">Logged</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payroll?.lines.map((line) => (
+                            <tr key={line.participantId} className="border-b last:border-0">
+                              <td className="py-2 pr-3">{line.fullName}</td>
+                              <td className="py-2 pr-3">{line.companyName}</td>
+                              <td className="py-2 pr-3">{money(line.monthlyEmployee)}</td>
+                              <td className="py-2 pr-3">{money(line.deduction)}</td>
+                              <td className="py-2">{line.loggedAt ? formatDay(line.loggedAt) : "Not logged"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </CardContent>

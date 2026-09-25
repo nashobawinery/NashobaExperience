@@ -37,7 +37,7 @@ const unitedPrograms = [
     planName: "Navigate $2,500",
     network: "Navigate",
     sortOrder: 1,
-    notes: "Summary of Benefits: SBC_LF_MA_NavE2500i100LX21B_RX4 ADVB, dated 2026-03-15. Premiums are from the 2026 renewal outline. The outline does not list a current family rate or an employee-and-child tier.",
+    notes: "2026-27 enrollment package. Renewal medical premiums run May 1, 2026 through April 30, 2027. Employee + child is the same monthly premium as single + spouse. The October 2026 UnitedHealthcare census bills single coverage at $884.62.",
     benefits: {
       deductibleIn: "$2,500",
       deductibleOut: "Not covered",
@@ -54,6 +54,7 @@ const unitedPrograms = [
       tiers: [
         { tier: "Employee", enrollment: null, current: 777.27, renewal: 884.62 },
         { tier: "Employee & Spouse", enrollment: null, current: 1524.55, renewal: 1739.26 },
+        { tier: "Employee & Child", enrollment: null, current: null, renewal: 1739.26 },
         { tier: "Family", enrollment: null, current: null, renewal: 2593.88 },
       ],
     },
@@ -64,7 +65,7 @@ const unitedPrograms = [
     planName: "Navigate $3,000",
     network: "Navigate",
     sortOrder: 2,
-    notes: "Summary of Benefits on file is NavE3000i80LX21B ($3,000 deductible, 80% coinsurance). The 2026 renewal outline prices the 80% Navigate plan on a row labeled NavE3500i80LX21B. Employee-and-child and the current family rate are not on that outline.",
+    notes: "2026-27 enrollment package, plan NavE3000. Renewal single coverage is $764.63, which matches the October 2026 UnitedHealthcare census. Employee + child is the same monthly premium as single + spouse.",
     benefits: {
       deductibleIn: "$3,000",
       deductibleOut: "Not covered",
@@ -81,6 +82,7 @@ const unitedPrograms = [
       tiers: [
         { tier: "Employee", enrollment: null, current: 663.63, renewal: 764.63 },
         { tier: "Employee & Spouse", enrollment: null, current: 1297.28, renewal: 1499.29 },
+        { tier: "Employee & Child", enrollment: null, current: null, renewal: 1499.29 },
         { tier: "Family", enrollment: null, current: null, renewal: 2233.93 },
       ],
     },
@@ -91,7 +93,7 @@ const unitedPrograms = [
     planName: "Choice Plus $3,000",
     network: "Choice Plus",
     sortOrder: 3,
-    notes: "Summary of Benefits: SBC_LF_MA_P3000i100LX21B_RX4 ADVB, dated 2026-03-15. This is the in- and out-of-network medical option. The outline does not list a current family rate.",
+    notes: "2026-27 enrollment package, Choice Plus PPO. Renewal single coverage is $930.48 and single + spouse is $1,830.94, matching the October 2026 UnitedHealthcare census. Employee + child uses the single + spouse premium. Family is $2,731.45.",
     benefits: {
       deductibleIn: "$3,000",
       deductibleOut: "$6,000",
@@ -108,7 +110,8 @@ const unitedPrograms = [
       tiers: [
         { tier: "Employee", enrollment: null, current: 813.10, renewal: 930.48 },
         { tier: "Employee & Spouse", enrollment: null, current: 1596.19, renewal: 1830.94 },
-        { tier: "Family", enrollment: null, current: null, renewal: 2731.42 },
+        { tier: "Employee & Child", enrollment: null, current: null, renewal: 1830.94 },
+        { tier: "Family", enrollment: null, current: null, renewal: 2731.45 },
       ],
     },
   },
@@ -118,7 +121,7 @@ const unitedPrograms = [
     planName: "Passive PPO",
     network: "Passive PPO",
     sortOrder: 4,
-    notes: "Dental renewal for group 1481121, plan year beginning May 1, 2026. Type 100/80/50/50. Rates are guaranteed for 12 months, through April 30, 2027. The renewal monthly premium of $459.78 is 5.00% above the current $437.89. The employee-and-spouse rates are the amounts that reconcile enrolled counts to those monthly premiums.",
+    notes: "2026-27 enrollment package, dental 7331. Employee and employee + spouse renewal rates match the October 2026 UnitedHealthcare census ($41.80 and $83.58). Employee + child and family are the package rates. The company contribution is a flat monthly amount by tenure, not a percent of premium.",
     benefits: {
       planType: "100/80/50/50 PASSIVE PPO $50/$100/$1,000",
       annualMaxIn: "$1,000",
@@ -144,10 +147,10 @@ const unitedPrograms = [
       monthlyPremiumCurrent: 437.89,
       monthlyPremiumRenewal: 459.78,
       tiers: [
-        { tier: "Employee", enrollment: 9, current: 39.81, renewal: 41.80 },
+        { tier: "Employee", enrollment: 10, current: 39.81, renewal: 41.80 },
         { tier: "Employee & Spouse", enrollment: 1, current: 79.60, renewal: 83.58 },
-        { tier: "Employee & Child", enrollment: 0, current: 82.58, renewal: 86.74 },
-        { tier: "Employee & Family", enrollment: 0, current: 138.73, renewal: 143.69 },
+        { tier: "Employee & Child", enrollment: 0, current: 82.58, renewal: 94.74 },
+        { tier: "Employee & Family", enrollment: 0, current: 138.73, renewal: 143.60 },
       ],
     },
   },
@@ -157,7 +160,7 @@ const unitedPrograms = [
     planName: "Vision S1006",
     network: "UnitedHealthcare Vision",
     sortOrder: 5,
-    notes: "Vision renewal for group 1481121, plan S1006, type 12/12/10/8/10/$25/s/$30/$105. Rates are unchanged for the renewal (0.00%) and are guaranteed for 24 months, through April 30, 2027.",
+    notes: "2026-27 enrollment package, vision S1006. Employees pay the full premium. The company does not contribute. Employee and employee + spouse match the October 2026 census ($6.27 and $11.90). Employee + child is $13.96 in the package.",
     benefits: {
       planType: "12/12/10/8/10/$25/s/$30/$105",
       examCopay: "$10",
@@ -182,13 +185,23 @@ const unitedPrograms = [
       monthlyPremiumCurrent: 48.88,
       monthlyPremiumRenewal: 48.88,
       tiers: [
-        { tier: "Employee", enrollment: 4, current: 6.27, renewal: 6.27 },
+        { tier: "Employee", enrollment: 6, current: 6.27, renewal: 6.27 },
         { tier: "Employee & Spouse", enrollment: 2, current: 11.90, renewal: 11.90 },
-        { tier: "Employee & Child", enrollment: 0, current: 12.96, renewal: 12.96 },
+        { tier: "Employee & Child", enrollment: 0, current: 13.96, renewal: 13.96 },
         { tier: "Employee & Family", enrollment: 0, current: 19.65, renewal: 19.65 },
       ],
     },
   },
+];
+
+const contributionBands = [
+  { category: "medical", minMonths: 3, maxMonths: 59, employerAmount: 450 },
+  { category: "medical", minMonths: 60, maxMonths: 119, employerAmount: 625 },
+  { category: "medical", minMonths: 120, maxMonths: null, employerAmount: 700 },
+  { category: "dental", minMonths: 3, maxMonths: 59, employerAmount: 10.45 },
+  { category: "dental", minMonths: 60, maxMonths: 119, employerAmount: 20.9 },
+  { category: "dental", minMonths: 120, maxMonths: null, employerAmount: 41.8 },
+  { category: "vision", minMonths: 0, maxMonths: null, employerAmount: 0 },
 ];
 
 export async function ensureAccountingTables() {
@@ -295,7 +308,13 @@ export async function ensureAccountingTables() {
         ${program.notes},
         ${program.sortOrder}
       )
-      ON CONFLICT (provider_id, plan_code) DO NOTHING
+      ON CONFLICT (provider_id, plan_code) DO UPDATE SET
+        plan_name = EXCLUDED.plan_name,
+        network = EXCLUDED.network,
+        benefits = EXCLUDED.benefits,
+        rates = EXCLUDED.rates,
+        notes = EXCLUDED.notes,
+        sort_order = EXCLUDED.sort_order
     `);
   }
 
@@ -311,6 +330,37 @@ export async function ensureAccountingTables() {
       created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now(),
       CONSTRAINT uq_accounting_contribution_rule UNIQUE (company_id, category)
+    );
+    CREATE TABLE IF NOT EXISTS accounting_contribution_bands (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id varchar NOT NULL REFERENCES accounting_companies(id) ON DELETE CASCADE,
+      category varchar(20) NOT NULL,
+      min_months integer NOT NULL,
+      max_months integer,
+      employer_amount numeric(12, 2) NOT NULL,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now(),
+      CONSTRAINT uq_accounting_contribution_band UNIQUE (company_id, category, min_months)
+    );
+    CREATE TABLE IF NOT EXISTS accounting_account_mappings (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id varchar NOT NULL REFERENCES accounting_companies(id) ON DELETE CASCADE,
+      role varchar(40) NOT NULL,
+      account_name varchar NOT NULL,
+      account_type varchar(40) NOT NULL,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now(),
+      CONSTRAINT uq_accounting_account_mapping UNIQUE (company_id, role)
+    );
+    CREATE TABLE IF NOT EXISTS accounting_payroll_deductions (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      participant_id varchar NOT NULL REFERENCES accounting_participants(id) ON DELETE CASCADE,
+      period_end date NOT NULL,
+      coverage_month date NOT NULL,
+      monthly_employee_amount numeric(12, 2) NOT NULL,
+      deduction_amount numeric(12, 2) NOT NULL,
+      logged_at timestamp NOT NULL DEFAULT now(),
+      CONSTRAINT uq_accounting_payroll_deduction UNIQUE (participant_id, period_end)
     );
     CREATE TABLE IF NOT EXISTS accounting_participants (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -358,9 +408,47 @@ export async function ensureAccountingTables() {
   `);
   await db.execute(sql`
     UPDATE accounting_companies
-    SET billing_email = 'gap@gableal.com'
-    WHERE name = 'The Gables' AND billing_email IS NULL
+    SET billing_email = 'gap@gablesal.com'
+    WHERE name = 'The Gables' AND (billing_email IS NULL OR billing_email = 'gap@gableal.com')
   `);
+
+  const mappingSeed = [
+    { company: "Nashoba Valley", role: "employee_contribution", accountName: "Employee Contribution to Health", accountType: "balance_sheet" },
+    { company: "Nashoba Valley", role: "employer_expense", accountName: "Health Care Expense", accountType: "expense" },
+    { company: "Nashoba Valley", role: "intercompany_receivable", accountName: "Accounts Receivable - Gables Healthcare Reimbursement", accountType: "balance_sheet" },
+    { company: "The Gables", role: "employee_contribution", accountName: "Employee Contribution to Health", accountType: "balance_sheet" },
+    { company: "The Gables", role: "employer_expense", accountName: "Salaries:Health Insurance:Medical - Er Contribution", accountType: "expense" },
+  ];
+  for (const mapping of mappingSeed) {
+    await db.execute(sql`
+      INSERT INTO accounting_account_mappings (company_id, role, account_name, account_type)
+      SELECT id, ${mapping.role}, ${mapping.accountName}, ${mapping.accountType}
+      FROM accounting_companies
+      WHERE name = ${mapping.company}
+      ON CONFLICT (company_id, role) DO NOTHING
+    `);
+  }
+  await db.execute(sql`DELETE FROM accounting_account_mappings WHERE role = 'intercompany_payable'`);
+  await db.execute(sql`
+    UPDATE accounting_account_mappings AS mapping
+    SET account_name = 'Salaries:Health Insurance:Medical - Er Contribution', account_type = 'expense', updated_at = now()
+    FROM accounting_companies AS company
+    WHERE mapping.company_id = company.id
+      AND company.name = 'The Gables'
+      AND mapping.role = 'employer_expense'
+      AND mapping.account_name = 'Health Care Expense'
+  `);
+
+  const companyRows = await db.execute(sql`SELECT id FROM accounting_companies`);
+  for (const company of companyRows.rows as { id: string }[]) {
+    for (const band of contributionBands) {
+      await db.execute(sql`
+        INSERT INTO accounting_contribution_bands (company_id, category, min_months, max_months, employer_amount)
+        VALUES (${company.id}, ${band.category}, ${band.minMonths}, ${band.maxMonths}, ${band.employerAmount})
+        ON CONFLICT (company_id, category, min_months) DO NOTHING
+      `);
+    }
+  }
 
   prepared = true;
 }
@@ -413,13 +501,31 @@ function tierRate(program: { rates?: { tiers?: { tier: string; current: number |
   return value === null || value === undefined ? null : Number(value);
 }
 
-function splitPremium(premium: number, employeeOnly: number | null, rule: { basis: string; employerPercent: number } | undefined) {
-  if (!rule) return { employer: null as number | null, employee: null as number | null, warning: "Set the company contribution for this benefit." };
-  const percent = Number(rule.employerPercent) / 100;
-  const base = rule.basis === "percent_of_elected" ? premium : (employeeOnly ?? premium);
-  const employer = cents(Math.min(premium, base * percent));
-  const employee = cents(premium - employer);
-  return { employer, employee, warning: null as string | null };
+function monthsOfService(hireDate: string, billingMonth: string) {
+  const hire = String(hireDate).slice(0, 10);
+  const [hireYear, hireMonth, hireDay] = hire.split("-").map(Number);
+  const [year, month] = billingMonth.split("-").map(Number);
+  let months = (year - hireYear) * 12 + (month - hireMonth);
+  if (1 < hireDay) months -= 1;
+  return Math.max(0, months);
+}
+
+function employerShare(
+  premium: number,
+  category: string,
+  months: number,
+  bands: { category: string; minMonths: number; maxMonths: number | null; employerAmount: number }[],
+) {
+  const band = bands.find((item) => item.category === category && months >= item.minMonths && (item.maxMonths === null || months <= item.maxMonths));
+  if (!band) {
+    return {
+      employer: 0,
+      employee: cents(premium),
+      warning: `Tenure is ${months} months, before the published ${category} contribution starts.`,
+    };
+  }
+  const employer = cents(Math.min(premium, band.employerAmount));
+  return { employer, employee: cents(premium - employer), warning: null as string | null };
 }
 
 function esc(value: string) {
@@ -433,8 +539,9 @@ function moneyText(value: number) {
 type AllocationLine = {
   participantId: string;
   fullName: string;
-  hireDate: string;
-  companyId: string;
+      hireDate: string;
+      serviceMonths: number;
+      companyId: string;
   companyName: string;
   paysCarrier: boolean;
   elections: {
@@ -470,9 +577,10 @@ export async function calculateHealthcareAllocation(billingMonth: string, provid
     FROM accounting_benefit_programs
     WHERE provider_id = ${providerId} AND active = true
   `);
-  const rules = await db.execute(sql`
-    SELECT company_id as "companyId", category, basis, employer_percent as "employerPercent"
-    FROM accounting_contribution_rules
+  const bands = await db.execute(sql`
+    SELECT company_id as "companyId", category, min_months as "minMonths", max_months as "maxMonths",
+           employer_amount as "employerAmount"
+    FROM accounting_contribution_bands
   `);
   const people = await db.execute(sql`
     SELECT p.id, p.full_name as "fullName", p.hire_date as "hireDate", p.company_id as "companyId",
@@ -490,10 +598,17 @@ export async function calculateHealthcareAllocation(billingMonth: string, provid
   `);
 
   const programById = new Map((programs.rows as { id: string; category: string; planName: string; rates: { tiers?: { tier: string; current: number | null; renewal: number | null }[] } }[]).map((program) => [program.id, program]));
-  const ruleByKey = new Map((rules.rows as { companyId: string; category: string; basis: string; employerPercent: string }[]).map((rule) => [
-    `${rule.companyId}:${rule.category}`,
-    { basis: rule.basis, employerPercent: Number(rule.employerPercent) },
-  ]));
+  const bandsByCompany = new Map<string, { category: string; minMonths: number; maxMonths: number | null; employerAmount: number }[]>();
+  for (const band of bands.rows as { companyId: string; category: string; minMonths: number; maxMonths: number | null; employerAmount: string }[]) {
+    const list = bandsByCompany.get(band.companyId) ?? [];
+    list.push({
+      category: band.category,
+      minMonths: Number(band.minMonths),
+      maxMonths: band.maxMonths === null ? null : Number(band.maxMonths),
+      employerAmount: Number(band.employerAmount),
+    });
+    bandsByCompany.set(band.companyId, list);
+  }
   const electionsByPerson = new Map<string, { programId: string; tier: string }[]>();
   for (const election of elections.rows as { participantId: string; programId: string; tier: string }[]) {
     const list = electionsByPerson.get(election.participantId) ?? [];
@@ -507,11 +622,10 @@ export async function calculateHealthcareAllocation(billingMonth: string, provid
       const program = programById.get(election.programId) as { id: string; category: string; planName: string; rates: any } | undefined;
       if (!program) return [];
       const premium = tierRate(program, election.tier, renewal);
-      const employeeOnly = tierRate(program, "Employee", renewal);
-      const rule = ruleByKey.get(`${person.companyId}:${program.category}`);
+      const months = monthsOfService(person.hireDate, billingMonth);
       const split = premium === null
         ? { employer: null, employee: null, warning: `No ${renewal ? "renewal" : "current"} rate for ${program.planName}, ${election.tier}.` }
-        : splitPremium(premium, employeeOnly, rule);
+        : employerShare(premium, program.category, months, bandsByCompany.get(person.companyId) ?? []);
       if (split.warning) warnings.push(`${person.fullName}: ${split.warning}`);
       return [{
         programId: program.id,
@@ -529,6 +643,7 @@ export async function calculateHealthcareAllocation(billingMonth: string, provid
       participantId: person.id,
       fullName: person.fullName,
       hireDate: String(person.hireDate).slice(0, 10),
+      serviceMonths: monthsOfService(person.hireDate, billingMonth),
       companyId: person.companyId,
       companyName: person.companyName,
       paysCarrier: person.paysCarrier,
@@ -619,6 +734,17 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
       SELECT id, company_id as "companyId", category, basis, employer_percent as "employerPercent"
       FROM accounting_contribution_rules
     `);
+    const contributionBandsResult = await db.execute(sql`
+      SELECT id, company_id as "companyId", category, min_months as "minMonths",
+             max_months as "maxMonths", employer_amount as "employerAmount"
+      FROM accounting_contribution_bands
+      ORDER BY category, min_months
+    `);
+    const accountMappings = await db.execute(sql`
+      SELECT id, company_id as "companyId", role, account_name as "accountName", account_type as "accountType"
+      FROM accounting_account_mappings
+      ORDER BY company_id, role
+    `);
     const statements = await db.execute(sql`
       SELECT id, billing_month as "billingMonth", kind, invoice_number as "invoiceNumber",
              recipient_email as "recipientEmail", recipient_name as "recipientName",
@@ -656,6 +782,8 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
         elections: electionsByParticipant.get(String(participant.id)) ?? [],
       })),
       contributionRules: contributionRules.rows,
+      contributionBands: contributionBandsResult.rows,
+      accountMappings: accountMappings.rows,
       statements: statements.rows,
     });
   } catch (error) {
@@ -871,10 +999,47 @@ router.put("/healthcare/contribution-rules", isAdmin, async (req, res) => {
           updated_at = now()
       `);
     }
+    const bands = Array.isArray(req.body?.bands) ? req.body.bands : [];
+    for (const band of bands) {
+      const amount = Number(band.employerAmount);
+      const minMonths = Number(band.minMonths);
+      const maxMonths = band.maxMonths === null || band.maxMonths === "" ? null : Number(band.maxMonths);
+      if (!band.companyId || !["medical", "dental", "vision"].includes(band.category) || Number.isNaN(amount) || amount < 0 || Number.isNaN(minMonths)) {
+        return res.status(400).json({ message: "Each contribution band needs a company, a benefit, a starting month, and a monthly amount." });
+      }
+      await db.execute(sql`
+        UPDATE accounting_contribution_bands
+        SET employer_amount = ${amount}, max_months = ${maxMonths}, updated_at = now()
+        WHERE company_id = ${band.companyId} AND category = ${band.category} AND min_months = ${minMonths}
+      `);
+    }
     res.json({ ok: true });
   } catch (error) {
     console.error("Error saving contribution rules:", error);
     res.status(500).json({ message: "Failed to save contribution rules" });
+  }
+});
+
+router.put("/healthcare/account-mappings", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const mappings = Array.isArray(req.body?.mappings) ? req.body.mappings : [];
+    for (const mapping of mappings) {
+      const accountName = String(mapping.accountName ?? "").trim();
+      const accountType = mapping.accountType === "expense" ? "expense" : "balance_sheet";
+      if (!mapping.companyId || !mapping.role || !accountName) {
+        return res.status(400).json({ message: "Each account mapping needs a company, a role, and an account name." });
+      }
+      await db.execute(sql`
+        UPDATE accounting_account_mappings
+        SET account_name = ${accountName}, account_type = ${accountType}, updated_at = now()
+        WHERE company_id = ${mapping.companyId} AND role = ${mapping.role}
+      `);
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error saving account mappings:", error);
+    res.status(500).json({ message: "Failed to save account mappings" });
   }
 });
 
@@ -960,12 +1125,98 @@ router.delete("/healthcare/participants/:id", isAdmin, async (req, res) => {
   }
 });
 
+const payrollAnchor = "2026-09-27";
+const payPeriodsPerYear = 26;
+
+function paycheckDeduction(monthlyEmployee: number) {
+  return cents((monthlyEmployee * 12) / payPeriodsPerYear);
+}
+
+router.get("/healthcare/payroll", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const periodEnd = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodEnd ?? "")) ? String(req.query.periodEnd) : payrollAnchor;
+    const coverageMonth = periodEnd.slice(0, 7);
+    const providerResult = await db.execute(sql`
+      SELECT id FROM accounting_benefit_providers WHERE is_current = true ORDER BY name LIMIT 1
+    `);
+    const providerId = (providerResult.rows[0] as { id?: string } | undefined)?.id;
+    if (!providerId) return res.status(400).json({ message: "Add the current health insurance provider first." });
+
+    const allocation = await calculateHealthcareAllocation(coverageMonth, providerId);
+    const logged = await db.execute(sql`
+      SELECT participant_id as "participantId", deduction_amount as "deductionAmount", logged_at as "loggedAt"
+      FROM accounting_payroll_deductions
+      WHERE period_end = ${periodEnd}::date
+    `);
+    const loggedByPerson = new Map((logged.rows as { participantId: string; deductionAmount: string; loggedAt: string }[]).map((row) => [row.participantId, row]));
+    const lines = allocation.companies.flatMap((company) => company.participants.map((person) => {
+      const prior = loggedByPerson.get(person.participantId);
+      return {
+        participantId: person.participantId,
+        fullName: person.fullName,
+        companyName: person.companyName,
+        monthlyEmployee: person.employee,
+        deduction: prior ? Number(prior.deductionAmount) : paycheckDeduction(person.employee),
+        loggedAt: prior?.loggedAt ?? null,
+      };
+    }));
+    res.json({
+      periodEnd,
+      coverageMonth,
+      payPeriodsPerYear,
+      anchor: payrollAnchor,
+      lines,
+      warnings: allocation.warnings,
+    });
+  } catch (error) {
+    console.error("Error calculating payroll deductions:", error);
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to calculate payroll deductions" });
+  }
+});
+
+router.post("/healthcare/payroll", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const periodEnd = String(req.body?.periodEnd ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)) {
+      return res.status(400).json({ message: "A payroll period end date is required." });
+    }
+    const coverageMonth = periodEnd.slice(0, 7);
+    const providerResult = await db.execute(sql`
+      SELECT id FROM accounting_benefit_providers WHERE is_current = true ORDER BY name LIMIT 1
+    `);
+    const providerId = (providerResult.rows[0] as { id?: string } | undefined)?.id;
+    if (!providerId) return res.status(400).json({ message: "Add the current health insurance provider first." });
+    const allocation = await calculateHealthcareAllocation(coverageMonth, providerId);
+    let count = 0;
+    for (const company of allocation.companies) {
+      for (const person of company.participants) {
+        const deduction = paycheckDeduction(person.employee);
+        await db.execute(sql`
+          INSERT INTO accounting_payroll_deductions (
+            participant_id, period_end, coverage_month, monthly_employee_amount, deduction_amount
+          ) VALUES (
+            ${person.participantId}, ${periodEnd}::date, ${monthDate(coverageMonth)}::date, ${person.employee}, ${deduction}
+          )
+          ON CONFLICT (participant_id, period_end) DO NOTHING
+        `);
+        count += 1;
+      }
+    }
+    res.json({ ok: true, count, periodEnd });
+  } catch (error) {
+    console.error("Error logging payroll deductions:", error);
+    res.status(500).json({ message: "Failed to log the payroll deductions" });
+  }
+});
+
 function monthLabel(billingMonth: string) {
   const [year, month] = billingMonth.split("-");
   return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-function statementHtml(title: string, intro: string, rows: AllocationLine[], total: number, employer: number, employee: number) {
+function statementHtml(title: string, intro: string, rows: AllocationLine[], total: number, employer: number, employee: number, accountLines: { accountName: string; amount: number }[] = []) {
   const body = rows.map((row) => {
     const plans = row.elections.map((election) => `${esc(election.programName)} (${esc(election.tier)})`).join("<br>");
     return `<tr>
@@ -994,6 +1245,7 @@ function statementHtml(title: string, intro: string, rows: AllocationLine[], tot
         <td style="padding:8px;text-align:right;font-weight:bold;">${moneyText(employee)}</td>
       </tr></tfoot>
     </table>
+    ${accountLines.length ? `<h3 style="margin-top:24px;">Bill lines</h3><p>The bill total posts to general Accounts Payable. Code each line to the account shown.</p><table style="width:100%;border-collapse:collapse;font-size:14px;"><tbody>${accountLines.map((line) => `<tr><td style="padding:8px;border-bottom:1px solid #e5e5e5;">${esc(line.accountName)}</td><td style="padding:8px;border-bottom:1px solid #e5e5e5;text-align:right;">${moneyText(line.amount)}</td></tr>`).join("")}</tbody></table>` : ""}
   </div>`;
 }
 
@@ -1062,7 +1314,16 @@ router.post("/healthcare/statements", isAdmin, async (req, res) => {
       subject: string;
       intro: string;
       attach: boolean;
+      accountLines: { accountName: string; amount: number }[];
     }[] = [];
+    const mappingRows = await db.execute(sql`
+      SELECT company_id as "companyId", role, account_name as "accountName"
+      FROM accounting_account_mappings
+    `);
+    const accountName = (companyId: string, role: string, fallback: string) => {
+      const match = (mappingRows.rows as { companyId: string; role: string; accountName: string }[]).find((row) => row.companyId === companyId && row.role === role);
+      return match?.accountName || fallback;
+    };
 
     if (!payer?.billingEmail) {
       return res.status(400).json({ message: "Nashoba Valley needs a billing email before the carrier bill can be sent." });
@@ -1077,8 +1338,16 @@ router.post("/healthcare/statements", isAdmin, async (req, res) => {
       employer: allocation.employer,
       employee: allocation.employee,
       subject: `${allocation.providerName} bill for ${label} — pay in full`,
-      intro: `Please pay the full ${moneyText(allocation.total)} ${esc(allocation.providerName)} bill for ${label}. Nashoba Valley will collect The Gables' share on a separate invoice. Employer contributions are ${moneyText(allocation.employer)} and employee contributions are ${moneyText(allocation.employee)}.`,
+      intro: `Please pay the full ${moneyText(allocation.total)} ${esc(allocation.providerName)} bill for ${label}. The bill total posts to general Accounts Payable. Split the lines below.`,
       attach: true,
+      accountLines: [
+        { accountName: accountName(payer.companyId, "employee_contribution", "Employee Contribution to Health"), amount: payer.employee },
+        { accountName: accountName(payer.companyId, "employer_expense", "Health Care Expense"), amount: payer.employer },
+        ...billed.map((company) => ({
+          accountName: accountName(payer.companyId, "intercompany_receivable", "Accounts Receivable - Gables Healthcare Reimbursement"),
+          amount: company.premium,
+        })),
+      ],
     });
 
     for (const company of billed) {
@@ -1095,13 +1364,17 @@ router.post("/healthcare/statements", isAdmin, async (req, res) => {
         employer: company.employer,
         employee: company.employee,
         subject: `Nashoba Valley health insurance invoice for ${label}`,
-        intro: `Nashoba Valley pays ${allocation.providerName} for the shared policy and bills ${esc(company.companyName)} for its employees. Amount due is ${moneyText(company.premium)}, of which ${moneyText(company.employer)} is the employer contribution and ${moneyText(company.employee)} is the employee contribution.`,
+        intro: `Nashoba Valley pays ${allocation.providerName} for the shared policy and bills ${esc(company.companyName)} ${moneyText(company.premium)} for its employees. The bill total posts to general Accounts Payable. Split the lines below.`,
         attach: false,
+        accountLines: [
+          { accountName: accountName(company.companyId, "employee_contribution", "Employee Contribution to Health"), amount: company.employee },
+          { accountName: accountName(company.companyId, "employer_expense", "Health Care Expense"), amount: company.employer },
+        ],
       });
     }
 
     for (const document of documents) {
-      const html = statementHtml(document.subject, document.intro, document.rows, document.total, document.employer, document.employee);
+      const html = statementHtml(document.subject, document.intro, document.rows, document.total, document.employer, document.employee, document.accountLines);
       const text = `${document.subject}\nAmount due ${moneyText(document.total)}. Employer ${moneyText(document.employer)}. Employee ${moneyText(document.employee)}.`;
       const recorded = await db.execute(sql`
         INSERT INTO accounting_benefit_statements (
