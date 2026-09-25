@@ -1727,6 +1727,67 @@ async function screenSecondReservation(input: {
   };
 }
 
+function guestVisitNote(text: string | null | undefined) {
+  return (text || "")
+    .replace(/Guest accepted that this second table is not close to their other reservation\./gi, "")
+    .trim();
+}
+
+async function alertManagementAboutVisitNote(reservation: {
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string | null;
+  reservationDate: string;
+  reservationTime: string;
+  partySize: number | null;
+  specialRequests: string | null;
+  tableAssignment: string | null;
+  confirmationCode: string | null;
+}) {
+  const note = guestVisitNote(reservation.specialRequests);
+  if (!note) return;
+  try {
+    const { default: OpenAI } = await import("openai");
+    const openai = new OpenAI();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You decide whether a note on a Knoll restaurant reservation should be emailed to management. Reply with JSON {\"notify\": boolean, \"reason\": string}. Notify when the guest is asking for something the dining room may not allow or that is more than a normal meal: bringing their own food or drinks, a wedding or other event, reserving multiple tables so a group can sit together, a buyout, vendors, or decorations. Do not notify for ordinary hospitality: a high chair, booster seat, birthday, engagement, anniversary, celebration, cake, or a quiet table.",
+        },
+        { role: "user", content: note },
+      ],
+    });
+    const parsed = JSON.parse(completion.choices[0]?.message?.content || "{}") as { notify?: boolean; reason?: string };
+    if (!parsed.notify) return;
+    const settings = await resyStorage.getSiteSettingsRecord();
+    const to = settings.companyEmail || "email@nashobawinery.com";
+    const reason = parsed.reason || "This note may need a manager.";
+    const escape = (value: string) => value.replace(/[&<>]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[character] || character));
+    const subject = `Knoll reservation needs a look: ${reservation.customerName}`;
+    const text = [
+      reason,
+      "",
+      reservation.customerName,
+      `${reservation.reservationDate} ${reservation.reservationTime}`,
+      `Party of ${reservation.partySize || ""}`,
+      `Table ${reservation.tableAssignment || "unassigned"}`,
+      reservation.customerPhone || "",
+      reservation.customerEmail,
+      reservation.confirmationCode || "",
+      "",
+      `Note: ${note}`,
+    ].filter((line) => line !== "").join("\n");
+    const html = `<p>${escape(reason)}</p><p>${escape(reservation.customerName)}<br>${escape(reservation.reservationDate)} ${escape(reservation.reservationTime)}<br>Party of ${escape(String(reservation.partySize || ""))}<br>Table ${escape(reservation.tableAssignment || "unassigned")}<br>${escape(reservation.customerPhone || "")}<br>${escape(reservation.customerEmail)}</p><p><strong>Note:</strong> ${escape(note)}</p>`;
+    await sendEmail(to, subject, html, text);
+  } catch (error) {
+    console.error("Visit note review failed:", error);
+  }
+}
+
 router.post("/api/resy/reservations", async (req, res) => {
   try {
     // For ticketed events, provide defaults for table reservation fields
@@ -1842,6 +1903,9 @@ router.post("/api/resy/reservations", async (req, res) => {
 
     const validated = insertResyReservationSchema.parse(data);
     const reservation = await resyStorage.createReservation(validated);
+    if (experience && /knoll/i.test(experience.name || "")) {
+      void alertManagementAboutVisitNote(reservation);
+    }
     
     // Update or create customer with notification preferences
     const notificationPreference = data.notificationPreference || "email";
@@ -5225,6 +5289,9 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
     };
     
     const reservation = await resyStorage.createReservation(reservationData);
+    if (/knoll/i.test(experience.name || "")) {
+      void alertManagementAboutVisitNote(reservation);
+    }
     
     // Create or update customer record
     try {

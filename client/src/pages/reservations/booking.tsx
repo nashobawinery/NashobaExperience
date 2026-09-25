@@ -1573,10 +1573,10 @@ export default function Booking() {
                     name="specialRequests"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Special Requests</FormLabel>
+                        <FormLabel>{/knoll/i.test(experience.name) ? "Add Notes to your Visit" : "Special Requests"}</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Any dietary restrictions or special accommodations..."
+                            placeholder={/knoll/i.test(experience.name) ? "Provide information about your visit and if we can accommodate we will be in touch." : "Any dietary restrictions or special accommodations..."}
                             {...field}
                             data-testid="input-requests"
                           />
