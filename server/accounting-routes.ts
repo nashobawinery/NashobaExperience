@@ -15,7 +15,6 @@ let prepared = false;
 
 const billDir = path.join(process.cwd(), "uploads", "accounting-bills");
 const payableDir = path.join(process.cwd(), "uploads", "accounting-payables");
-const payableDir = path.join(process.cwd(), "uploads", "accounting-payables");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -1012,7 +1011,7 @@ router.get("/healthcare", isAdmin, async (_req, res) => {
       accountMappings: accountMappings.rows,
       documents: documents.rows,
       uploadRequests: uploadRequests.rows,
-      inquiries: inquiries.rows
+      inquiries: inquiries.rows,
       statements: statements.rows,
     });
   } catch (error) {
