@@ -62,8 +62,8 @@ const DEFAULT_BROWSER_TYPO: BrowserTypoSettings = {
 };
 
 const BROWSER_TYPO_ROWS: { key: string; label: string }[] = [
-  { key: "title",      label: "Private Event Title (optional)" },
-  { key: "subtitle",   label: "Sub-header" },
+  { key: "title",      label: "Menu title font" },
+  { key: "subtitle",   label: "Sub-header font" },
   { key: "group",      label: "Section header" },
   { key: "item",       label: "Item name" },
   { key: "price",      label: "Price" },
@@ -250,6 +250,7 @@ interface MenuPrintSettings {
   pageBreaks: string[];
   customLines: PrintCustomLine[];
   customTitle: string;
+  hideTitle: boolean;
   knollBannerTitle: string;
   knollBannerNote: string;
   itemFontScales: Record<string, number>;
@@ -279,6 +280,7 @@ const DEFAULT_PRINT_SETTINGS: MenuPrintSettings = {
   pageBreaks: [],
   customLines: [],
   customTitle: "",
+  hideTitle: false,
   knollBannerTitle: "",
   knollBannerNote: "",
   itemFontScales: {},
@@ -516,6 +518,7 @@ export function ToastMenuBrowser() {
   const [printOrnamentPos, setPrintOrnamentPos] = useState("below-title");
   const [printCustomLines, setPrintCustomLines] = useState<PrintCustomLine[]>([]);
   const [printCustomTitle, setPrintCustomTitle] = useState("");
+  const [printHideTitle, setPrintHideTitle] = useState(false);
   const [printKnollBannerTitle, setPrintKnollBannerTitle] = useState("");
   const [printKnollBannerNote, setPrintKnollBannerNote] = useState("");
   const [printItemFontScales, setPrintItemFontScales] = useState<Record<string, number>>({});
@@ -548,6 +551,7 @@ export function ToastMenuBrowser() {
     pageBreaks: printPageBreaks,
     customLines: printCustomLines,
     customTitle: printCustomTitle,
+    hideTitle: printHideTitle,
     knollBannerTitle: printKnollBannerTitle,
     knollBannerNote: printKnollBannerNote,
     itemFontScales: printItemFontScales,
@@ -578,6 +582,7 @@ export function ToastMenuBrowser() {
     setPrintPages(s.pages ?? 0);
     setPrintPageBreaks(Array.isArray(s.pageBreaks) ? s.pageBreaks : []);
     setPrintCustomTitle(s.customTitle || "");
+    setPrintHideTitle(!!s.hideTitle);
     {
       const rawLines = Array.isArray(s.customLines) ? s.customLines : [];
       let bannerTitle = s.knollBannerTitle || "";
@@ -622,7 +627,7 @@ export function ToastMenuBrowser() {
     selectedMenu, viewMode, printTemplate, printHeader, printFooter, printHeader2, printFooter2, printScale,
     selectedPrintGroups, printHideDescriptions, printHidePricing, printHideWinePairing,
     printShowImages, printHideAllergyFooter, printHideCourseHeadings, printKnollHeaderColor, printOrnament,
-    printOrnamentPos, printPages, printPageBreaks, printCustomLines, printCustomTitle,
+    printOrnamentPos, printPages, printPageBreaks, printCustomLines, printCustomTitle, printHideTitle,
     printKnollBannerTitle, printKnollBannerNote, printItemFontScales, printItemAllergens, printTypo, additionalMenuGuids,
   ]);
 
@@ -1056,6 +1061,7 @@ export function ToastMenuBrowser() {
     printAdditionalMenuGuids: string | null;
     customPrintLines: string | null;
     customTitle: string | null;
+    hideTitle: boolean | null;
     itemPrintStyles: string | null;
     typography: string | null;
     showOnStaffBoard: boolean | null;
@@ -1112,6 +1118,7 @@ export function ToastMenuBrowser() {
     pageBreaks: printPageBreaks.length > 0 ? printPageBreaks.join(",") : null,
     customPrintLines: serializePrintCustomLines() || null,
     customTitle: printCustomTitle.trim() || null,
+    hideTitle: printHideTitle,
     itemPrintStyles: serializeItemPrintStyles() || null,
     typography: (() => {
       const typo = buildTypoParams(printTypo);
@@ -1393,7 +1400,9 @@ export function ToastMenuBrowser() {
     if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
     if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
     if (printFooter2.trim()) url += `&footer2=${encodeURIComponent(printFooter2.trim())}`;
-    if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
+    // Use menutitle= (not title=) so the text is never confused with typography titleFont/titleSz.
+    if (printCustomTitle.trim()) url += `&menutitle=${encodeURIComponent(printCustomTitle.trim())}`;
+    if (printHideTitle) url += `&hidetitle=1`;
     const itemStyles = serializeItemPrintStyles();
     if (itemStyles) url += `&itemstyles=${encodeURIComponent(itemStyles)}`;
     return url;
@@ -1428,7 +1437,8 @@ export function ToastMenuBrowser() {
     if (printHideCourseHeadings) url += `&hidegroups=1`;
     if (printOrnament && printOrnament !== "auto") url += `&ornament=${encodeURIComponent(printOrnament)}`;
     if (printOrnamentPos && printOrnamentPos !== "below-title") url += `&ornamentpos=${encodeURIComponent(printOrnamentPos)}`;
-    if (printCustomTitle.trim()) url += `&title=${encodeURIComponent(printCustomTitle.trim())}`;
+    if (printCustomTitle.trim()) url += `&menutitle=${encodeURIComponent(printCustomTitle.trim())}`;
+    if (printHideTitle) url += `&hidetitle=1`;
     const itemStyles = serializeItemPrintStyles();
     if (itemStyles) url += `&itemstyles=${encodeURIComponent(itemStyles)}`;
     return url;
@@ -1512,7 +1522,8 @@ export function ToastMenuBrowser() {
       setPrintPages(parseInt(params.get("pages") || "0") || 0);
       setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
       setPrintCustomLines(parsePrintCustomLines(params.get("customlines")));
-      setPrintCustomTitle(params.get("title") || "");
+      setPrintCustomTitle(params.get("menutitle") || params.get("title") || "");
+      setPrintHideTitle(params.get("hidetitle") === "1");
       setPrintKnollBannerTitle(params.get("banner") || "");
       setPrintKnollBannerNote(params.get("bannernote") || "");
       applyItemPrintMeta(params.get("itemstyles"));
@@ -1568,6 +1579,7 @@ export function ToastMenuBrowser() {
     setPrintPages(config.pages || 0);
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
     setPrintCustomTitle(config.customTitle || "");
+    setPrintHideTitle(!!config.hideTitle);
     applyItemPrintMeta(config.itemPrintStyles);
     {
       const typo = parseTypoParams(config.typography);
@@ -1956,20 +1968,31 @@ export function ToastMenuBrowser() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1 sm:col-span-2">
-                <label className="text-sm font-medium">Private Event Title (optional)</label>
+                <label className="text-sm font-medium">Menu Title (top of page)</label>
                 <p className="text-xs text-muted-foreground">
                   {printTemplate === "knoll"
                     ? 'Shows centered in the black header bar. For The Knoll menu, use "THE KNOLL". Leave blank to use the Toast menu name.'
-                    : `Replaces the Toast menu name at the top of web and print menus. Leave blank to use "${menuDetail?.menu?.name || "Toast menu title"}".`}
+                    : `Replaces "J'S DINNER MENU" / the Toast menu name at the top. Leave blank to keep the Toast name. Check Hide to remove the title line entirely (event subtitle like ET-BU Summit still shows).`}
                 </p>
-                <input
-                  type="text"
-                  value={printCustomTitle}
-                  onChange={(e) => setPrintCustomTitle(e.target.value)}
-                  placeholder={printTemplate === "knoll" ? "THE KNOLL" : "e.g., Carolin's Bridal Shower"}
-                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                  data-testid="input-custom-menu-title"
-                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="text"
+                    value={printCustomTitle}
+                    onChange={(e) => setPrintCustomTitle(e.target.value)}
+                    placeholder={printTemplate === "knoll" ? "THE KNOLL" : (menuDetail?.menu?.name || "e.g., J's Dinner Menu")}
+                    disabled={printHideTitle}
+                    className="flex-1 min-w-[12rem] px-3 py-2 rounded-md border border-input bg-background text-sm disabled:opacity-50"
+                    data-testid="input-custom-menu-title"
+                  />
+                  <label className="flex items-center gap-2 text-sm cursor-pointer shrink-0">
+                    <Checkbox
+                      checked={printHideTitle}
+                      onCheckedChange={(checked) => setPrintHideTitle(!!checked)}
+                      data-testid="checkbox-hide-menu-title"
+                    />
+                    <span className="font-medium">Hide title</span>
+                  </label>
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Template Style</label>
@@ -3778,16 +3801,27 @@ export function ToastMenuBrowser() {
           <CardContent className="p-4 space-y-2">
             <label className="text-sm font-semibold">Top Menu Title</label>
             <p className="text-xs text-muted-foreground">
-              This replaces the Toast title at the very top of the printed menu. Leave blank to use "{menuDetail?.menu?.name || "Toast menu title"}".
+              Renames or hides the Toast title at the very top of the printed menu (e.g. "J'S DINNER MENU"). Leave blank to use "{menuDetail?.menu?.name || "Toast menu title"}".
             </p>
-            <input
-              type="text"
-              value={printCustomTitle}
-              onChange={(e) => setPrintCustomTitle(e.target.value)}
-              placeholder="e.g., Caroline's Bridal Shower"
-              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-              data-testid="input-print-custom-menu-title"
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                value={printCustomTitle}
+                onChange={(e) => setPrintCustomTitle(e.target.value)}
+                placeholder="e.g., Caroline's Bridal Shower"
+                disabled={printHideTitle}
+                className="flex-1 min-w-[12rem] px-3 py-2 rounded-md border border-input bg-background text-sm disabled:opacity-50"
+                data-testid="input-print-custom-menu-title"
+              />
+              <label className="flex items-center gap-2 text-sm cursor-pointer shrink-0">
+                <Checkbox
+                  checked={printHideTitle}
+                  onCheckedChange={(checked) => setPrintHideTitle(!!checked)}
+                  data-testid="checkbox-print-hide-menu-title"
+                />
+                <span className="font-medium">Hide title</span>
+              </label>
+            </div>
           </CardContent>
         </Card>
 

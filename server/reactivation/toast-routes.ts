@@ -241,9 +241,9 @@ function buildKnollCss(opts: {
         .menu-group { break-inside: auto; page-break-inside: auto; margin-bottom: 14px; }
         .group-name { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #111; margin: 0 0 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
         .group-divider { display: none; }
-        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #333; margin: 0 0 8px; line-height: 1.35; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 10px 0 2px; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
-        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; line-height: 1.25; color: #333; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #333; margin: 0 0 6px; line-height: 1.2; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 8px 0 0; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; line-height: 1.2; color: #333; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
         .custom-print-line--banner, .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 4px; }
         .menu-item { text-align: left; margin-bottom: 8px; break-inside: avoid; }
         .item-header { display: flex; align-items: baseline; gap: 4px; width: 100%; }
@@ -481,6 +481,7 @@ function ensureEmbedConfigColumns(): Promise<void> {
       ALTER TABLE toast_menu_embed_configs
       ADD COLUMN IF NOT EXISTS custom_print_lines text,
       ADD COLUMN IF NOT EXISTS custom_title text,
+      ADD COLUMN IF NOT EXISTS hide_title boolean DEFAULT false,
       ADD COLUMN IF NOT EXISTS item_print_styles text,
       ADD COLUMN IF NOT EXISTS hide_course_headings boolean DEFAULT false,
       ADD COLUMN IF NOT EXISTS ornament varchar(30) DEFAULT 'auto',
@@ -1506,7 +1507,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         knollBannerNote,
       ).lines;
     }
-    const customTitle = (req.query.title as string) || "";
+    const customTitle = String(req.query.menutitle || req.query.title || "").trim();
+    const hideTitle = req.query.hidetitle === "1";
     const itemPrintMeta = parseItemPrintMeta(req.query.itemstyles);
     const itemPrintStyles = itemPrintMeta.scales;
     const itemAllergens = {
@@ -1709,8 +1711,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
           // appearing as an underlined sub-item. Keep any description (e.g.
           // "Your choice of:") as a note under the heading.
           const sectionScaleStyle = itemFontScale !== 1
-            ? ` style="margin-top:1.1em;font-size:${(parseFloat(ptRem(typo.group.size)) * itemFontScale).toFixed(3)}rem"`
-            : ` style="margin-top:1.1em"`;
+            ? ` style="margin-top:0.55em;font-size:${(parseFloat(ptRem(typo.group.size)) * itemFontScale).toFixed(3)}rem"`
+            : ` style="margin-top:0.55em"`;
           const sectionNote = !hideDescriptions && item.description?.trim()
             ? `<p class="group-note">${sanitizeMenuDescriptionHtml(item.description)}</p>`
             : "";
@@ -1843,8 +1845,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 10px 0 2px; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; opacity: 0.92; line-height: 1.25; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 8px 0 0; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; opacity: 0.92; line-height: 1.2; break-after: avoid; page-break-after: avoid; }
     `;
     if (template === "fine-dining") {
       css = `
@@ -1853,12 +1855,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         body { font-family: '${typo.desc.font}', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
-        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
-        .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 20px; }
+        .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 16px 0; letter-spacing: 0.5em; }
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .menu-group { break-inside: avoid; margin-bottom: 40px; }
-        .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
-        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; text-align: center; color: #b8a890; margin: 0 0 8px; line-height: 1.25; }
+        .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 0; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; text-align: center; color: #b8a890; margin: 0 0 8px; line-height: 1.2; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 10px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
@@ -1876,7 +1878,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         ${dietaryTagsCss}
         ${customPrintLineCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
-        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 14px; line-height: 1.35; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
@@ -1893,7 +1895,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         body { font-family: '${typo.desc.font}', sans-serif; background: #fff; color: #1c1917; min-height: 100vh; font-size: 14px; }
         .menu-container { max-width: 850px; margin: 0 auto; padding: 32px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; border-bottom: 2px solid #1c1917; padding-bottom: 8px; }
-        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 24px; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 12px; }
         .bev-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .bev-group { break-inside: avoid; margin-bottom: 20px; }
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
@@ -1910,7 +1912,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
-        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 20px; line-height: 1.5; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 10px; line-height: 1.35; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -1927,12 +1929,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         body { font-family: '${typo.desc.font}', sans-serif; background: #fafaf9; color: #1c1917; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; margin-bottom: 4px; }
-        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 32px; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 16px; }
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
-        .menu-group { break-inside: avoid; margin-bottom: 32px; }
-        .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
-        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #78716c; margin: 0 0 6px; line-height: 1.25; }
-        .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
+        .menu-group { break-inside: avoid; margin-bottom: 16px; }
+        .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 0; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #78716c; margin: 0 0 6px; line-height: 1.2; }
+        .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 8px; }
         .menu-item { padding: 4px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
@@ -1953,7 +1955,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
-        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 24px; line-height: 1.5; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 12px; line-height: 1.35; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -2025,19 +2027,19 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const right = customHeader2.trim() ? sanitizeHeaderHtml(customHeader2) : "Open Daily 11-8";
         return `<div class="knoll-header-bar">
       <span class="knoll-header-side knoll-header-left">${left}</span>
-      <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
+      ${hideTitle ? "" : `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`}
       <span class="knoll-header-side knoll-header-right">${right}</span>
     </div>`;
       }
       const ornamentPos = ((req.query.ornamentpos as string) || "below-title").trim();
       const ornamentHtml = resolveMenuOrnament(req.query.ornament as string | undefined, template);
-      const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
+      const titleHtml = hideTitle ? "" : `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
       const subtitleHtml = template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : template === "fine-dining" ? "" : `<p class="menu-subtitle">Menu</p>`;
       const customHeaderHtml = customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : "";
       const customHeader2Html = customHeader2 ? `<div class="custom-header" style="font-family:'${hdr2Typo.font}',sans-serif;font-size:${ptRem(hdr2Typo.size)}rem;font-weight:${fw(hdr2Typo.bold)};font-style:${fst(hdr2Typo.italic)};margin-top:-1.1em;">${sanitizeHeaderHtml(customHeader2)}</div>` : "";
       const seq: string[] = [];
       if (ornamentPos === "above-title") seq.push(ornamentHtml);
-      seq.push(titleHtml);
+      if (titleHtml) seq.push(titleHtml);
       if (ornamentPos === "below-title") seq.push(ornamentHtml);
       if (subtitleHtml) seq.push(subtitleHtml);
       if (customHeaderHtml) seq.push(customHeaderHtml);
@@ -2173,7 +2175,8 @@ router.get("/public/menus/embed", async (req, res) => {
     const hideAllergyFooter = req.query.hideAllergyFooter === "1";
     const hideGroupHeadings = req.query.hidegroups === "1";
     const previewMode = req.query.preview === "print";
-    const customTitle = (req.query.title as string) || "";
+    const customTitle = String(req.query.menutitle || req.query.title || "").trim();
+    const hideTitle = req.query.hidetitle === "1";
     const hidedupgroup = req.query.hidedupgroup !== "0";
     const nosectionrows = req.query.nosectionrows === "1";
     const groupGuidParam = req.query.groupGuid as string | undefined;
@@ -2332,8 +2335,8 @@ router.get("/public/menus/embed", async (req, res) => {
           // appearing as an underlined sub-item. Keep any description (e.g.
           // "Your choice of:") as a note under the heading.
           const sectionScaleStyle = itemFontScale !== 1
-            ? ` style="margin-top:1.1em;font-size:${(parseFloat(ptRem(typo.group.size)) * itemFontScale).toFixed(3)}rem"`
-            : ` style="margin-top:1.1em"`;
+            ? ` style="margin-top:0.55em;font-size:${(parseFloat(ptRem(typo.group.size)) * itemFontScale).toFixed(3)}rem"`
+            : ` style="margin-top:0.55em"`;
           const sectionNote = !hideDescriptions && item.description?.trim()
             ? `<p class="group-note">${sanitizeMenuDescriptionHtml(item.description)}</p>`
             : "";
@@ -2465,8 +2468,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 10px 0 2px; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; opacity: 0.92; line-height: 1.25; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 8px 0 0; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; opacity: 0.92; line-height: 1.2; break-after: avoid; page-break-after: avoid; }
     `;
 
     let css = "";
@@ -2477,12 +2480,12 @@ router.get("/public/menus/embed", async (req, res) => {
         body { font-family: '${typo.desc.font}', sans-serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
-        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
-        .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #a08c6e; margin-bottom: 20px; }
+        .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 16px 0; letter-spacing: 0.5em; }
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .menu-group { break-inside: avoid; margin-bottom: 40px; }
-        .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
-        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; text-align: center; color: #b8a890; margin: 0 0 8px; line-height: 1.25; }
+        .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 0; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; text-align: center; color: #b8a890; margin: 0 0 8px; line-height: 1.2; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 10px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
@@ -2500,7 +2503,7 @@ router.get("/public/menus/embed", async (req, res) => {
         ${dietaryTagsCss}
         ${customPrintLineCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.65rem; font-family: '${typo.price.font}', sans-serif; }
-        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #a08c6e; letter-spacing: 0.1em; margin-bottom: 14px; line-height: 1.35; }
         .footer { text-align: center; margin-top: 48px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #6b5f4f; letter-spacing: 0.08em; line-height: 1.7; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #a08c6e; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
@@ -2517,7 +2520,7 @@ router.get("/public/menus/embed", async (req, res) => {
         body { font-family: '${typo.desc.font}', sans-serif; background: #fff; color: #1c1917; min-height: 100vh; font-size: 14px; }
         .menu-container { max-width: 850px; margin: 0 auto; padding: 32px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; border-bottom: 2px solid #1c1917; padding-bottom: 8px; }
-        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 24px; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 12px; }
         .bev-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .bev-group { break-inside: avoid; margin-bottom: 20px; }
         .bev-group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
@@ -2534,7 +2537,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
-        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 20px; line-height: 1.5; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 10px; line-height: 1.35; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -2551,12 +2554,12 @@ router.get("/public/menus/embed", async (req, res) => {
         body { font-family: '${typo.desc.font}', sans-serif; background: #fafaf9; color: #1c1917; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
         .menu-title { font-family: '${typo.title.font}', serif; font-size: ${ptRem(typo.title.size)}rem; font-weight: ${fw(typo.title.bold)}; font-style: ${fst(typo.title.italic)}; text-align: center; margin-bottom: 4px; }
-        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 32px; }
+        .menu-subtitle { font-family: '${typo.subtitle.font}', serif; font-size: ${ptRem(typo.subtitle.size)}rem; font-weight: ${fw(typo.subtitle.bold)}; font-style: ${fst(typo.subtitle.italic)}; text-align: center; color: #78716c; margin-bottom: 16px; }
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
-        .menu-group { break-inside: avoid; margin-bottom: 32px; }
-        .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
-        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #78716c; margin: 0 0 6px; line-height: 1.25; }
-        .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
+        .menu-group { break-inside: avoid; margin-bottom: 16px; }
+        .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 0; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #78716c; margin: 0 0 6px; line-height: 1.2; }
+        .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 8px; }
         .menu-item { padding: 4px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
@@ -2577,7 +2580,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-family: '${typo.allergy.font}', sans-serif; font-size: ${ptRem(typo.allergy.size)}rem; font-weight: ${fw(typo.allergy.bold)}; font-style: ${fst(typo.allergy.italic)}; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-family: '${ftrTypo.font}', sans-serif; font-size: ${ptRem(ftrTypo.size)}rem; font-weight: ${fw(ftrTypo.bold)}; font-style: ${fst(ftrTypo.italic)}; color: #78716c; }
-        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 24px; line-height: 1.5; }
+        .custom-header { text-align: center; font-family: '${hdrTypo.font}', sans-serif; font-size: ${ptRem(hdrTypo.size)}rem; font-weight: ${fw(hdrTypo.bold)}; font-style: ${fst(hdrTypo.italic)}; color: #78716c; margin-bottom: 12px; line-height: 1.35; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         .item-page-break { border-top: 2px dashed #d6d3d1; margin: 8px 0 0; position: relative; height: 20px; }
@@ -2649,19 +2652,19 @@ router.get("/public/menus/embed", async (req, res) => {
         const right = customHeader2.trim() ? sanitizeHeaderHtml(customHeader2) : "Open Daily 11-8";
         return `<div class="knoll-header-bar">
       <span class="knoll-header-side knoll-header-left">${left}</span>
-      <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
+      ${hideTitle ? "" : `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`}
       <span class="knoll-header-side knoll-header-right">${right}</span>
     </div>`;
       }
       const ornamentPos = ((req.query.ornamentpos as string) || "below-title").trim();
       const ornamentHtml = resolveMenuOrnament(req.query.ornament as string | undefined, template);
-      const titleHtml = `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
+      const titleHtml = hideTitle ? "" : `<h1 class="menu-title">${escapeHtml(embedTitle)}</h1>`;
       const subtitleHtml = template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : template === "fine-dining" ? "" : `<p class="menu-subtitle">Menu</p>`;
       const customHeaderHtml = customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : "";
       const customHeader2Html = customHeader2 ? `<div class="custom-header" style="font-family:'${hdr2Typo.font}',sans-serif;font-size:${ptRem(hdr2Typo.size)}rem;font-weight:${fw(hdr2Typo.bold)};font-style:${fst(hdr2Typo.italic)};margin-top:-1.1em;">${sanitizeHeaderHtml(customHeader2)}</div>` : "";
       const seq: string[] = [];
       if (ornamentPos === "above-title") seq.push(ornamentHtml);
-      seq.push(titleHtml);
+      if (titleHtml) seq.push(titleHtml);
       if (ornamentPos === "below-title") seq.push(ornamentHtml);
       if (subtitleHtml) seq.push(subtitleHtml);
       if (customHeaderHtml) seq.push(customHeaderHtml);
@@ -2844,7 +2847,8 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.footer2) url += `&footer2=${encodeURIComponent(config.footer2)}`;
     if (config.hidePricing) url += `&hideprice=1`;
     if (config.hideWinePairing) url += `&hidepairing=1`;
-    if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
+    if (config.customTitle) url += `&menutitle=${encodeURIComponent(config.customTitle)}`;
+    if (config.hideTitle) url += `&hidetitle=1`;
     if (config.itemPrintStyles) url += `&itemstyles=${encodeURIComponent(config.itemPrintStyles)}`;
     if (config.hideCourseHeadings) url += `&hidegroups=1`;
     if (config.showImages) url += `&showimages=1`;
@@ -2918,6 +2922,7 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids || null,
       customPrintLines: req.body.customPrintLines || null,
       customTitle: req.body.customTitle || null,
+      hideTitle: req.body.hideTitle ?? false,
       itemPrintStyles: req.body.itemPrintStyles || null,
       typography: req.body.typography || null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
@@ -2960,6 +2965,7 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       printAdditionalMenuGuids: req.body.printAdditionalMenuGuids ?? null,
       customPrintLines: req.body.customPrintLines ?? null,
       customTitle: req.body.customTitle ?? null,
+      hideTitle: req.body.hideTitle ?? false,
       itemPrintStyles: req.body.itemPrintStyles ?? null,
       typography: req.body.typography ?? null,
       showOnStaffBoard: req.body.showOnStaffBoard ?? false,
