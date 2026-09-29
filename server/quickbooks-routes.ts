@@ -76,6 +76,13 @@ async function refreshTokenIfNeeded(conn: typeof qbConnection.$inferSelect) {
   }
 }
 
+export async function queryQuickBooks(statement: string) {
+  const conn = await getActiveConnection();
+  if (!conn) throw new Error("QuickBooks is not connected");
+  const data = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(statement));
+  return { companyName: conn.companyName || "QuickBooks", data };
+}
+
 async function qbApiRequest(conn: typeof qbConnection.$inferSelect, endpoint: string, method = "GET", data?: any) {
   const accessToken = await refreshTokenIfNeeded(conn);
   const url = `${getApiBase()}/v3/company/${conn.realmId}${endpoint}`;

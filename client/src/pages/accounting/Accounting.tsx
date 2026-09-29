@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import BillPay from "./BillPay";
 
 type Company = {
   id: string;
@@ -466,6 +467,7 @@ function ProgramDetail({ program }: { program: Program }) {
 
 export default function AccountingPage() {
   const [, setLocation] = useLocation();
+  const [section, setSection] = useState<"healthcare" | "payables">("payables");
   const { toast } = useToast();
   const { data, isLoading, error } = useQuery<HealthcarePayload>({
     queryKey: ["/api/accounting/healthcare"],
@@ -890,13 +892,25 @@ export default function AccountingPage() {
             <h1 className="text-lg font-semibold">Accounting</h1>
             <p className="text-xs text-muted-foreground">Nashoba Valley and The Gables</p>
           </div>
-          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setLocation("/")} data-testid="button-return-hub">
-            Return to Hub
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant={section === "payables" ? "default" : "outline"} size="sm" onClick={() => setSection("payables")} data-testid="button-section-payables">
+              Bill Pay
+            </Button>
+            <Button variant={section === "healthcare" ? "default" : "outline"} size="sm" onClick={() => setSection("healthcare")} data-testid="button-section-healthcare">
+              Health Care
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setLocation("/")} data-testid="button-return-hub">
+              Return to Hub
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="container py-8 space-y-6">
+        {section === "payables" ? (
+          <BillPay companies={data?.companies ?? []} />
+        ) : (
+        <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-semibold">Health Care Insurance Allocation</h2>
           <p className="text-muted-foreground mt-1 max-w-3xl">
@@ -1643,6 +1657,8 @@ export default function AccountingPage() {
               </Card>
             </TabsContent>
           </Tabs>
+        )}
+        </div>
         )}
       </main>
 

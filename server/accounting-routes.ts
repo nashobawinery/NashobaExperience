@@ -6,6 +6,7 @@ import multer from "multer";
 import sgMail from "@sendgrid/mail";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
+import { queryQuickBooks } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 
 const router = Router();
@@ -13,6 +14,8 @@ const isAdmin = requirePlatformRole(["super_admin"]);
 let prepared = false;
 
 const billDir = path.join(process.cwd(), "uploads", "accounting-bills");
+const payableDir = path.join(process.cwd(), "uploads", "accounting-payables");
+const payableDir = path.join(process.cwd(), "uploads", "accounting-payables");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -504,6 +507,43 @@ export async function ensureAccountingTables() {
   await db.execute(sql`
     ALTER TABLE accounting_payroll_deductions ADD COLUMN IF NOT EXISTS monthly_employer_amount numeric(12, 2);
     ALTER TABLE accounting_payroll_deductions ADD COLUMN IF NOT EXISTS employer_deduction numeric(12, 2);
+    CREATE TABLE IF NOT EXISTS accounting_qb_vendors (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      qb_id varchar NOT NULL UNIQUE,
+      display_name varchar NOT NULL,
+      company_name varchar,
+      active boolean NOT NULL DEFAULT true,
+      synced_at timestamp NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS accounting_qb_accounts (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      qb_id varchar NOT NULL UNIQUE,
+      name varchar NOT NULL,
+      fully_qualified_name varchar NOT NULL,
+      account_type varchar,
+      account_number varchar,
+      active boolean NOT NULL DEFAULT true,
+      synced_at timestamp NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS accounting_payables (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id varchar REFERENCES accounting_companies(id) ON DELETE SET NULL,
+      vendor_name varchar,
+      document_kind varchar NOT NULL DEFAULT 'unreviewed',
+      invoice_number varchar,
+      bill_date date,
+      amount numeric(12, 2),
+          gl_account varchar,
+          qb_vendor_id varchar,
+          qb_account_id varchar,
+          original_filename text NOT NULL,
+      stored_filename varchar NOT NULL,
+      mime_type varchar,
+      file_size integer,
+      created_at timestamp NOT NULL DEFAULT now()
+    );
+    ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS qb_vendor_id varchar;
+    ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS qb_account_id varchar;
     ALTER TABLE accounting_benefit_providers ADD COLUMN IF NOT EXISTS bill_request_email varchar;
     UPDATE accounting_benefit_providers
     SET bill_request_email = 'aparrow@nashobawinery.com'
@@ -2250,6 +2290,202 @@ router.post("/healthcare/bill-upload-link", isAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error emailing bill upload link:", error);
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to email the upload link" });
+  }
+});
+
+async function fetchQuickBooksRows(entity: "Vendor" | "Account") {
+  const rows: Record<string, any>[] = [];
+  let start = 1;
+  let companyName = "QuickBooks";
+  for (;;) {
+    const result = await queryQuickBooks(`SELECT * FROM ${entity} STARTPOSITION ${start} MAXRESULTS 1000`);
+    companyName = result.companyName;
+    const batch = (result.data?.QueryResponse?.[entity] ?? []) as Record<string, any>[];
+    rows.push(...batch);
+    if (batch.length < 1000) return { companyName, rows };
+    start += 1000;
+  }
+}
+
+router.get("/payables/reference", isAdmin, async (_req, res) => {
+  try {
+    await ensureAccountingTables();
+    const vendors = await db.execute(sql`
+      SELECT qb_id as "qbId", display_name as "displayName", company_name as "companyName", active, synced_at as "syncedAt"
+      FROM accounting_qb_vendors
+      ORDER BY display_name
+    `);
+    const accounts = await db.execute(sql`
+      SELECT qb_id as "qbId", name, fully_qualified_name as "fullyQualifiedName",
+             account_type as "accountType", account_number as "accountNumber", active, synced_at as "syncedAt"
+      FROM accounting_qb_accounts
+      ORDER BY fully_qualified_name
+    `);
+    const syncedAt = (vendors.rows[0] as { syncedAt?: string } | undefined)?.syncedAt
+      ?? (accounts.rows[0] as { syncedAt?: string } | undefined)?.syncedAt
+      ?? null;
+    res.json({ vendors: vendors.rows, accounts: accounts.rows, syncedAt });
+  } catch (error) {
+    console.error("Error loading QuickBooks reference:", error);
+    res.status(500).json({ message: "Failed to load vendors and accounts" });
+  }
+});
+
+router.post("/payables/sync", isAdmin, async (_req, res) => {
+  try {
+    await ensureAccountingTables();
+    const vendors = await fetchQuickBooksRows("Vendor");
+    for (const vendor of vendors.rows) {
+      const qbId = String(vendor.Id);
+      const displayName = String(vendor.DisplayName || vendor.CompanyName || qbId);
+      await db.execute(sql`
+        INSERT INTO accounting_qb_vendors (qb_id, display_name, company_name, active, synced_at)
+        VALUES (${qbId}, ${displayName}, ${vendor.CompanyName || null}, ${vendor.Active !== false}, now())
+        ON CONFLICT (qb_id) DO UPDATE SET
+          display_name = EXCLUDED.display_name,
+          company_name = EXCLUDED.company_name,
+          active = EXCLUDED.active,
+          synced_at = now()
+      `);
+    }
+    const accounts = await fetchQuickBooksRows("Account");
+    for (const account of accounts.rows) {
+      const qbId = String(account.Id);
+      const name = String(account.Name || qbId);
+      const fullName = String(account.FullyQualifiedName || name);
+      await db.execute(sql`
+        INSERT INTO accounting_qb_accounts (qb_id, name, fully_qualified_name, account_type, account_number, active, synced_at)
+        VALUES (
+          ${qbId}, ${name}, ${fullName}, ${account.AccountType || null}, ${account.AcctNum || null}, ${account.Active !== false}, now()
+        )
+        ON CONFLICT (qb_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          fully_qualified_name = EXCLUDED.fully_qualified_name,
+          account_type = EXCLUDED.account_type,
+          account_number = EXCLUDED.account_number,
+          active = EXCLUDED.active,
+          synced_at = now()
+      `);
+    }
+    res.json({
+      companyName: accounts.companyName,
+      vendors: vendors.rows.length,
+      accounts: accounts.rows.length,
+    });
+  } catch (error) {
+    console.error("Error syncing QuickBooks vendors and accounts:", error);
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to sync QuickBooks" });
+  }
+});
+
+router.get("/payables", isAdmin, async (_req, res) => {
+  try {
+    await ensureAccountingTables();
+    const rows = await db.execute(sql`
+      SELECT p.id, p.company_id as "companyId", c.name as "companyName",
+             p.vendor_name as "vendorName", p.document_kind as "documentKind",
+             p.invoice_number as "invoiceNumber", p.bill_date as "billDate",
+             p.amount, p.gl_account as "glAccount", p.original_filename as "originalFilename",
+             p.created_at as "createdAt"
+      FROM accounting_payables p
+      LEFT JOIN accounting_companies c ON c.id = p.company_id
+      ORDER BY p.created_at DESC
+    `);
+    res.json({
+      inboxEmail: "bills@nashobawinery.com",
+      documents: rows.rows,
+    });
+  } catch (error) {
+    console.error("Error loading payables:", error);
+    res.status(500).json({ message: "Failed to load bill pay" });
+  }
+});
+
+router.post("/payables", isAdmin, (req, res) => {
+  upload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message || "Upload failed" });
+    try {
+      await ensureAccountingTables();
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: "Choose a bill or statement" });
+      const companyId = String(req.body?.companyId ?? "").trim() || null;
+      fs.mkdirSync(payableDir, { recursive: true });
+      const ext = path.extname(file.originalname).toLowerCase().slice(0, 12);
+      const storedFilename = `${randomUUID()}${ext}`;
+      fs.writeFileSync(path.join(payableDir, storedFilename), file.buffer);
+      const inserted = await db.execute(sql`
+        INSERT INTO accounting_payables (
+          company_id, original_filename, stored_filename, mime_type, file_size
+        ) VALUES (
+          ${companyId}, ${file.originalname}, ${storedFilename}, ${file.mimetype}, ${file.size}
+        )
+        RETURNING id
+      `);
+      res.status(201).json({ id: (inserted.rows[0] as { id: string }).id });
+    } catch (error) {
+      console.error("Error saving payable:", error);
+      res.status(500).json({ message: "Failed to save the document" });
+    }
+  });
+});
+
+router.get("/payables/:id/file", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const result = await db.execute(sql`
+      SELECT original_filename as "originalFilename", stored_filename as "storedFilename", mime_type as "mimeType"
+      FROM accounting_payables WHERE id = ${req.params.id}
+    `);
+    const document = result.rows[0] as { originalFilename: string; storedFilename: string; mimeType: string | null } | undefined;
+    if (!document) return res.status(404).json({ message: "Document not found" });
+    const fullPath = path.join(payableDir, path.basename(document.storedFilename));
+    if (!fs.existsSync(fullPath)) return res.status(404).json({ message: "Document file is missing" });
+    const downloadName = document.originalFilename.replace(/[^\w.\- ()]/g, "_");
+    res.setHeader("Content-Type", document.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${downloadName}"`);
+    fs.createReadStream(fullPath).pipe(res);
+  } catch (error) {
+    console.error("Error opening payable:", error);
+    res.status(500).json({ message: "Failed to open the document" });
+  }
+});
+
+router.put("/payables/:id", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const kind = String(req.body?.documentKind ?? "unreviewed");
+    if (!["unreviewed", "invoice", "statement"].includes(kind)) {
+      return res.status(400).json({ message: "Choose an invoice, a statement, or leave it for review" });
+    }
+    const vendorName = String(req.body?.vendorName ?? "").trim() || null;
+    const invoiceNumber = String(req.body?.invoiceNumber ?? "").trim() || null;
+    const billDate = String(req.body?.billDate ?? "").trim();
+    const glAccount = String(req.body?.glAccount ?? "").trim() || null;
+    const qbVendorId = String(req.body?.qbVendorId ?? "").trim() || null;
+    const qbAccountId = String(req.body?.qbAccountId ?? "").trim() || null;
+    const amountRaw = String(req.body?.amount ?? "").trim();
+    const amount = amountRaw ? Number(amountRaw) : null;
+    if (amountRaw && Number.isNaN(amount)) return res.status(400).json({ message: "Amount must be a number" });
+    const companyId = String(req.body?.companyId ?? "").trim() || null;
+    const result = await db.execute(sql`
+      UPDATE accounting_payables
+      SET company_id = ${companyId},
+          vendor_name = ${vendorName},
+          document_kind = ${kind},
+          invoice_number = ${invoiceNumber},
+          bill_date = ${/^\d{4}-\d{2}-\d{2}$/.test(billDate) ? billDate : null},
+          amount = ${amount},
+          gl_account = ${glAccount},
+          qb_vendor_id = ${qbVendorId},
+          qb_account_id = ${qbAccountId}
+      WHERE id = ${req.params.id}
+      RETURNING id
+    `);
+    if (!result.rows[0]) return res.status(404).json({ message: "Document not found" });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error updating payable:", error);
+    res.status(500).json({ message: "Failed to update the document" });
   }
 });
 
