@@ -1706,13 +1706,20 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         if (isInMenuSection) {
           // Render Toast "section header" rows (e.g. Starters, Mains) as real
           // course headings so they match the normal course headings instead of
-          // appearing as an underlined sub-item.
+          // appearing as an underlined sub-item. Keep any description (e.g.
+          // "Your choice of:") as a note under the heading.
+          const sectionScaleStyle = itemFontScale !== 1
+            ? ` style="margin-top:1.1em;font-size:${(parseFloat(ptRem(typo.group.size)) * itemFontScale).toFixed(3)}rem"`
+            : ` style="margin-top:1.1em"`;
+          const sectionNote = !hideDescriptions && item.description?.trim()
+            ? `<p class="group-note">${sanitizeMenuDescriptionHtml(item.description)}</p>`
+            : "";
           if (template === "beverage") {
             itemsHtml += `
-            <h2 class="bev-group-name" style="margin-top:0.9em">${escapeHtml(cleanName)}</h2>`;
+            <h2 class="bev-group-name"${sectionScaleStyle}>${escapeHtml(cleanName)}</h2>${sectionNote}`;
           } else {
             itemsHtml += `
-            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>`;
+            <h2 class="group-name"${sectionScaleStyle}>${escapeHtml(cleanName)}</h2>${sectionNote}`;
           }
           itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
           if (pagebreakGuids.includes(item.itemGuid)) {
@@ -1851,6 +1858,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .menu-group { break-inside: avoid; margin-bottom: 40px; }
         .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; text-align: center; color: #b8a890; margin: 0 0 8px; line-height: 1.25; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 10px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
@@ -1923,6 +1931,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .menu-group { break-inside: avoid; margin-bottom: 32px; }
         .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #78716c; margin: 0 0 6px; line-height: 1.25; }
         .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
         .menu-item { padding: 4px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -2320,13 +2329,20 @@ router.get("/public/menus/embed", async (req, res) => {
         if (isInMenuSection) {
           // Render Toast "section header" rows (e.g. Starters, Mains) as real
           // course headings so they match the normal course headings instead of
-          // appearing as an underlined sub-item.
+          // appearing as an underlined sub-item. Keep any description (e.g.
+          // "Your choice of:") as a note under the heading.
+          const sectionScaleStyle = itemFontScale !== 1
+            ? ` style="margin-top:1.1em;font-size:${(parseFloat(ptRem(typo.group.size)) * itemFontScale).toFixed(3)}rem"`
+            : ` style="margin-top:1.1em"`;
+          const sectionNote = !hideDescriptions && item.description?.trim()
+            ? `<p class="group-note">${sanitizeMenuDescriptionHtml(item.description)}</p>`
+            : "";
           if (template === "beverage") {
             itemsHtml += `
-            <h2 class="bev-group-name" style="margin-top:0.9em">${escapeHtml(cleanName)}</h2>`;
+            <h2 class="bev-group-name"${sectionScaleStyle}>${escapeHtml(cleanName)}</h2>${sectionNote}`;
           } else {
             itemsHtml += `
-            <h2 class="group-name" style="margin-top:1.1em">${escapeHtml(cleanName)}</h2>`;
+            <h2 class="group-name"${sectionScaleStyle}>${escapeHtml(cleanName)}</h2>${sectionNote}`;
           }
           itemsHtml += renderCustomPrintLines(customPrintLines, `after-item:${item.itemGuid}`);
           if (pagebreakGuids.includes(item.itemGuid)) {
@@ -2466,6 +2482,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .menu-group { break-inside: avoid; margin-bottom: 40px; }
         .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; text-align: center; color: #b8a890; margin: 0 0 8px; line-height: 1.25; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 10px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
@@ -2538,6 +2555,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-groups-container { ${columnCount > 1 ? `column-count: ${columnCount}; column-gap: 32px;` : ""} }
         .menu-group { break-inside: avoid; margin-bottom: 32px; }
         .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
+        .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #78716c; margin: 0 0 6px; line-height: 1.25; }
         .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
         .menu-item { padding: 4px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
