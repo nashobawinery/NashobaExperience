@@ -733,7 +733,7 @@ export function ToastMenuBrowser() {
     const stamp = Date.now();
     const note = noteRaw.trim();
     const cleanName = cleanMenuItemName(itemName) || "that item";
-    const courseSize = Math.min(72, Math.max(11, Math.round((printTypo.item?.size || 14) * 1.18)));
+    const courseSize = Math.min(72, Math.max(11, Math.round((printTypo.item?.size || 14) * 1.4)));
     const noteSize = Math.min(72, Math.max(9, Math.round((printTypo.desc?.size || 12) * 0.95)));
     const courseFont = printTypo.item?.font || "Montserrat";
     const noteFont = printTypo.desc?.font || "Montserrat";
@@ -2868,6 +2868,7 @@ export function ToastMenuBrowser() {
                             <SelectItem value="1">Normal</SelectItem>
                             <SelectItem value="1.15">Larger</SelectItem>
                             <SelectItem value="1.3">Very large</SelectItem>
+                            <SelectItem value="1.6">Extra large</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -3062,6 +3063,7 @@ export function ToastMenuBrowser() {
                     <SelectItem value="100">100% — Normal</SelectItem>
                     <SelectItem value="110">110% — Large</SelectItem>
                     <SelectItem value="120">120% — Very Large</SelectItem>
+                    <SelectItem value="140">140% — Extra Large</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -3844,11 +3846,15 @@ export function ToastMenuBrowser() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Font Size: {printScale}%</label>
-            <p className="text-xs text-muted-foreground">Reduce to fit more content per page. Try 85-90% if items spill onto an extra page.</p>
+            <p className="text-xs text-muted-foreground">
+              {printScale >= 140
+                ? "Extra Large — pair with tighter item spacing to keep one page."
+                : "Reduce to fit more content per page. Try 85-90% if items spill onto an extra page. Extra Large is 140%."}
+            </p>
             <input
               type="range"
               min={60}
-              max={120}
+              max={140}
               step={5}
               value={printScale}
               onChange={(e) => setPrintScale(Number(e.target.value))}

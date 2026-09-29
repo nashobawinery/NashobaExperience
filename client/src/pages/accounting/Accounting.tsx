@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Building2, Calculator, Camera, Eye, FileText, HeartPulse, Mail, Pencil, Plus, Smile, Trash2, Upload, Users } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,57 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import BillPay from "./BillPay";
+import UsFoods from "./UsFoods";
+
+type BooksSection =
+  | "accounting"
+  | "expenses"
+  | "sales"
+  | "customers"
+  | "payroll"
+  | "team"
+  | "time"
+  | "projects"
+  | "inventory"
+  | "sales-tax"
+  | "business-tax"
+  | "lending"
+  | "payables"
+  | "healthcare"
+  | "us-foods";
+
+const ribbon: { id: BooksSection; label: string }[] = [
+  { id: "accounting", label: "Accounting" },
+  { id: "expenses", label: "Expenses & Pay Bills" },
+  { id: "sales", label: "Sales & Get Paid" },
+  { id: "customers", label: "Customer Hub" },
+  { id: "payroll", label: "Payroll" },
+  { id: "team", label: "Team" },
+  { id: "time", label: "Time" },
+  { id: "projects", label: "Projects" },
+  { id: "inventory", label: "Inventory" },
+  { id: "sales-tax", label: "Sales Tax" },
+  { id: "business-tax", label: "Business Tax" },
+  { id: "lending", label: "Lending" },
+  { id: "payables", label: "Bill Pay" },
+  { id: "healthcare", label: "Health Care" },
+  { id: "us-foods", label: "US Foods" },
+];
+
+const booksDetail: Record<Exclude<BooksSection, "payables" | "healthcare" | "us-foods">, string> = {
+  accounting: "Chart of accounts, registers, and journal entries for Nashoba Valley. The Gables is a second set of books.",
+  expenses: "Vendor bills, checks, and expenses. Incoming vendor documents are reviewed in Bill Pay.",
+  sales: "Invoices you send, payments you receive, and deposits.",
+  customers: "Customers and the balances they owe.",
+  payroll: "Paychecks and payroll liabilities.",
+  team: "People on the payroll.",
+  time: "Hours worked.",
+  projects: "Job costs.",
+  inventory: "Quantities and values on hand.",
+  "sales-tax": "Sales tax collected and the returns to file.",
+  "business-tax": "Business tax worksheets and returns.",
+  lending: "Loans and other financing.",
+};
 
 type Company = {
   id: string;
@@ -467,7 +519,7 @@ function ProgramDetail({ program }: { program: Program }) {
 
 export default function AccountingPage() {
   const [, setLocation] = useLocation();
-  const [section, setSection] = useState<"healthcare" | "payables">("payables");
+  const [section, setSection] = useState<BooksSection>("payables");
   const { toast } = useToast();
   const { data, isLoading, error } = useQuery<HealthcarePayload>({
     queryKey: ["/api/accounting/healthcare"],
@@ -883,33 +935,47 @@ export default function AccountingPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container flex h-16 items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-700 text-white">
+      <header className="border-b bg-background">
+        <div className="container flex h-14 items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#2ca01c] text-white">
             <Calculator className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">Accounting</h1>
-            <p className="text-xs text-muted-foreground">Nashoba Valley and The Gables</p>
+            <h1 className="text-lg font-semibold leading-none">Accounting</h1>
+            <p className="text-xs text-muted-foreground mt-1">Nashoba Valley and The Gables</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant={section === "payables" ? "default" : "outline"} size="sm" onClick={() => setSection("payables")} data-testid="button-section-payables">
-              Bill Pay
-            </Button>
-            <Button variant={section === "healthcare" ? "default" : "outline"} size="sm" onClick={() => setSection("healthcare")} data-testid="button-section-healthcare">
-              Health Care
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setLocation("/")} data-testid="button-return-hub">
-              Return to Hub
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setLocation("/")} data-testid="button-return-hub">
+            Return to Hub
+          </Button>
         </div>
+        <nav className="border-t" aria-label="Accounting">
+          <div className="container flex h-11 items-stretch overflow-x-auto">
+            {ribbon.map((item) => (
+              <div key={item.id} className="flex items-stretch">
+                {item.id === "payables" && <div className="mx-2 w-px self-center h-5 bg-border shrink-0" aria-hidden />}
+                <button
+                  type="button"
+                  onClick={() => setSection(item.id)}
+                  data-testid={`button-section-${item.id}`}
+                  className={cn(
+                    "shrink-0 border-b-2 px-3 text-sm font-medium whitespace-nowrap",
+                    section === item.id
+                      ? "border-[#2ca01c] text-[#2ca01c]"
+                      : "border-transparent text-[#393a3d] hover:bg-[#f4f5f8]",
+                  )}
+                >
+                  {item.label}
+                </button>
+              </div>
+            ))}
+          </div>
+        </nav>
       </header>
 
       <main className="container py-8 space-y-6">
         {section === "payables" ? (
           <BillPay companies={data?.companies ?? []} />
-        ) : (
+        ) : section === "healthcare" ? (
         <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-semibold">Health Care Insurance Allocation</h2>
@@ -1659,6 +1725,13 @@ export default function AccountingPage() {
           </Tabs>
         )}
         </div>
+        ) : section === "us-foods" ? (
+          <UsFoods />
+        ) : (
+          <div>
+            <h2 className="text-2xl font-semibold">{ribbon.find((item) => item.id === section)?.label}</h2>
+            <p className="text-muted-foreground mt-1 max-w-3xl">{booksDetail[section]}</p>
+          </div>
         )}
       </main>
 

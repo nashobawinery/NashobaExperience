@@ -242,8 +242,8 @@ function buildKnollCss(opts: {
         .group-name { font-family: '${typo.group.font}', sans-serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #111; margin: 0 0 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
         .group-divider { display: none; }
         .group-note { font-family: '${typo.desc.font}', sans-serif; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem; font-style: italic; color: #333; margin: 0 0 8px; line-height: 1.35; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 14px 0 4px; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
-        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; line-height: 1.35; color: #333; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 10px 0 2px; break-inside: avoid; break-after: avoid; page-break-after: avoid; color: #111; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; line-height: 1.25; color: #333; break-after: avoid; page-break-after: avoid; break-inside: avoid; }
         .custom-print-line--banner, .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 4px; }
         .menu-item { text-align: left; margin-bottom: 8px; break-inside: avoid; }
         .item-header { display: flex; align-items: baseline; gap: 4px; width: 100%; }
@@ -253,8 +253,8 @@ function buildKnollCss(opts: {
         .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #333; margin-top: 2px; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #333; margin-top: 2px; line-height: 1.35; }
-        .item-pairing { font-family: '${typo.pairing.font}', sans-serif; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #444; margin-top: 2px; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #333; margin-top: 1px; line-height: 1.25; }
+        .item-pairing { font-family: '${typo.pairing.font}', sans-serif; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #444; margin-top: 0; line-height: 1.2; }
         .item-pairing::before { content: "Pairing: "; }
         .item-image-wrap { display: none; }
         ${dietaryTagsCss}
@@ -1486,7 +1486,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const groupGuidParam = req.query.groupGuid as string | undefined;
     const groupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const rawScale = parseFloat(req.query.scale as string) || 100;
-    const scale = Math.min(120, Math.max(60, rawScale));
+    const scale = Math.min(140, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
     const columnCount = pages > 0 ? pages : (isKnoll ? 2 : 1);
@@ -1836,8 +1836,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 16px 0 4px; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; opacity: 0.92; line-height: 1.35; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 10px 0 2px; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; opacity: 0.92; line-height: 1.25; break-after: avoid; page-break-after: avoid; }
     `;
     if (template === "fine-dining") {
       css = `
@@ -1852,14 +1852,14 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-group { break-inside: avoid; margin-bottom: 40px; }
         .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
-        .menu-item { text-align: center; margin-bottom: 20px; }
+        .menu-item { text-align: center; margin-bottom: 10px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #d4b896; margin-left: 10px; }
-        .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #c4a880; margin-top: 3px; display: block; }
+        .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #c4a880; margin-top: 1px; display: block; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #a08c6e; margin-top: 6px; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #b8a890; margin-top: 1px; line-height: 1.25; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #a08c6e; margin-top: 0; line-height: 1.2; }
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
@@ -1924,18 +1924,18 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-group { break-inside: avoid; margin-bottom: 32px; }
         .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
         .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
-        .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
+        .menu-item { padding: 4px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
         .menu-item--in-menu-section { border-bottom: none; margin: 10px 0; padding: 0; }
         .item-header--in-menu-section { justify-content: center; }
         .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.15).toFixed(3)}rem; text-transform: uppercase; letter-spacing: 0.08em; text-decoration: underline; text-decoration-color: #a8a29e; text-underline-offset: 0.2em; color: #1c1917; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #44403c; white-space: nowrap; }
-        .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
+        .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 1px; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #78716c; margin-top: 4px; line-height: 1.4; }
-        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #78716c; margin-top: 2px; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #78716c; margin-top: 1px; line-height: 1.25; }
+        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #78716c; margin-top: 0; line-height: 1.2; }
         .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
@@ -2128,7 +2128,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const isKnoll = template === "knoll";
     const knollHeaderColor = resolveKnollHeaderColor(req.query.headercolor as string | undefined);
     const rawScale = parseFloat(req.query.scale as string) || 100;
-    const scale = Math.min(120, Math.max(60, rawScale));
+    const scale = Math.min(140, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
     const columnCount = pages > 0 ? pages : (isKnoll ? 2 : 1);
@@ -2449,8 +2449,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .custom-print-line--banner { text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; }
         .custom-print-line--header { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
         .custom-print-line--note { font-size: ${(parseFloat(ptRem(hdrTypo.size)) * 0.9).toFixed(3)}rem; opacity: 0.86; }
-        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.18).toFixed(3)}rem !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 16px 0 4px; break-after: avoid; page-break-after: avoid; }
-        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; font-size: ${(parseFloat(ptRem(typo.desc.size)) * 0.95).toFixed(3)}rem !important; margin: 0 0 10px; opacity: 0.92; line-height: 1.35; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700 !important; text-align: center !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; margin: 10px 0 2px; break-after: avoid; page-break-after: avoid; }
+        .custom-print-line--course-note { text-align: center !important; font-style: italic !important; font-weight: 400 !important; margin: 0 0 6px; opacity: 0.92; line-height: 1.25; break-after: avoid; page-break-after: avoid; }
     `;
 
     let css = "";
@@ -2467,14 +2467,14 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-group { break-inside: avoid; margin-bottom: 40px; }
         .group-name { font-family: '${typo.group.font}', cursive, serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-align: center; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
-        .menu-item { text-align: center; margin-bottom: 20px; }
+        .menu-item { text-align: center; margin-bottom: 10px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; text-transform: uppercase; letter-spacing: 0.06em; color: #e8dcc8; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #d4b896; margin-left: 10px; }
-        .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #c4a880; margin-top: 3px; display: block; }
+        .item-sizes { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; color: #c4a880; margin-top: 1px; display: block; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #b8a890; margin-top: 4px; line-height: 1.55; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #a08c6e; margin-top: 6px; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #b8a890; margin-top: 1px; line-height: 1.25; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #a08c6e; margin-top: 0; line-height: 1.2; }
         .item-pairing::before { content: "Suggested Pairing: "; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
@@ -2539,18 +2539,18 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-group { break-inside: avoid; margin-bottom: 32px; }
         .group-name { font-family: '${typo.group.font}', serif; font-size: ${ptRem(typo.group.size)}rem; font-weight: ${fw(typo.group.bold)}; font-style: ${fst(typo.group.italic)}; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
         .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
-        .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
+        .menu-item { padding: 4px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-family: '${typo.item.font}', serif; font-size: ${ptRem(typo.item.size)}rem; font-weight: ${fw(typo.item.bold)}; font-style: ${fst(typo.item.italic)}; }
         .menu-item--in-menu-section { border-bottom: none; margin: 10px 0; padding: 0; }
         .item-header--in-menu-section { justify-content: center; }
         .item-name--in-menu-section { font-size: ${(parseFloat(ptRem(typo.item.size)) * 1.15).toFixed(3)}rem; text-transform: uppercase; letter-spacing: 0.08em; text-decoration: underline; text-decoration-color: #a8a29e; text-underline-offset: 0.2em; color: #1c1917; }
         .item-price { font-family: '${typo.price.font}', sans-serif; font-size: ${ptRem(typo.price.size)}rem; font-weight: ${fw(typo.price.bold)}; font-style: ${fst(typo.price.italic)}; color: #44403c; white-space: nowrap; }
-        .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
+        .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 1px; }
         .size-entry { white-space: nowrap; }
         .size-sep { margin: 0 5px; opacity: 0.4; }
-        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #78716c; margin-top: 4px; line-height: 1.4; }
-        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #78716c; margin-top: 2px; }
+        .item-description { font-family: '${typo.desc.font}', sans-serif; font-size: ${ptRem(typo.desc.size)}rem; font-weight: ${fw(typo.desc.bold)}; font-style: ${fst(typo.desc.italic)}; color: #78716c; margin-top: 1px; line-height: 1.25; }
+        .item-pairing { font-family: '${typo.pairing.font}', cursive; font-size: ${ptRem(typo.pairing.size)}rem; font-weight: ${fw(typo.pairing.bold)}; font-style: ${fst(typo.pairing.italic)}; color: #78716c; margin-top: 0; line-height: 1.2; }
         .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }

@@ -622,11 +622,15 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">Font Size: {printScale}%</label>
-          <p className="text-xs text-muted-foreground">Reduce to fit more content per page. Try 85-90% if items spill onto an extra page.</p>
+          <p className="text-xs text-muted-foreground">
+            {printScale >= 140
+              ? "Extra Large (140%) — two steps above Very Large. Item spacing is tightened to help fit one page."
+              : "Reduce to fit more content per page. Extra Large is 140% (two steps above Very Large at 120%)."}
+          </p>
           <input
             type="range"
             min={60}
-            max={120}
+            max={140}
             step={5}
             value={printScale}
             onChange={(e) => setPrintScale(Number(e.target.value))}
