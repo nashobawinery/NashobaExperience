@@ -517,10 +517,42 @@ function ProgramDetail({ program }: { program: Program }) {
   );
 }
 
+function QuickBooksRenewButton() {
+  const { data, isLoading, isError } = useQuery<{ connected: boolean; companyName?: string | null; daysUntilRefreshExpiry?: number; needsReconnect?: boolean }>({
+    queryKey: ["/api/quickbooks/status"],
+  });
+  const days = data?.daysUntilRefreshExpiry;
+  const expired = isError || (!isLoading && (!data?.connected || (days ?? -1) < 0));
+  const renew = async () => {
+    const res = await fetch("/api/quickbooks/connect?next=accounting");
+    const payload = await res.json();
+    if (payload.authUrl) window.location.href = payload.authUrl;
+  };
+
+  return (
+    <Button
+      variant={expired || data?.needsReconnect ? "default" : "outline"}
+      size="sm"
+      onClick={renew}
+      data-testid="button-renew-quickbooks"
+    >
+      {expired ? "Renew QuickBooks" : days === undefined ? "QuickBooks" : `QuickBooks · ${days}d`}
+    </Button>
+  );
+}
+
 export default function AccountingPage() {
   const [, setLocation] = useLocation();
   const [section, setSection] = useState<BooksSection>("payables");
   const { toast } = useToast();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qb = params.get("qb");
+    if (!qb) return;
+    if (qb === "connected") toast({ title: "QuickBooks renewed", description: "Nashoba Valley Spirits, Ltd is connected." });
+    else toast({ title: "QuickBooks renewal failed", description: params.get("reason") || "Sign in to QuickBooks and try again.", variant: "destructive" });
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [toast]);
   const { data, isLoading, error } = useQuery<HealthcarePayload>({
     queryKey: ["/api/accounting/healthcare"],
   });
@@ -944,9 +976,12 @@ export default function AccountingPage() {
             <h1 className="text-lg font-semibold leading-none">Accounting</h1>
             <p className="text-xs text-muted-foreground mt-1">Nashoba Valley and The Gables</p>
           </div>
-          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setLocation("/")} data-testid="button-return-hub">
-            Return to Hub
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <QuickBooksRenewButton />
+            <Button variant="outline" size="sm" onClick={() => setLocation("/")} data-testid="button-return-hub">
+              Return to Hub
+            </Button>
+          </div>
         </div>
         <nav className="border-t" aria-label="Accounting">
           <div className="container flex h-11 items-stretch overflow-x-auto">

@@ -76,6 +76,25 @@ async function refreshTokenIfNeeded(conn: typeof qbConnection.$inferSelect) {
   }
 }
 
+export function initQuickBooksTokenRenewal() {
+  const renew = async () => {
+    const conn = await getActiveConnection();
+    if (!conn) return;
+    const daysLeft = (new Date(conn.refreshTokenExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    if (daysLeft <= 0) {
+      console.warn("[QB] QuickBooks connection expired. Renew it from Accounting.");
+      return;
+    }
+    if (daysLeft < 50) {
+      await refreshTokenIfNeeded({ ...conn, accessTokenExpiresAt: new Date(0) } as typeof conn);
+      console.log("[QB] QuickBooks connection renewed.");
+    }
+  };
+  const run = () => renew().catch((error) => console.error("[QB] Connection renewal failed:", error.message));
+  setTimeout(run, 30_000);
+  setInterval(run, 24 * 60 * 60 * 1000);
+}
+
 export async function queryQuickBooks(statement: string) {
   const conn = await getActiveConnection();
   if (!conn) throw new Error("QuickBooks is not connected");
@@ -116,19 +135,35 @@ async function qbApiRequest(conn: typeof qbConnection.$inferSelect, endpoint: st
 
 // ==================== OAuth Routes ====================
 
+const pendingOAuthReturns = new Map<string, { next: string; expires: number }>();
+
+function oauthReturnPath(next: unknown) {
+  return next === "accounting" ? "/accounting/admin" : "/command-center?section=qb-sync";
+}
+
 router.get("/api/quickbooks/connect", (req: Request, res: Response) => {
   const state = crypto.randomBytes(16).toString("hex");
+  pendingOAuthReturns.set(state, { next: oauthReturnPath(req.query.next), expires: Date.now() + 15 * 60 * 1000 });
   const redirectUri = getRedirectUri(req);
   console.log("[QB OAuth] Connect - redirect URI:", redirectUri);
   const authUrl = `${QB_AUTH_URL}?client_id=${process.env.QUICKBOOKS_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(QB_SCOPES)}&state=${state}`;
   res.json({ authUrl, redirectUri });
 });
 
+function finishOAuth(res: Response, state: unknown, result: "connected" | "error", reason?: string) {
+  const pending = typeof state === "string" ? pendingOAuthReturns.get(state) : undefined;
+  if (typeof state === "string") pendingOAuthReturns.delete(state);
+  const next = pending && pending.expires > Date.now() ? pending.next : "/command-center?section=qb-sync";
+  const join = next.includes("?") ? "&" : "?";
+  const reasonQuery = reason ? `&reason=${encodeURIComponent(reason)}` : "";
+  res.redirect(`${next}${join}qb=${result}${reasonQuery}`);
+}
+
 router.get("/api/quickbooks/callback", async (req: Request, res: Response) => {
-  const { code, realmId } = req.query;
+  const { code, realmId, state } = req.query;
 
   if (!code || !realmId) {
-    return res.redirect("/command-center?qb=error&reason=missing_params");
+    return finishOAuth(res, state, "error", "missing_params");
   }
 
   try {
@@ -177,10 +212,10 @@ router.get("/api/quickbooks/callback", async (req: Request, res: Response) => {
       isActive: true,
     });
 
-    res.redirect("/command-center?section=qb-sync&qb=connected");
+    finishOAuth(res, state, "connected");
   } catch (error: any) {
     console.error("QB OAuth callback error:", error.response?.data || error.message);
-    res.redirect("/command-center?section=qb-sync&qb=error&reason=token_exchange_failed");
+    finishOAuth(res, state, "error", "token_exchange_failed");
   }
 });
 
