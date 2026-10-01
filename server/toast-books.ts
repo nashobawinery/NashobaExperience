@@ -233,32 +233,37 @@ async function booksForDate(businessDate: string) {
     Line?: { Amount?: number; Description?: string; JournalEntryLineDetail?: { PostingType?: string; AccountRef?: { value?: string }; ClassRef?: { value?: string } } }[];
   }>("JournalEntry", `TxnDate >= '${businessDate}' AND TxnDate <= '${throughDate}'`);
 
-  const journals: { id: string; doc: string; note: string }[] = [];
-  const actual = new Map<string, JournalLine>();
+  const journals: { id: string; doc: string; note: string; source: "shogo" | "ours" }[] = [];
+  const shogoActual = new Map<string, JournalLine>();
+  const ourActual = new Map<string, JournalLine>();
   const seenJournals = new Set<string>();
   for (const journal of journalRows) {
     if (seenJournals.has(journal.Id)) continue;
     seenJournals.add(journal.Id);
     const doc = journal.DocNumber || "";
+    if (doc.startsWith("TDLY-")) continue;
     const memo = (journal.PrivateNote || "").toLowerCase();
     const journalLines = journal.Line || [];
-    const isThisDay = memo.includes(businessDate);
     const isOurs = doc.startsWith("TOAST-") || doc.startsWith("TFIX-");
-    if (doc.startsWith("TDLY-")) continue;
     const stamp = businessDate.slice(2).replace(/-/g, "");
     const isShogoThisDay = doc.toLowerCase() === `${stamp}toast` && journalLines.some((line) => /toast cc deposit|cash deposit/i.test(line.Description || ""));
-    if (!isThisDay && !isOurs && !isShogoThisDay) continue;
-    journals.push({ id: journal.Id, doc: journal.DocNumber || journal.Id, note: journal.PrivateNote || "" });
+    const isShogo = !isOurs && (memo.includes(businessDate) || isShogoThisDay);
+    if (!isOurs && !isShogo) continue;
+    journals.push({ id: journal.Id, doc: journal.DocNumber || journal.Id, note: journal.PrivateNote || "", source: isOurs ? "ours" : "shogo" });
+    const target = isOurs ? ourActual : shogoActual;
     for (const line of journalLines) {
       const detail = line.JournalEntryLineDetail;
       if (!detail?.AccountRef?.value || !detail.PostingType) continue;
       const signed = detail.PostingType === "Debit" ? centsOf(line.Amount) : -centsOf(line.Amount);
       const key = `${detail.AccountRef.value}|${detail.ClassRef?.value || ""}`;
-      const current = actual.get(key);
+      const current = target.get(key);
       if (current) current.cents += signed;
-      else actual.set(key, { accountId: detail.AccountRef.value, classId: detail.ClassRef?.value || "", cents: signed });
+      else target.set(key, { accountId: detail.AccountRef.value, classId: detail.ClassRef?.value || "", cents: signed });
     }
   }
+  const shogoJournals = journals.filter((journal) => journal.source === "shogo");
+  const ourJournals = journals.filter((journal) => journal.source === "ours");
+  const actual = shogoJournals.length ? shogoActual : ourActual;
 
   const depositRows = await queryRows<{ Id: string; TotalAmt?: number; DepositToAccountRef?: { name?: string }; PrivateNote?: string }>("Deposit", `TxnDate = '${businessDate}'`).catch(() => []);
   const deposits = depositRows.map((deposit) => ({
@@ -311,20 +316,30 @@ async function booksForDate(businessDate: string) {
     actual.forEach((line) => { if (line.accountId === bank.id) recordedBank += line.cents; });
   }
 
+  const ourEntry: { accountId: string; classId: string; cents: number }[] = [];
+  expected.forEach((line) => {
+    if (line.cents) ourEntry.push({ accountId: line.accountId, classId: line.classId, cents: line.cents });
+  });
+  const entryBalance = ourEntry.reduce((sum, line) => sum + line.cents, 0);
   const correction = lines.filter((line) => line.correction !== 0);
-  const correctionBalance = correction.reduce((sum, line) => sum + line.correction, 0);
-  const hasJournal = journals.length > 0;
+  const hasOurs = ourJournals.some((journal) => journal.doc.startsWith("TOAST-"));
+  const hasShogo = shogoJournals.length > 0;
   let postBlock: string | null = null;
   if (businessDate < OPEN_YEAR) postBlock = "A 2025 or earlier day is not posted.";
   else if (unmapped.length) postBlock = "A Toast category or account in the mapping could not be matched, so nothing was posted.";
   else if (imbalance !== 0) postBlock = `Toast's day is out of balance by ${money(imbalance).toFixed(2)}. The missing piece has to be identified before it is posted.`;
-  else if (correctionBalance !== 0) postBlock = `The entry is out of balance by ${money(correctionBalance).toFixed(2)}.`;
-  else if (!correction.length) postBlock = null;
+  else if (entryBalance !== 0) postBlock = `The entry is out of balance by ${money(entryBalance).toFixed(2)}.`;
+  else if (hasOurs) postBlock = hasShogo
+    ? `Our journal and Shogo's journal are both in QuickBooks. Compare them and delete one.`
+    : "Our journal is already in QuickBooks for this date.";
+  else if (!ourEntry.length) postBlock = "This date has no Toast sales to post.";
 
   return {
     date: businessDate,
     orderCount: toast.orders,
     journals,
+    shogoJournals,
+    ourJournals,
     deposits,
     lines: lines.map((line) => ({
       accountName: line.accountName,
@@ -335,20 +350,29 @@ async function booksForDate(businessDate: string) {
     })),
     unmapped,
     plugNote,
-    matched: correction.length === 0 && !unmapped.length && !imbalance,
-    mode: !correction.length ? "matched" : hasJournal ? "correction" : "post-day",
-    canPost: !postBlock && correction.length > 0,
+    matched: hasShogo && correction.length === 0 && !unmapped.length && !imbalance,
+    mode: hasOurs ? "posted" : "post-day",
+    canPost: !postBlock && ourEntry.length > 0,
     postBlock,
     correction,
+    ourEntry,
     bankExpected: money(bankCents),
     bankRecorded: money(recordedBank),
   };
 }
 
 function fallbackFinding(day: Awaited<ReturnType<typeof booksForDate>>) {
-  if (day.matched) return `${day.date} matches QuickBooks.`;
-  if (!day.journals.length && !day.unmapped.length) {
-    return `${day.date} is not in QuickBooks yet. Toast balances and can be posted as that day's journal. Turn Shogo off for this date first so the day is not entered twice.`;
+  const ours = day.ourJournals.map((journal) => journal.doc).join(", ");
+  const shogo = day.shogoJournals.map((journal) => journal.doc).join(", ");
+  if (day.ourJournals.length && day.shogoJournals.length) {
+    const gap = day.lines.find((line) => line.difference !== 0);
+    if (!gap) return `${day.date}: our journal ${ours} matches Shogo ${shogo}. Delete one of them so the day is not recorded twice.`;
+    const where = gap.className ? `${gap.accountName}, class ${gap.className}` : gap.accountName;
+    return `${day.date}: our journal ${ours} and Shogo ${shogo} are both in QuickBooks. The largest difference is ${gap.difference.toFixed(2)} on ${where}. Delete the journal you do not want to keep.`;
+  }
+  if (day.matched) return `${day.date} matches Shogo.`;
+  if (!day.shogoJournals.length && !day.unmapped.length) {
+    return `${day.date} is not in QuickBooks yet. Toast balances and can be posted as our journal. Shogo can stay on; delete one of the two journals after you compare them.`;
   }
   if (day.unmapped.length) {
     const names = day.unmapped.slice(0, 4).map((item) => `${item.name} (${item.amount.toFixed(2)})`).join(", ");
@@ -357,12 +381,12 @@ function fallbackFinding(day: Awaited<ReturnType<typeof booksForDate>>) {
   const gap = day.lines.find((line) => line.difference !== 0);
   if (!gap) return day.postBlock || `${day.date} needs a look.`;
   const where = gap.className ? `${gap.accountName}, class ${gap.className}` : gap.accountName;
-  return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}. ${day.journals.length ? "A journal is already on that date, so post only the difference." : "No journal is on that date yet, so this would be the day's entry."}`;
+  return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}. Shogo is ${shogo || "not posted"}. Our journal is ${ours || "not posted yet"}.`;
 }
 
 async function explainGap(day: Awaited<ReturnType<typeof booksForDate>>) {
   const fallback = fallbackFinding(day);
-  if (day.matched || !day.journals.length) return fallback;
+  if (day.matched || !day.shogoJournals.length || day.ourJournals.length) return fallback;
   try {
     const OpenAI = (await import("openai")).default;
     const openai = new OpenAI();
@@ -399,6 +423,8 @@ function publicDay(day: Awaited<ReturnType<typeof booksForDate>>, finding: strin
     date: day.date,
     orderCount: day.orderCount,
     journals: day.journals,
+    shogoJournals: day.shogoJournals,
+    ourJournals: day.ourJournals,
     deposits: day.deposits,
     lines: day.lines,
     unmapped: day.unmapped,
@@ -823,6 +849,52 @@ export async function ensureToastDepositAccount() {
   return ensureTimingAccount(await chartOfAccounts());
 }
 
+export async function postYesterdayToastJournal() {
+  const businessDate = shiftIso(todayIso(), -1);
+  try {
+    const posted = await postToastDay(businessDate);
+    console.log("[Toast GL] posted", posted.doc, "for", businessDate);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/already in QuickBooks|no Toast sales/i.test(message)) {
+      console.log("[Toast GL]", businessDate, message);
+      return;
+    }
+    console.error("[Toast GL]", businessDate, message);
+    try {
+      const to = await noticeRecipients("deposit-mismatch");
+      const apiKey = process.env.SENDGRID_API_KEY;
+      if (to.length && apiKey) {
+        sgMail.setApiKey(apiKey);
+        await sgMail.send({
+          to,
+          from: process.env.SENDGRID_FROM_EMAIL || "email@nashobawinery.com",
+          subject: `Toast journal was not posted for ${businessDate}`,
+          text: `${businessDate} was not posted beside Shogo. ${message}`,
+          html: `<p>${businessDate} was not posted beside Shogo. ${message}</p>`,
+        });
+      }
+    } catch (mailError) {
+      console.error("[Toast GL] notice was not sent:", mailError instanceof Error ? mailError.message : mailError);
+    }
+  }
+}
+
+function scheduleToastGlPost() {
+  const scheduleNext = () => {
+    const now = new Date();
+    const target = new Date();
+    target.setUTCHours(7, 0, 0, 0);
+    if (now >= target) target.setUTCDate(target.getUTCDate() + 1);
+    const wait = target.getTime() - now.getTime();
+    console.log(`[Toast GL] Next journal posts at ${target.toLocaleString("en-US", { timeZone: "America/New_York" })} Eastern`);
+    setTimeout(() => {
+      postYesterdayToastJournal().finally(scheduleNext);
+    }, wait);
+  };
+  scheduleNext();
+}
+
 export function initToastDepositCheck() {
   const run = () => {
     const through = shiftIso(todayIso(), -3);
@@ -848,35 +920,36 @@ export function initToastDepositCheck() {
   };
   setTimeout(run, 90_000);
   setInterval(run, 24 * 60 * 60 * 1000);
+  scheduleToastGlPost();
 }
 
 export async function postToastDay(businessDate: string) {
   const day = await booksForDate(businessDate);
-  if (!day.canPost) throw new Error(day.postBlock || "This date already matches.");
-  const stamp = businessDate.replace(/-/g, "");
-  const doc = (day.mode === "post-day" ? `TOAST-${stamp}` : `TFIX-${stamp}`).slice(0, 21);
+  if (!day.canPost) throw new Error(day.postBlock || "This date already has our journal.");
+  const doc = `TOAST-${businessDate.replace(/-/g, "")}`.slice(0, 21);
   const existing = await queryQuickBooks(`SELECT Id FROM JournalEntry WHERE DocNumber = '${doc}'`);
   if ((existing.data?.QueryResponse?.JournalEntry ?? []).length) {
     throw new Error(`${doc} is already in QuickBooks for this date.`);
   }
+  const shogo = day.shogoJournals.map((journal) => journal.doc).join(", ");
   const entry = await postQuickBooks("/journalentry", {
     TxnDate: businessDate,
     DocNumber: doc,
-    PrivateNote: day.mode === "post-day"
-      ? `Toast sales for POS date ${businessDate}.`
-      : `Toast correction for POS date ${businessDate}. Brings the existing journal in line with Toast.`,
-    Line: day.correction.map((line) => ({
-      Amount: money(Math.abs(line.correction)),
+    PrivateNote: shogo
+      ? `Toast sales for POS date ${businessDate}. Our journal, posted beside Shogo ${shogo} so the two can be compared. Delete one.`
+      : `Toast sales for POS date ${businessDate}.`,
+    Line: day.ourEntry.map((line) => ({
+      Amount: money(Math.abs(line.cents)),
       Description: `Toast ${businessDate}`,
       DetailType: "JournalEntryLineDetail",
       JournalEntryLineDetail: {
-        PostingType: line.correction > 0 ? "Debit" : "Credit",
+        PostingType: line.cents > 0 ? "Debit" : "Credit",
         AccountRef: { value: line.accountId },
         ...(line.classId ? { ClassRef: { value: line.classId } } : {}),
       },
     })),
   });
-  return { id: entry?.JournalEntry?.Id, doc, lines: day.correction.length, mode: day.mode };
+  return { id: entry?.JournalEntry?.Id, doc, lines: day.ourEntry.length, mode: day.mode };
 }
 
 export function toastBooksFault(error: unknown) {
