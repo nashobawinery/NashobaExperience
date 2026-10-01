@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import BillPay from "./BillPay";
 import UsFoods from "./UsFoods";
+import ToastSales from "./ToastSales";
 
 type BooksSection =
   | "accounting"
@@ -33,7 +34,8 @@ type BooksSection =
   | "lending"
   | "payables"
   | "healthcare"
-  | "us-foods";
+  | "us-foods"
+  | "toast-sales";
 
 const ribbon: { id: BooksSection; label: string }[] = [
   { id: "accounting", label: "Accounting" },
@@ -51,9 +53,10 @@ const ribbon: { id: BooksSection; label: string }[] = [
   { id: "payables", label: "Bill Pay" },
   { id: "healthcare", label: "Health Care" },
   { id: "us-foods", label: "US Foods" },
+  { id: "toast-sales", label: "Toast Sales" },
 ];
 
-const booksDetail: Record<Exclude<BooksSection, "payables" | "healthcare" | "us-foods">, string> = {
+const booksDetail: Record<Exclude<BooksSection, "payables" | "healthcare" | "us-foods" | "toast-sales">, string> = {
   accounting: "Chart of accounts, registers, and journal entries for Nashoba Valley. The Gables is a second set of books.",
   expenses: "Vendor bills, checks, and expenses. Incoming vendor documents are reviewed in Bill Pay.",
   sales: "Invoices you send, payments you receive, and deposits.",
@@ -1762,6 +1765,8 @@ export default function AccountingPage() {
         </div>
         ) : section === "us-foods" ? (
           <UsFoods />
+        ) : section === "toast-sales" ? (
+          <ToastSales />
         ) : (
           <div>
             <h2 className="text-2xl font-semibold">{ribbon.find((item) => item.id === section)?.label}</h2>

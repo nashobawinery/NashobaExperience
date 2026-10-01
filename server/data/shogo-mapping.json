@@ -1,0 +1,827 @@
+{
+  "memoRule": "POS Date",
+  "rows": [
+    {
+      "kind": "ALLSALES",
+      "name": "All Sales",
+      "account": "(316000) Event Revenue",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "VN Beverage Service",
+      "account": "(305000-10) *Retail Sales:Wine Income",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Vintner's Knoll Food",
+      "account": "(306000-55) *Restaurant Sales",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Retail Wine",
+      "account": "(305000-10) *Retail Sales:Wine Income",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Tours and Tastings",
+      "account": "(3052010) *Retail Sales:Tours & Tastings",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Retail Other",
+      "account": "(305000-60) *Retail Sales:Retail Merchandise",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Retail Spirits",
+      "account": "(305000-30) *Retail Sales:Distilled Spirits",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Retail Beer",
+      "account": "(305000-40) *Retail Sales:Malt Operations",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's.Rest. Liquor",
+      "account": "(306000-58) *Restaurant Sales:J's  - Wine & Beer Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's.Restaurant Evening",
+      "account": "(306000-55) *Restaurant Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's.Restaurant Desserts",
+      "account": "(306000-55) *Restaurant Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's.Rest. NA Beverage",
+      "account": "(306000-55) *Restaurant Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's.Restaurant Wine",
+      "account": "(306000-58) *Restaurant Sales:J's  - Wine & Beer Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Retail Food",
+      "account": "(305000-61) *Retail Sales:Retail Food",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's. Restaurant Lunch",
+      "account": "(306000-55) *Restaurant Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's.Restaurant Beer",
+      "account": "(306000-58) *Restaurant Sales:J's  - Wine & Beer Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Tasting Bar Small Plates",
+      "account": "(3052010) *Retail Sales:Tours & Tastings",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Unassigned",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Orchard",
+      "account": "(3070011) Sales Orchard Operations",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Pavilion Beverages",
+      "account": "(305000-10) *Retail Sales:Wine Income",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Rental",
+      "account": "(306000-60) Taxable Rental Function",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's.Restaurant Cateriing",
+      "account": "(306000-55) *Restaurant Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's. Sunday Brunch",
+      "account": "(306000-55) *Restaurant Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Services",
+      "account": "Services",
+      "className": "Retail:Retail Other"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Event Revenue",
+      "account": "(316000) Event Revenue",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Shipping Charges",
+      "account": "Cost of Online Sales:FedEx Shipping Costs",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Out of State Taxes on Shipped Items",
+      "account": "(6660010) Taxes, Permits, Bonds and Licen:Sales/Excise Tax Out of State",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "J's Restaurant Hard Cider",
+      "account": "(306000-58) *Restaurant Sales:J's  - Wine & Beer Sales",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "ALLDISCOUNTS",
+      "name": "All Discounts",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "EEFT WSB Discount",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "6-11 10%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Tasters",
+      "account": "*Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits:Club Discount",
+      "className": "Retail:Tours & Tastings"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "EEPT WSB Discount",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "12-23 + 15% (rap)",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Bottles of Wine used at the Vintner's Knoll",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Vintners Knoll Beverage"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Reward Dollars",
+      "account": "Discounts & Promotions:Toast Rewards Payment",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Canned Discount 4-23",
+      "account": "(4156015) *Purchase Discounts & Promotions:Purchase Discounts - Brewery",
+      "className": "Retail:Beer"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "EE Food Discount",
+      "account": "(4156055) *Purchase Discounts & Promotions:Purchase Discounts - Restaurant",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Beer-Cider 24+",
+      "account": "(4155015) *Complimentary:Complimentary - Brewery",
+      "className": "Retail:Beer"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "24 + 20%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Donation/Damaged Item",
+      "account": "(400000-10) *Cost of Goods Sold Retail Operations:COG - Wine",
+      "className": "Retail:Retail Other"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Military",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "EE Staff Apparel 40%",
+      "account": "(4155060) *Complimentary:Complimentary - Retail",
+      "className": "Retail:Retail Other"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Retail Event Discount 20%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "JP",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Silver",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Platnum",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Wine & Dine $25 off",
+      "account": "Discounts & Promotions:Discounts (Wine & Dine $25 off)",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "RAP Only",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Gold",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Retail Event Discount 15%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Refunds",
+      "account": "Discounts & Promotions:Discounts (Wine & Dine $25 off)",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "EE Retail Discount",
+      "account": "Discounts & Promotions:Employee Discounts",
+      "className": "Retail"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "WIne Sold On Wine Direct",
+      "account": "Cost of Online Sales:DTC Online Discount Offset C7&P",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Discount 15%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Save 10% on your gift cards",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "NYE Sale + 20%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Rap New$",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "12-23  15% (rap)",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Js 15 Food",
+      "account": "(4156055) *Purchase Discounts & Promotions:Purchase Discounts - Restaurant",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Js 20 Food",
+      "account": "(4156055) *Purchase Discounts & Promotions:Purchase Discounts - Restaurant",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "24+ 20%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "J's Retail Discount 15%",
+      "account": "(4156055) *Purchase Discounts & Promotions:Purchase Discounts - Restaurant",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "5% Additional",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Retail Event Discount",
+      "account": "(415600) *Purchase Discounts & Promotions",
+      "className": "Events"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Retail Other EE 20%",
+      "account": "Discounts & Promotions:Employee Discounts",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "3-5 Bottle Discount 5%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Rewards Card",
+      "account": "Discounts & Promotions:Toast Rewards Payment",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "FTF Event 10%",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "NoCo 2sm 4 1 lg price",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Spirits"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "5% Off for visting",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "10% Off for visting",
+      "account": "(4155060) *Complimentary:Complimentary - Retail",
+      "className": "Retail:Retail Other"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Black Friday",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Beer, canned cocktails-Cider 24+",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "5% Additional Sip & Shop",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Locals Appreciation Day",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Tasting Bonus Day",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Wine Duo Day $5 off for 2 bottles",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Dessert wine Day $5 off",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "wine Day $5 off bottles over $20",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "$2 off bottles staff picks",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "$5 off spirits above $35",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "$5 off Red & White Combo",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "$10 off 3 bottles",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": "Retail:Wine"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Savor Season Tasting",
+      "account": "(4156055) *Purchase Discounts & Promotions:Purchase Discounts - Restaurant",
+      "className": "J's Restaurant"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Canned Discount 8-12",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Canned Discount 4",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Canned Discount 16-20",
+      "account": "(4155015) *Complimentary:Complimentary - Brewery",
+      "className": "Retail:Beer"
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "15% Off for visting",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Cash Reward",
+      "account": "(4156010) *Purchase Discounts & Promotions:Purchase Disc. - Wine & Spirits",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "J's Retail Discount 20%",
+      "account": "(4156060) *Purchase Discounts & Promotions:Purchase Discounts - Retail",
+      "className": ""
+    },
+    {
+      "kind": "DISCOUNT",
+      "name": "Waste",
+      "account": "(400000-70) *Cost of Goods Sold Retail Operations:Bottles of WIne Used at Vintners Knoll",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "Credit Tips",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "Tips",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "20% Gratuity",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "eGift Card",
+      "account": "(2120001) Gift Cards Outstanding",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "Add Value ($)",
+      "account": "(2120001) Gift Cards Outstanding",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "Gift Card",
+      "account": "(2120001) Gift Cards Outstanding",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "Open Gratuity",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "10% Gratuity",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    },
+    {
+      "kind": "SERVICECHARGE",
+      "name": "25% gratuity",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    },
+    {
+      "kind": "ALLTAX",
+      "name": "All Taxes",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Sales Tax on ($4) Tasting Glass",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Bottle Deposit",
+      "account": "(215000) Bottle Deposits Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Sales Tax",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Meals Tax",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Local Town",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Bottle Deposit/Local Town/Meals Tax",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Local Town/Meals Tax",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Local Town/Sales Tax",
+      "account": "(216000) Meals & Sales Tax Payable",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Local Town/Meals Tax/Sales Tax/Sales Tax on ($4) Tasting Glass",
+      "account": "",
+      "className": ""
+    },
+    {
+      "kind": "TAX",
+      "name": "Bottle Deposit/Meals Tax",
+      "account": "",
+      "className": ""
+    },
+    {
+      "kind": "ALLCREDIT",
+      "name": "All Credit Cards",
+      "account": "(100000) Clinton Savings Bank",
+      "className": ""
+    },
+    {
+      "kind": "CREDIT",
+      "name": "VISA (Credit)",
+      "account": "(100000) Clinton Savings Bank",
+      "className": ""
+    },
+    {
+      "kind": "CREDIT",
+      "name": "MASTERCARD (Credit)",
+      "account": "(100000) Clinton Savings Bank",
+      "className": ""
+    },
+    {
+      "kind": "CREDIT",
+      "name": "AMEX (Credit)",
+      "account": "(100000) Clinton Savings Bank",
+      "className": ""
+    },
+    {
+      "kind": "CREDIT",
+      "name": "DISCOVER (Credit)",
+      "account": "(100000) Clinton Savings Bank",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Toast CC Deposit",
+      "account": "(100000) Clinton Savings Bank",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Toast CC Fees",
+      "account": "Bank Charges:Toast Credit Card Fees:Bank Charges",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Gift Card",
+      "account": "(2120001) Gift Cards Outstanding",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "House Account",
+      "account": "(116000) Toast House Accounts",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Payment Exceptions",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Reservation Deposit",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Open Checks",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Banquet Deposit Redeem",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Event Deposits",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Deposit Redemption",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Other",
+      "account": "(685000) Bong Account - Cash Over Under",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Toast-Takeout-Reward",
+      "account": "Discounts & Promotions:Toast Rewards Payment",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Toast Cash Stored Value",
+      "account": "(100016) Toast Cash Stored Value",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
+      "name": "Toast Cash",
+      "account": "(100015) Toast Cash",
+      "className": ""
+    },
+    {
+      "kind": "CASH",
+      "name": "Cash Deposit",
+      "account": "(100000) Clinton Savings Bank",
+      "className": ""
+    },
+    {
+      "kind": "CASHINDRAWER",
+      "name": "Cash in Drawer",
+      "account": "(106000) Retail Registers & Banks",
+      "className": ""
+    },
+    {
+      "kind": "OVERSHORT",
+      "name": "Cash Over/Short",
+      "account": "(685000) Bong Account - Cash Over Under",
+      "className": ""
+    },
+    {
+      "kind": "PAIDIN",
+      "name": "Payins",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    },
+    {
+      "kind": "PAYOUT",
+      "name": "Payouts",
+      "account": "(685000) Bong Account - Cash Over Under",
+      "className": ""
+    },
+    {
+      "kind": "PAYOUTTIPS",
+      "name": "Tip Payouts",
+      "account": "(109000) Escrow - Tips Payable",
+      "className": ""
+    }
+  ]
+}

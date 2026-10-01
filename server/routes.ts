@@ -52,6 +52,7 @@ import mediaFoodTruckRouter from "./media-food-truck-routes";
 import mediaEventsRouter from "./media-events-routes";
 import quickbooksRouter, { initQuickBooksTokenRenewal } from "./quickbooks-routes";
 import { initUsFoodsDailyCheck } from "./us-foods-sync";
+import { initToastDepositCheck } from "./toast-books";
 import mediaFlyerRouter from "./media-flyer-routes";
 import { fetchDailyRevenue, syncToastRevenueDetailToDb } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
@@ -20638,6 +20639,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   initHealthcareBillUploadReminders();
   initQuickBooksTokenRenewal();
   initUsFoodsDailyCheck();
+  initToastDepositCheck();
 
   initComplianceReminders();
 

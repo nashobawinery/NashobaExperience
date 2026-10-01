@@ -102,6 +102,12 @@ export async function queryQuickBooks(statement: string) {
   return { companyName: conn.companyName || "QuickBooks", data };
 }
 
+export async function postQuickBooks(endpoint: string, body: unknown) {
+  const conn = await getActiveConnection();
+  if (!conn) throw new Error("QuickBooks is not connected");
+  return qbApiRequest(conn, endpoint, "POST", body);
+}
+
 async function qbApiRequest(conn: typeof qbConnection.$inferSelect, endpoint: string, method = "GET", data?: any) {
   const accessToken = await refreshTokenIfNeeded(conn);
   const url = `${getApiBase()}/v3/company/${conn.realmId}${endpoint}`;

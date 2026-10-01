@@ -9,6 +9,7 @@ import { db } from "./db";
 import { queryQuickBooks } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 import { registerUsFoodsRoutes } from "./us-foods-sync";
+import { registerToastSalesRoutes } from "./toast-books";
 
 const router = Router();
 const isAdmin = requirePlatformRole(["super_admin"]);
@@ -2498,5 +2499,6 @@ export function initHealthcareBillUploadReminders() {
 }
 
 registerUsFoodsRoutes(router);
+registerToastSalesRoutes(router);
 
 export default router;
