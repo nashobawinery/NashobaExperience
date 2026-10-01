@@ -33,7 +33,7 @@ function getRedirectUri(req?: Request) {
 }
 
 function getApiBase() {
-  return process.env.QB_ENVIRONMENT === "production" ? QB_API_BASE_PROD : QB_API_BASE_SANDBOX;
+  return process.env.QB_ENVIRONMENT === "sandbox" ? QB_API_BASE_SANDBOX : QB_API_BASE_PROD;
 }
 
 async function getActiveConnection() {
