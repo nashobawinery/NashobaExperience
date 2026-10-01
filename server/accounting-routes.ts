@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm";
 import { db } from "./db";
 import { queryQuickBooks } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
+import { registerUsFoodsRoutes } from "./us-foods-sync";
 
 const router = Router();
 const isAdmin = requirePlatformRole(["super_admin"]);
@@ -2495,5 +2496,7 @@ export function initHealthcareBillUploadReminders() {
   setTimeout(run, 20_000);
   setInterval(run, 24 * 60 * 60 * 1000);
 }
+
+registerUsFoodsRoutes(router);
 
 export default router;
