@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type DayLine = { accountName: string; className: string; toast: number; quickbooks: number; difference: number };
 type DayReview = {
@@ -41,6 +42,10 @@ type DepositRow = {
   status: "waiting" | "match" | "timing" | "mismatch" | "quiet";
   note: string;
   suggestion: string;
+  cardJournal: number;
+  cardDeposit: number;
+  cashJournal: number;
+  cashDeposit: number;
 };
 
 function money(value: number) {
@@ -62,6 +67,142 @@ function yesterday() {
 }
 
 type NoticeSetting = { key: string; label: string; emails: string };
+type MapRow = { kind: string; name: string; account: string; className: string };
+type SettingRow = { setting: string; value: string };
+type MappingPayload = { memoRule: string; general: SettingRow[]; accounting: SettingRow[]; rows: MapRow[] };
+type RowSection = { id: string; label: string; kinds: string[] };
+
+const rowSections: RowSection[] = [
+  { id: "sales", label: "Sales", kinds: ["ALLSALES", "DEPSALE"] },
+  { id: "discounts", label: "Discounts", kinds: ["ALLDISCOUNTS", "DISCOUNT"] },
+  { id: "charges", label: "Other Charges", kinds: ["SERVICECHARGE"] },
+  { id: "taxes", label: "Taxes", kinds: ["ALLTAX", "TAX"] },
+  { id: "cards", label: "Credit Cards", kinds: ["ALLCREDIT", "CREDIT"] },
+  { id: "tenders", label: "Other Tenders", kinds: ["OTHERTENDER"] },
+  { id: "drawer", label: "Cash Drawer", kinds: ["CASH", "CASHINDRAWER", "OVERSHORT", "PAIDIN", "PAYOUT", "PAYOUTTIPS"] },
+];
+
+function accountLabel(account: string) {
+  const match = account.match(/^\(([^)]+)\)\s*(.*)$/);
+  if (!match) return account.trim();
+  return `${match[1].trim()} ${match[2].trim()}`.trim();
+}
+
+function SettingsTable({ rows }: { rows: SettingRow[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Setting</TableHead>
+          <TableHead>Value</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.setting}>
+            <TableCell>{row.setting}</TableCell>
+            <TableCell>{row.value || "—"}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function NameTable({ rows }: { rows: MapRow[] }) {
+  const [search, setSearch] = useState("");
+  const needle = search.trim().toLowerCase();
+  const shown = rows.filter((row) => !needle || `${row.name} ${row.account} ${row.className}`.toLowerCase().includes(needle));
+  return (
+    <div className="space-y-3">
+      <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search..." className="max-w-xs" data-testid="input-dsr-mapping-search" />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Account</TableHead>
+            <TableHead>Class</TableHead>
+            <TableHead>Department</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {shown.map((row, index) => (
+            <TableRow key={`${row.kind}-${row.name}-${index}`}>
+              <TableCell>
+                <span className="inline-flex items-center gap-2">
+                  {row.name}
+                  {row.kind.startsWith("ALL") && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Default</span>}
+                </span>
+              </TableCell>
+              <TableCell>{row.account ? accountLabel(row.account) : "—"}</TableCell>
+              <TableCell>{row.className || "—"}</TableCell>
+              <TableCell>—</TableCell>
+            </TableRow>
+          ))}
+          {shown.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={4} className="text-muted-foreground">Nothing in this section matches.</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function DsrFrame({ children }: { children: ReactNode }) {
+  const mappingQuery = useQuery<MappingPayload>({
+    queryKey: ["/api/accounting/toast-sales/mapping"],
+  });
+  const data = mappingQuery.data;
+  return (
+    <Tabs defaultValue="sales">
+      <TabsList className="flex h-auto flex-wrap justify-start">
+        <TabsTrigger value="general">General Settings</TabsTrigger>
+        <TabsTrigger value="accounting">Accounting Options</TabsTrigger>
+        {rowSections.map((section) => (
+          <TabsTrigger key={section.id} value={section.id}>{section.label}</TabsTrigger>
+        ))}
+        <TabsTrigger value="journal">Journal</TabsTrigger>
+      </TabsList>
+      <TabsContent value="general">
+        <Card>
+          <CardHeader>
+            <CardTitle>General Settings</CardTitle>
+            <CardDescription>From the uploaded Shogo mapping. The journal memo uses the POS date.</CardDescription>
+          </CardHeader>
+          <CardContent>{mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : <SettingsTable rows={data?.general ?? []} />}</CardContent>
+        </Card>
+      </TabsContent>
+      <TabsContent value="accounting">
+        <Card>
+          <CardHeader>
+            <CardTitle>Accounting Options</CardTitle>
+          </CardHeader>
+          <CardContent>{mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : <SettingsTable rows={data?.accounting ?? []} />}</CardContent>
+        </Card>
+      </TabsContent>
+      {rowSections.map((section) => (
+        <TabsContent key={section.id} value={section.id}>
+          <Card>
+            <CardHeader>
+              <CardTitle>{section.label}</CardTitle>
+              <CardDescription>{(data?.rows ?? []).filter((row) => section.kinds.includes(row.kind)).length} names from the uploaded Shogo mapping.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : (
+                <NameTable rows={(data?.rows ?? []).filter((row) => section.kinds.includes(row.kind))} />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      ))}
+      <TabsContent value="journal">
+        <div className="space-y-6">{children}</div>
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 export default function ToastSales() {
   const { toast } = useToast();
@@ -170,11 +311,12 @@ export default function ToastSales() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold">Toast Sales</h2>
+        <h2 className="text-2xl font-semibold">DSR</h2>
         <p className="text-muted-foreground mt-1 max-w-3xl">
-          This replaces Shogo. Toast’s day is mapped to the same QuickBooks accounts and posted as one journal. Each day has a card deposit and a cash deposit. Card batches still in transit, and cash not yet taken to the bank, are listed under Outstanding deposits.
+          The Shogo mapping for Nashoba Valley Spirits, Ltd. Each subsection is a sheet from that workbook. Journal posts the day from this mapping.
         </p>
       </div>
+      <DsrFrame>
 
       <Card>
         <CardHeader>
@@ -302,29 +444,31 @@ export default function ToastSales() {
         <Card>
           <CardHeader>
             <CardTitle>Deposits against the journal</CardTitle>
-            <CardDescription>The journal amount is the deposit this app would post to Clinton Savings Bank. The deposit is the Clinton Savings amount on that day’s Toast journal. A one-day delay is booked to Toast Deposit in Transit and reversed the next day. Anything that does not wash out is emailed with what to fix.</CardDescription>
+            <CardDescription>The sales posting is in before the bank deposit. Cards and cash are compared separately. When one day is short and the next day is over by the same card or cash amount, that deposit belongs to the earlier sales posting and the suggestion is to hold it in Toast Deposit in Transit. When they do not wash out, the suggestion names the account to debit or credit so the posting balances. Cash that has not gone to the bank yet is left on the sales posting.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Sales date</TableHead>
-                  <TableHead className="text-right">Journal</TableHead>
-                  <TableHead>Deposit date</TableHead>
-                  <TableHead className="text-right">Deposit</TableHead>
+                  <TableHead className="text-right">Cards on posting</TableHead>
+                  <TableHead className="text-right">Cards deposited</TableHead>
+                  <TableHead className="text-right">Cash on posting</TableHead>
+                  <TableHead className="text-right">Cash deposited</TableHead>
                   <TableHead className="text-right">Difference</TableHead>
-                  <TableHead>Suggested resolution</TableHead>
+                  <TableHead>Suggested adjustment</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {deposits.map((row) => (
                   <TableRow key={row.date}>
                     <TableCell>{row.date}</TableCell>
-                    <TableCell className="text-right">{money(row.journalDeposit)}</TableCell>
-                    <TableCell>{row.depositDate || "—"}</TableCell>
-                    <TableCell className="text-right">{row.bankDeposit == null ? "—" : money(row.bankDeposit)}</TableCell>
+                    <TableCell className="text-right">{money(row.cardJournal || 0)}</TableCell>
+                    <TableCell className="text-right">{money(row.cardDeposit || 0)}</TableCell>
+                    <TableCell className="text-right">{money(row.cashJournal || 0)}</TableCell>
+                    <TableCell className="text-right">{money(row.cashDeposit || 0)}</TableCell>
                     <TableCell className="text-right">{row.difference == null ? "—" : money(row.difference)}</TableCell>
-                    <TableCell>{row.suggestion || row.note}</TableCell>
+                    <TableCell className="max-w-md whitespace-normal">{row.suggestion || row.note}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -457,6 +601,7 @@ export default function ToastSales() {
           )}
         </>
       )}
+      </DsrFrame>
     </div>
   );
 }

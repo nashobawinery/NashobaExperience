@@ -5,11 +5,13 @@ import { Router } from "express";
 import sgMail from "@sendgrid/mail";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
-import { getOrdersByBusinessDate, getRestaurants } from "./reactivation/toast-api";
+import { getCashEntries, getOrdersByBusinessDate, getRestaurants } from "./reactivation/toast-api";
 import { postQuickBooks, queryQuickBooks } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 
 type MapRow = { kind: string; name: string; account: string; className: string };
+type SettingRow = { setting: string; value: string };
+const mapping = JSON.parse(readFileSync(path.join(process.cwd(), "server/data/shogo-mapping.json"), "utf8")) as { memoRule?: string; general?: SettingRow[]; accounting?: SettingRow[]; rows: MapRow[] };
 type Bucket = { kind: string; name: string; cents: number };
 type Account = { id: string; name: string; full: string; number: string };
 type ClassRef = { id: string; name: string; full: string };
@@ -19,7 +21,6 @@ type JournalLine = { accountId: string; classId: string; cents: number };
 const OPEN_YEAR = "2026-01-01";
 const PENNY_LIMIT = 100;
 const DEPOSIT_MATCH_CENTS = 5;
-const mapping = JSON.parse(readFileSync(path.join(process.cwd(), "server/data/shogo-mapping.json"), "utf8")) as { rows: MapRow[] };
 
 function centsOf(value: unknown) {
   return Math.round(Number(value || 0) * 100);
@@ -45,6 +46,40 @@ function add(target: Map<string, Bucket>, kind: string, name: string, cents: num
   const current = target.get(key);
   if (current) current.cents += cents;
   else target.set(key, { kind, name, cents });
+}
+
+function applyCashDrawer(buckets: Map<string, Bucket>, entries: { amount?: number; type?: string; reason?: string }[]) {
+  let applied = 0;
+  for (const entry of entries || []) {
+    const amount = centsOf(entry.amount);
+    if (!amount) continue;
+    const type = String(entry.type || "").toUpperCase();
+    const reason = String(entry.reason || "");
+    if (type === "NO_SALE" || type === "CLOSE_OUT_EXACT") continue;
+    if (type === "CASH_COLLECTED" && !/undo tip out/i.test(reason)) continue;
+    if (type === "TIP_OUT" && /undo cash collected/i.test(reason)) continue;
+
+    if (type === "PAY_OUT" || type === "UNDO_PAY_OUT" || type === "DRIVER_REIMBURSEMENT") {
+      add(buckets, "PAYOUT", "Payouts", -amount);
+      add(buckets, "CASH", "Cash Deposit", amount);
+    } else if (type === "TIP_OUT" || (type === "CASH_COLLECTED" && /undo tip out/i.test(reason))) {
+      add(buckets, "PAYOUTTIPS", "Tip Payouts", -amount);
+      add(buckets, "CASH", "Cash Deposit", amount);
+    } else if ((type === "CASH_IN" && /undo cash out/i.test(reason)) || (type === "CASH_OUT" && !/undo cash in/i.test(reason))) {
+      add(buckets, "CASHINDRAWER", "Cash in Drawer", -amount);
+      add(buckets, "CASH", "Cash Deposit", amount);
+    } else if (type === "CASH_IN" || (type === "CASH_OUT" && /undo cash in/i.test(reason))) {
+      add(buckets, "PAIDIN", "Payins", amount);
+      add(buckets, "CASH", "Cash Deposit", amount);
+    } else if (type === "CLOSE_OUT_OVERAGE" || type === "CLOSE_OUT_SHORTAGE") {
+      add(buckets, "OVERSHORT", "Cash Over/Short", -amount);
+      add(buckets, "CASH", "Cash Deposit", amount);
+    } else {
+      continue;
+    }
+    applied += 1;
+  }
+  return applied;
 }
 
 function findRow(kind: string, name: string, fallbackKind?: string) {
@@ -99,6 +134,9 @@ async function toastBuckets(businessDate: string) {
   const buckets = new Map<string, Bucket>();
   const restaurants = await getRestaurants();
   let orders = 0;
+  let cashEntries = 0;
+  let openChecks = 0;
+  let cashDrawerWarning = "";
   for (const restaurant of restaurants) {
     let page = 1;
     let hasMore = true;
@@ -135,10 +173,12 @@ async function toastBuckets(businessDate: string) {
           } else if (check.taxAmount) {
             add(buckets, "TAX", "All Taxes", centsOf(check.taxAmount));
           }
+          let tendered = 0;
           for (const payment of check.payments || []) {
             if (payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") continue;
             const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
             const tip = centsOf(payment.tipAmount);
+            tendered += centsOf(payment.amount);
             const type = String(payment.type || "").toUpperCase();
             if (type === "CREDIT") add(buckets, "CREDIT", `${payment.cardType || "Card"} (Credit)`, paid);
             else if (type === "CASH") add(buckets, "CASH", "Cash Deposit", paid);
@@ -147,15 +187,30 @@ async function toastBuckets(businessDate: string) {
             else add(buckets, "OTHERTENDER", payment.otherPayment?.name || payment.type || "Other", paid);
             if (tip) add(buckets, "SERVICECHARGE", "Tips", tip);
           }
+          if (String(check.paymentStatus || "").toUpperCase() === "OPEN") {
+            const due = centsOf(check.totalAmount);
+            if (due > tendered) openChecks += due - tendered;
+          }
         }
       }
       page += 1;
       if (batch.length < 100) hasMore = false;
     }
+    try {
+      cashEntries += applyCashDrawer(buckets, await getCashEntries(restaurant.restaurantGuid, businessDate));
+    } catch (error) {
+      cashDrawerWarning = "Toast did not return the cash drawer, so payins, payouts, and the drawer close are not on this day.";
+      console.warn(`[Toast DSR] ${restaurant.restaurantGuid}: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+  if (openChecks > 0 && Math.abs(mappedImbalance(buckets) + openChecks) <= PENNY_LIMIT) {
+    add(buckets, "OTHERTENDER", "Open Checks", openChecks);
+  } else {
+    openChecks = 0;
   }
   const list: Bucket[] = [];
   buckets.forEach((bucket) => list.push(bucket));
-  return { orders, buckets: list };
+  return { orders, buckets: list, cashEntries, openChecks, cashDrawerWarning };
 }
 
 function fallbackKind(kind: string) {
@@ -167,8 +222,18 @@ function fallbackKind(kind: string) {
 }
 
 function signedCents(kind: string, amount: number) {
-  if (kind === "DEPSALE" || kind === "ALLSALES" || kind === "SERVICECHARGE" || kind === "TAX" || kind === "ALLTAX") return -amount;
+  if (kind === "DEPSALE" || kind === "ALLSALES" || kind === "SERVICECHARGE" || kind === "TAX" || kind === "ALLTAX" || kind === "PAIDIN") return -amount;
   return amount;
+}
+
+function mappedImbalance(buckets: Map<string, Bucket>) {
+  let total = 0;
+  buckets.forEach((bucket) => {
+    const row = findRow(bucket.kind, bucket.name, fallbackKind(bucket.kind));
+    if (!row) return;
+    total += signedCents(row.kind, bucket.cents);
+  });
+  return total;
 }
 
 async function booksForDate(businessDate: string) {
@@ -188,6 +253,10 @@ async function booksForDate(businessDate: string) {
   const expected = new Map<string, ExpectedLine>();
   let imbalance = 0;
 
+  const bankEarly = accounts.find((account) => account.number.replace(/\s/g, "") === "100000")
+    || accounts.find((account) => norm(account.name).includes("clinton savings"));
+  let cardExpectedCents = 0;
+  let cashExpectedCents = 0;
   toast.buckets.forEach((bucket) => {
     const row = findRow(bucket.kind, bucket.name, fallbackKind(bucket.kind));
     if (!row) {
@@ -202,13 +271,22 @@ async function booksForDate(businessDate: string) {
     const classRef = resolveClass(classes, row.className);
     const signed = signedCents(row.kind, bucket.cents);
     imbalance += signed;
+    if (bankEarly && account.id === bankEarly.id) {
+      if (bucket.kind === "CASH" || /cash deposit/i.test(bucket.name)) cashExpectedCents += bucket.cents;
+      else cardExpectedCents += bucket.cents;
+    }
     const key = `${account.id}|${classRef?.id || ""}`;
     const current = expected.get(key);
     if (current) current.cents += signed;
     else expected.set(key, { accountId: account.id, accountName: account.full, classId: classRef?.id || "", className: classRef?.full || row.className, cents: signed });
   });
 
-  let plugNote = "";
+  const drawerNotes = [
+    toast.cashEntries ? "Payins, payouts, tip payouts, and the drawer close from Toast are included." : "",
+    toast.openChecks ? `Unpaid checks of ${money(toast.openChecks).toFixed(2)} are on Open Checks.` : "",
+    toast.cashDrawerWarning,
+  ].filter(Boolean);
+  let plugNote = drawerNotes.join(" ");
   if (imbalance !== 0 && Math.abs(imbalance) <= PENNY_LIMIT) {
     const overShort = mapping.rows.find((row) => row.kind === "OVERSHORT");
     const account = overShort ? resolveAccount(accounts, overShort.account) : null;
@@ -217,7 +295,8 @@ async function booksForDate(businessDate: string) {
       const current = expected.get(key);
       if (current) current.cents -= imbalance;
       else expected.set(key, { accountId: account.id, accountName: account.full, classId: "", className: "", cents: -imbalance });
-      plugNote = `Toast's day was ${money(imbalance).toFixed(2)} out of balance. That amount is parked in cash over/short.`;
+      const pennyNote = `Toast's day was ${money(imbalance).toFixed(2)} out of balance. That amount is parked in cash over/short.`;
+      plugNote = plugNote ? `${plugNote} ${pennyNote}` : pennyNote;
       imbalance = 0;
     }
   }
@@ -241,7 +320,7 @@ async function booksForDate(businessDate: string) {
     if (seenJournals.has(journal.Id)) continue;
     seenJournals.add(journal.Id);
     const doc = journal.DocNumber || "";
-    if (doc.startsWith("TDLY-")) continue;
+    if (doc.startsWith("TDLY-") || doc.startsWith("TDLC-")) continue;
     const memo = (journal.PrivateNote || "").toLowerCase();
     const journalLines = journal.Line || [];
     const isOurs = doc.startsWith("TOAST-") || doc.startsWith("TFIX-");
@@ -264,6 +343,19 @@ async function booksForDate(businessDate: string) {
   const shogoJournals = journals.filter((journal) => journal.source === "shogo");
   const ourJournals = journals.filter((journal) => journal.source === "ours");
   const actual = shogoJournals.length ? shogoActual : ourActual;
+  let cardRecordedCents = 0;
+  let cashRecordedCents = 0;
+  for (const journal of journalRows) {
+    const doc = journal.DocNumber || "";
+    const chosen = shogoJournals.length ? shogoJournals.some((item) => item.id === journal.Id) : ourJournals.some((item) => item.id === journal.Id);
+    if (!chosen || doc.startsWith("TDLY-") || doc.startsWith("TDLC-")) continue;
+    for (const line of journal.Line || []) {
+      if (line.JournalEntryLineDetail?.PostingType !== "Debit") continue;
+      const description = line.Description || "";
+      if (/cash deposit/i.test(description)) cashRecordedCents += centsOf(line.Amount);
+      if (/toast cc deposit/i.test(description)) cardRecordedCents += centsOf(line.Amount);
+    }
+  }
 
   const depositRows = await queryRows<{ Id: string; TotalAmt?: number; DepositToAccountRef?: { name?: string }; PrivateNote?: string }>("Deposit", `TxnDate = '${businessDate}'`).catch(() => []);
   const deposits = depositRows.map((deposit) => ({
@@ -358,6 +450,10 @@ async function booksForDate(businessDate: string) {
     ourEntry,
     bankExpected: money(bankCents),
     bankRecorded: money(recordedBank),
+    cardExpected: money(cardExpectedCents),
+    cashExpected: money(cashExpectedCents),
+    cardRecorded: money(cardRecordedCents),
+    cashRecorded: money(cashRecordedCents),
   };
 }
 
@@ -436,6 +532,10 @@ function publicDay(day: Awaited<ReturnType<typeof booksForDate>>, finding: strin
     finding,
     bankExpected: day.bankExpected,
     bankRecorded: day.bankRecorded,
+    cardExpected: day.cardExpected,
+    cashExpected: day.cashExpected,
+    cardRecorded: day.cardRecorded,
+    cashRecorded: day.cashRecorded,
   };
 }
 
@@ -479,6 +579,7 @@ function todayIso() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
 }
 
+type DepositGap = { accountName: string; className: string; salesPosting: number; depositJournal: number; difference: number };
 type DepositRow = {
   date: string;
   orderCount: number;
@@ -489,7 +590,61 @@ type DepositRow = {
   status: "waiting" | "match" | "timing" | "mismatch" | "quiet";
   note: string;
   suggestion: string;
+  cardJournal: number;
+  cardDeposit: number;
+  cashJournal: number;
+  cashDeposit: number;
+  gaps: DepositGap[];
+  splitsLabeled: boolean;
 };
+
+function postingAdjustment(row: DepositRow) {
+  const cardGap = centsOf(row.cardDeposit) - centsOf(row.cardJournal);
+  if (cardGap > DEPOSIT_MATCH_CENTS) {
+    return `Debit the card line on the ${row.date} sales posting ${money(cardGap).toFixed(2)} so it matches the card deposit of ${row.cardDeposit.toFixed(2)}. Sales accounts that differ only by class are the same revenue. Do not adjust those.`;
+  }
+  if (cardGap >= -DEPOSIT_MATCH_CENTS) return "Sales accounts that differ only by class are the same revenue. Do not adjust those to balance the deposit.";
+  const short = Math.abs(cardGap);
+  const fees: { accountName: string; cents: number }[] = [];
+  const feeTotals = new Map<string, number>();
+  row.gaps.forEach((gap) => {
+    if (!/fee/i.test(gap.accountName) || gap.difference <= 0) return;
+    feeTotals.set(gap.accountName, (feeTotals.get(gap.accountName) || 0) + centsOf(gap.difference));
+  });
+  feeTotals.forEach((cents, accountName) => {
+    if (cents > DEPOSIT_MATCH_CENTS) fees.push({ accountName, cents });
+  });
+  const feeCents = fees.reduce((sum, fee) => sum + fee.cents, 0);
+  const feeText = fees.map((fee) => `${fee.accountName} ${money(fee.cents).toFixed(2)}`).join(" and ");
+  const remainder = short - Math.min(feeCents, short);
+  if (feeCents > DEPOSIT_MATCH_CENTS && remainder <= DEPOSIT_MATCH_CENTS) {
+    return `Credit the card line on the ${row.date} sales posting ${money(short).toFixed(2)} and debit ${feeText}. The fee is why the card deposit of ${row.cardDeposit.toFixed(2)} is lower than the posting. Sales accounts that differ only by class are the same revenue. Do not adjust those.`;
+  }
+  if (feeCents > DEPOSIT_MATCH_CENTS) {
+    return `Credit the card line on the ${row.date} sales posting ${money(short).toFixed(2)} so it matches the card deposit of ${row.cardDeposit.toFixed(2)}. Debit ${feeText} for the fee already on the deposit journal. The remaining ${money(remainder).toFixed(2)} is not that fee and did not arrive with the next deposit. Sales accounts that differ only by class are the same revenue. Do not adjust those.`;
+  }
+  return `Credit the card line on the ${row.date} sales posting ${money(short).toFixed(2)} so it matches the card deposit of ${row.cardDeposit.toFixed(2)}. Sales accounts that differ only by class are the same revenue. Do not adjust those.`;
+}
+
+function emptyDeposit(date: string, orderCount: number, journalDeposit: number, status: DepositRow["status"], note: string): DepositRow {
+  return {
+    date,
+    orderCount,
+    journalDeposit,
+    depositDate: null,
+    bankDeposit: null,
+    difference: null,
+    status,
+    note,
+    suggestion: "",
+    cardJournal: 0,
+    cardDeposit: 0,
+    cashJournal: 0,
+    cashDeposit: 0,
+    gaps: [],
+    splitsLabeled: false,
+  };
+}
 
 export async function reviewDeposits(through: string, days: number) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(through)) throw new Error("Choose a business date.");
@@ -505,30 +660,36 @@ export async function reviewDeposits(through: string, days: number) {
 
   const rows: DepositRow[] = books.map((day) => {
     const expected = centsOf(day.bankExpected);
+    const gaps = day.lines.filter((line) => line.difference !== 0 && !/clinton savings|toast deposit in transit/i.test(line.accountName)).map((line) => ({
+      accountName: line.accountName,
+      className: line.className,
+      salesPosting: line.toast,
+      depositJournal: line.quickbooks,
+      difference: line.difference,
+    }));
+    const base = {
+      cardJournal: day.cardExpected,
+      cardDeposit: day.cardRecorded,
+      cashJournal: day.cashExpected,
+      cashDeposit: day.cashRecorded,
+      gaps,
+      splitsLabeled: day.cardRecorded !== 0 || day.cashRecorded !== 0 || centsOf(day.bankRecorded) === 0,
+    };
     if (!day.orderCount && expected === 0) {
-      return { date: day.date, orderCount: 0, journalDeposit: 0, depositDate: null, bankDeposit: null, difference: null, status: "quiet" as const, note: "No Toast sales.", suggestion: "" };
+      return { ...emptyDeposit(day.date, 0, 0, "quiet", "No Toast sales."), ...base };
     }
     if (!day.journals.length) {
-      return {
-        date: day.date,
-        orderCount: day.orderCount,
-        journalDeposit: day.bankExpected,
-        depositDate: null,
-        bankDeposit: null,
-        difference: null,
-        status: "waiting" as const,
-        note: "The Toast journal is not in QuickBooks yet. This day is checked after that journal and the next day, so a charge that slips overnight can be seen.",
-        suggestion: "",
-      };
+      return { ...emptyDeposit(day.date, day.orderCount, day.bankExpected, "waiting", "The sales posting is not in QuickBooks yet. The deposit is compared after that posting and the next day, so a charge that slips overnight can be seen."), ...base, journalDeposit: day.bankExpected };
     }
     const recorded = centsOf(day.bankRecorded);
     const difference = recorded - expected;
     const dollars = money(difference);
     const status = Math.abs(difference) <= DEPOSIT_MATCH_CENTS ? "match" as const : "mismatch" as const;
     const note = status === "match"
-      ? `The ${day.date} deposit matches the journal this app would post.`
-      : `The ${day.date} deposit is ${Math.abs(dollars).toFixed(2)} ${dollars < 0 ? "under" : "over"} the journal this app would post (${day.bankExpected.toFixed(2)}).`;
+      ? `The deposit for the ${day.date} sales posting matches.`
+      : `The deposit for the ${day.date} sales posting is ${Math.abs(dollars).toFixed(2)} ${dollars < 0 ? "under" : "over"} the posting (${day.bankExpected.toFixed(2)}).`;
     return {
+      ...base,
       date: day.date,
       orderCount: day.orderCount,
       journalDeposit: day.bankExpected,
@@ -541,42 +702,66 @@ export async function reviewDeposits(through: string, days: number) {
     };
   });
 
+  const timingNote = (kind: string, amount: string, shortDate: string, overDate: string) =>
+    `The ${kind} deposit of ${amount} belongs to the ${shortDate} sales posting and arrived with the ${overDate} deposit. Debit Toast Deposit in Transit ${amount} on ${shortDate} and credit it on ${overDate}. Do not change the sales accounts.`;
+
   for (let index = 0; index < rows.length - 1; index += 1) {
     const left = rows[index];
     const right = rows[index + 1];
-    if (left.difference == null || right.difference == null) continue;
-    if (left.status === "quiet" || right.status === "quiet") continue;
-    const leftCents = centsOf(left.difference);
-    const rightCents = centsOf(right.difference);
-    if (Math.abs(leftCents) <= DEPOSIT_MATCH_CENTS || Math.abs(leftCents + rightCents) > DEPOSIT_MATCH_CENTS) continue;
-    const moved = Math.abs(money(leftCents)).toFixed(2);
-    const shortDate = leftCents < 0 ? left.date : right.date;
-    const overDate = leftCents < 0 ? right.date : left.date;
-    const suggestion = `Problem: ${moved} left the ${shortDate} deposit and arrived with the ${overDate} deposit. Resolution: book ${moved} to Toast Deposit in Transit on ${shortDate} and reverse it on ${overDate}. Clinton Savings stays as deposited. That account shows the delay until it clears.`;
+    if (left.status === "quiet" || right.status === "quiet" || left.status === "waiting" || right.status === "waiting") continue;
+    const notes: string[] = [];
+    const cardLeft = centsOf(left.cardDeposit) - centsOf(left.cardJournal);
+    const cardRight = centsOf(right.cardDeposit) - centsOf(right.cardJournal);
+    if (Math.abs(cardLeft) > DEPOSIT_MATCH_CENTS && Math.abs(cardLeft + cardRight) <= DEPOSIT_MATCH_CENTS) {
+      const shortDate = cardLeft < 0 ? left.date : right.date;
+      const overDate = cardLeft < 0 ? right.date : left.date;
+      notes.push(timingNote("card", Math.abs(money(cardLeft)).toFixed(2), shortDate, overDate));
+    }
+    const cashLeft = centsOf(left.cashDeposit) - centsOf(left.cashJournal);
+    const cashRight = centsOf(right.cashDeposit) - centsOf(right.cashJournal);
+    if (Math.abs(cashLeft) > DEPOSIT_MATCH_CENTS && Math.abs(cashLeft + cashRight) <= DEPOSIT_MATCH_CENTS) {
+      const shortDate = cashLeft < 0 ? left.date : right.date;
+      const overDate = cashLeft < 0 ? right.date : left.date;
+      notes.push(timingNote("cash", Math.abs(money(cashLeft)).toFixed(2), shortDate, overDate));
+    }
+    if (!notes.length) continue;
+    const suggestion = notes.join(" ");
     left.status = "timing";
     right.status = "timing";
-    left.note = suggestion;
-    right.note = suggestion;
-    left.suggestion = suggestion;
-    right.suggestion = suggestion;
+    left.suggestion = [left.suggestion, suggestion].filter(Boolean).join(" ");
+    right.suggestion = [right.suggestion, suggestion].filter(Boolean).join(" ");
+    left.note = left.suggestion;
+    right.note = right.suggestion;
   }
 
   for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
     const next = rows[index + 1];
-    if (rows[index].status === "mismatch" && (!next || next.difference == null)) {
-      rows[index].status = "waiting";
-      rows[index].note = "Waiting on the next deposit. A charge that slips one day makes this deposit short and the next one over by the same amount.";
-      rows[index].suggestion = "";
+    if (row.status === "mismatch" && (!next || next.difference == null)) {
+      row.status = "waiting";
+      row.note = "Waiting on the next deposit. The sales posting is already in, and a charge that slips one day makes this deposit short and the next one over by the same amount.";
+      row.suggestion = "";
       continue;
     }
-    if (rows[index].status !== "mismatch" || rows[index].difference == null) continue;
-    const amount = Math.abs(rows[index].difference || 0).toFixed(2);
-    const direction = (rows[index].difference || 0) < 0 ? "under" : "over";
-    const neighbor = next?.difference == null
-      ? "The next deposit is not in yet."
-      : `The next day is ${Math.abs(next.difference).toFixed(2)} ${next.difference < 0 ? "under" : "over"}, so this is not one transaction delayed a day.`;
-    rows[index].suggestion = `Problem: the ${rows[index].date} deposit is ${amount} ${direction} the journal this app would post (${rows[index].journalDeposit.toFixed(2)}). ${neighbor} Resolution: leave Toast Deposit in Transit alone. Open ${rows[index].date} and correct the card or cash line that does not match the deposit.`;
-    rows[index].note = rows[index].suggestion;
+    if (row.status === "waiting" || row.status === "quiet" || row.status === "match") continue;
+    const cashShort = centsOf(row.cashDeposit) - centsOf(row.cashJournal);
+    const nextCash = next && next.cashDeposit != null ? centsOf(next.cashDeposit) - centsOf(next.cashJournal) : null;
+    const cashOffsets = nextCash != null && Math.abs(cashShort) > DEPOSIT_MATCH_CENTS && Math.abs(cashShort + nextCash) <= DEPOSIT_MATCH_CENTS;
+    const cashNote = row.splitsLabeled && !cashOffsets && cashShort < -DEPOSIT_MATCH_CENTS
+      ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} sales posting is not in the deposit yet (${row.cashDeposit.toFixed(2)} deposited). Leave the sales posting alone until that cash is taken to the bank.`
+      : "";
+    const adjustment = row.status === "timing" ? "" : postingAdjustment(row);
+    const postingNote = adjustment
+      ? `To balance the posting: ${adjustment} Do not book this difference to Toast Deposit in Transit.`
+      : "";
+    const which = row.splitsLabeled
+      ? `The deposit that belongs to the ${row.date} sales posting shows cards ${row.cardDeposit.toFixed(2)} against ${row.cardJournal.toFixed(2)} on the posting, and cash ${row.cashDeposit.toFixed(2)} against ${row.cashJournal.toFixed(2)}.`
+      : "";
+    const suggestion = [which, row.suggestion, cashNote, postingNote].filter(Boolean).join(" ");
+    if (suggestion) {
+      row.suggestion = suggestion;
+      row.note = suggestion;
+    }
   }
 
   return rows.filter((row) => row.status !== "quiet" && row.date <= through);
@@ -613,62 +798,80 @@ async function journalDocExists(doc: string) {
 }
 
 export async function bookTimingAdjustments(rows: DepositRow[]) {
-  const pairs: { shortDate: string; overDate: string; cents: number }[] = [];
   const seen = new Set<string>();
+  const booked: string[] = [];
+  let accounts: Account[] | null = null;
+  let timing: Account | null = null;
+  let bong: Account | null = null;
   for (let index = 0; index < rows.length - 1; index += 1) {
     const left = rows[index];
     const right = rows[index + 1];
-    if (left.status !== "timing" || right.status !== "timing" || left.difference == null || right.difference == null) continue;
+    if (left.status !== "timing" || right.status !== "timing") continue;
     const key = [left.date, right.date].join("|");
     if (seen.has(key)) continue;
     seen.add(key);
-    const cents = Math.abs(centsOf(left.difference));
-    if (!cents) continue;
-    pairs.push({
-      shortDate: left.difference < 0 ? left.date : right.date,
-      overDate: left.difference < 0 ? right.date : left.date,
-      cents,
-    });
-  }
-  if (!pairs.length) return [] as string[];
-  const accounts = await chartOfAccounts();
-  const timing = await ensureTimingAccount(accounts);
-  const bong = resolveAccount(accounts, "(685000) Bong Account - Cash Over Under");
-  if (!bong) throw new Error("Bong Account - Cash Over Under is not in QuickBooks.");
-  const booked: string[] = [];
-  for (const pair of pairs) {
-    if (pair.shortDate < OPEN_YEAR || pair.overDate < OPEN_YEAR) continue;
-    const amount = money(pair.cents);
-    const shortDoc = `TDLY-${pair.shortDate.replace(/-/g, "")}`.slice(0, 21);
-    const overDoc = `TDLY-${pair.overDate.replace(/-/g, "")}`.slice(0, 21);
-    const held = `Toast deposit timing. ${amount.toFixed(2)} from ${pair.shortDate} is held until ${pair.overDate}. Clinton Savings is not changed.`;
-    const cleared = `Toast deposit timing. ${amount.toFixed(2)} from ${pair.shortDate} cleared on ${pair.overDate}. Clinton Savings is not changed.`;
-    let posted = false;
-    if (!(await journalDocExists(shortDoc))) {
-      await postQuickBooks("/journalentry", {
-        TxnDate: pair.shortDate,
-        DocNumber: shortDoc,
-        PrivateNote: held,
-        Line: [
-          { Amount: amount, Description: held, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Debit", AccountRef: { value: timing.id } } },
-          { Amount: amount, Description: held, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Credit", AccountRef: { value: bong.id } } },
-        ],
+    const pieces: { cents: number; prefix: string; shortDate: string; overDate: string }[] = [];
+    const cardLeft = centsOf(left.cardDeposit) - centsOf(left.cardJournal);
+    const cardRight = centsOf(right.cardDeposit) - centsOf(right.cardJournal);
+    if (Math.abs(cardLeft) > DEPOSIT_MATCH_CENTS && Math.abs(cardLeft + cardRight) <= DEPOSIT_MATCH_CENTS) {
+      pieces.push({
+        cents: Math.abs(cardLeft),
+        prefix: "TDLY-",
+        shortDate: cardLeft < 0 ? left.date : right.date,
+        overDate: cardLeft < 0 ? right.date : left.date,
       });
-      posted = true;
     }
-    if (!(await journalDocExists(overDoc))) {
-      await postQuickBooks("/journalentry", {
-        TxnDate: pair.overDate,
-        DocNumber: overDoc,
-        PrivateNote: cleared,
-        Line: [
-          { Amount: amount, Description: cleared, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Debit", AccountRef: { value: bong.id } } },
-          { Amount: amount, Description: cleared, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Credit", AccountRef: { value: timing.id } } },
-        ],
+    const cashLeft = centsOf(left.cashDeposit) - centsOf(left.cashJournal);
+    const cashRight = centsOf(right.cashDeposit) - centsOf(right.cashJournal);
+    if (Math.abs(cashLeft) > DEPOSIT_MATCH_CENTS && Math.abs(cashLeft + cashRight) <= DEPOSIT_MATCH_CENTS) {
+      pieces.push({
+        cents: Math.abs(cashLeft),
+        prefix: "TDLC-",
+        shortDate: cashLeft < 0 ? left.date : right.date,
+        overDate: cashLeft < 0 ? right.date : left.date,
       });
-      posted = true;
     }
-    if (posted) booked.push(`${pair.shortDate} to ${pair.overDate}`);
+    if (!pieces.length) continue;
+    if (!accounts) {
+      accounts = await chartOfAccounts();
+      timing = await ensureTimingAccount(accounts);
+      bong = resolveAccount(accounts, "(685000) Bong Account - Cash Over Under");
+      if (!bong) throw new Error("Bong Account - Cash Over Under is not in QuickBooks.");
+    }
+    for (const piece of pieces) {
+      if (piece.shortDate < OPEN_YEAR || piece.overDate < OPEN_YEAR) continue;
+      const amount = money(piece.cents);
+      const shortDoc = `${piece.prefix}${piece.shortDate.replace(/-/g, "")}`.slice(0, 21);
+      const overDoc = `${piece.prefix}${piece.overDate.replace(/-/g, "")}`.slice(0, 21);
+      const held = `Toast deposit timing. ${amount.toFixed(2)} from ${piece.shortDate} is held until ${piece.overDate}. Clinton Savings is not changed.`;
+      const cleared = `Toast deposit timing. ${amount.toFixed(2)} from ${piece.shortDate} cleared on ${piece.overDate}. Clinton Savings is not changed.`;
+      let posted = false;
+      if (!(await journalDocExists(shortDoc))) {
+        await postQuickBooks("/journalentry", {
+          TxnDate: piece.shortDate,
+          DocNumber: shortDoc,
+          PrivateNote: held,
+          Line: [
+            { Amount: amount, Description: held, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Debit", AccountRef: { value: timing!.id } } },
+            { Amount: amount, Description: held, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Credit", AccountRef: { value: bong!.id } } },
+          ],
+        });
+        posted = true;
+      }
+      if (!(await journalDocExists(overDoc))) {
+        await postQuickBooks("/journalentry", {
+          TxnDate: piece.overDate,
+          DocNumber: overDoc,
+          PrivateNote: cleared,
+          Line: [
+            { Amount: amount, Description: cleared, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Debit", AccountRef: { value: bong!.id } } },
+            { Amount: amount, Description: cleared, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Credit", AccountRef: { value: timing!.id } } },
+          ],
+        });
+        posted = true;
+      }
+      if (posted) booked.push(`${piece.shortDate} to ${piece.overDate}`);
+    }
   }
   return booked;
 }
@@ -693,13 +896,24 @@ async function explainDeposits(rows: DepositRow[]) {
       messages: [
         {
           role: "system",
-          content: "You write an email to a bookkeeper. Use only the suggestion text. Keep every dollar amount and the account name Toast Deposit in Transit. A delay is booked to that account and reversed the next day. Any other mismatch is corrected on that day's card or cash line, not on Toast Deposit in Transit. State the problem and the resolution. Two to five sentences. Do not invent amounts.",
+          content: "You email a bookkeeper when a bank deposit does not match the Toast sales posting. The sales posting is created first and the deposit arrives later. Use only the JSON. Repeat the suggestion's debit or credit and every dollar amount. A card or cash amount that is short on one sales date and over on the next by the same amount belongs to the earlier posting: debit Toast Deposit in Transit on the short date and credit it on the later date, and do not change sales. Cash that is short and not made up the next day stays in the drawer. A fee named in the suggestion is part of the card difference. Do not change a sales account because the class is different. Two to five sentences. Do not invent amounts.",
         },
-        { role: "user", content: JSON.stringify(suggestions) },
+        {
+          role: "user",
+          content: JSON.stringify(actionable.map((row) => ({
+            date: row.date,
+            suggestion: row.suggestion,
+            cardOnSalesPosting: row.cardJournal,
+            cardOnDeposit: row.cardDeposit,
+            cashOnSalesPosting: row.cashJournal,
+            cashOnDeposit: row.cashDeposit,
+          }))),
+        },
       ],
     });
     const text = response.choices[0]?.message?.content?.trim();
-    if (!text || !text.includes("Toast Deposit in Transit")) return fallback;
+    const amounts = fallback.match(/\d+\.\d{2}/g) || [];
+    if (!text || amounts.some((amount) => !text.includes(amount))) return fallback;
     return text;
   } catch {
     return fallback;
@@ -973,7 +1187,7 @@ export async function outstandingDeposits(through: string) {
     if (seen.has(journal.Id)) continue;
     seen.add(journal.Id);
     const doc = journal.DocNumber || "";
-    if (doc.startsWith("TDLY-")) continue;
+    if (doc.startsWith("TDLY-") || doc.startsWith("TDLC-") || doc.startsWith("TOAST-") || doc.startsWith("TFIX-")) continue;
     const note = journal.PrivateNote || "";
     const lines = journal.Line || [];
     const noteDate = note.match(/(\d{4}-\d{2}-\d{2})/)?.[1] || "";
@@ -1053,8 +1267,21 @@ export async function clearDeposits(dates: string[], depositedOn: string) {
   return outstandingDeposits(todayIso());
 }
 
+export function toastSalesMapping() {
+  return {
+    memoRule: mapping.memoRule || "",
+    general: mapping.general || [],
+    accounting: mapping.accounting || [],
+    rows: mapping.rows,
+  };
+}
+
 export function registerToastSalesRoutes(router: Router) {
   const isAdmin = requirePlatformRole(["super_admin"]);
+
+  router.get("/toast-sales/mapping", isAdmin, (_req, res) => {
+    res.json(toastSalesMapping());
+  });
 
   router.get("/toast-sales", isAdmin, async (req, res) => {
     try {

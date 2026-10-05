@@ -35,7 +35,7 @@ type BooksSection =
   | "payables"
   | "healthcare"
   | "us-foods"
-  | "toast-sales";
+  | "dsr";
 
 const ribbon: { id: BooksSection; label: string }[] = [
   { id: "accounting", label: "Accounting" },
@@ -53,10 +53,10 @@ const ribbon: { id: BooksSection; label: string }[] = [
   { id: "payables", label: "Bill Pay" },
   { id: "healthcare", label: "Health Care" },
   { id: "us-foods", label: "US Foods" },
-  { id: "toast-sales", label: "Toast Sales" },
+  { id: "dsr", label: "DSR" },
 ];
 
-const booksDetail: Record<Exclude<BooksSection, "payables" | "healthcare" | "us-foods" | "toast-sales">, string> = {
+const booksDetail: Record<Exclude<BooksSection, "payables" | "healthcare" | "us-foods" | "dsr">, string> = {
   accounting: "Chart of accounts, registers, and journal entries for Nashoba Valley. The Gables is a second set of books.",
   expenses: "Vendor bills, checks, and expenses. Incoming vendor documents are reviewed in Bill Pay.",
   sales: "Invoices you send, payments you receive, and deposits.",
@@ -1765,7 +1765,7 @@ export default function AccountingPage() {
         </div>
         ) : section === "us-foods" ? (
           <UsFoods />
-        ) : section === "toast-sales" ? (
+        ) : section === "dsr" ? (
           <ToastSales />
         ) : (
           <div>

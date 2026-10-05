@@ -1,5 +1,16 @@
 {
   "memoRule": "POS Date",
+  "general": [
+    { "setting": "Sales Posting Method", "value": "Journal Entry" },
+    { "setting": "Class", "value": "" },
+    { "setting": "Department", "value": "" },
+    { "setting": "Clearing Account", "value": "" },
+    { "setting": "Memo/Description Rule", "value": "POS Date" }
+  ],
+  "accounting": [
+    { "setting": "Deposit Checks with Cash", "value": "Yes" },
+    { "setting": "Ignore Over/Short", "value": "No" }
+  ],
   "rows": [
     {
       "kind": "ALLSALES",

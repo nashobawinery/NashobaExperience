@@ -137,6 +137,12 @@ export async function getOrdersByBusinessDate(
   return toastApiRequest(path, restaurantGuid);
 }
 
+export async function getCashEntries(restaurantGuid: string, businessDate: string): Promise<any[]> {
+  const formattedDate = businessDate.replace(/-/g, "");
+  const result = await toastApiRequest(`/cashmgmt/v1/entries?businessDate=${formattedDate}`, restaurantGuid);
+  return Array.isArray(result) ? result : [];
+}
+
 const ACTIVITY_CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
   {
     category: "Tasting Room",
