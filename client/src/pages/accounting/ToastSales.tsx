@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DsrSyncLog from "./DsrSyncLog";
+import { SearchableChoice } from "./SearchableChoice";
 
 type DayLine = { accountName: string; className: string; toast: number; quickbooks: number; difference: number };
 type DayReview = {
@@ -109,13 +111,44 @@ function SettingsTable({ rows }: { rows: SettingRow[] }) {
   );
 }
 
-function NameTable({ rows }: { rows: MapRow[] }) {
+type BookAccount = { id: string; name: string; full: string; number: string };
+type BookClass = { id: string; name: string; full: string };
+
+function accountOption(account: BookAccount) {
+  return account.number ? `(${account.number}) ${account.full}` : account.full;
+}
+
+function accountChoiceLabel(account: BookAccount) {
+  return account.number ? `${account.number} ${account.full}` : account.full;
+}
+
+function matchAccount(accounts: BookAccount[], raw: string) {
+  const match = raw.match(/^\(([^)]+)\)\s*(.*)$/);
+  const number = (match?.[1] || "").replace(/\s/g, "");
+  const name = (match?.[2] || raw).trim().replace(/^\*/, "").toLowerCase();
+  if (number) {
+    const byNumber = accounts.find((account) => account.number.replace(/\s/g, "") === number);
+    if (byNumber) return byNumber;
+  }
+  if (!name) return undefined;
+  return accounts.find((account) => account.full.toLowerCase() === name || account.name.toLowerCase() === name);
+}
+
+function NameTable({ rows, accounts, classes, accountsReady, onChange }: {
+  rows: MapRow[];
+  accounts: BookAccount[];
+  classes: BookClass[];
+  accountsReady: boolean;
+  onChange: (kind: string, name: string, patch: Partial<MapRow>) => void;
+}) {
   const [search, setSearch] = useState("");
   const needle = search.trim().toLowerCase();
   const shown = rows.filter((row) => !needle || `${row.name} ${row.account} ${row.className}`.toLowerCase().includes(needle));
+  const accountChoices = accounts.map((account) => ({ id: accountOption(account), label: accountChoiceLabel(account) }));
+  const classChoices = classes.map((item) => ({ id: item.full, label: item.full }));
   return (
     <div className="space-y-3">
-      <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search..." className="max-w-xs" data-testid="input-dsr-mapping-search" />
+      <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search names..." className="max-w-xs" data-testid="input-dsr-mapping-search" />
       <Table>
         <TableHeader>
           <TableRow>
@@ -126,19 +159,46 @@ function NameTable({ rows }: { rows: MapRow[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {shown.map((row, index) => (
-            <TableRow key={`${row.kind}-${row.name}-${index}`}>
-              <TableCell>
-                <span className="inline-flex items-center gap-2">
-                  {row.name}
-                  {row.kind.startsWith("ALL") && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Default</span>}
-                </span>
-              </TableCell>
-              <TableCell>{row.account ? accountLabel(row.account) : "—"}</TableCell>
-              <TableCell>{row.className || "—"}</TableCell>
-              <TableCell>—</TableCell>
-            </TableRow>
-          ))}
+          {shown.map((row, index) => {
+            const account = matchAccount(accounts, row.account);
+            const accountValue = account ? accountOption(account) : "";
+            const classMatch = classes.find((item) => item.full === row.className || item.name === row.className);
+            return (
+              <TableRow key={`${row.kind}-${row.name}-${index}`}>
+                <TableCell>
+                  <span className="inline-flex items-center gap-2">
+                    {row.name}
+                    {row.kind.startsWith("ALL") && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Default</span>}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <SearchableChoice
+                    value={accountValue}
+                    fallback={row.account ? accountLabel(row.account) : ""}
+                    placeholder="Choose an account"
+                    searchPlaceholder="Search the chart of accounts..."
+                    emptyText={accountsReady ? "No account matches." : "Loading accounts from QuickBooks."}
+                    options={accountChoices}
+                    disabled={!accountsReady}
+                    onChange={(id) => onChange(row.kind, row.name, { account: id })}
+                  />
+                </TableCell>
+                <TableCell>
+                  <SearchableChoice
+                    value={classMatch?.full || ""}
+                    fallback={row.className}
+                    placeholder="Choose a class"
+                    searchPlaceholder="Search classes..."
+                    emptyText={accountsReady ? "No class matches." : "Loading classes from QuickBooks."}
+                    options={classChoices}
+                    disabled={!accountsReady}
+                    onChange={(id) => onChange(row.kind, row.name, { className: id })}
+                  />
+                </TableCell>
+                <TableCell>—</TableCell>
+              </TableRow>
+            );
+          })}
           {shown.length === 0 && (
             <TableRow>
               <TableCell colSpan={4} className="text-muted-foreground">Nothing in this section matches.</TableCell>
@@ -151,10 +211,35 @@ function NameTable({ rows }: { rows: MapRow[] }) {
 }
 
 function DsrFrame({ children }: { children: ReactNode }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const mappingQuery = useQuery<MappingPayload>({
     queryKey: ["/api/accounting/toast-sales/mapping"],
   });
+  const refsQuery = useQuery<{ accounts: BookAccount[]; classes: BookClass[] }>({
+    queryKey: ["/api/accounting/toast-sales/accounts"],
+  });
+  const [draft, setDraft] = useState<MapRow[] | null>(null);
+  useEffect(() => {
+    if (mappingQuery.data) setDraft((current) => current ?? mappingQuery.data!.rows);
+  }, [mappingQuery.data]);
+  const saveMapping = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PUT", "/api/accounting/toast-sales/mapping", { rows: draft });
+      return response.json() as Promise<MappingPayload>;
+    },
+    onSuccess: (result) => {
+      setDraft(result.rows);
+      queryClient.setQueryData(["/api/accounting/toast-sales/mapping"], result);
+      toast({ title: "Mapping saved", description: "The next daily sales journal uses this mapping." });
+    },
+    onError: (error: Error) => toast({ title: "The mapping was not saved", description: error.message, variant: "destructive" }),
+  });
   const data = mappingQuery.data;
+  const rows = draft ?? data?.rows ?? [];
+  const changeRow = (kind: string, name: string, patch: Partial<MapRow>) => {
+    setDraft((current) => (current ?? rows).map((row) => row.kind === kind && row.name === name ? { ...row, ...patch } : row));
+  };
   return (
     <Tabs defaultValue="sales">
       <TabsList className="flex h-auto flex-wrap justify-start">
@@ -163,6 +248,7 @@ function DsrFrame({ children }: { children: ReactNode }) {
         {rowSections.map((section) => (
           <TabsTrigger key={section.id} value={section.id}>{section.label}</TabsTrigger>
         ))}
+        <TabsTrigger value="sync-log">Sync log</TabsTrigger>
         <TabsTrigger value="journal">Journal</TabsTrigger>
       </TabsList>
       <TabsContent value="general">
@@ -185,18 +271,38 @@ function DsrFrame({ children }: { children: ReactNode }) {
       {rowSections.map((section) => (
         <TabsContent key={section.id} value={section.id}>
           <Card>
-            <CardHeader>
-              <CardTitle>{section.label}</CardTitle>
-              <CardDescription>{(data?.rows ?? []).filter((row) => section.kinds.includes(row.kind)).length} names from the uploaded Shogo mapping.</CardDescription>
+            <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>{section.label}</CardTitle>
+                <CardDescription>Choose an account or class from the QuickBooks lists. Type in the list to search. Save mapping, and the next daily sales journal uses it.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => refsQuery.refetch()} disabled={refsQuery.isFetching}>
+                  {refsQuery.isFetching ? "Updating accounts" : "Update accounts from QuickBooks"}
+                </Button>
+                <Button onClick={() => saveMapping.mutate()} disabled={saveMapping.isPending || !draft}>
+                  {saveMapping.isPending ? "Saving" : "Save mapping"}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
+              {refsQuery.isError && <p className="mb-3 text-sm text-muted-foreground">QuickBooks accounts could not be loaded. The names stay as they were last saved.</p>}
               {mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : (
-                <NameTable rows={(data?.rows ?? []).filter((row) => section.kinds.includes(row.kind))} />
+                <NameTable
+                  rows={rows.filter((row) => section.kinds.includes(row.kind))}
+                  accounts={refsQuery.data?.accounts ?? []}
+                  classes={refsQuery.data?.classes ?? []}
+                  accountsReady={!refsQuery.isLoading && !refsQuery.isError}
+                  onChange={changeRow}
+                />
               )}
             </CardContent>
           </Card>
         </TabsContent>
       ))}
+      <TabsContent value="sync-log">
+        <DsrSyncLog />
+      </TabsContent>
       <TabsContent value="journal">
         <div className="space-y-6">{children}</div>
       </TabsContent>
@@ -313,7 +419,7 @@ export default function ToastSales() {
       <div>
         <h2 className="text-2xl font-semibold">DSR</h2>
         <p className="text-muted-foreground mt-1 max-w-3xl">
-          The Shogo mapping for Nashoba Valley Spirits, Ltd. Each subsection is a sheet from that workbook. Journal posts the day from this mapping.
+          The Shogo mapping for Nashoba Valley Spirits, Ltd. Account and class on each mapping tab are chosen from the current QuickBooks lists. Save the mapping, and the next daily sales journal uses it.
         </p>
       </div>
       <DsrFrame>

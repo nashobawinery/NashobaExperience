@@ -1,17 +1,18 @@
 import { randomUUID } from "crypto";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { Router } from "express";
 import sgMail from "@sendgrid/mail";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
-import { getCashEntries, getOrdersByBusinessDate, getRestaurants } from "./reactivation/toast-api";
+import { fetchSalesCategories, getCashEntries, getOrdersByBusinessDate, getRestaurants } from "./reactivation/toast-api";
 import { postQuickBooks, queryQuickBooks } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 
 type MapRow = { kind: string; name: string; account: string; className: string };
 type SettingRow = { setting: string; value: string };
-const mapping = JSON.parse(readFileSync(path.join(process.cwd(), "server/data/shogo-mapping.json"), "utf8")) as { memoRule?: string; general?: SettingRow[]; accounting?: SettingRow[]; rows: MapRow[] };
+const mappingPath = path.join(process.cwd(), "server/data/shogo-mapping.json");
+let mapping = JSON.parse(readFileSync(mappingPath, "utf8")) as { memoRule?: string; general?: SettingRow[]; accounting?: SettingRow[]; rows: MapRow[] };
 type Bucket = { kind: string; name: string; cents: number };
 type Account = { id: string; name: string; full: string; number: string };
 type ClassRef = { id: string; name: string; full: string };
@@ -138,6 +139,10 @@ async function toastBuckets(businessDate: string) {
   let openChecks = 0;
   let cashDrawerWarning = "";
   for (const restaurant of restaurants) {
+    const categories = new Map<string, string>();
+    for (const category of await fetchSalesCategories(restaurant.restaurantGuid)) {
+      if (category?.guid && category?.name) categories.set(String(category.guid), String(category.name));
+    }
     let page = 1;
     let hasMore = true;
     while (hasMore) {
@@ -152,7 +157,7 @@ async function toastBuckets(businessDate: string) {
             if (selection.voided) continue;
             const quantity = selection.quantity || 1;
             const gross = selection.preDiscountPrice != null ? centsOf(selection.preDiscountPrice) : centsOf((selection.price || 0) * quantity);
-            const category = selection.salesCategory?.name || "Unassigned";
+            const category = selection.salesCategory?.name || categories.get(String(selection.salesCategory?.guid || "")) || "Unassigned";
             if (gross) add(buckets, "DEPSALE", category, gross);
             for (const discount of selection.appliedDiscounts || []) {
               if (discount.processingState === "VOID" || discount.processingState === "PENDING_VOID") continue;
@@ -1276,11 +1281,275 @@ export function toastSalesMapping() {
   };
 }
 
+export function saveToastSalesMapping(input: unknown) {
+  if (!Array.isArray(input)) throw new Error("The mapping was not saved.");
+  const edits = input as { kind?: unknown; name?: unknown; account?: unknown; className?: unknown }[];
+  mapping = {
+    ...mapping,
+    rows: mapping.rows.map((row) => {
+      const edited = edits.find((item) => item.kind === row.kind && item.name === row.name);
+      if (!edited) return row;
+      return {
+        ...row,
+        account: String(edited.account || "").slice(0, 240),
+        className: String(edited.className || "").slice(0, 120),
+      };
+    }),
+  };
+  writeFileSync(mappingPath, `${JSON.stringify(mapping, null, 2)}\n`);
+  return toastSalesMapping();
+}
+
+export async function toastBookRefs() {
+  const [accounts, classes] = await Promise.all([
+    chartOfAccounts(),
+    queryRows<{ Id: string; Name: string; FullyQualifiedName?: string }>("Class", "Active IN (true, false)").catch(() => []),
+  ]);
+  return {
+    accounts,
+    classes: classes.map((item) => ({ id: item.Id, name: item.Name, full: item.FullyQualifiedName || item.Name })),
+  };
+}
+
+type StoredJournal = {
+  Id: string;
+  SyncToken?: string;
+  DocNumber?: string;
+  TxnDate?: string;
+  PrivateNote?: string;
+  MetaData?: { CreateTime?: string };
+  Line?: {
+    Id?: string;
+    Amount?: number;
+    Description?: string;
+    JournalEntryLineDetail?: {
+      PostingType?: string;
+      AccountRef?: { value?: string; name?: string };
+      ClassRef?: { value?: string; name?: string };
+    };
+  }[];
+};
+
+function businessDateFromDoc(doc: string, note: string, txnDate: string) {
+  const ours = doc.match(/^TOAST-(\d{4})(\d{2})(\d{2})/i);
+  if (ours) return `${ours[1]}-${ours[2]}-${ours[3]}`;
+  return note.match(/(\d{4}-\d{2}-\d{2})/)?.[1] || txnDate;
+}
+
+function presentSync(journal: StoredJournal) {
+  const doc = journal.DocNumber || "";
+  const note = journal.PrivateNote || "";
+  const lines = (journal.Line || []).flatMap((line) => {
+    const detail = line.JournalEntryLineDetail;
+    if (!detail?.AccountRef?.value || (detail.PostingType !== "Debit" && detail.PostingType !== "Credit")) return [];
+    return [{
+      accountId: detail.AccountRef.value,
+      accountName: detail.AccountRef.name || detail.AccountRef.value,
+      classId: detail.ClassRef?.value || "",
+      className: detail.ClassRef?.name || "",
+      posting: detail.PostingType,
+      amount: Number(line.Amount || 0),
+      description: line.Description || "",
+    }];
+  });
+  const debitTotal = lines.filter((line) => line.posting === "Debit").reduce((sum, line) => sum + centsOf(line.amount), 0);
+  return {
+    id: journal.Id,
+    doc,
+    txnDate: journal.TxnDate || "",
+    businessDate: businessDateFromDoc(doc, note, journal.TxnDate || ""),
+    created: journal.MetaData?.CreateTime || "",
+    note,
+    lineCount: lines.length,
+    debitTotal: money(debitTotal),
+    lines,
+  };
+}
+
+async function journalsFrom(start: string, end: string, where = `TxnDate >= '${start}' AND TxnDate <= '${end}'`) {
+  const rows: StoredJournal[] = [];
+  const seen = new Set<string>();
+  for (let startPos = 1; startPos <= 6000; startPos += 1000) {
+    const page = await queryQuickBooks(`SELECT * FROM JournalEntry WHERE ${where} STARTPOSITION ${startPos} MAXRESULTS 1000`);
+    const batch = (page.data?.QueryResponse?.JournalEntry ?? []) as StoredJournal[];
+    for (const journal of batch) {
+      if (seen.has(journal.Id)) continue;
+      seen.add(journal.Id);
+      rows.push(journal);
+    }
+    if (batch.length < 1000) break;
+  }
+  return rows;
+}
+
+export async function listToastSyncs() {
+  const end = shiftIso(todayIso(), 2);
+  const dated = `TxnDate >= '${OPEN_YEAR}' AND TxnDate <= '${end}'`;
+  let journals: StoredJournal[];
+  try {
+    const [toastDocs, fixDocs] = await Promise.all([
+      journalsFrom(OPEN_YEAR, end, `${dated} AND DocNumber LIKE 'TOAST%'`),
+      journalsFrom(OPEN_YEAR, end, `${dated} AND DocNumber LIKE 'TFIX%'`),
+    ]);
+    journals = [...toastDocs, ...fixDocs];
+  } catch {
+    journals = await journalsFrom(OPEN_YEAR, end);
+  }
+  const ours = journals.filter((journal) => {
+    const doc = journal.DocNumber || "";
+    return doc.startsWith("TOAST-") || doc.startsWith("TFIX-");
+  });
+  const counts = new Map<string, number>();
+  ours.forEach((journal) => {
+    const doc = journal.DocNumber || journal.Id;
+    counts.set(doc, (counts.get(doc) || 0) + 1);
+  });
+  return ours
+    .map((journal) => {
+      const row = presentSync(journal);
+      return { ...row, lines: undefined, duplicate: (counts.get(row.doc) || 0) > 1 };
+    })
+    .sort((left, right) => right.businessDate.localeCompare(left.businessDate) || right.created.localeCompare(left.created));
+}
+
+async function loadOurJournal(id: string) {
+  if (!/^\d+$/.test(id)) throw new Error("That journal was not found.");
+  const page = await queryQuickBooks(`SELECT * FROM JournalEntry WHERE Id = '${id}'`);
+  const journal = ((page.data?.QueryResponse?.JournalEntry ?? []) as StoredJournal[])[0];
+  if (!journal) throw new Error("That journal was not found.");
+  const doc = journal.DocNumber || "";
+  if (!doc.startsWith("TOAST-") && !doc.startsWith("TFIX-")) throw new Error("Only a Nashoba daily sales journal can be changed here.");
+  return journal;
+}
+
+export async function getToastSync(id: string) {
+  return presentSync(await loadOurJournal(id));
+}
+
+function normalizeSyncLines(input: unknown) {
+  if (!Array.isArray(input) || input.length < 2) throw new Error("A journal needs at least two lines.");
+  return input.map((line) => {
+    const row = line as { accountId?: unknown; classId?: unknown; posting?: unknown; amount?: unknown; description?: unknown };
+    const accountId = String(row.accountId || "");
+    const classId = String(row.classId || "");
+    const posting = row.posting === "Credit" ? "Credit" : row.posting === "Debit" ? "Debit" : "";
+    const amount = Math.round(Number(row.amount) * 100) / 100;
+    if (!/^\d+$/.test(accountId)) throw new Error("Each line needs an account.");
+    if (!posting) throw new Error("Each line needs a debit or a credit.");
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Each line needs an amount greater than zero.");
+    if (classId && !/^\d+$/.test(classId)) throw new Error("A class on a line was not recognized.");
+    return { accountId, classId, posting: posting as "Debit" | "Credit", amount, description: String(row.description || "").slice(0, 400) };
+  });
+}
+
+async function replaceJournalLines(id: string, lines: ReturnType<typeof normalizeSyncLines>, note: string) {
+  const debit = lines.filter((line) => line.posting === "Debit").reduce((sum, line) => sum + centsOf(line.amount), 0);
+  const credit = lines.filter((line) => line.posting === "Credit").reduce((sum, line) => sum + centsOf(line.amount), 0);
+  if (debit !== credit) throw new Error(`The journal is out of balance by ${money(Math.abs(debit - credit)).toFixed(2)}.`);
+  const journal = await loadOurJournal(id);
+  const existingLineIds = (journal.Line || []).flatMap((line) => line.Id ? [line.Id] : []);
+  await postQuickBooks("/journalentry", {
+    Id: journal.Id,
+    SyncToken: journal.SyncToken,
+    TxnDate: journal.TxnDate,
+    DocNumber: journal.DocNumber,
+    PrivateNote: note,
+    Line: lines.map((line, index) => ({
+      ...(existingLineIds[index] ? { Id: existingLineIds[index] } : {}),
+      Amount: line.amount,
+      Description: line.description || `Toast ${businessDateFromDoc(journal.DocNumber || "", note, journal.TxnDate || "")}`,
+      DetailType: "JournalEntryLineDetail",
+      JournalEntryLineDetail: {
+        PostingType: line.posting,
+        AccountRef: { value: line.accountId },
+        ...(line.classId ? { ClassRef: { value: line.classId } } : {}),
+      },
+    })),
+  });
+  return getToastSync(id);
+}
+
+export async function updateToastSync(id: string, input: unknown) {
+  const journal = await loadOurJournal(id);
+  return replaceJournalLines(id, normalizeSyncLines(input), journal.PrivateNote || "");
+}
+
+export async function modernizeToastSync(id: string) {
+  const journal = await loadOurJournal(id);
+  const businessDate = businessDateFromDoc(journal.DocNumber || "", journal.PrivateNote || "", journal.TxnDate || "");
+  const day = await booksForDate(businessDate);
+  if (day.unmapped.length) {
+    const names = day.unmapped.slice(0, 4).map((item) => item.name).join(", ");
+    throw new Error(`The current mapping does not cover ${names}.`);
+  }
+  const alreadyPosted = Boolean(day.postBlock && /QuickBooks/.test(day.postBlock));
+  if (day.postBlock && !alreadyPosted) throw new Error(day.postBlock);
+  const balance = day.ourEntry.reduce((sum, line) => sum + line.cents, 0);
+  if (!day.ourEntry.length) throw new Error("This date has no Toast sales to post.");
+  if (balance !== 0) throw new Error(day.postBlock || `The rebuilt day is out of balance by ${money(balance).toFixed(2)}.`);
+  const lines = day.ourEntry.filter((line) => line.cents).map((line) => ({
+    accountId: line.accountId,
+    classId: line.classId,
+    posting: (line.cents > 0 ? "Debit" : "Credit") as "Debit" | "Credit",
+    amount: money(Math.abs(line.cents)),
+    description: `Toast ${businessDate}`,
+  }));
+  return replaceJournalLines(id, lines, `Toast sales for POS date ${businessDate}. Updated in place to the current mapping.`);
+}
+
 export function registerToastSalesRoutes(router: Router) {
   const isAdmin = requirePlatformRole(["super_admin"]);
 
   router.get("/toast-sales/mapping", isAdmin, (_req, res) => {
     res.json(toastSalesMapping());
+  });
+
+  router.put("/toast-sales/mapping", isAdmin, (req, res) => {
+    try {
+      res.json(saveToastSalesMapping(req.body?.rows));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/accounts", isAdmin, async (_req, res) => {
+    try {
+      res.json(await toastBookRefs());
+    } catch (error) {
+      res.status(500).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/syncs", isAdmin, async (_req, res) => {
+    try {
+      res.json(await listToastSyncs());
+    } catch (error) {
+      res.status(500).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/syncs/:id", isAdmin, async (req, res) => {
+    try {
+      res.json(await getToastSync(String(req.params.id || "")));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
+  });
+
+  router.put("/toast-sales/syncs/:id", isAdmin, async (req, res) => {
+    try {
+      res.json(await updateToastSync(String(req.params.id || ""), req.body?.lines));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
+  });
+
+  router.post("/toast-sales/syncs/:id/modernize", isAdmin, async (req, res) => {
+    try {
+      res.json(await modernizeToastSync(String(req.params.id || "")));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
   });
 
   router.get("/toast-sales", isAdmin, async (req, res) => {
