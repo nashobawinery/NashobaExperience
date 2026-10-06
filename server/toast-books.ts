@@ -115,6 +115,40 @@ function resolveAccount(accounts: Account[], raw: string) {
 }
 
 const DEPOSIT_LIABILITY = "Payment Exceptions";
+const DEPOSITS_COLLECTED = "Deposits Collected";
+
+function isCustomerDepositItem(name: string) {
+  return /toast tables deposit|function deposit|banquet deposit|event deposit/i.test(name);
+}
+
+function isDepositUse(name: string) {
+  return /reservation deposit|deposit redemption|banquet deposit|event deposit/i.test(name);
+}
+
+function classifyDeposit(depositGross: number, earlyPrincipal: number, redemptionPrincipal: number) {
+  const wash = Math.min(Math.max(depositGross, 0), Math.max(redemptionPrincipal, 0));
+  const recognized = Math.min(Math.max(depositGross - wash, 0), Math.max(earlyPrincipal, 0));
+  const collected = Math.max(depositGross - wash - recognized, 0);
+  return { wash, recognized, collected };
+}
+
+function bookDepositPieces(buckets: Map<string, Bucket>, pieces: { gross: number; category: string }[], earlyPrincipal: number, redemptionPrincipal: number) {
+  const depositGross = pieces.reduce((sum, piece) => sum + piece.gross, 0);
+  const { wash, recognized } = classifyDeposit(depositGross, earlyPrincipal, redemptionPrincipal);
+  let remainingWash = wash;
+  let remainingRecognized = recognized;
+  for (const piece of pieces) {
+    let left = piece.gross;
+    const pieceWash = Math.min(left, remainingWash);
+    remainingWash -= pieceWash;
+    left -= pieceWash;
+    const pieceRecognized = Math.min(left, remainingRecognized);
+    remainingRecognized -= pieceRecognized;
+    left -= pieceRecognized;
+    if (pieceWash + left) add(buckets, "DEPSALE", DEPOSITS_COLLECTED, pieceWash + left);
+    if (pieceRecognized) add(buckets, "DEPSALE", piece.category === "Unassigned" ? "Deposits Recognized" : piece.category, pieceRecognized);
+  }
+}
 
 function dayStamp(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
@@ -216,12 +250,16 @@ async function toastBuckets(businessDate: string) {
         for (const check of order.checks || []) {
           if (check.voided || check.deleted) continue;
           const itemTaxes: { name?: string; taxAmount?: number; amount?: number }[] = [];
+          const depositPieces: { gross: number; category: string }[] = [];
           for (const selection of check.selections || []) {
             if (selection.voided) continue;
             const quantity = selection.quantity || 1;
             const gross = selection.preDiscountPrice != null ? centsOf(selection.preDiscountPrice) : centsOf((selection.price || 0) * quantity);
+            const itemName = selection.displayName || selection.item?.name || "";
             const category = selection.salesCategory?.name || categories.get(String(selection.salesCategory?.guid || "")) || "Unassigned";
-            if (gross) add(buckets, "DEPSALE", category, gross);
+            if (gross && isCustomerDepositItem(itemName)) depositPieces.push({ gross, category });
+            else if (gross && category === "Unassigned") add(buckets, "DEPSALE", "Unassigned Sales", gross);
+            else if (gross) add(buckets, "DEPSALE", category, gross);
             for (const discount of selection.appliedDiscounts || []) {
               if (discount.processingState === "VOID" || discount.processingState === "PENDING_VOID") continue;
               add(buckets, "DISCOUNT", discount.name || "Discount", centsOf(discount.nonTaxableDiscountAmount || discount.discountAmount));
@@ -243,6 +281,8 @@ async function toastBuckets(businessDate: string) {
             add(buckets, "TAX", "All Taxes", centsOf(check.taxAmount));
           }
           let tendered = 0;
+          let earlyPrincipal = 0;
+          let redemptionPrincipal = 0;
           const orderDay = dayStamp(order.businessDate || businessDate);
           for (const payment of check.payments || []) {
             if (payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") continue;
@@ -252,12 +292,16 @@ async function toastBuckets(businessDate: string) {
             const paidDay = dayStamp(payment.paidBusinessDate) || orderDay;
             const type = String(payment.type || "").toUpperCase();
             if (paidDay < orderDay && (type === "CREDIT" || type === "CASH")) {
+              earlyPrincipal += centsOf(payment.amount);
               add(buckets, "OTHERTENDER", DEPOSIT_LIABILITY, paid);
               if (centsOf(payment.tipAmount)) add(buckets, "SERVICECHARGE", "Tips", centsOf(payment.tipAmount));
               continue;
             }
+            const tender = payment.otherPayment?.name || alternatePayments.get(String(payment.otherPayment?.guid || "")) || "Other";
+            if (isDepositUse(tender)) redemptionPrincipal += centsOf(payment.amount);
             bookPayment(buckets, payment, alternatePayments);
           }
+          bookDepositPieces(buckets, depositPieces, earlyPrincipal, redemptionPrincipal);
           if (String(check.paymentStatus || "").toUpperCase() === "OPEN") {
             const due = centsOf(check.totalAmount);
             if (due > tendered) openChecks += due - tendered;
@@ -718,6 +762,139 @@ function emptyDeposit(date: string, orderCount: number, journalDeposit: number, 
   };
 }
 
+async function reservationDepositOwedCents() {
+  const accounts = await queryRows<{ AcctNum?: string; CurrentBalance?: number }>("Account", "Active IN (true, false)");
+  const account = accounts.find((item) => String(item.AcctNum || "").replace(/\s/g, "") === "214000");
+  if (!account) throw new Error("QuickBooks account 214000 Toast - Reservation Deposits was not found.");
+  return -centsOf(account.CurrentBalance);
+}
+
+async function tallyDepositLiability(
+  restaurantGuid: string,
+  businessDate: string,
+  alternatePayments: Map<string, string>,
+) {
+  let collected = 0;
+  let redeemed = 0;
+  const seenPayments = new Set<string>();
+  const today = dayStamp(businessDate);
+  let page = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const batch = await getOrdersByBusinessDate(restaurantGuid, businessDate, page, 100);
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    for (const order of batch) {
+      if (order.voided || order.deleted) continue;
+      for (const check of order.checks || []) {
+        if (check.voided || check.deleted) continue;
+        let depositGross = 0;
+        for (const selection of check.selections || []) {
+          if (selection.voided) continue;
+          const quantity = selection.quantity || 1;
+          const gross = selection.preDiscountPrice != null ? centsOf(selection.preDiscountPrice) : centsOf((selection.price || 0) * quantity);
+          const itemName = selection.displayName || selection.item?.name || "";
+          if (gross && isCustomerDepositItem(itemName)) depositGross += gross;
+        }
+        let earlyPaid = 0;
+        let earlyPrincipal = 0;
+        let redemptionPaid = 0;
+        let redemptionPrincipal = 0;
+        const orderDay = dayStamp(order.businessDate || businessDate);
+        for (const payment of check.payments || []) {
+          if (payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") continue;
+          if (payment.guid) seenPayments.add(String(payment.guid));
+          const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
+          const principal = centsOf(payment.amount);
+          const paidDay = dayStamp(payment.paidBusinessDate) || orderDay;
+          const type = String(payment.type || "").toUpperCase();
+          if (paidDay < orderDay && (type === "CREDIT" || type === "CASH")) {
+            earlyPaid += paid;
+            earlyPrincipal += principal;
+            continue;
+          }
+          const tender = payment.otherPayment?.name || alternatePayments.get(String(payment.otherPayment?.guid || "")) || "Other";
+          if (isDepositUse(tender)) {
+            redemptionPaid += paid;
+            redemptionPrincipal += principal;
+          }
+        }
+        const { wash, collected: fresh } = classifyDeposit(depositGross, earlyPrincipal, redemptionPrincipal);
+        collected += fresh;
+        redeemed += earlyPaid + redemptionPaid - wash;
+      }
+    }
+    page += 1;
+    if (batch.length < 100) hasMore = false;
+  }
+
+  const listed = await toastApiRequest(`/orders/v2/payments?paidBusinessDate=${today}`, restaurantGuid);
+  const guids = (Array.isArray(listed) ? listed : [])
+    .map((item: string | { guid?: string }) => (typeof item === "string" ? item : item?.guid || ""))
+    .filter((guid: string) => guid && !seenPayments.has(guid));
+  const orders = new Map<string, { businessDate?: number | string; voided?: boolean; deleted?: boolean }>();
+  for (let index = 0; index < guids.length; index += 6) {
+    const additions = await Promise.all(guids.slice(index, index + 6).map(async (guid) => {
+      const payment = await toastApiRequest(`/orders/v2/payments/${guid}`, restaurantGuid);
+      if (!payment || payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") return 0;
+      if (dayStamp(payment.paidBusinessDate) !== today) return 0;
+      const type = String(payment.type || "").toUpperCase();
+      if (type !== "CREDIT" && type !== "CASH") return 0;
+      const orderGuid = String(payment.orderGuid || "");
+      if (!orderGuid) return 0;
+      let order = orders.get(orderGuid);
+      if (!order) {
+        order = await getOrder(restaurantGuid, orderGuid);
+        orders.set(orderGuid, order);
+      }
+      if (!order || order.voided || order.deleted) return 0;
+      const orderDay = dayStamp(order.businessDate);
+      if (!orderDay || orderDay <= today) return 0;
+      return centsOf(payment.amount) + centsOf(payment.tipAmount);
+    }));
+    collected += additions.reduce((sum, amount) => sum + amount, 0);
+  }
+  return { collected, redeemed };
+}
+
+export async function reviewDepositLiability(from: string, to: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) throw new Error("Choose a start and end date.");
+  const span = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+  if (span > 31) throw new Error("Review one month at a time.");
+  const restaurants = await getRestaurants();
+  const setups: { guid: string; alternatePayments: Map<string, string> }[] = [];
+  for (const restaurant of restaurants) {
+    const alternatePayments = new Map<string, string>();
+    try {
+      const types = await toastApiRequest("/config/v2/alternatePaymentTypes", restaurant.restaurantGuid);
+      for (const type of types || []) {
+        if (type?.guid && type?.name) alternatePayments.set(String(type.guid), String(type.name));
+      }
+    } catch (error) {
+      console.warn(`[Toast DSR] alternate payments ${restaurant.restaurantGuid}: ${error instanceof Error ? error.message : error}`);
+    }
+    setups.push({ guid: restaurant.restaurantGuid, alternatePayments });
+  }
+  let collected = 0;
+  let redeemed = 0;
+  for (let date = from; date <= to; date = shiftIso(date, 1)) {
+    for (const setup of setups) {
+      const day = await tallyDepositLiability(setup.guid, date, setup.alternatePayments);
+      collected += day.collected;
+      redeemed += day.redeemed;
+    }
+  }
+  const quickBooksOwed = await reservationDepositOwedCents();
+  return {
+    from,
+    to,
+    collected: money(collected),
+    redeemed: money(redeemed),
+    outstanding: money(collected - redeemed),
+    quickBooksOwed: money(quickBooksOwed),
+    accountName: "214000 Toast - Reservation Deposits",
+  };
+}
+
 export async function reviewDeposits(through: string, days: number) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(through)) throw new Error("Choose a business date.");
   const count = Math.min(Math.max(days || 7, 1), 10);
@@ -1086,9 +1263,99 @@ async function emailOutstandingDeposits() {
   }
 }
 
+function usd(amount: number) {
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+function longDate(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function depositFees(row: DepositRow) {
+  const totals = new Map<string, number>();
+  row.gaps.forEach((gap) => {
+    if (!/fee/i.test(gap.accountName) || gap.difference <= 0) return;
+    totals.set(gap.accountName, (totals.get(gap.accountName) || 0) + centsOf(gap.difference));
+  });
+  return [...totals.entries()]
+    .filter(([, cents]) => cents > DEPOSIT_MATCH_CENTS)
+    .map(([accountName, cents]) => ({ accountName, cents }));
+}
+
+function depositFinding(row: DepositRow) {
+  const cardGap = centsOf(row.cardDeposit) - centsOf(row.cardJournal);
+  const cashGap = centsOf(row.cashDeposit) - centsOf(row.cashJournal);
+  const lines: string[] = [];
+  if (Math.abs(cardGap) <= DEPOSIT_MATCH_CENTS) lines.push("Cards match.");
+  else lines.push(cardGap < 0 ? `The card deposit is ${usd(money(Math.abs(cardGap)))} lower than the sales journal.` : `The card deposit is ${usd(money(cardGap))} higher than the sales journal.`);
+  if (Math.abs(cashGap) <= DEPOSIT_MATCH_CENTS) lines.push("Cash matches.");
+  else lines.push(cashGap < 0 ? `The cash deposit is ${usd(money(Math.abs(cashGap)))} lower than the sales journal.` : `The cash deposit is ${usd(money(cashGap))} higher than the sales journal.`);
+  return lines;
+}
+
+function depositRecommendation(row: DepositRow) {
+  if (row.status === "timing") {
+    return row.suggestion
+      .replace(/Do not change the sales accounts\./gi, "Leave the sales accounts unchanged.")
+      .split(/(?<=\.)\s+/)
+      .map((step) => step.trim())
+      .filter(Boolean);
+  }
+  const steps: string[] = [];
+  const when = longDate(row.date);
+  const cardGap = centsOf(row.cardDeposit) - centsOf(row.cardJournal);
+  if (cardGap > DEPOSIT_MATCH_CENTS) {
+    steps.push(`Debit the card line on the ${when} sales journal by ${usd(money(cardGap))} so it matches the card deposit of ${usd(row.cardDeposit)}.`);
+  } else if (cardGap < -DEPOSIT_MATCH_CENTS) {
+    const short = Math.abs(cardGap);
+    const fees = depositFees(row);
+    const feeCents = fees.reduce((sum, fee) => sum + fee.cents, 0);
+    const remainder = short - Math.min(feeCents, short);
+    steps.push(`Credit the card line on the ${when} sales journal by ${usd(money(short))} so it matches the card deposit of ${usd(row.cardDeposit)}.`);
+    if (feeCents > DEPOSIT_MATCH_CENTS) {
+      const feeText = fees.map((fee) => `${fee.accountName} ${usd(money(fee.cents))}`).join(" and ");
+      steps.push(`Debit ${feeText}. That fee is already on the deposit journal.`);
+      if (remainder <= DEPOSIT_MATCH_CENTS) steps.push("The fee is why the card deposit is lower than the sales journal.");
+      else steps.push(`${usd(money(remainder))} is still open after the fee. It did not arrive with the next deposit. Leave Toast Deposit in Transit unchanged.`);
+    } else {
+      steps.push("Leave Toast Deposit in Transit unchanged.");
+    }
+  }
+  if (/not in the deposit yet/i.test(row.suggestion)) {
+    steps.push(`Cash of ${usd(row.cashJournal)} is still in the drawer. ${usd(row.cashDeposit)} has been deposited. Leave the sales journal unchanged until that cash goes to the bank.`);
+  }
+  steps.push("Sales accounts that differ only by class are the same revenue. Leave those accounts unchanged.");
+  return steps;
+}
+
+function depositNoticeHtml(row: DepositRow) {
+  const finding = depositFinding(row).map((line) => `<li style="margin:0 0 4px;">${escapeHtml(line)}</li>`).join("");
+  const steps = depositRecommendation(row).map((step) => `<li style="margin:0 0 8px;">${escapeHtml(step)}</li>`).join("");
+  const amount = (value: number) => `<td style="padding:6px 8px;text-align:right;">${escapeHtml(usd(value))}</td>`;
+  return `<div style="background:#fff;border:1px solid #ead7a4;border-radius:8px;margin:0 0 16px;overflow:hidden;"><div style="padding:12px 14px;font-weight:600;">${escapeHtml(longDate(row.date))}</div><div style="padding:0 14px 14px;"><div style="font-size:12px;letter-spacing:0.05em;text-transform:uppercase;color:#7a1f1f;margin:0 0 6px;">Finding</div><table style="width:100%;border-collapse:collapse;font-size:14px;margin:0 0 8px;"><thead><tr><th style="text-align:left;padding:6px 8px;"></th><th style="text-align:right;padding:6px 8px;color:#666;">Deposit</th><th style="text-align:right;padding:6px 8px;color:#666;">Sales journal</th></tr></thead><tbody><tr><td style="padding:6px 8px;border-top:1px solid #f0e2c4;">Cards</td>${amount(row.cardDeposit)}${amount(row.cardJournal)}</tr><tr><td style="padding:6px 8px;border-top:1px solid #f0e2c4;">Cash</td>${amount(row.cashDeposit)}${amount(row.cashJournal)}</tr></tbody></table><ul style="margin:0 0 14px;padding-left:18px;">${finding}</ul><div style="font-size:12px;letter-spacing:0.05em;text-transform:uppercase;color:#7a1f1f;margin:0 0 6px;">Reconcile</div><ol style="margin:0;padding-left:18px;">${steps}</ol></div></div>`;
+}
+
+function depositNoticeText(row: DepositRow) {
+  const finding = depositFinding(row).map((line) => `- ${line}`).join("\n");
+  const steps = depositRecommendation(row).map((step, index) => `${index + 1}. ${step}`).join("\n");
+  return `${longDate(row.date)}\n\nFinding\nCards on the deposit: ${usd(row.cardDeposit)}\nCards on the sales journal: ${usd(row.cardJournal)}\nCash on the deposit: ${usd(row.cashDeposit)}\nCash on the sales journal: ${usd(row.cashJournal)}\n${finding}\n\nReconcile\n${steps}`;
+}
+
+function depositMailFrom() {
+  return { email: process.env.SENDGRID_FROM_EMAIL || "email@nashobawinery.com", name: "Nashoba Experience" };
+}
+
+function depositComparisonTable(row: DepositRow) {
+  const amount = (value: number) => `<td style="padding:6px 8px;text-align:right;border-top:1px solid #f0e2c4;">${escapeHtml(usd(value))}</td>`;
+  return `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:0 0 8px;background:#fff;"><thead><tr><th style="text-align:left;padding:6px 8px;"></th><th style="text-align:right;padding:6px 8px;color:#666;">Deposit</th><th style="text-align:right;padding:6px 8px;color:#666;">Sales journal</th></tr></thead><tbody><tr><td style="padding:6px 8px;border-top:1px solid #f0e2c4;">Cards</td>${amount(row.cardDeposit)}${amount(row.cardJournal)}</tr><tr><td style="padding:6px 8px;border-top:1px solid #f0e2c4;">Cash</td>${amount(row.cashDeposit)}${amount(row.cashJournal)}</tr></tbody></table>`;
+}
+
 async function emailDepositMismatches(rows: DepositRow[], booked: string[]) {
-  const flagged = rows.filter((row) => row.status === "mismatch" || row.status === "timing");
-  if (!flagged.length) return { sent: false, reason: "matched" };
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS accounting_toast_deposit_alerts (
       id varchar PRIMARY KEY,
@@ -1097,38 +1364,64 @@ async function emailDepositMismatches(rows: DepositRow[], booked: string[]) {
       sent_at timestamp DEFAULT now()
     )
   `);
-  const fresh: DepositRow[] = [];
-  for (const row of flagged) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!apiKey) return { sent: false, reason: "email-not-configured" };
+  const to = await noticeRecipients("deposit-mismatch");
+  if (!to.length) return { sent: false, reason: "no-recipients" };
+  sgMail.setApiKey(apiKey);
+  const dates: string[] = [];
+
+  for (const row of rows.filter((item) => item.status === "mismatch" || item.status === "timing")) {
     const cents = centsOf(row.difference || 0);
     const prior = await db.execute(sql`SELECT id FROM accounting_toast_deposit_alerts WHERE business_date = ${row.date} AND variance_cents = ${cents} LIMIT 1`);
     if ((prior.rows as { id: string }[]).length) continue;
-    fresh.push(row);
+    const when = longDate(row.date);
+    const warningTitle = row.status === "timing" ? `Toast deposit delayed ${when}` : `Toast deposit does not match ${when}`;
+    const bookedNote = booked.some((item) => item.includes(row.date))
+      ? `Nashoba Experience already booked the timing difference to Toast Deposit in Transit for ${booked.filter((item) => item.includes(row.date)).join("; ")}.`
+      : "";
+    await sgMail.send({
+      to,
+      from: depositMailFrom(),
+      subject: `Nashoba Experience warning: ${warningTitle}`,
+      text: `Warning from Nashoba Experience\n\n${warningTitle}.\n\n${bookedNote ? `${bookedNote}\n\n` : ""}${depositNoticeText(row)}`,
+      html: `<div style="font-family:sans-serif;color:#111;max-width:640px;"><div style="background:#7a1f1f;color:#fff;padding:16px 18px;"><div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;">Nashoba Experience</div><div style="font-size:18px;font-weight:600;margin-top:4px;">Warning: ${escapeHtml(warningTitle)}</div></div><div style="border:1px solid #e7c98a;border-top:none;background:#fff8eb;padding:16px 18px;"><p style="margin:0 0 16px;">The finding is first. The steps to reconcile it follow.</p>${bookedNote ? `<p style="margin:0 0 16px;">${escapeHtml(bookedNote)}</p>` : ""}${depositNoticeHtml(row)}</div></div>`,
+    });
+    await db.execute(sql`
+      INSERT INTO accounting_toast_deposit_alerts (id, business_date, variance_cents)
+      VALUES (${randomUUID()}, ${row.date}, ${cents})
+    `);
+    dates.push(row.date);
   }
-  if (!fresh.length) return { sent: false, reason: "already-sent" };
-  const apiKey = process.env.SENDGRID_API_KEY;
-  if (!apiKey) return { sent: false, reason: "email-not-configured" };
-  const finding = await explainDeposits(fresh);
-  const findingHtml = finding.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
-  const bookedNote = booked.length ? ` Booked to Toast Deposit in Transit: ${booked.join("; ")}.` : "";
-  const to = await noticeRecipients("deposit-mismatch");
-  if (!to.length) return { sent: false, reason: "no-recipients" };
-  const lines = fresh.map((row) => `<tr><td style="padding:8px;border-bottom:1px solid #e5e5e5;">${row.date}</td><td style="padding:8px;border-bottom:1px solid #e5e5e5;text-align:right;">${row.journalDeposit.toFixed(2)}</td><td style="padding:8px;border-bottom:1px solid #e5e5e5;text-align:right;">${(row.bankDeposit ?? 0).toFixed(2)}</td><td style="padding:8px;border-bottom:1px solid #e5e5e5;text-align:right;">${(row.difference ?? 0).toFixed(2)}</td><td style="padding:8px;border-bottom:1px solid #e5e5e5;">${(row.suggestion || row.note).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</td></tr>`).join("");
-  const mismatches = fresh.filter((row) => row.status === "mismatch");
-  sgMail.setApiKey(apiKey);
-  await sgMail.send({
-    to,
-    from: process.env.SENDGRID_FROM_EMAIL || "email@nashobawinery.com",
-    subject: mismatches.length ? (mismatches.length === 1 ? `Toast deposit does not match ${mismatches[0].date}` : `Toast deposits do not match ${mismatches.length} days`) : `Toast deposit delayed ${fresh[0].date}`,
-    text: `${finding}${bookedNote}\n\n${fresh.map((row) => row.suggestion || row.note).join("\n")}`,
-    html: `<div style="font-family:sans-serif;color:#111;"><p>${findingHtml}</p>${bookedNote ? `<p>${bookedNote}</p>` : ""}<table style="border-collapse:collapse;font-size:14px;"><thead><tr><th style="text-align:left;padding:8px;">Sales date</th><th style="text-align:right;padding:8px;">Journal</th><th style="text-align:right;padding:8px;">Deposit</th><th style="text-align:right;padding:8px;">Difference</th><th style="text-align:left;padding:8px;">Suggested resolution</th></tr></thead><tbody>${lines}</tbody></table></div>`,
-  });
-  for (const row of fresh) {
+
+  for (const row of rows.filter((item) => item.status === "match")) {
+    const prior = await db.execute(sql`SELECT id FROM accounting_toast_deposit_alerts WHERE business_date = ${row.date} AND variance_cents BETWEEN ${-DEPOSIT_MATCH_CENTS} AND ${DEPOSIT_MATCH_CENTS} LIMIT 1`);
+    if ((prior.rows as { id: string }[]).length) continue;
+    const when = longDate(row.date);
+    const cardsMatch = Math.abs(centsOf(row.cardDeposit) - centsOf(row.cardJournal)) <= DEPOSIT_MATCH_CENTS;
+    const cashMatch = Math.abs(centsOf(row.cashDeposit) - centsOf(row.cashJournal)) <= DEPOSIT_MATCH_CENTS;
+    const split = cardsMatch && cashMatch;
+    const finding = split ? depositFinding(row).map((line) => `<li style="margin:0 0 4px;">${escapeHtml(line)}</li>`).join("") : "";
+    const detailHtml = split ? `${depositComparisonTable(row)}<ul style="margin:0;padding-left:18px;">${finding}</ul>` : `<p style="margin:0;">Toast deposit ${escapeHtml(usd(row.journalDeposit))}. QuickBooks deposit ${escapeHtml(usd(row.bankDeposit ?? row.journalDeposit))}.</p>`;
+    const detailText = split
+      ? `Cards on the deposit: ${usd(row.cardDeposit)}\nCards on the sales journal: ${usd(row.cardJournal)}\nCash on the deposit: ${usd(row.cashDeposit)}\nCash on the sales journal: ${usd(row.cashJournal)}\n${depositFinding(row).map((line) => `- ${line}`).join("\n")}`
+      : `Toast deposit ${usd(row.journalDeposit)}. QuickBooks deposit ${usd(row.bankDeposit ?? row.journalDeposit)}.`;
+    await sgMail.send({
+      to,
+      from: depositMailFrom(),
+      subject: `Nashoba Experience: Congrats, the ${when} Toast deposit matches`,
+      text: `Congrats from Nashoba Experience\n\nThe Toast deposit for ${when} matches the deposit in QuickBooks.\n\n${detailText}`,
+      html: `<div style="font-family:sans-serif;color:#111;max-width:640px;"><div style="background:#1f6b3a;color:#fff;padding:16px 18px;"><div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;">Nashoba Experience</div><div style="font-size:18px;font-weight:600;margin-top:4px;">Congrats</div></div><div style="border:1px solid #b7d7c3;border-top:none;background:#f3faf6;padding:16px 18px;"><p style="margin:0 0 12px;">The Toast deposit for ${escapeHtml(when)} matches the deposit in QuickBooks.</p>${detailHtml}</div></div>`,
+    });
     await db.execute(sql`
       INSERT INTO accounting_toast_deposit_alerts (id, business_date, variance_cents)
       VALUES (${randomUUID()}, ${row.date}, ${centsOf(row.difference || 0)})
     `);
+    dates.push(row.date);
   }
-  return { sent: true, dates: fresh.map((row) => row.date) };
+
+  if (!dates.length) return { sent: false, reason: "already-sent" };
+  return { sent: true, dates };
 }
 
 export async function ensureToastDepositAccount() {
@@ -1767,6 +2060,14 @@ export function registerToastSalesRoutes(router: Router) {
     try {
       const days = Number(req.query.days || 7);
       res.json(await reviewDeposits(String(req.query.through || ""), days));
+    } catch (error) {
+      res.status(500).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/deposit-liability", isAdmin, async (req, res) => {
+    try {
+      res.json(await reviewDepositLiability(String(req.query.from || ""), String(req.query.to || "")));
     } catch (error) {
       res.status(500).json({ message: qbFault(error) });
     }

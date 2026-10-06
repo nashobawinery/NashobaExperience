@@ -122,6 +122,24 @@
     },
     {
       "kind": "DEPSALE",
+      "name": "Deposits Collected",
+      "account": "(214000) Toast - Reservation Deposits",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Deposits Recognized",
+      "account": "(316000) Event Revenue",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
+      "name": "Unassigned Sales",
+      "account": "(316000) Event Revenue",
+      "className": ""
+    },
+    {
+      "kind": "DEPSALE",
       "name": "Orchard",
       "account": "(3070011) Sales Orchard Operations",
       "className": ""

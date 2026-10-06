@@ -68,6 +68,37 @@ function yesterday() {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+type LiabilityMonth = {
+  from: string;
+  to: string;
+  collected: number;
+  redeemed: number;
+  outstanding: number;
+  quickBooksOwed: number;
+  accountName: string;
+};
+
+function monthRanges(from: string, to: string) {
+  const ranges: { from: string; to: string; label: string }[] = [];
+  let cursor = from;
+  while (cursor <= to) {
+    const [year, month] = cursor.split("-").map(Number);
+    const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    const end = monthEnd < to ? monthEnd : to;
+    const label = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+    ranges.push({ from: cursor, to: end, label });
+    cursor = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+  }
+  return ranges;
+}
+
+function depositCorrection(toastOwed: number, quickBooksOwed: number) {
+  const gap = Math.round((toastOwed - quickBooksOwed) * 100) / 100;
+  if (Math.abs(gap) < 0.05) return "QuickBooks already matches what Toast says is still held for guests. No correcting journal is needed.";
+  if (gap > 0) return `Credit 214000 for ${money(gap)}. QuickBooks is short by that amount. Choose the debit account when you review the entry, then post it yourself.`;
+  return `Debit 214000 for ${money(Math.abs(gap))}. QuickBooks is high by that amount. Choose the credit account when you review the entry, then post it yourself.`;
+}
+
 type NoticeSetting = { key: string; label: string; emails: string };
 type MapRow = { kind: string; name: string; account: string; className: string };
 type SettingRow = { setting: string; value: string };
@@ -321,6 +352,8 @@ export default function ToastSales() {
   const [pickedCash, setPickedCash] = useState<string[]>([]);
   const [depositedOn, setDepositedOn] = useState(today);
   const [noticeDraft, setNoticeDraft] = useState<Record<string, string>>({});
+  const [liabilityMonths, setLiabilityMonths] = useState<LiabilityMonth[]>([]);
+  const [liabilityProgress, setLiabilityProgress] = useState("");
 
   const noticeQuery = useQuery<{ notices: NoticeSetting[] }>({
     queryKey: ["/api/accounting/toast-sales/notices"],
@@ -362,6 +395,25 @@ export default function ToastSales() {
     onSuccess: (rows) => setDeposits(rows),
     onError: (error: Error) => toast({ title: "Could not compare deposits", description: error.message, variant: "destructive" }),
   });
+  const liabilityReview = useMutation({
+    mutationFn: async () => {
+      const ranges = monthRanges("2026-01-01", yesterday());
+      const months: LiabilityMonth[] = [];
+      for (const range of ranges) {
+        setLiabilityProgress(`Reading ${range.label}`);
+        const response = await apiRequest("GET", `/api/accounting/toast-sales/deposit-liability?from=${range.from}&to=${range.to}`);
+        months.push(await response.json());
+        setLiabilityMonths([...months]);
+      }
+      setLiabilityProgress("");
+      return months;
+    },
+    onError: (error: Error) => {
+      setLiabilityProgress("");
+      toast({ title: "Could not review guest deposits", description: error.message, variant: "destructive" });
+    },
+  });
+
   const outstandingCheck = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("GET", `/api/accounting/toast-sales/outstanding?through=${today()}`);
@@ -413,6 +465,10 @@ export default function ToastSales() {
   });
 
   const gaps = (review?.lines ?? []).filter((line) => line.difference !== 0);
+  const depositsCollected = liabilityMonths.reduce((sum, month) => sum + month.collected, 0);
+  const depositsRedeemed = liabilityMonths.reduce((sum, month) => sum + month.redeemed, 0);
+  const depositsOutstanding = Math.round((depositsCollected - depositsRedeemed) * 100) / 100;
+  const quickBooksOwed = liabilityMonths[liabilityMonths.length - 1]?.quickBooksOwed ?? 0;
 
   return (
     <div className="space-y-6">
@@ -469,6 +525,52 @@ export default function ToastSales() {
           <Button variant="outline" onClick={() => outstandingCheck.mutate()} disabled={outstandingCheck.isPending} data-testid="button-toast-outstanding">
             {outstandingCheck.isPending ? "Listing deposits" : "Outstanding deposits"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Guest deposits since January 1</CardTitle>
+          <CardDescription>
+            A Toast Tables, function, banquet, or event deposit credits 214000 Toast - Reservation Deposits on the day the guest pays. The same account is debited when that visit uses the deposit. A deposit line that only restates money already collected washes out. Sales with no category go to Event Revenue, so they stay off this liability. A deposit used with no separate redemption line becomes Event Revenue on the visit date.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Journals Shogo already posted stay as they are. This reads Toast from January 1 through yesterday and compares it with the balance on 214000. It treats January 1 as a zero start. The result is one journal for the whole difference. Reading the year takes several minutes.
+          </p>
+          <Button onClick={() => liabilityReview.mutate()} disabled={liabilityReview.isPending} data-testid="button-deposit-liability">
+            {liabilityReview.isPending ? liabilityProgress || "Reading Toast" : "Review guest deposits"}
+          </Button>
+          {liabilityMonths.length > 0 && (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Month</TableHead>
+                    <TableHead className="text-right">Collected</TableHead>
+                    <TableHead className="text-right">Redeemed</TableHead>
+                    <TableHead className="text-right">Still held</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {liabilityMonths.map((month) => (
+                    <TableRow key={month.from}>
+                      <TableCell>{monthRanges(month.from, month.to)[0]?.label || month.from}</TableCell>
+                      <TableCell className="text-right">{money(month.collected)}</TableCell>
+                      <TableCell className="text-right">{money(month.redeemed)}</TableCell>
+                      <TableCell className="text-right">{money(month.outstanding)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="space-y-2 text-sm">
+                <p>Toast still holds {money(depositsOutstanding)} for guests. Collected {money(depositsCollected)}, redeemed {money(depositsRedeemed)}.</p>
+                <p>QuickBooks 214000 currently shows {money(quickBooksOwed)} owed to guests.</p>
+                <p>{depositCorrection(depositsOutstanding, quickBooksOwed)}</p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
