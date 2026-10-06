@@ -5,7 +5,7 @@ import { Router } from "express";
 import sgMail from "@sendgrid/mail";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
-import { fetchSalesCategories, getCashEntries, getOrdersByBusinessDate, getRestaurants } from "./reactivation/toast-api";
+import { fetchSalesCategories, getCashEntries, getOrder, getOrdersByBusinessDate, getRestaurants, toastApiRequest } from "./reactivation/toast-api";
 import { postQuickBooks, queryQuickBooks } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 
@@ -114,6 +114,58 @@ function resolveAccount(accounts: Account[], raw: string) {
   return byLeaf.length === 1 ? byLeaf[0] : null;
 }
 
+const DEPOSIT_LIABILITY = "Payment Exceptions";
+
+function dayStamp(value: unknown) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function bookPayment(buckets: Map<string, Bucket>, payment: { type?: string; amount?: number; tipAmount?: number; originalProcessingFee?: number; cardType?: string; otherPayment?: { name?: string; guid?: string } }, alternatePayments: Map<string, string>, creditTip = true) {
+  const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
+  const tip = centsOf(payment.tipAmount);
+  const type = String(payment.type || "").toUpperCase();
+  if (type === "CREDIT") {
+    const processingFee = Math.min(Math.max(0, centsOf(payment.originalProcessingFee)), Math.max(paid, 0));
+    if (paid - processingFee) add(buckets, "CREDIT", `${payment.cardType || "Card"} (Credit)`, paid - processingFee);
+    if (processingFee) add(buckets, "OTHERTENDER", "Toast CC Fees", processingFee);
+  } else if (type === "CASH") add(buckets, "CASH", "Cash Deposit", paid);
+  else if (type === "GIFTCARD") add(buckets, "OTHERTENDER", "Gift Card", paid);
+  else if (type === "HOUSE_ACCOUNT" || type === "HOUSEACCOUNT") add(buckets, "OTHERTENDER", "House Account", paid);
+  else add(buckets, "OTHERTENDER", payment.otherPayment?.name || alternatePayments.get(String(payment.otherPayment?.guid || "")) || "Other", paid);
+  if (tip && creditTip) add(buckets, "SERVICECHARGE", "Tips", tip);
+}
+
+async function applyDepositsCollected(buckets: Map<string, Bucket>, restaurantGuid: string, businessDate: string, alternatePayments: Map<string, string>, seenPayments: Set<string>) {
+  const today = dayStamp(businessDate);
+  const listed = await toastApiRequest(`/orders/v2/payments?paidBusinessDate=${today}`, restaurantGuid);
+  const guids = (Array.isArray(listed) ? listed : [])
+    .map((item: string | { guid?: string }) => (typeof item === "string" ? item : item?.guid || ""))
+    .filter((guid: string) => guid && !seenPayments.has(guid));
+  const orders = new Map<string, { businessDate?: number | string; voided?: boolean; deleted?: boolean }>();
+  for (let index = 0; index < guids.length; index += 6) {
+    await Promise.all(guids.slice(index, index + 6).map(async (guid) => {
+      const payment = await toastApiRequest(`/orders/v2/payments/${guid}`, restaurantGuid);
+      if (!payment || payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") return;
+      if (dayStamp(payment.paidBusinessDate) !== today) return;
+      const type = String(payment.type || "").toUpperCase();
+      if (type !== "CREDIT" && type !== "CASH") return;
+      const orderGuid = String(payment.orderGuid || "");
+      if (!orderGuid) return;
+      let order = orders.get(orderGuid);
+      if (!order) {
+        order = await getOrder(restaurantGuid, orderGuid);
+        orders.set(orderGuid, order);
+      }
+      if (!order || order.voided || order.deleted) return;
+      const orderDay = dayStamp(order.businessDate);
+      if (!orderDay || orderDay <= today) return;
+      const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
+      bookPayment(buckets, payment, alternatePayments, false);
+      add(buckets, "OTHERTENDER", DEPOSIT_LIABILITY, -paid);
+    }));
+  }
+}
+
 function resolveClass(classes: ClassRef[], name: string) {
   if (!name) return null;
   const wanted = norm(name);
@@ -143,6 +195,16 @@ async function toastBuckets(businessDate: string) {
     for (const category of await fetchSalesCategories(restaurant.restaurantGuid)) {
       if (category?.guid && category?.name) categories.set(String(category.guid), String(category.name));
     }
+    const alternatePayments = new Map<string, string>();
+    try {
+      const types = await toastApiRequest("/config/v2/alternatePaymentTypes", restaurant.restaurantGuid);
+      for (const type of types || []) {
+        if (type?.guid && type?.name) alternatePayments.set(String(type.guid), String(type.name));
+      }
+    } catch (error) {
+      console.warn(`[Toast DSR] alternate payments ${restaurant.restaurantGuid}: ${error instanceof Error ? error.message : error}`);
+    }
+    const seenPayments = new Set<string>();
     let page = 1;
     let hasMore = true;
     while (hasMore) {
@@ -153,6 +215,7 @@ async function toastBuckets(businessDate: string) {
         orders += 1;
         for (const check of order.checks || []) {
           if (check.voided || check.deleted) continue;
+          const itemTaxes: { name?: string; taxAmount?: number; amount?: number }[] = [];
           for (const selection of check.selections || []) {
             if (selection.voided) continue;
             const quantity = selection.quantity || 1;
@@ -163,6 +226,7 @@ async function toastBuckets(businessDate: string) {
               if (discount.processingState === "VOID" || discount.processingState === "PENDING_VOID") continue;
               add(buckets, "DISCOUNT", discount.name || "Discount", centsOf(discount.nonTaxableDiscountAmount || discount.discountAmount));
             }
+            for (const tax of selection.appliedTaxes || []) itemTaxes.push(tax);
           }
           for (const discount of check.appliedDiscounts || []) {
             if (discount.processingState === "VOID" || discount.processingState === "PENDING_VOID") continue;
@@ -172,25 +236,27 @@ async function toastBuckets(businessDate: string) {
             if (charge.voided) continue;
             add(buckets, "SERVICECHARGE", charge.name || (charge.gratuity ? "Tips" : "Service charge"), centsOf(charge.chargeAmount));
           }
-          const taxes = check.appliedTaxes || [];
+          const taxes = (check.appliedTaxes || []).length ? check.appliedTaxes : itemTaxes;
           if (taxes.length) {
             for (const tax of taxes) add(buckets, "TAX", tax.name || "Sales Tax", centsOf(tax.taxAmount || tax.amount));
           } else if (check.taxAmount) {
             add(buckets, "TAX", "All Taxes", centsOf(check.taxAmount));
           }
           let tendered = 0;
+          const orderDay = dayStamp(order.businessDate || businessDate);
           for (const payment of check.payments || []) {
             if (payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") continue;
+            if (payment.guid) seenPayments.add(String(payment.guid));
             const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
-            const tip = centsOf(payment.tipAmount);
             tendered += centsOf(payment.amount);
+            const paidDay = dayStamp(payment.paidBusinessDate) || orderDay;
             const type = String(payment.type || "").toUpperCase();
-            if (type === "CREDIT") add(buckets, "CREDIT", `${payment.cardType || "Card"} (Credit)`, paid);
-            else if (type === "CASH") add(buckets, "CASH", "Cash Deposit", paid);
-            else if (type === "GIFTCARD") add(buckets, "OTHERTENDER", "Gift Card", paid);
-            else if (type === "HOUSE_ACCOUNT" || type === "HOUSEACCOUNT") add(buckets, "OTHERTENDER", "House Account", paid);
-            else add(buckets, "OTHERTENDER", payment.otherPayment?.name || payment.type || "Other", paid);
-            if (tip) add(buckets, "SERVICECHARGE", "Tips", tip);
+            if (paidDay < orderDay && (type === "CREDIT" || type === "CASH")) {
+              add(buckets, "OTHERTENDER", DEPOSIT_LIABILITY, paid);
+              if (centsOf(payment.tipAmount)) add(buckets, "SERVICECHARGE", "Tips", centsOf(payment.tipAmount));
+              continue;
+            }
+            bookPayment(buckets, payment, alternatePayments);
           }
           if (String(check.paymentStatus || "").toUpperCase() === "OPEN") {
             const due = centsOf(check.totalAmount);
@@ -201,6 +267,7 @@ async function toastBuckets(businessDate: string) {
       page += 1;
       if (batch.length < 100) hasMore = false;
     }
+    await applyDepositsCollected(buckets, restaurant.restaurantGuid, businessDate, alternatePayments, seenPayments);
     try {
       cashEntries += applyCashDrawer(buckets, await getCashEntries(restaurant.restaurantGuid, businessDate));
     } catch (error) {
@@ -328,7 +395,7 @@ async function booksForDate(businessDate: string) {
     if (doc.startsWith("TDLY-") || doc.startsWith("TDLC-")) continue;
     const memo = (journal.PrivateNote || "").toLowerCase();
     const journalLines = journal.Line || [];
-    const isOurs = doc.startsWith("TOAST-") || doc.startsWith("TFIX-");
+    const isOurs = (doc.startsWith("TOAST-") || doc.startsWith("TFIX-")) && businessDateFromDoc(doc, journal.PrivateNote || "", journal.TxnDate || "") === businessDate;
     const stamp = businessDate.slice(2).replace(/-/g, "");
     const isShogoThisDay = doc.toLowerCase() === `${stamp}toast` && journalLines.some((line) => /toast cc deposit|cash deposit/i.test(line.Description || ""));
     const isShogo = !isOurs && (memo.includes(businessDate) || isShogoThisDay);
@@ -799,7 +866,7 @@ async function ensureTimingAccount(accounts: Account[]) {
 
 async function journalDocExists(doc: string) {
   const existing = await queryQuickBooks(`SELECT Id FROM JournalEntry WHERE DocNumber = '${doc}'`);
-  return (existing.data?.QueryResponse?.JournalEntry ?? []).length > 0;
+  return asJournalList(existing.data?.QueryResponse?.JournalEntry).length > 0;
 }
 
 export async function bookTimingAdjustments(rows: DepositRow[]) {
@@ -1071,8 +1138,8 @@ export async function ensureToastDepositAccount() {
 export async function postYesterdayToastJournal() {
   const businessDate = shiftIso(todayIso(), -1);
   try {
-    const posted = await postToastDay(businessDate);
-    console.log("[Toast GL] posted", posted.doc, "for", businessDate);
+    const posted = await postDueToastJournals();
+    console.log("[Toast GL] posted", posted.map((entry) => entry.doc).join(", ") || "nothing new", "through", businessDate);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/already in QuickBooks|no Toast sales/i.test(message)) {
@@ -1142,12 +1209,22 @@ export function initToastDepositCheck() {
   scheduleToastGlPost();
 }
 
-export async function postToastDay(businessDate: string) {
+const postingDays = new Map<string, Promise<{ id?: string; doc: string; lines: number; mode: string }>>();
+
+export function postToastDay(businessDate: string) {
+  const current = postingDays.get(businessDate);
+  if (current) return current;
+  const run = postToastDayOnce(businessDate).finally(() => postingDays.delete(businessDate));
+  postingDays.set(businessDate, run);
+  return run;
+}
+
+async function postToastDayOnce(businessDate: string) {
   const day = await booksForDate(businessDate);
   if (!day.canPost) throw new Error(day.postBlock || "This date already has our journal.");
   const doc = `TOAST-${businessDate.replace(/-/g, "")}`.slice(0, 21);
-  const existing = await queryQuickBooks(`SELECT Id FROM JournalEntry WHERE DocNumber = '${doc}'`);
-  if ((existing.data?.QueryResponse?.JournalEntry ?? []).length) {
+  const existing = await journalsForDoc(doc);
+  if (existing.length) {
     throw new Error(`${doc} is already in QuickBooks for this date.`);
   }
   const shogo = day.shogoJournals.map((journal) => journal.doc).join(", ");
@@ -1155,8 +1232,8 @@ export async function postToastDay(businessDate: string) {
     TxnDate: businessDate,
     DocNumber: doc,
     PrivateNote: shogo
-      ? `Toast sales for POS date ${businessDate}. Our journal, posted beside Shogo ${shogo} so the two can be compared. Delete one.`
-      : `Toast sales for POS date ${businessDate}.`,
+      ? `CT. Toast sales for POS date ${businessDate}. Our journal, posted beside Shogo ${shogo} so the two can be compared. Delete one.`
+      : `CT. Toast sales for POS date ${businessDate}.`,
     Line: day.ourEntry.map((line) => ({
       Amount: money(Math.abs(line.cents)),
       Description: `Toast ${businessDate}`,
@@ -1168,7 +1245,8 @@ export async function postToastDay(businessDate: string) {
       },
     })),
   });
-  return { id: entry?.JournalEntry?.Id, doc, lines: day.ourEntry.length, mode: day.mode };
+  const keeper = await collapseDoc(doc);
+  return { id: keeper?.Id || entry?.JournalEntry?.Id, doc, lines: day.ourEntry.length, mode: day.mode };
 }
 
 export function toastBooksFault(error: unknown) {
@@ -1362,8 +1440,14 @@ function presentSync(journal: StoredJournal) {
     note,
     lineCount: lines.length,
     debitTotal: money(debitTotal),
+    source: "CT",
     lines,
   };
+}
+
+function asJournalList(value: unknown) {
+  if (!value) return [] as StoredJournal[];
+  return (Array.isArray(value) ? value : [value]) as StoredJournal[];
 }
 
 async function journalsFrom(start: string, end: string, where = `TxnDate >= '${start}' AND TxnDate <= '${end}'`) {
@@ -1371,7 +1455,7 @@ async function journalsFrom(start: string, end: string, where = `TxnDate >= '${s
   const seen = new Set<string>();
   for (let startPos = 1; startPos <= 6000; startPos += 1000) {
     const page = await queryQuickBooks(`SELECT * FROM JournalEntry WHERE ${where} STARTPOSITION ${startPos} MAXRESULTS 1000`);
-    const batch = (page.data?.QueryResponse?.JournalEntry ?? []) as StoredJournal[];
+    const batch = asJournalList(page.data?.QueryResponse?.JournalEntry);
     for (const journal of batch) {
       if (seen.has(journal.Id)) continue;
       seen.add(journal.Id);
@@ -1382,7 +1466,7 @@ async function journalsFrom(start: string, end: string, where = `TxnDate >= '${s
   return rows;
 }
 
-export async function listToastSyncs() {
+async function ourToastJournals() {
   const end = shiftIso(todayIso(), 2);
   const dated = `TxnDate >= '${OPEN_YEAR}' AND TxnDate <= '${end}'`;
   let journals: StoredJournal[];
@@ -1395,27 +1479,136 @@ export async function listToastSyncs() {
   } catch {
     journals = await journalsFrom(OPEN_YEAR, end);
   }
-  const ours = journals.filter((journal) => {
+  const seen = new Set<string>();
+  return journals.filter((journal) => {
+    if (!journal.Id || seen.has(journal.Id)) return false;
+    seen.add(journal.Id);
     const doc = journal.DocNumber || "";
     return doc.startsWith("TOAST-") || doc.startsWith("TFIX-");
   });
+}
+
+async function journalsForDoc(doc: string) {
+  const page = await queryQuickBooks(`SELECT * FROM JournalEntry WHERE DocNumber = '${doc}'`);
+  const journals = asJournalList(page.data?.QueryResponse?.JournalEntry);
+  const seen = new Set<string>();
+  return journals.filter((journal) => {
+    if (!journal.Id || seen.has(journal.Id)) return false;
+    seen.add(journal.Id);
+    return true;
+  });
+}
+
+function sameJournal(left: StoredJournal, right: StoredJournal) {
+  const a = presentSync(left);
+  const b = presentSync(right);
+  const debit = (sync: ReturnType<typeof presentSync>) => sync.lines.filter((line) => line.posting === "Debit").reduce((sum, line) => sum + centsOf(line.amount), 0);
+  return a.lineCount === b.lineCount && debit(a) === debit(b);
+}
+
+async function deleteOurJournal(journal: StoredJournal) {
+  await postQuickBooks("/journalentry?operation=delete", { Id: journal.Id, SyncToken: journal.SyncToken });
+}
+
+async function collapseDoc(doc: string) {
+  const journals = (await journalsForDoc(doc)).filter((journal) => {
+    const number = journal.DocNumber || "";
+    return number.startsWith("TOAST-") || number.startsWith("TFIX-");
+  });
+  if (journals.length < 2) return journals[0];
+  const ranked = [...journals].sort((left, right) => (left.MetaData?.CreateTime || "").localeCompare(right.MetaData?.CreateTime || "") || Number(left.Id) - Number(right.Id));
+  const keeper = ranked[0];
+  for (const extra of ranked.slice(1)) {
+    if (!sameJournal(keeper, extra)) continue;
+    try {
+      await deleteOurJournal(extra);
+      console.log("[Toast GL] removed duplicate", extra.DocNumber, extra.Id);
+    } catch (error) {
+      console.error("[Toast GL] duplicate was not removed", extra.Id, qbFault(error));
+    }
+  }
+  return keeper;
+}
+
+export async function collapseToastSyncDuplicates() {
+  const journals = await ourToastJournals();
+  const docs = [...new Set(journals.map((journal) => journal.DocNumber || "").filter(Boolean))];
+  const removed: string[] = [];
+  for (const doc of docs) {
+    const before = journals.filter((journal) => journal.DocNumber === doc).length;
+    if (before < 2) continue;
+    await collapseDoc(doc);
+    const after = (await journalsForDoc(doc)).length;
+    if (after < before) removed.push(doc);
+  }
+  return removed;
+}
+
+function datesFrom(start: string, end: string) {
+  const dates: string[] = [];
+  for (let cursor = start; cursor <= end; cursor = shiftIso(cursor, 1)) dates.push(cursor);
+  return dates;
+}
+
+export async function postDueToastJournals() {
+  await collapseToastSyncDuplicates();
+  const journals = await ourToastJournals();
+  const posted = new Set(journals.map((journal) => businessDateFromDoc(journal.DocNumber || "", journal.PrivateNote || "", journal.TxnDate || "")));
+  const yesterday = shiftIso(todayIso(), -1);
+  const known = [...posted].filter((date) => date >= OPEN_YEAR && date <= yesterday).sort();
+  const start = known[0] || yesterday;
+  const postedEntries: { id?: string; doc: string; lines: number; mode: string }[] = [];
+  const failures: string[] = [];
+  for (const date of datesFrom(start, yesterday)) {
+    if (posted.has(date)) continue;
+    try {
+      postedEntries.push(await postToastDay(date));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${date}: ${message}`);
+      console.error("[Toast GL]", date, message);
+    }
+  }
+  if (!posted.has(yesterday) && failures.some((line) => line.startsWith(yesterday))) {
+    throw new Error(failures.find((line) => line.startsWith(yesterday)) || `${yesterday} was not posted.`);
+  }
+  return postedEntries;
+}
+
+export async function listToastSyncs() {
+  const journals = await ourToastJournals();
   const counts = new Map<string, number>();
-  ours.forEach((journal) => {
+  journals.forEach((journal) => {
     const doc = journal.DocNumber || journal.Id;
     counts.set(doc, (counts.get(doc) || 0) + 1);
   });
-  return ours
-    .map((journal) => {
-      const row = presentSync(journal);
-      return { ...row, lines: undefined, duplicate: (counts.get(row.doc) || 0) > 1 };
-    })
-    .sort((left, right) => right.businessDate.localeCompare(left.businessDate) || right.created.localeCompare(left.created));
+  const rows = journals.map((journal) => {
+    const row = presentSync(journal);
+    return { ...row, lines: undefined, duplicate: (counts.get(row.doc) || 0) > 1, missing: false };
+  });
+  const postedDates = new Set(rows.map((row) => row.businessDate));
+  const earliest = [...postedDates].filter((date) => date >= OPEN_YEAR).sort()[0];
+  const yesterday = shiftIso(todayIso(), -1);
+  const missing = earliest ? datesFrom(earliest, yesterday).filter((date) => !postedDates.has(date)).map((date) => ({
+    id: `missing-${date}`,
+    doc: "",
+    txnDate: date,
+    businessDate: date,
+    created: "",
+    note: "",
+    lineCount: 0,
+    debitTotal: 0,
+    duplicate: false,
+    missing: true,
+    source: "",
+  })) : [];
+  return [...rows, ...missing].sort((left, right) => right.businessDate.localeCompare(left.businessDate) || right.created.localeCompare(left.created));
 }
 
 async function loadOurJournal(id: string) {
   if (!/^\d+$/.test(id)) throw new Error("That journal was not found.");
   const page = await queryQuickBooks(`SELECT * FROM JournalEntry WHERE Id = '${id}'`);
-  const journal = ((page.data?.QueryResponse?.JournalEntry ?? []) as StoredJournal[])[0];
+  const journal = asJournalList(page.data?.QueryResponse?.JournalEntry)[0];
   if (!journal) throw new Error("That journal was not found.");
   const doc = journal.DocNumber || "";
   if (!doc.startsWith("TOAST-") && !doc.startsWith("TFIX-")) throw new Error("Only a Nashoba daily sales journal can be changed here.");
@@ -1471,7 +1664,8 @@ async function replaceJournalLines(id: string, lines: ReturnType<typeof normaliz
 
 export async function updateToastSync(id: string, input: unknown) {
   const journal = await loadOurJournal(id);
-  return replaceJournalLines(id, normalizeSyncLines(input), journal.PrivateNote || "");
+  const note = journal.PrivateNote || "";
+  return replaceJournalLines(id, normalizeSyncLines(input), /^CT\b/i.test(note) ? note : `CT. ${note}`.trim());
 }
 
 export async function modernizeToastSync(id: string) {
@@ -1494,7 +1688,7 @@ export async function modernizeToastSync(id: string) {
     amount: money(Math.abs(line.cents)),
     description: `Toast ${businessDate}`,
   }));
-  return replaceJournalLines(id, lines, `Toast sales for POS date ${businessDate}. Updated in place to the current mapping.`);
+  return replaceJournalLines(id, lines, `CT. Toast sales for POS date ${businessDate}. Updated in place to the current mapping.`);
 }
 
 export function registerToastSalesRoutes(router: Router) {

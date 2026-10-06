@@ -20,6 +20,8 @@ type SyncSummary = {
   lineCount: number;
   debitTotal: number;
   duplicate: boolean;
+  missing?: boolean;
+  source?: string;
 };
 type SyncLine = {
   accountId: string;
@@ -94,6 +96,18 @@ export default function DsrSyncLog() {
     onError: (error: Error) => toast({ title: "The journal was not modernized", description: error.message, variant: "destructive" }),
   });
 
+  const postMissing = useMutation({
+    mutationFn: async (date: string) => {
+      const response = await apiRequest("POST", "/api/accounting/toast-sales/post", { date });
+      return response.json() as Promise<{ doc?: string }>;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/toast-sales/syncs"] });
+      toast({ title: result.doc ? `Posted ${result.doc}` : "Posted the missing day" });
+    },
+    onError: (error: Error) => toast({ title: "The day was not posted", description: error.message, variant: "destructive" }),
+  });
+
   const debit = lines.filter((line) => line.posting === "Debit").reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   const credit = lines.filter((line) => line.posting === "Credit").reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   const accounts = refsQuery.data?.accounts ?? [];
@@ -105,7 +119,7 @@ export default function DsrSyncLog() {
       <Card>
         <CardHeader>
           <CardTitle>Sync log</CardTitle>
-          <CardDescription>Each row is a Nashoba daily sales journal already in QuickBooks. Opening one lets you change that journal. It does not post a second copy.</CardDescription>
+          <CardDescription>CT marks a journal created from CellarTraks. Opening one lets you change that journal. It does not post a second copy.</CardDescription>
         </CardHeader>
         <CardContent>
           {syncsQuery.isError ? <p className="text-sm text-muted-foreground">The sync log could not be loaded.</p> : syncsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading the sync log.</p> : (
@@ -113,6 +127,7 @@ export default function DsrSyncLog() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Sales date</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead>Journal</TableHead>
                   <TableHead>Posted</TableHead>
                   <TableHead className="text-right">Lines</TableHead>
@@ -124,21 +139,28 @@ export default function DsrSyncLog() {
                 {rows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>{row.businessDate}</TableCell>
+                    <TableCell>{row.missing ? "—" : "CT"}</TableCell>
                     <TableCell>
-                      {row.doc}
+                      {row.missing ? "Not posted" : row.doc}
                       {row.duplicate ? <span className="ml-2 text-xs text-muted-foreground">Duplicate document number</span> : null}
                     </TableCell>
-                    <TableCell>{when(row.created)}</TableCell>
-                    <TableCell className="text-right">{row.lineCount}</TableCell>
-                    <TableCell className="text-right">{money(row.debitTotal)}</TableCell>
+                    <TableCell>{row.missing ? "—" : when(row.created)}</TableCell>
+                    <TableCell className="text-right">{row.missing ? "—" : row.lineCount}</TableCell>
+                    <TableCell className="text-right">{row.missing ? "—" : money(row.debitTotal)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" onClick={() => setSelectedId(row.id)}>Open</Button>
+                      {row.missing ? (
+                        <Button variant="ghost" onClick={() => postMissing.mutate(row.businessDate)} disabled={postMissing.isPending}>
+                          {postMissing.isPending ? "Posting" : "Post this day"}
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" onClick={() => setSelectedId(row.id)}>Open</Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground">No Nashoba daily sales journal is in QuickBooks yet.</TableCell>
+                    <TableCell colSpan={7} className="text-muted-foreground">No Nashoba daily sales journal is in QuickBooks yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -154,9 +176,9 @@ export default function DsrSyncLog() {
     <Card>
       <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <CardTitle>{detail?.doc || "Journal"}</CardTitle>
+          <CardTitle>{detail?.doc ? `CT · ${detail.doc}` : "Journal"}</CardTitle>
           <CardDescription>
-            Sales date {detail?.businessDate || "—"}. Update replaces the lines on this QuickBooks journal. Modernize rebuilds the day from Toast with the mapping saved now, then writes those lines onto this same journal.
+            Source CT, CellarTraks. Sales date {detail?.businessDate || "—"}. Update replaces the lines on this QuickBooks journal. Modernize rebuilds the day from Toast with the mapping saved now, then writes those lines onto this same journal.
           </CardDescription>
         </div>
         <Button variant="outline" onClick={() => setSelectedId(null)}>Back to the log</Button>
