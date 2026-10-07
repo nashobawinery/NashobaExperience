@@ -16,8 +16,24 @@ let mapping = JSON.parse(readFileSync(mappingPath, "utf8")) as { memoRule?: stri
 type Bucket = { kind: string; name: string; cents: number };
 type Account = { id: string; name: string; full: string; number: string };
 type ClassRef = { id: string; name: string; full: string };
-type ExpectedLine = { accountId: string; accountName: string; classId: string; className: string; cents: number };
+type SourcePiece = { name: string; cents: number };
+type TenderLane = "" | "cash" | "card";
+type ExpectedLine = { accountId: string; accountName: string; classId: string; className: string; cents: number; lane: TenderLane; sources: SourcePiece[] };
 type JournalLine = { accountId: string; classId: string; cents: number };
+type DepositMovement = {
+  customerKey: string;
+  customerName: string;
+  email: string;
+  phone: string;
+  businessDate: string;
+  visitDate: string;
+  direction: "credit" | "debit";
+  cents: number;
+  memo: string;
+  orderGuid: string;
+  source: string;
+  reservationDate: string;
+};
 
 const OPEN_YEAR = "2026-01-01";
 const PENNY_LIMIT = 100;
@@ -154,6 +170,74 @@ function dayStamp(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function stampToIso(stamp: string) {
+  if (!/^\d{8}$/.test(stamp)) return "";
+  return `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}`;
+}
+
+function easternDay(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (/^\d{8}$/.test(raw)) return stampToIso(raw);
+  if (/[T ]\d/.test(raw)) {
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(date);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  return stampToIso(dayStamp(raw));
+}
+
+function depositContext(order: { source?: string; promisedDate?: string; estimatedFulfillmentDate?: string; businessDate?: string | number }, fallback: string) {
+  const sourceName = String(order?.source || "");
+  const source = /toast tables/i.test(sourceName) ? "Toast Tables" : (sourceName.slice(0, 80) || "Toast");
+  const reservationDate = easternDay(order?.promisedDate) || easternDay(order?.estimatedFulfillmentDate) || easternDay(order?.businessDate) || fallback;
+  return { source, reservationDate };
+}
+
+function tenderLane(kind: string): TenderLane {
+  if (kind === "CASH") return "cash";
+  if (kind === "CREDIT") return "card";
+  return "";
+}
+
+function laneFromDescription(description: string): TenderLane {
+  if (/cash deposit/i.test(description)) return "cash";
+  if (/toast cc deposit/i.test(description)) return "card";
+  return "";
+}
+
+function lineDetail(lane: TenderLane) {
+  if (lane === "cash") return "Cash deposit";
+  if (lane === "card") return "Card deposit";
+  return "";
+}
+
+function journalDescription(lane: TenderLane, businessDate: string) {
+  if (lane === "cash") return "Cash deposit";
+  if (lane === "card") return "Toast CC deposit";
+  return `Toast ${businessDate}`;
+}
+
+function addSource(sources: SourcePiece[], name: string, cents: number) {
+  const current = sources.find((item) => item.name === name);
+  if (current) current.cents += cents;
+  else sources.push({ name, cents });
+}
+
+function guestIdentity(order: { guid?: string; customer?: { guid?: string; firstName?: string; lastName?: string; email?: string; phone?: string }; tabName?: string; checks?: { customer?: { guid?: string; firstName?: string; lastName?: string; email?: string; phone?: string }; tabName?: string }[] }, check?: { customer?: { guid?: string; firstName?: string; lastName?: string; email?: string; phone?: string }; tabName?: string }) {
+  const customer = check?.customer || order.checks?.find((item) => item?.customer)?.customer || order.customer || {};
+  const first = String(customer.firstName || "").trim();
+  const last = String(customer.lastName || "").trim();
+  const email = String(customer.email || "").trim().toLowerCase();
+  const phone = String(customer.phone || "").replace(/\D/g, "");
+  const name = [first, last].filter(Boolean).join(" ")
+    || String(check?.tabName || order.tabName || "").trim()
+    || email
+    || (phone ? phone : "Unknown guest");
+  const key = String(customer.guid || "").trim() || email || (phone ? `phone:${phone}` : `order:${order.guid || name}`);
+  return { customerKey: key.slice(0, 180), customerName: name.slice(0, 160), email: email.slice(0, 160), phone: phone.slice(0, 20) };
+}
+
 function bookPayment(buckets: Map<string, Bucket>, payment: { type?: string; amount?: number; tipAmount?: number; originalProcessingFee?: number; cardType?: string; otherPayment?: { name?: string; guid?: string } }, alternatePayments: Map<string, string>, creditTip = true) {
   const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
   const tip = centsOf(payment.tipAmount);
@@ -169,13 +253,13 @@ function bookPayment(buckets: Map<string, Bucket>, payment: { type?: string; amo
   if (tip && creditTip) add(buckets, "SERVICECHARGE", "Tips", tip);
 }
 
-async function applyDepositsCollected(buckets: Map<string, Bucket>, restaurantGuid: string, businessDate: string, alternatePayments: Map<string, string>, seenPayments: Set<string>) {
+async function applyDepositsCollected(buckets: Map<string, Bucket>, restaurantGuid: string, businessDate: string, alternatePayments: Map<string, string>, seenPayments: Set<string>, movements: DepositMovement[]) {
   const today = dayStamp(businessDate);
   const listed = await toastApiRequest(`/orders/v2/payments?paidBusinessDate=${today}`, restaurantGuid);
   const guids = (Array.isArray(listed) ? listed : [])
     .map((item: string | { guid?: string }) => (typeof item === "string" ? item : item?.guid || ""))
     .filter((guid: string) => guid && !seenPayments.has(guid));
-  const orders = new Map<string, { businessDate?: number | string; voided?: boolean; deleted?: boolean }>();
+  const orders = new Map<string, Awaited<ReturnType<typeof getOrder>>>();
   for (let index = 0; index < guids.length; index += 6) {
     await Promise.all(guids.slice(index, index + 6).map(async (guid) => {
       const payment = await toastApiRequest(`/orders/v2/payments/${guid}`, restaurantGuid);
@@ -196,6 +280,20 @@ async function applyDepositsCollected(buckets: Map<string, Bucket>, restaurantGu
       const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
       bookPayment(buckets, payment, alternatePayments, false);
       add(buckets, "OTHERTENDER", DEPOSIT_LIABILITY, -paid);
+      const visitDate = stampToIso(orderDay) || businessDate;
+      const guest = guestIdentity(order);
+      const context = depositContext(order, visitDate);
+      movements.push({
+        ...guest,
+        businessDate,
+        visitDate,
+        reservationDate: context.reservationDate,
+        source: context.source,
+        direction: "credit",
+        cents: paid,
+        memo: `Paid for the ${context.reservationDate} visit`,
+        orderGuid: orderGuid.slice(0, 80),
+      });
     }));
   }
 }
@@ -219,6 +317,7 @@ async function queryRows<T>(entity: string, where: string) {
 
 async function toastBuckets(businessDate: string) {
   const buckets = new Map<string, Bucket>();
+  const movements: DepositMovement[] = [];
   const restaurants = await getRestaurants();
   let orders = 0;
   let cashEntries = 0;
@@ -282,7 +381,9 @@ async function toastBuckets(businessDate: string) {
           }
           let tendered = 0;
           let earlyPrincipal = 0;
+          let earlyPaid = 0;
           let redemptionPrincipal = 0;
+          let redemptionPaid = 0;
           const orderDay = dayStamp(order.businessDate || businessDate);
           for (const payment of check.payments || []) {
             if (payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") continue;
@@ -293,15 +394,33 @@ async function toastBuckets(businessDate: string) {
             const type = String(payment.type || "").toUpperCase();
             if (paidDay < orderDay && (type === "CREDIT" || type === "CASH")) {
               earlyPrincipal += centsOf(payment.amount);
+              earlyPaid += paid;
               add(buckets, "OTHERTENDER", DEPOSIT_LIABILITY, paid);
               if (centsOf(payment.tipAmount)) add(buckets, "SERVICECHARGE", "Tips", centsOf(payment.tipAmount));
               continue;
             }
             const tender = payment.otherPayment?.name || alternatePayments.get(String(payment.otherPayment?.guid || "")) || "Other";
-            if (isDepositUse(tender)) redemptionPrincipal += centsOf(payment.amount);
+            if (isDepositUse(tender)) {
+              redemptionPrincipal += centsOf(payment.amount);
+              redemptionPaid += paid;
+            }
             bookPayment(buckets, payment, alternatePayments);
           }
           bookDepositPieces(buckets, depositPieces, earlyPrincipal, redemptionPrincipal);
+          const depositGross = depositPieces.reduce((sum, piece) => sum + piece.gross, 0);
+          const { wash, collected } = classifyDeposit(depositGross, earlyPrincipal, redemptionPrincipal);
+          const guest = guestIdentity(order, check);
+          const visitDate = stampToIso(orderDay) || businessDate;
+          const context = depositContext(order, visitDate);
+          const orderGuid = String(order.guid || "").slice(0, 80);
+          const held = collected + Math.max(0, wash - redemptionPaid);
+          const used = earlyPaid + Math.max(0, redemptionPaid - wash);
+          if (held > 0) {
+            movements.push({ ...guest, businessDate, visitDate, reservationDate: context.reservationDate, source: context.source, direction: "credit", cents: held, memo: "Deposit collected", orderGuid });
+          }
+          if (used > 0) {
+            movements.push({ ...guest, businessDate, visitDate, reservationDate: context.reservationDate, source: context.source, direction: "debit", cents: used, memo: "Deposit used", orderGuid });
+          }
           if (String(check.paymentStatus || "").toUpperCase() === "OPEN") {
             const due = centsOf(check.totalAmount);
             if (due > tendered) openChecks += due - tendered;
@@ -311,7 +430,7 @@ async function toastBuckets(businessDate: string) {
       page += 1;
       if (batch.length < 100) hasMore = false;
     }
-    await applyDepositsCollected(buckets, restaurant.restaurantGuid, businessDate, alternatePayments, seenPayments);
+    await applyDepositsCollected(buckets, restaurant.restaurantGuid, businessDate, alternatePayments, seenPayments, movements);
     try {
       cashEntries += applyCashDrawer(buckets, await getCashEntries(restaurant.restaurantGuid, businessDate));
     } catch (error) {
@@ -326,7 +445,14 @@ async function toastBuckets(businessDate: string) {
   }
   const list: Bucket[] = [];
   buckets.forEach((bucket) => list.push(bucket));
-  return { orders, buckets: list, cashEntries, openChecks, cashDrawerWarning };
+  let ledgerSaved = true;
+  try {
+    await saveGuestDepositDay(businessDate, movements);
+  } catch (error) {
+    ledgerSaved = false;
+    console.error("[Toast deposits] customer ledger was not saved:", error instanceof Error ? error.message : error);
+  }
+  return { orders, buckets: list, cashEntries, openChecks, cashDrawerWarning, movements, ledgerSaved };
 }
 
 function fallbackKind(kind: string) {
@@ -386,15 +512,20 @@ async function booksForDate(businessDate: string) {
     }
     const classRef = resolveClass(classes, row.className);
     const signed = signedCents(row.kind, bucket.cents);
+    const lane = tenderLane(bucket.kind);
     imbalance += signed;
     if (bankEarly && account.id === bankEarly.id) {
-      if (bucket.kind === "CASH" || /cash deposit/i.test(bucket.name)) cashExpectedCents += bucket.cents;
+      if (lane === "cash") cashExpectedCents += bucket.cents;
       else cardExpectedCents += bucket.cents;
     }
-    const key = `${account.id}|${classRef?.id || ""}`;
+    const key = `${account.id}|${classRef?.id || ""}|${lane}`;
     const current = expected.get(key);
-    if (current) current.cents += signed;
-    else expected.set(key, { accountId: account.id, accountName: account.full, classId: classRef?.id || "", className: classRef?.full || row.className, cents: signed });
+    if (current) {
+      current.cents += signed;
+      addSource(current.sources, bucket.name, signed);
+    } else {
+      expected.set(key, { accountId: account.id, accountName: account.full, classId: classRef?.id || "", className: classRef?.full || row.className, cents: signed, lane, sources: [{ name: bucket.name, cents: signed }] });
+    }
   });
 
   const drawerNotes = [
@@ -407,10 +538,12 @@ async function booksForDate(businessDate: string) {
     const overShort = mapping.rows.find((row) => row.kind === "OVERSHORT");
     const account = overShort ? resolveAccount(accounts, overShort.account) : null;
     if (account) {
-      const key = `${account.id}|`;
+      const key = `${account.id}||`;
       const current = expected.get(key);
-      if (current) current.cents -= imbalance;
-      else expected.set(key, { accountId: account.id, accountName: account.full, classId: "", className: "", cents: -imbalance });
+      if (current) {
+        current.cents -= imbalance;
+        addSource(current.sources, "Penny balance", -imbalance);
+      } else expected.set(key, { accountId: account.id, accountName: account.full, classId: "", className: "", cents: -imbalance, lane: "", sources: [{ name: "Penny balance", cents: -imbalance }] });
       const pennyNote = `Toast's day was ${money(imbalance).toFixed(2)} out of balance. That amount is parked in cash over/short.`;
       plugNote = plugNote ? `${plugNote} ${pennyNote}` : pennyNote;
       imbalance = 0;
@@ -450,7 +583,7 @@ async function booksForDate(businessDate: string) {
       const detail = line.JournalEntryLineDetail;
       if (!detail?.AccountRef?.value || !detail.PostingType) continue;
       const signed = detail.PostingType === "Debit" ? centsOf(line.Amount) : -centsOf(line.Amount);
-      const key = `${detail.AccountRef.value}|${detail.ClassRef?.value || ""}`;
+      const key = `${detail.AccountRef.value}|${detail.ClassRef?.value || ""}|${laneFromDescription(line.Description || "")}`;
       const current = target.get(key);
       if (current) current.cents += signed;
       else target.set(key, { accountId: detail.AccountRef.value, classId: detail.ClassRef?.value || "", cents: signed });
@@ -481,7 +614,7 @@ async function booksForDate(businessDate: string) {
     note: deposit.PrivateNote || "",
   }));
 
-  const lines: { accountName: string; className: string; toast: number; quickbooks: number; difference: number; accountId: string; classId: string; correction: number }[] = [];
+  const lines: { accountName: string; className: string; detail: string; toast: number; quickbooks: number; difference: number; accountId: string; classId: string; correction: number; sources: { name: string; amount: number }[] }[] = [];
   const seen = new Set<string>();
   expected.forEach((line, key) => {
     seen.add(key);
@@ -490,27 +623,35 @@ async function booksForDate(businessDate: string) {
     lines.push({
       accountName: line.accountName,
       className: line.className,
+      detail: lineDetail(line.lane),
       toast: money(-line.cents),
       quickbooks: money(-qb),
       difference: money(-(line.cents - qb)),
       accountId: line.accountId,
       classId: line.classId,
       correction: line.cents - qb,
+      sources: line.sources
+        .filter((source) => source.cents)
+        .map((source) => ({ name: source.name, amount: money(-source.cents) }))
+        .sort((left, right) => Math.abs(right.amount) - Math.abs(left.amount)),
     });
   });
   actual.forEach((line, key) => {
     if (seen.has(key) || !line.cents) return;
     const account = accounts.find((item) => item.id === line.accountId);
     const classRef = classes.find((item) => item.id === line.classId);
+    const lane = key.split("|")[2] === "cash" || key.split("|")[2] === "card" ? key.split("|")[2] as TenderLane : "";
     lines.push({
       accountName: account?.full || line.accountId,
       className: classRef?.full || "",
+      detail: lineDetail(lane),
       toast: 0,
       quickbooks: money(-line.cents),
       difference: money(line.cents),
       accountId: line.accountId,
       classId: line.classId,
       correction: -line.cents,
+      sources: [],
     });
   });
   lines.sort((left, right) => Math.abs(right.correction) - Math.abs(left.correction));
@@ -524,9 +665,9 @@ async function booksForDate(businessDate: string) {
     actual.forEach((line) => { if (line.accountId === bank.id) recordedBank += line.cents; });
   }
 
-  const ourEntry: { accountId: string; classId: string; cents: number }[] = [];
+  const ourEntry: { accountId: string; classId: string; cents: number; description: string }[] = [];
   expected.forEach((line) => {
-    if (line.cents) ourEntry.push({ accountId: line.accountId, classId: line.classId, cents: line.cents });
+    if (line.cents) ourEntry.push({ accountId: line.accountId, classId: line.classId, cents: line.cents, description: journalDescription(line.lane, businessDate) });
   });
   const entryBalance = ourEntry.reduce((sum, line) => sum + line.cents, 0);
   const correction = lines.filter((line) => line.correction !== 0);
@@ -552,9 +693,11 @@ async function booksForDate(businessDate: string) {
     lines: lines.map((line) => ({
       accountName: line.accountName,
       className: line.className,
+      detail: line.detail,
       toast: line.toast,
       quickbooks: line.quickbooks,
       difference: line.difference,
+      sources: line.sources,
     })),
     unmapped,
     plugNote,
@@ -1529,7 +1672,7 @@ async function postToastDayOnce(businessDate: string) {
       : `CT. Toast sales for POS date ${businessDate}.`,
     Line: day.ourEntry.map((line) => ({
       Amount: money(Math.abs(line.cents)),
-      Description: `Toast ${businessDate}`,
+      Description: line.description,
       DetailType: "JournalEntryLineDetail",
       JournalEntryLineDetail: {
         PostingType: line.cents > 0 ? "Debit" : "Credit",
@@ -1557,19 +1700,21 @@ export async function outstandingDeposits(through: string) {
     Line?: { Amount?: number; Description?: string; JournalEntryLineDetail?: { PostingType?: string } }[];
   }>("JournalEntry", `TxnDate >= '${start}' AND TxnDate <= '${shiftIso(end, 2)}'`);
 
-  const byDate = new Map<string, { cash: number; card: number; doc: string }>();
+  const oursByDate = new Map<string, { cash: number; card: number; doc: string }>();
+  const shogoByDate = new Map<string, { cash: number; card: number; doc: string }>();
   const seen = new Set<string>();
   for (const journal of journals) {
     if (seen.has(journal.Id)) continue;
     seen.add(journal.Id);
     const doc = journal.DocNumber || "";
-    if (doc.startsWith("TDLY-") || doc.startsWith("TDLC-") || doc.startsWith("TOAST-") || doc.startsWith("TFIX-")) continue;
+    if (doc.startsWith("TDLY-") || doc.startsWith("TDLC-")) continue;
+    const isOurs = doc.startsWith("TOAST-") || doc.startsWith("TFIX-");
     const note = journal.PrivateNote || "";
     const lines = journal.Line || [];
     const noteDate = note.match(/(\d{4}-\d{2}-\d{2})/)?.[1] || "";
     const docMatch = doc.match(/^(\d{2})(\d{2})(\d{2})toast/i);
     const docDate = docMatch ? `20${docMatch[1]}-${docMatch[2]}-${docMatch[3]}` : "";
-    const businessDate = noteDate || docDate;
+    const businessDate = isOurs ? businessDateFromDoc(doc, note, journal.TxnDate || "") : (noteDate || docDate);
     if (!businessDate || businessDate < start || businessDate > end) continue;
     let cash = 0;
     let card = 0;
@@ -1580,11 +1725,22 @@ export async function outstandingDeposits(through: string) {
       if (/toast cc deposit/i.test(description)) card += centsOf(line.Amount);
     }
     if (!cash && !card) continue;
-    const current = byDate.get(businessDate) || { cash: 0, card: 0, doc };
+    const target = isOurs ? oursByDate : shogoByDate;
+    const current = target.get(businessDate) || { cash: 0, card: 0, doc };
     current.cash += cash;
     current.card += card;
-    byDate.set(businessDate, current);
+    target.set(businessDate, current);
   }
+  const byDate = new Map<string, { cash: number; card: number; doc: string }>();
+  const depositDates = new Set<string>();
+  oursByDate.forEach((_value, date) => depositDates.add(date));
+  shogoByDate.forEach((_value, date) => depositDates.add(date));
+  depositDates.forEach((date) => {
+    const ours = oursByDate.get(date);
+    const shogo = shogoByDate.get(date);
+    const chosen = ours && (ours.cash || ours.card) ? ours : shogo;
+    if (chosen) byDate.set(date, chosen);
+  });
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS accounting_toast_deposit_clears (
@@ -1979,9 +2135,305 @@ export async function modernizeToastSync(id: string) {
     classId: line.classId,
     posting: (line.cents > 0 ? "Debit" : "Credit") as "Debit" | "Credit",
     amount: money(Math.abs(line.cents)),
-    description: `Toast ${businessDate}`,
+    description: line.description,
   }));
   return replaceJournalLines(id, lines, `CT. Toast sales for POS date ${businessDate}. Updated in place to the current mapping.`);
+}
+
+async function ensureGuestDepositTables() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS accounting_guest_deposit_ledger (
+      id varchar PRIMARY KEY,
+      business_date varchar NOT NULL,
+      visit_date varchar NOT NULL,
+      customer_key varchar NOT NULL,
+      customer_name varchar NOT NULL,
+      email varchar NOT NULL DEFAULT '',
+      phone varchar NOT NULL DEFAULT '',
+      direction varchar NOT NULL,
+      amount numeric NOT NULL,
+      memo varchar NOT NULL DEFAULT '',
+      order_guid varchar NOT NULL DEFAULT ''
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS accounting_guest_deposit_days (
+      business_date varchar PRIMARY KEY,
+      synced_at timestamp DEFAULT now()
+    )
+  `);
+  await db.execute(sql`ALTER TABLE accounting_guest_deposit_ledger ADD COLUMN IF NOT EXISTS source varchar NOT NULL DEFAULT ''`);
+  await db.execute(sql`ALTER TABLE accounting_guest_deposit_ledger ADD COLUMN IF NOT EXISTS reservation_date varchar NOT NULL DEFAULT ''`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS accounting_guest_deposit_reconciles (
+      id varchar PRIMARY KEY,
+      customer_key varchar NOT NULL,
+      reservation_date varchar NOT NULL,
+      amount numeric NOT NULL,
+      journal_doc varchar NOT NULL,
+      guest_name varchar NOT NULL DEFAULT '',
+      created_at timestamp DEFAULT now()
+    )
+  `);
+}
+
+async function saveGuestDepositDay(businessDate: string, movements: DepositMovement[]) {
+  await ensureGuestDepositTables();
+    await db.execute(sql`
+    DELETE FROM accounting_guest_deposit_ledger
+    WHERE business_date = ${businessDate}
+      AND memo NOT LIKE 'Reservation date passed%'
+  `);
+  for (const movement of movements) {
+    if (!movement.cents) continue;
+    await db.execute(sql`
+      INSERT INTO accounting_guest_deposit_ledger (
+        id, business_date, visit_date, customer_key, customer_name, email, phone, direction, amount, memo, order_guid, source, reservation_date
+      ) VALUES (
+        ${randomUUID()},
+        ${businessDate},
+        ${movement.visitDate || businessDate},
+        ${movement.customerKey},
+        ${movement.customerName},
+        ${movement.email},
+        ${movement.phone},
+        ${movement.direction},
+        ${money(movement.cents)},
+        ${movement.memo.slice(0, 200)},
+        ${movement.orderGuid},
+        ${movement.source.slice(0, 80)},
+        ${movement.reservationDate || movement.visitDate || businessDate}
+      )
+    `);
+  }
+  await db.execute(sql`
+    INSERT INTO accounting_guest_deposit_days (business_date)
+    VALUES (${businessDate})
+    ON CONFLICT (business_date) DO UPDATE SET synced_at = now()
+  `);
+}
+
+function ledgerAmount(value: unknown) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+export async function syncGuestDepositLedger(from: string, to: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) throw new Error("Choose a start and end date.");
+  const span = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+  if (span > 31) throw new Error("Update one month at a time.");
+  let collected = 0;
+  let redeemed = 0;
+  for (let date = from; date <= to; date = shiftIso(date, 1)) {
+    const day = await toastBuckets(date);
+    if (!day.ledgerSaved) throw new Error(`The guest ledger for ${date} was not saved.`);
+    for (const movement of day.movements) {
+      if (movement.direction === "credit") collected += movement.cents;
+      else redeemed += movement.cents;
+    }
+  }
+  return { from, to, collected: money(collected), redeemed: money(redeemed) };
+}
+
+export async function guestDepositLedger(search: string) {
+  await ensureGuestDepositTables();
+  const coverage = await db.execute(sql`
+    SELECT MIN(business_date) AS start_date, MAX(business_date) AS through, COUNT(*)::int AS days
+    FROM accounting_guest_deposit_days
+  `);
+  const span = (coverage.rows[0] || {}) as { start_date?: string; through?: string; days?: number };
+  const result = await db.execute(sql`
+    SELECT customer_key,
+      MAX(customer_name) AS customer_name,
+      MAX(NULLIF(email, '')) AS email,
+      MAX(NULLIF(phone, '')) AS phone,
+      SUM(CASE WHEN direction = 'credit' THEN amount ELSE 0 END) AS credits,
+      SUM(CASE WHEN direction = 'debit' THEN amount ELSE 0 END) AS debits
+    FROM accounting_guest_deposit_ledger
+    GROUP BY customer_key
+  `);
+  const needle = search.trim().toLowerCase();
+  const customers = (result.rows as { customer_key: string; customer_name: string; email: string | null; phone: string | null; credits: string; debits: string }[])
+    .map((row) => {
+      const credits = ledgerAmount(row.credits);
+      const debits = ledgerAmount(row.debits);
+      return {
+        key: row.customer_key,
+        name: row.customer_name,
+        email: row.email || "",
+        phone: row.phone || "",
+        credits,
+        debits,
+        balance: ledgerAmount(credits - debits),
+      };
+    })
+    .filter((row) => {
+      if (!needle) return Math.abs(row.balance) >= 0.01 || row.credits !== 0 || row.debits !== 0;
+      return [row.name, row.email, row.phone].join(" ").toLowerCase().includes(needle);
+    })
+    .sort((left, right) => right.balance - left.balance || left.name.localeCompare(right.name));
+  return {
+    from: span.start_date || "",
+    through: span.through || "",
+    days: Number(span.days || 0),
+    customers,
+  };
+}
+
+export async function guestDepositEntries(customerKey: string) {
+  const key = customerKey.trim();
+  if (!key) throw new Error("Choose a guest.");
+  await ensureGuestDepositTables();
+  const result = await db.execute(sql`
+    SELECT business_date, visit_date, customer_name, email, phone, direction, amount, memo
+    FROM accounting_guest_deposit_ledger
+    WHERE customer_key = ${key}
+    ORDER BY business_date, direction DESC, memo
+  `);
+  const rows = result.rows as { business_date: string; visit_date: string; customer_name: string; email: string; phone: string; direction: string; amount: string; memo: string }[];
+  let running = 0;
+  const entries = rows.map((row) => {
+    const amount = ledgerAmount(row.amount);
+    const credit = row.direction === "credit" ? amount : 0;
+    const debit = row.direction === "debit" ? amount : 0;
+    running = ledgerAmount(running + credit - debit);
+    return {
+      date: row.business_date,
+      visitDate: row.visit_date,
+      memo: row.memo,
+      credit,
+      debit,
+      balance: running,
+    };
+  });
+  const first = rows[0];
+  return {
+    key,
+    name: first?.customer_name || "",
+    email: rows.map((row) => row.email).find(Boolean) || "",
+    phone: rows.map((row) => row.phone).find(Boolean) || "",
+    entries,
+  };
+}
+
+export async function pastGuestDeposits() {
+  await ensureGuestDepositTables();
+  const today = todayIso();
+  const coverage = await db.execute(sql`
+    SELECT MIN(business_date) AS start_date, MAX(business_date) AS through, COUNT(*)::int AS days
+    FROM accounting_guest_deposit_days
+  `);
+  const span = (coverage.rows[0] || {}) as { start_date?: string; through?: string; days?: number };
+  const result = await db.execute(sql`
+    SELECT customer_key,
+      COALESCE(NULLIF(reservation_date, ''), visit_date) AS reservation_date,
+      MAX(customer_name) AS customer_name,
+      MAX(NULLIF(email, '')) AS email,
+      MAX(NULLIF(phone, '')) AS phone,
+      MAX(NULLIF(source, '')) AS source,
+      SUM(CASE WHEN direction = 'credit' THEN amount ELSE 0 END) AS credits,
+      SUM(CASE WHEN direction = 'debit' THEN amount ELSE 0 END) AS debits
+    FROM accounting_guest_deposit_ledger
+    GROUP BY customer_key, COALESCE(NULLIF(reservation_date, ''), visit_date)
+  `);
+  const reconciled = await db.execute(sql`SELECT customer_key, reservation_date FROM accounting_guest_deposit_reconciles`);
+  const done = new Set((reconciled.rows as { customer_key: string; reservation_date: string }[]).map((row) => `${row.customer_key}|${row.reservation_date}`));
+  const deposits = (result.rows as { customer_key: string; reservation_date: string; customer_name: string; email: string | null; phone: string | null; source: string | null; credits: string; debits: string }[])
+    .map((row) => {
+      const credits = ledgerAmount(row.credits);
+      const debits = ledgerAmount(row.debits);
+      return {
+        customerKey: row.customer_key,
+        name: row.customer_name,
+        email: row.email || "",
+        phone: row.phone || "",
+        reservationDate: row.reservation_date,
+        source: row.source || "Toast",
+        amount: ledgerAmount(credits - debits),
+      };
+    })
+    .filter((row) => row.reservationDate < today && row.reservationDate >= OPEN_YEAR && row.amount >= 0.01 && !done.has(`${row.customerKey}|${row.reservationDate}`))
+    .sort((left, right) => left.reservationDate.localeCompare(right.reservationDate) || left.name.localeCompare(right.name));
+  const toastTables = deposits.filter((row) => row.source === "Toast Tables");
+  return {
+    from: span.start_date || "",
+    through: span.through || "",
+    days: Number(span.days || 0),
+    today,
+    count: deposits.length,
+    toastTables: toastTables.length,
+    total: ledgerAmount(deposits.reduce((sum, row) => sum + row.amount, 0)),
+    toastTablesTotal: ledgerAmount(toastTables.reduce((sum, row) => sum + row.amount, 0)),
+    deposits,
+  };
+}
+
+export async function postPastDepositJournal() {
+  const review = await pastGuestDeposits();
+  if (!review.deposits.length) throw new Error("No past reservation still has a deposit to reconcile.");
+  const accounts = await chartOfAccounts();
+  const liability = accounts.find((account) => account.number.replace(/\s/g, "") === "214000");
+  if (!liability) throw new Error("QuickBooks account 214000 Toast - Reservation Deposits was not found.");
+  const recognized = mapping.rows.find((row) => row.kind === "DEPSALE" && row.name === "Deposits Recognized");
+  const revenue = (recognized && resolveAccount(accounts, recognized.account))
+    || accounts.find((account) => account.number.replace(/\s/g, "") === "316000");
+  if (!revenue) throw new Error("The account for a recognized deposit was not found.");
+  const today = todayIso();
+  let doc = `TPAST-${today.replace(/-/g, "")}`;
+  if (await journalDocExists(doc)) {
+    doc = `TPAST-${today.replace(/-/g, "")}B`.slice(0, 21);
+    if (await journalDocExists(doc)) throw new Error(`${doc} is already in QuickBooks.`);
+  }
+  const note = `CT. Guest deposits whose reservation date has passed. Each line names the guest and the reservation date. ${liability.number} is debited. ${revenue.number} ${revenue.name} is credited.`;
+  await postQuickBooks("/journalentry", {
+    TxnDate: today,
+    DocNumber: doc,
+    PrivateNote: note.slice(0, 4000),
+    Line: review.deposits.flatMap((deposit) => {
+      const description = `${deposit.name}, ${deposit.source}, reservation ${deposit.reservationDate}`.slice(0, 400);
+      return [
+        { Amount: deposit.amount, Description: description, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Debit", AccountRef: { value: liability.id } } },
+        { Amount: deposit.amount, Description: description, DetailType: "JournalEntryLineDetail", JournalEntryLineDetail: { PostingType: "Credit", AccountRef: { value: revenue.id } } },
+      ];
+    }),
+  });
+  try {
+    for (const deposit of review.deposits) {
+      await db.execute(sql`
+        INSERT INTO accounting_guest_deposit_reconciles (id, customer_key, reservation_date, amount, journal_doc, guest_name)
+        VALUES (${randomUUID()}, ${deposit.customerKey}, ${deposit.reservationDate}, ${deposit.amount}, ${doc}, ${deposit.name})
+      `);
+      await db.execute(sql`
+        INSERT INTO accounting_guest_deposit_ledger (
+          id, business_date, visit_date, customer_key, customer_name, email, phone, direction, amount, memo, order_guid, source, reservation_date
+        ) VALUES (
+          ${randomUUID()},
+          ${today},
+          ${deposit.reservationDate},
+          ${deposit.customerKey},
+          ${deposit.name},
+          ${deposit.email},
+          ${deposit.phone},
+          'debit',
+          ${deposit.amount},
+          ${`Reservation date passed. Journal ${doc}`.slice(0, 200)},
+          '',
+          ${deposit.source},
+          ${deposit.reservationDate}
+        )
+      `);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Posted ${doc}. The guest ledger was not fully updated. Do not post this list again. ${message}`);
+  }
+  return {
+    doc,
+    count: review.count,
+    toastTables: review.toastTables,
+    total: review.total,
+    liability: `${liability.number} ${liability.name}`,
+    creditAccount: `${revenue.number} ${revenue.name}`,
+  };
 }
 
 export function registerToastSalesRoutes(router: Router) {
@@ -2070,6 +2522,46 @@ export function registerToastSalesRoutes(router: Router) {
       res.json(await reviewDepositLiability(String(req.query.from || ""), String(req.query.to || "")));
     } catch (error) {
       res.status(500).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/deposit-ledger", isAdmin, async (req, res) => {
+    try {
+      res.json(await guestDepositLedger(String(req.query.q || "")));
+    } catch (error) {
+      res.status(500).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/deposit-ledger/entries", isAdmin, async (req, res) => {
+    try {
+      res.json(await guestDepositEntries(String(req.query.customer || "")));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
+  });
+
+  router.post("/toast-sales/deposit-ledger/sync", isAdmin, async (req, res) => {
+    try {
+      res.json(await syncGuestDepositLedger(String(req.body?.from || ""), String(req.body?.to || "")));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/deposit-ledger/past", isAdmin, async (_req, res) => {
+    try {
+      res.json(await pastGuestDeposits());
+    } catch (error) {
+      res.status(500).json({ message: qbFault(error) });
+    }
+  });
+
+  router.post("/toast-sales/deposit-ledger/past", isAdmin, async (_req, res) => {
+    try {
+      res.json(await postPastDepositJournal());
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
     }
   });
 

@@ -13,7 +13,6 @@ type ExpenseReview = {
   amount: number;
   accountName: string;
   status: "ready" | "ambiguous" | "unmatched" | "corrected" | "posted-to-payable" | "mixed";
-  billDoc?: string;
   note: string;
 };
 type Review = {
@@ -110,7 +109,7 @@ export default function UsFoods() {
         <div>
           <h2 className="text-2xl font-semibold">US Foods</h2>
           <p className="text-muted-foreground mt-1 max-w-3xl">
-            Each morning this checks US Foods, Inc. When the bank feed records a draft as an expense instead of paying the invoice, and that expense matches one open invoice due the same week, the invoice is closed without taking the cash again. A draft that pays several invoices, or includes a credit, is applied from the payment file.
+            Each morning this checks US Foods expenses. When the open invoices due that week add up to an expense, that expense is deleted and a bill payment for the same amount is applied to those invoices. If QuickBooks will not delete it because the line is matched to a bank download, the invoices are still paid and the cash is not taken a second time. A draft that does not match waits for the payment file.
           </p>
         </div>
         <div className="flex gap-2">
@@ -118,7 +117,7 @@ export default function UsFoods() {
             {review.isFetching ? "Checking" : "Check now"}
           </Button>
           <Button onClick={() => correct.mutate()} disabled={!data?.readyCount || correct.isPending} data-testid="button-us-foods-correct">
-            Close matched invoices
+            Replace expenses with bill payments
           </Button>
         </div>
       </div>
@@ -143,7 +142,7 @@ export default function UsFoods() {
             <CardDescription>Bank drafts ready to close</CardDescription>
             <CardTitle className="text-2xl">{data ? data.readyCount : "—"}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">One expense, one invoice, due within a week. The daily check closes these.</CardContent>
+          <CardContent className="text-sm text-muted-foreground">Open invoices due that week add up to the expense. The daily check replaces these.</CardContent>
         </Card>
       </div>
 
@@ -152,7 +151,7 @@ export default function UsFoods() {
       <Card>
         <CardHeader>
           <CardTitle>Bank drafts in the last 45 days</CardTitle>
-          <CardDescription>These are US Foods expenses already on the bank. A draft that covers more than one invoice stays here until the payment file is uploaded.</CardDescription>
+          <CardDescription>These are US Foods expenses already on the bank. A matched expense is deleted and replaced with a bill payment when QuickBooks allows the delete. A matched bank download stays, and the invoices are paid without a second withdrawal.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -186,7 +185,7 @@ export default function UsFoods() {
       <Card>
         <CardHeader>
           <CardTitle>Payment file</CardTitle>
-          <CardDescription>Upload the US Foods payment activity file when one withdrawal pays several invoices or a credit. Drafts from 2025 are skipped.</CardDescription>
+          <CardDescription>Upload the US Foods payment activity file when the open invoices do not add up to the draft, or a credit is included. Drafts from 2025 are skipped.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">

@@ -45,24 +45,40 @@ export async function getToastToken(): Promise<string> {
   return cachedToken.accessToken;
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function toastApiRequest(path: string, restaurantGuid?: string): Promise<any> {
-  const token = await getToastToken();
-  const headers: Record<string, string> = {
-    "Authorization": `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-  if (restaurantGuid) {
-    headers["Toast-Restaurant-External-ID"] = restaurantGuid;
+  let pause = 2000;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const token = await getToastToken();
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+    if (restaurantGuid) {
+      headers["Toast-Restaurant-External-ID"] = restaurantGuid;
+    }
+
+    const response = await fetch(`${TOAST_API_HOST}${path}`, { headers });
+
+    if (response.status === 429 || response.status === 503) {
+      await response.text().catch(() => "");
+      await wait(pause);
+      pause = Math.min(pause * 2, 20000);
+      continue;
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Toast API error (${response.status}): ${text}`);
+    }
+
+    return response.json();
   }
 
-  const response = await fetch(`${TOAST_API_HOST}${path}`, { headers });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Toast API error (${response.status}): ${text}`);
-  }
-
-  return response.json();
+  throw new Error("Toast is busy. Try this date again in a minute.");
 }
 
 export async function toastApiWrite(

@@ -28,19 +28,20 @@ type Bill = { id: string; doc: string; date: string; due: string; balance: numbe
 type Credit = { id: string; doc: string; date: string; balance: number };
 type PurchaseRow = {
   Id: string;
+  SyncToken?: string;
   TxnDate: string;
   TotalAmt: string | number;
+  AccountRef?: { value?: string; name?: string };
   EntityRef?: { value?: string };
   Line?: { Amount?: number; DetailType?: string; AccountBasedExpenseLineDetail?: { AccountRef?: { value?: string; name?: string } } }[];
 };
 
-type Expense = { id: string; date: string; amount: number; accountId: string; accountName: string; mixed: boolean };
+type Expense = { id: string; date: string; amount: number; accountId: string; accountName: string; bankAccountId: string; mixed: boolean };
 type ExpenseStatus = "ready" | "ambiguous" | "unmatched" | "corrected" | "posted-to-payable" | "mixed";
 
 type ExpenseReview = Expense & {
   status: ExpenseStatus;
-  billId?: string;
-  billDoc?: string;
+  bills: { id: string; doc: string }[];
   note: string;
 };
 
@@ -192,6 +193,7 @@ async function loadBooks() {
         amount: Number(purchase.TotalAmt),
         accountId: account.accountId,
         accountName: account.accountName,
+        bankAccountId: purchase.AccountRef?.value || BANK_ID,
         mixed: account.mixed,
       };
     });
@@ -206,37 +208,77 @@ async function loadBooks() {
   };
 }
 
+function dueNear(expense: Expense, bill: Bill) {
+  return Boolean(bill.due) && bill.date <= expense.date && Math.abs(daysBetween(expense.date, bill.due)) <= 7 && bill.balance > 0;
+}
+
+function invoiceSets(expense: Expense, bills: Bill[]) {
+  const candidates = bills.filter((bill) => dueNear(expense, bill)).sort((left, right) => cents(right.balance) - cents(left.balance));
+  const target = cents(expense.amount);
+  const found: Bill[][] = [];
+  const current: Bill[] = [];
+  const search = (start: number, remaining: number) => {
+    if (found.length > 1) return;
+    if (remaining === 0) {
+      found.push([...current]);
+      return;
+    }
+    for (let index = start; index < candidates.length; index += 1) {
+      const value = cents(candidates[index].balance);
+      if (value <= 0 || value > remaining) continue;
+      current.push(candidates[index]);
+      search(index + 1, remaining - value);
+      current.pop();
+      if (found.length > 1) return;
+    }
+  };
+  if (candidates.length <= 16) search(0, target);
+  return found;
+}
+
+function describeInvoices(bills: { doc: string }[]) {
+  return bills.map((bill) => bill.doc).join(", ");
+}
+
 export function reviewExpenses(expenses: Expense[], bills: Bill[], handled: Set<string>): ExpenseReview[] {
-  return expenses.map((expense) => {
+  const available = [...bills];
+  const ordered = [...expenses].sort((left, right) => right.amount - left.amount || left.date.localeCompare(right.date));
+  const byId = new Map<string, ExpenseReview>();
+  for (const expense of ordered) {
     if (handled.has(expense.id)) {
-      return { ...expense, status: "corrected", note: "This bank draft was already applied to its invoice." };
+      byId.set(expense.id, { ...expense, status: "corrected", bills: [], note: "This bank draft was already replaced with a bill payment." });
+      continue;
     }
     if (expense.mixed || !expense.accountId) {
-      return { ...expense, status: "mixed", note: "This bank line does not use a single expense account, so it was left alone." };
+      byId.set(expense.id, { ...expense, status: "mixed", bills: [], note: "This bank line does not use a single expense account, so it was left alone." });
+      continue;
     }
     if (expense.accountId === AP_ID) {
-      return { ...expense, status: "posted-to-payable", note: "This draft was posted to Accounts Payable. It does not close a specific invoice." };
+      byId.set(expense.id, { ...expense, status: "posted-to-payable", bills: [], note: "This draft was posted to Accounts Payable. It does not close a specific invoice." });
+      continue;
     }
-    const matches = bills.filter((bill) =>
-      cents(bill.balance) === cents(expense.amount)
-      && bill.due
-      && bill.date <= expense.date
-      && Math.abs(daysBetween(expense.date, bill.due)) <= 7
-    );
-    if (matches.length === 1) {
-      return {
+    const sets = invoiceSets(expense, available);
+    if (sets.length === 1) {
+      const chosen = sets[0];
+      chosen.forEach((bill) => {
+        const index = available.findIndex((item) => item.id === bill.id);
+        if (index >= 0) available.splice(index, 1);
+      });
+      byId.set(expense.id, {
         ...expense,
         status: "ready",
-        billId: matches[0].id,
-        billDoc: matches[0].doc,
-        note: `Invoice ${matches[0].doc} is the same amount and is due within a week of this draft.`,
-      };
+        bills: chosen.map((bill) => ({ id: bill.id, doc: bill.doc })),
+        note: `Pays ${describeInvoices(chosen)}. The expense will be deleted and a bill payment for the same amount will be applied to ${chosen.length === 1 ? "that invoice" : "those invoices"}.`,
+      });
+      continue;
     }
-    if (matches.length > 1) {
-      return { ...expense, status: "ambiguous", note: "More than one open invoice matches this amount. Use the payment file so the right invoice is closed." };
+    if (sets.length > 1) {
+      byId.set(expense.id, { ...expense, status: "ambiguous", bills: [], note: "More than one set of open invoices adds up to this draft. Upload the payment file so the right invoices are paid." });
+      continue;
     }
-    return { ...expense, status: "unmatched", note: "No single open invoice matches this amount. Upload the payment file when this draft paid several invoices. Invoices that are already closed stay closed." };
-  });
+    byId.set(expense.id, { ...expense, status: "unmatched", bills: [], note: "No open invoices due that week add up to this draft. Upload the payment file when the invoices are known." });
+  }
+  return expenses.map((expense) => byId.get(expense.id) || { ...expense, status: "unmatched", bills: [], note: "This draft was not reviewed." });
 }
 
 async function recordAction(action: { purchaseId?: string; draftKey?: string; kind: string; note: string; amount: number }) {
@@ -247,38 +289,85 @@ async function recordAction(action: { purchaseId?: string; draftKey?: string; ki
   `);
 }
 
-async function closeBillWithFoodOffset(bill: Bill, expense: Expense) {
-  if (expense.date < OPEN_YEAR || bill.date < OPEN_YEAR) {
+async function deleteQuickBooks(entity: "purchase" | "billpayment", id: string, syncToken: string) {
+  await postQuickBooks(`/${entity}?operation=delete`, { Id: id, SyncToken: syncToken });
+}
+
+async function replaceExpenseWithBillPayment(expense: Expense, bills: Bill[], credits: { id: string; amount: number }[] = []): Promise<"deleted" | "kept"> {
+  if (expense.date < OPEN_YEAR || bills.some((bill) => bill.date < OPEN_YEAR)) {
     throw new Error("A prior-year US Foods transaction was left unchanged.");
   }
-  const accountId = expense.accountId;
-  if (!accountId || accountId === AP_ID) {
-    throw new Error("This bank draft is not an expense that can be offset.");
+  if (!expense.accountId || expense.accountId === AP_ID || expense.mixed) {
+    throw new Error("This bank draft is not an expense that can be replaced.");
   }
-  const credit = await postQuickBooks("/vendorcredit", {
+  const billed = bills.reduce((sum, bill) => sum + cents(bill.balance), 0);
+  const credited = credits.reduce((sum, credit) => sum + cents(credit.amount), 0);
+  if (billed - credited !== cents(expense.amount)) throw new Error("The invoices no longer match the bank expense.");
+  const names = describeInvoices(bills);
+  const created = await postQuickBooks("/billpayment", {
+    VendorRef: { value: VENDOR_ID },
+    TxnDate: expense.date,
+    TotalAmt: expense.amount,
+    PayType: "Check",
+    DocNumber: `USF-${expense.id}`.slice(0, 21),
+    PrivateNote: `Replaces the US Foods expense from ${expense.date}. Pays ${names}.`,
+    CheckPayment: { BankAccountRef: { value: expense.bankAccountId || BANK_ID }, PrintStatus: "PrintComplete" },
+    Line: [
+      ...bills.map((bill) => ({ Amount: bill.balance, LinkedTxn: [{ TxnId: bill.id, TxnType: "Bill" }] })),
+      ...credits.map((credit) => ({ Amount: credit.amount, LinkedTxn: [{ TxnId: credit.id, TxnType: "VendorCredit" }] })),
+    ],
+  });
+  const payment = created?.BillPayment as { Id?: string; SyncToken?: string } | undefined;
+  if (!payment?.Id || payment.SyncToken == null) throw new Error(`QuickBooks did not return the bill payment for ${names}.`);
+  const current = await queryQuickBooks(`SELECT Id, SyncToken FROM Purchase WHERE Id = '${expense.id}'`);
+  const purchase = (current.data?.QueryResponse?.Purchase?.[0] || null) as { Id?: string; SyncToken?: string } | null;
+  if (!purchase?.Id || purchase.SyncToken == null) {
+    await deleteQuickBooks("billpayment", payment.Id, String(payment.SyncToken));
+    throw new Error("The expense was no longer available, so the bill payment was removed.");
+  }
+  try {
+    await deleteQuickBooks("purchase", purchase.Id, String(purchase.SyncToken));
+  } catch (error) {
+    try {
+      await deleteQuickBooks("billpayment", payment.Id, String(payment.SyncToken));
+    } catch (rollback) {
+      throw new Error(`Bill payment ${payment.Id} was created and expense ${expense.id} is still in QuickBooks. ${qbFault(error)} ${qbFault(rollback)}`);
+    }
+    if (/matched to a transaction that was downloaded/i.test(qbFault(error))) {
+      await payMatchedExpense(expense, bills, credits);
+      return "kept";
+    }
+    throw error;
+  }
+  return "deleted";
+}
+
+async function payMatchedExpense(expense: Expense, bills: Bill[], credits: { id: string; amount: number }[]) {
+  const offset = await postQuickBooks("/vendorcredit", {
     VendorRef: { value: VENDOR_ID },
     TxnDate: expense.date,
     DocNumber: `BANK-${expense.id}`.slice(0, 21),
-    PrivateNote: `Closes US Foods invoice ${bill.doc}. The ${expense.date} bank draft of ${expense.amount.toFixed(2)} was categorized as ${expense.accountName}. Cash is not taken a second time.`,
+    PrivateNote: `QuickBooks would not delete the ${expense.date} US Foods expense because it is matched to a downloaded bank transaction. This reverses ${expense.accountName} so the invoices are paid without a second withdrawal.`,
     Line: [{
-      Amount: bill.balance,
+      Amount: expense.amount,
       DetailType: "AccountBasedExpenseLineDetail",
-      Description: `US Foods invoice ${bill.doc}`,
-      AccountBasedExpenseLineDetail: { AccountRef: { value: accountId } },
+      Description: `US Foods ${describeInvoices(bills)}`,
+      AccountBasedExpenseLineDetail: { AccountRef: { value: expense.accountId } },
     }],
   });
-  const creditId = credit?.VendorCredit?.Id as string | undefined;
-  if (!creditId) throw new Error(`QuickBooks did not return a credit for invoice ${bill.doc}.`);
+  const creditId = offset?.VendorCredit?.Id as string | undefined;
+  if (!creditId) throw new Error("QuickBooks did not return the credit for the matched expense.");
   await postQuickBooks("/billpayment", {
     VendorRef: { value: VENDOR_ID },
     TxnDate: expense.date,
     TotalAmt: 0,
     PayType: "Check",
-    PrivateNote: `Applies the offset credit to US Foods invoice ${bill.doc}. The $0 amount is the application. It is not a bank withdrawal.`,
-    CheckPayment: { BankAccountRef: { value: BANK_ID }, PrintStatus: "PrintComplete" },
+    PrivateNote: `Pays ${describeInvoices(bills)}. The bank expense stays because QuickBooks would not delete it. The $0 amount is the application, not a second withdrawal.`,
+    CheckPayment: { BankAccountRef: { value: expense.bankAccountId || BANK_ID }, PrintStatus: "PrintComplete" },
     Line: [
-      { Amount: bill.balance, LinkedTxn: [{ TxnId: bill.id, TxnType: "Bill" }] },
-      { Amount: bill.balance, LinkedTxn: [{ TxnId: creditId, TxnType: "VendorCredit" }] },
+      ...bills.map((bill) => ({ Amount: bill.balance, LinkedTxn: [{ TxnId: bill.id, TxnType: "Bill" }] })),
+      ...credits.map((credit) => ({ Amount: credit.amount, LinkedTxn: [{ TxnId: credit.id, TxnType: "VendorCredit" }] })),
+      { Amount: expense.amount, LinkedTxn: [{ TxnId: creditId, TxnType: "VendorCredit" }] },
     ],
   });
 }
@@ -307,26 +396,34 @@ export async function applyReadyCorrections() {
   let closed = 0;
   try {
     const books = await loadBooks();
-    const ready = reviewExpenses(books.expenses, books.bills, books.handled).filter((expense) => expense.status === "ready");
-    const waiting = reviewExpenses(books.expenses, books.bills, books.handled).filter((expense) => expense.status === "unmatched" || expense.status === "ambiguous").length;
+    const reviewed = reviewExpenses(books.expenses, books.bills, books.handled);
+    const ready = reviewed.filter((expense) => expense.status === "ready");
+    const waiting = reviewed.filter((expense) => expense.status === "unmatched" || expense.status === "ambiguous").length;
     for (const expense of ready) {
-      const bill = books.bills.find((item) => item.id === expense.billId);
-      if (!bill || cents(bill.balance) !== cents(expense.amount)) {
-        notes.push(`Invoice ${expense.billDoc} changed before it could be closed.`);
+      const chosen = expense.bills.flatMap((item) => {
+        const bill = books.bills.find((candidate) => candidate.id === item.id);
+        return bill ? [bill] : [];
+      });
+      if (chosen.length !== expense.bills.length) {
+        notes.push(`The invoices for the ${expense.date} draft changed before they could be paid.`);
         continue;
       }
       try {
-        await closeBillWithFoodOffset(bill, expense);
+        const outcome = await replaceExpenseWithBillPayment(expense, chosen);
+        const names = describeInvoices(chosen);
+        const note = outcome === "deleted"
+          ? `Deleted the ${expense.date} expense of ${expense.amount.toFixed(2)} and paid ${names}.`
+          : `QuickBooks would not delete the matched ${expense.date} expense of ${expense.amount.toFixed(2)}. Paid ${names} without a second withdrawal.`;
         await recordAction({
           purchaseId: expense.id,
-          kind: "offset-expense",
-          note: `Closed invoice ${bill.doc} against the ${expense.date} bank expense of ${expense.amount.toFixed(2)}.`,
+          kind: "bill-payment",
+          note,
           amount: expense.amount,
         });
         closed += 1;
-        notes.push(`Closed invoice ${bill.doc} for ${expense.amount.toFixed(2)}.`);
+        notes.push(note);
       } catch (error) {
-        notes.push(`Invoice ${bill.doc} was not closed: ${qbFault(error)}`);
+        notes.push(`The ${expense.date} expense was not replaced: ${qbFault(error)}`);
       }
     }
     return { closed, waiting, notes };
@@ -444,7 +541,7 @@ async function expensesOnDate(date: string) {
     .filter((purchase) => String(purchase.EntityRef?.value || "") === VENDOR_ID && Number(purchase.TotalAmt) > 0)
     .map((purchase) => {
       const account = expenseAccount(purchase);
-      return { id: purchase.Id, date: purchase.TxnDate, amount: Number(purchase.TotalAmt), accountId: account.accountId, accountName: account.accountName, mixed: account.mixed };
+      return { id: purchase.Id, date: purchase.TxnDate, amount: Number(purchase.TotalAmt), accountId: account.accountId, accountName: account.accountName, bankAccountId: purchase.AccountRef?.value || BANK_ID, mixed: account.mixed };
     });
 }
 
@@ -502,7 +599,7 @@ export async function previewDrafts(drafts: { date: string; reference: string; l
       net,
       status: sameDay.length === 1 ? "ready-offset" : "ready-payment",
       note: sameDay.length === 1
-        ? "The bank already recorded this draft. The invoices will be closed without a second withdrawal."
+        ? "The bank expense will be deleted and a bill payment for the same amount will pay these invoices."
         : "No bank expense was found. A bill payment will be created. Match the later bank line to that payment.",
     });
   }
@@ -543,44 +640,19 @@ async function applyOffsetDraft(draft: DraftPreview, expense: Expense, books: Aw
   }
   const covered = creditLines.reduce((sum, line) => sum + cents(line.amount), 0);
   const billed = billLines.reduce((sum, line) => sum + cents(line.amount), 0);
-  const remainder = billed - covered;
-  if (remainder !== cents(expense.amount)) {
+  if (billed - covered !== cents(expense.amount)) {
     throw new Error(`Draft ${draft.reference} does not tie to the bank expense.`);
   }
-  if (remainder > 0) {
-    const offset = await postQuickBooks("/vendorcredit", {
-      VendorRef: { value: VENDOR_ID },
-      TxnDate: draft.date,
-      DocNumber: `BANK-${expense.id}`.slice(0, 21),
-      PrivateNote: `Offsets the ${draft.date} US Foods bank expense ${draft.reference} so the invoices close without a second withdrawal.`,
-      Line: [{
-        Amount: money(remainder),
-        DetailType: "AccountBasedExpenseLineDetail",
-        Description: `US Foods draft ${draft.reference}`,
-        AccountBasedExpenseLineDetail: { AccountRef: { value: expense.accountId } },
-      }],
-    });
-    const id = offset?.VendorCredit?.Id as string | undefined;
-    if (!id) throw new Error(`QuickBooks did not return the offset for ${draft.reference}.`);
-    creditLines.push({ id, amount: money(remainder) });
-  }
-  await postQuickBooks("/billpayment", {
-    VendorRef: { value: VENDOR_ID },
-    TxnDate: draft.date,
-    TotalAmt: 0,
-    PayType: "Check",
-    PrivateNote: `Applies US Foods draft ${draft.reference} to its invoices. The $0 amount means the bank expense already recorded the withdrawal.`,
-    CheckPayment: { BankAccountRef: { value: BANK_ID }, PrintStatus: "PrintComplete" },
-    Line: [
-      ...billLines.map((line) => ({ Amount: line.amount, LinkedTxn: [{ TxnId: line.id, TxnType: "Bill" }] })),
-      ...creditLines.map((line) => ({ Amount: line.amount, LinkedTxn: [{ TxnId: line.id, TxnType: "VendorCredit" }] })),
-    ],
-  });
+  await replaceExpenseWithBillPayment(
+    expense,
+    billLines.map((line) => ({ id: line.id, doc: line.doc, date: draft.date, due: draft.date, balance: line.amount })),
+    creditLines,
+  );
   await recordAction({
     purchaseId: expense.id,
     draftKey: `${draft.date}|${draft.reference}`,
-    kind: "offset-draft",
-    note: `Closed ${billLines.map((line) => line.doc).join(", ")} against bank draft ${draft.reference}.`,
+    kind: "bill-payment",
+    note: `Replaced the bank expense with a bill payment for ${billLines.map((line) => line.doc).join(", ")}.`,
     amount: expense.amount,
   });
 }

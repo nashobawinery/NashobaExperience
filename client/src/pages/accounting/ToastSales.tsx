@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DsrSyncLog from "./DsrSyncLog";
 import { SearchableChoice } from "./SearchableChoice";
 
-type DayLine = { accountName: string; className: string; toast: number; quickbooks: number; difference: number };
+type DayLine = { accountName: string; className: string; detail?: string; toast: number; quickbooks: number; difference: number; sources?: { name: string; amount: number }[] };
 type DayReview = {
   date: string;
   orderCount: number;
@@ -67,6 +67,12 @@ function yesterday() {
   const day = String(date.getDate()).padStart(2, "0");
   return `${date.getFullYear()}-${month}-${day}`;
 }
+
+type PastDeposit = { customerKey: string; name: string; email: string; phone: string; reservationDate: string; source: string; amount: number };
+type PastReport = { from: string; through: string; days: number; count: number; toastTables: number; total: number; toastTablesTotal: number; deposits: PastDeposit[] };
+type GuestBalance = { key: string; name: string; email: string; phone: string; credits: number; debits: number; balance: number };
+type GuestLedger = { key: string; name: string; email: string; phone: string; entries: { date: string; visitDate: string; memo: string; credit: number; debit: number; balance: number }[] };
+type LedgerReport = { from: string; through: string; days: number; customers: GuestBalance[] };
 
 type LiabilityMonth = {
   from: string;
@@ -354,9 +360,23 @@ export default function ToastSales() {
   const [noticeDraft, setNoticeDraft] = useState<Record<string, string>>({});
   const [liabilityMonths, setLiabilityMonths] = useState<LiabilityMonth[]>([]);
   const [liabilityProgress, setLiabilityProgress] = useState("");
+  const [openSources, setOpenSources] = useState<Record<string, boolean>>({});
+  const [guestSearch, setGuestSearch] = useState("");
+  const [guestKey, setGuestKey] = useState<string | null>(null);
+  const [ledgerProgress, setLedgerProgress] = useState("");
 
   const noticeQuery = useQuery<{ notices: NoticeSetting[] }>({
     queryKey: ["/api/accounting/toast-sales/notices"],
+  });
+  const ledgerQuery = useQuery<LedgerReport>({
+    queryKey: ["/api/accounting/toast-sales/deposit-ledger"],
+  });
+  const pastQuery = useQuery<PastReport>({
+    queryKey: ["/api/accounting/toast-sales/deposit-ledger/past"],
+  });
+  const guestQuery = useQuery<GuestLedger>({
+    queryKey: ["/api/accounting/toast-sales/deposit-ledger/entries", { customer: guestKey }],
+    enabled: Boolean(guestKey),
   });
 
   useEffect(() => {
@@ -413,6 +433,38 @@ export default function ToastSales() {
       toast({ title: "Could not review guest deposits", description: error.message, variant: "destructive" });
     },
   });
+  const refreshLedger = useMutation({
+    mutationFn: async () => {
+      const ranges = monthRanges("2026-01-01", yesterday());
+      for (const range of ranges) {
+        setLedgerProgress(`Reading ${range.label}`);
+        const response = await apiRequest("POST", "/api/accounting/toast-sales/deposit-ledger/sync", { from: range.from, to: range.to });
+        await response.json();
+      }
+      setLedgerProgress("");
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/toast-sales/deposit-ledger"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/toast-sales/deposit-ledger/past"] });
+      toast({ title: "Guest deposit ledger updated" });
+    },
+    onError: (error: Error) => {
+      setLedgerProgress("");
+      toast({ title: "The guest ledger was not updated", description: error.message, variant: "destructive" });
+    },
+  });
+  const postPast = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/accounting/toast-sales/deposit-ledger/past");
+      return response.json() as Promise<{ doc: string; count: number; total: number; creditAccount: string; liability: string }>;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/toast-sales/deposit-ledger"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/toast-sales/deposit-ledger/past"] });
+      toast({ title: `Posted ${result.doc}`, description: `${result.count} deposits, ${money(result.total)}. Debit ${result.liability}. Credit ${result.creditAccount}.` });
+    },
+    onError: (error: Error) => toast({ title: "The reconciling journal was not posted", description: error.message, variant: "destructive" }),
+  });
 
   const outstandingCheck = useMutation({
     mutationFn: async () => {
@@ -464,7 +516,14 @@ export default function ToastSales() {
     onError: (error: Error) => toast({ title: "QuickBooks was not changed", description: error.message, variant: "destructive" }),
   });
 
-  const gaps = (review?.lines ?? []).filter((line) => line.difference !== 0);
+  const guestNeedle = guestSearch.trim().toLowerCase();
+  const guestRows = (ledgerQuery.data?.customers ?? []).filter((guest) => {
+    if (!guestNeedle) return Math.abs(guest.balance) >= 0.01;
+    return [guest.name, guest.email, guest.phone].join(" ").toLowerCase().includes(guestNeedle);
+  });
+  const ledgerSpan = ledgerQuery.data?.through
+    ? `Saved from ${ledgerQuery.data.from} through ${ledgerQuery.data.through}.`
+    : "No guest deposits are saved yet.";
   const depositsCollected = liabilityMonths.reduce((sum, month) => sum + month.collected, 0);
   const depositsRedeemed = liabilityMonths.reduce((sum, month) => sum + month.redeemed, 0);
   const depositsOutstanding = Math.round((depositsCollected - depositsRedeemed) * 100) / 100;
@@ -569,6 +628,137 @@ export default function ToastSales() {
                 <p>QuickBooks 214000 currently shows {money(quickBooksOwed)} owed to guests.</p>
                 <p>{depositCorrection(depositsOutstanding, quickBooksOwed)}</p>
               </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Guest deposit ledger</CardTitle>
+          <CardDescription>
+            Each guest keeps a running record. A deposit collected, or paid ahead of the visit, is a credit. Using that deposit on the visit is a debit. The balance is what that guest still has with us. Checking a sales date saves that day. Update from Toast reads January 1 through yesterday and replaces each saved day. Cash taken to the bank stays on the outstanding cash list, separate from this ledger.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">{ledgerQuery.isLoading ? "Loading the saved ledger." : ledgerSpan} {ledgerQuery.data?.days ? `${ledgerQuery.data.days} days are saved.` : ""} Reading the year takes several minutes.</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <Button onClick={() => refreshLedger.mutate()} disabled={refreshLedger.isPending} data-testid="button-deposit-ledger">
+              {refreshLedger.isPending ? ledgerProgress || "Reading Toast" : "Update from Toast"}
+            </Button>
+            <Input value={guestSearch} onChange={(event) => setGuestSearch(event.target.value)} placeholder="Search a guest, email, or phone" className="max-w-xs" />
+          </div>
+          {ledgerQuery.isError ? <p className="text-sm text-muted-foreground">The guest ledger could not be loaded.</p> : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Guest</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead className="text-right">Credits</TableHead>
+                  <TableHead className="text-right">Debits</TableHead>
+                  <TableHead className="text-right">Still held</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {guestRows.map((guest) => (
+                  <TableRow key={guest.key}>
+                    <TableCell>{guest.name}</TableCell>
+                    <TableCell>{guest.email || guest.phone || "—"}</TableCell>
+                    <TableCell className="text-right">{money(guest.credits)}</TableCell>
+                    <TableCell className="text-right">{money(guest.debits)}</TableCell>
+                    <TableCell className="text-right">{money(guest.balance)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" onClick={() => setGuestKey(guest.key === guestKey ? null : guest.key)}>
+                        {guest.key === guestKey ? "Hide ledger" : "Ledger"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {guestRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-muted-foreground">{guestNeedle ? "No guest matches." : "No guest still has a deposit. Update from Toast, or search a name to see a guest whose deposit is used up."}</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+          {guestKey && (
+            <div className="space-y-2">
+              <p className="text-sm">{guestQuery.data?.name || "Guest"}{guestQuery.data?.email ? ` · ${guestQuery.data.email}` : ""}</p>
+              {guestQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading this ledger.</p> : guestQuery.isError ? <p className="text-sm text-muted-foreground">This ledger could not be loaded.</p> : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Visit</TableHead>
+                      <TableHead>What happened</TableHead>
+                      <TableHead className="text-right">Credit</TableHead>
+                      <TableHead className="text-right">Debit</TableHead>
+                      <TableHead className="text-right">Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(guestQuery.data?.entries ?? []).map((entry, index) => (
+                      <TableRow key={`${entry.date}-${entry.memo}-${index}`}>
+                        <TableCell>{entry.date}</TableCell>
+                        <TableCell>{entry.visitDate}</TableCell>
+                        <TableCell>{entry.memo}</TableCell>
+                        <TableCell className="text-right">{entry.credit ? money(entry.credit) : "—"}</TableCell>
+                        <TableCell className="text-right">{entry.debit ? money(entry.debit) : "—"}</TableCell>
+                        <TableCell className="text-right">{money(entry.balance)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Reservations that have passed</CardTitle>
+          <CardDescription>
+            Toast Tables is where many deposits are paid. A deposit still held after its reservation date is listed with the guest and that date. Posting writes one journal. Each guest is a debit to 214000 Toast - Reservation Deposits and a credit to Event Revenue, and the line names the guest, Toast Tables or the other Toast source, and the reservation date.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pastQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading past reservation deposits.</p> : pastQuery.isError ? <p className="text-sm text-muted-foreground">Past reservation deposits could not be loaded.</p> : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {pastQuery.data?.days
+                  ? `${pastQuery.data.count} deposits are still held for reservation dates that have passed, ${money(pastQuery.data.total)}. ${pastQuery.data.toastTables} of them are Toast Tables, ${money(pastQuery.data.toastTablesTotal)}.`
+                  : "Update from Toast first. Reservation dates are read from the saved guest ledger."}
+              </p>
+              {(pastQuery.data?.deposits.length ?? 0) > 0 && (
+                <div className="max-h-96 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Reservation</TableHead>
+                        <TableHead>Guest</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead className="text-right">Still held</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pastQuery.data?.deposits.map((deposit) => (
+                        <TableRow key={`${deposit.customerKey}|${deposit.reservationDate}`}>
+                          <TableCell>{deposit.reservationDate}</TableCell>
+                          <TableCell>{deposit.name}{deposit.email ? <span className="block text-xs text-muted-foreground">{deposit.email}</span> : null}</TableCell>
+                          <TableCell>{deposit.source}</TableCell>
+                          <TableCell className="text-right">{money(deposit.amount)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              <Button onClick={() => postPast.mutate()} disabled={!pastQuery.data?.count || postPast.isPending} data-testid="button-post-past-deposits">
+                {postPast.isPending ? "Posting" : pastQuery.data?.count ? `Post journal for ${money(pastQuery.data.total)}` : "Nothing to post"}
+              </Button>
             </>
           )}
         </CardContent>
@@ -766,8 +956,8 @@ export default function ToastSales() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{gaps.length ? "Accounts that differ" : "Accounts"}</CardTitle>
-              <CardDescription>Positive amounts are credits, the way sales appear. The difference is Toast minus QuickBooks.</CardDescription>
+              <CardTitle>Accounts</CardTitle>
+              <CardDescription>Positive amounts are credits, the way sales appear. The difference is Toast minus QuickBooks. Names that share an account are added into one line. Open Amounts to see each name and the dollars that were added. Cash deposits and card deposits stay on their own lines.</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -781,15 +971,43 @@ export default function ToastSales() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(gaps.length ? gaps : review.lines).map((line) => (
-                    <TableRow key={`${line.accountName}-${line.className}`}>
-                      <TableCell>{line.accountName}</TableCell>
-                      <TableCell>{line.className}</TableCell>
-                      <TableCell className="text-right">{money(line.toast)}</TableCell>
-                      <TableCell className="text-right">{money(line.quickbooks)}</TableCell>
-                      <TableCell className="text-right">{money(line.difference)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {review.lines.map((line) => {
+                    const lineKey = `${line.accountName}|${line.className}|${line.detail || ""}`;
+                    const sources = line.sources ?? [];
+                    const open = Boolean(openSources[lineKey]);
+                    return (
+                      <Fragment key={lineKey}>
+                        <TableRow>
+                          <TableCell>
+                            <div>{line.accountName}</div>
+                            {line.detail ? <div className="text-xs text-muted-foreground">{line.detail}</div> : null}
+                            {sources.length > 0 ? (
+                              <button
+                                type="button"
+                                className="text-xs text-muted-foreground underline"
+                                onClick={() => setOpenSources((current) => ({ ...current, [lineKey]: !current[lineKey] }))}
+                              >
+                                {open ? "Hide amounts" : `Amounts (${sources.length})`}
+                              </button>
+                            ) : null}
+                          </TableCell>
+                          <TableCell>{line.className}</TableCell>
+                          <TableCell className="text-right">{money(line.toast)}</TableCell>
+                          <TableCell className="text-right">{money(line.quickbooks)}</TableCell>
+                          <TableCell className="text-right">{money(line.difference)}</TableCell>
+                        </TableRow>
+                        {open ? sources.map((source) => (
+                          <TableRow key={`${lineKey}|${source.name}`}>
+                            <TableCell className="pl-8 text-muted-foreground">{source.name}</TableCell>
+                            <TableCell />
+                            <TableCell className="text-right text-muted-foreground">{money(source.amount)}</TableCell>
+                            <TableCell />
+                            <TableCell />
+                          </TableRow>
+                        )) : null}
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>

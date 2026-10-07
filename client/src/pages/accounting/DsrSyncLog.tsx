@@ -178,7 +178,7 @@ export default function DsrSyncLog() {
         <div>
           <CardTitle>{detail?.doc ? `CT · ${detail.doc}` : "Journal"}</CardTitle>
           <CardDescription>
-            Source CT, CellarTraks. Sales date {detail?.businessDate || "—"}. Update replaces the lines on this QuickBooks journal. Modernize rebuilds the day from Toast with the mapping saved now, then writes those lines onto this same journal.
+            Source CT, CellarTraks. Sales date {detail?.businessDate || "—"}. Update replaces the lines on this QuickBooks journal. Modernize rebuilds the day from Toast with the mapping saved now, then writes those lines onto this same journal. Cash deposits and card deposits stay on separate lines.
           </CardDescription>
         </div>
         <Button variant="outline" onClick={() => setSelectedId(null)}>Back to the log</Button>
@@ -191,6 +191,7 @@ export default function DsrSyncLog() {
                 <TableRow>
                   <TableHead>Account</TableHead>
                   <TableHead>Class</TableHead>
+                  <TableHead>Line</TableHead>
                   <TableHead>Debit or credit</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
@@ -220,6 +221,7 @@ export default function DsrSyncLog() {
                         onChange={(id) => setLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, classId: id } : item))}
                       />
                     </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{line.description || "—"}</TableCell>
                     <TableCell>
                       <select
                         className="h-9 rounded-md border bg-background px-2 text-sm"
