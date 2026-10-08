@@ -31,7 +31,7 @@ import { establishB2bBridgeSession } from "./b2b-auth";
 import resyRouter, { ensureResyMasterPageFlags } from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import staffReportingRouter, { getApprovedStaffPrintMenus, getSharedStaffPortalAccess, syncStaffReportingAssignmentOptions } from "./staff-reporting-routes";
-import accountingRouter, { ensureAccountingTables, initHealthcareBillUploadReminders } from "./accounting-routes";
+import accountingRouter, { ensureAccountingTables, initHealthcareBillUploadReminders, receivePayableEmail } from "./accounting-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
@@ -16606,6 +16606,25 @@ Generate a professional response:`;
       if (isFromOurDomain && isAutoReply) {
         console.log('[Email Inbound] Skipping auto-generated email from our domain:', subject);
         return res.status(200).json({ message: 'Auto-generated email skipped' });
+      }
+
+      if (isBillCopy) {
+        try {
+          const saved = await receivePayableEmail({
+            fromEmail,
+            fromName,
+            subject,
+            textBody,
+            htmlBody,
+            messageId,
+            attachments,
+          });
+          console.log("[Email Inbound] Saved accounts payable bill", saved.id, saved.duplicate ? "duplicate" : "new");
+          return res.status(200).json({ message: saved.duplicate ? "Bill already saved" : "Bill saved", id: saved.id });
+        } catch (billError) {
+          console.error("[Email Inbound] Failed to save accounts payable bill:", billError);
+          return res.status(500).json({ message: "Failed to save the bill" });
+        }
       }
 
       // ============================================

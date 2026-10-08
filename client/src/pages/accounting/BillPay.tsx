@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileText, Inbox, Receipt, Upload } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,9 +24,17 @@ type Payable = {
   documentKind: "unreviewed" | "invoice" | "statement";
   invoiceNumber: string | null;
   billDate: string | null;
+  dueDate: string | null;
   amount: string | null;
   glAccount: string | null;
+  qbVendorId: string | null;
+  qbAccountId: string | null;
+  qbBillId: string | null;
+  accountReason: string | null;
   originalFilename: string;
+  source: string | null;
+  fromEmail: string | null;
+  subject: string | null;
   createdAt: string;
 };
 
@@ -80,6 +88,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
         documentKind: document.draft.documentKind ?? document.documentKind,
         invoiceNumber: document.draft.invoiceNumber ?? document.invoiceNumber ?? "",
         billDate: (document.draft.billDate ?? document.billDate ?? "").slice(0, 10),
+        dueDate: (document.draft.dueDate ?? document.dueDate ?? "").slice(0, 10),
         amount: document.draft.amount ?? document.amount ?? "",
         glAccount: document.draft.glAccount ?? document.glAccount ?? "",
         qbVendorId: document.draft.qbVendorId ?? "",
@@ -106,6 +115,37 @@ export default function BillPay({ companies }: { companies: Company[] }) {
       toast({ title: "QuickBooks synced", description: `${result.companyName}: ${result.vendors} vendors, ${result.accounts} accounts` });
     },
     onError: (err: Error) => toast({ title: "Could not sync QuickBooks", description: err.message, variant: "destructive" }),
+  });
+  const postBill = useMutation({
+    mutationFn: async (document: Payable & { draft: Partial<Payable> & { qbVendorId?: string; qbAccountId?: string } }) => {
+      const response = await apiRequest("POST", `/api/accounting/payables/${document.id}/quickbooks`, {
+        vendorName: document.draft.vendorName ?? document.vendorName ?? "",
+        invoiceNumber: document.draft.invoiceNumber ?? document.invoiceNumber ?? "",
+        billDate: (document.draft.billDate ?? document.billDate ?? "").slice(0, 10),
+        dueDate: (document.draft.dueDate ?? document.dueDate ?? "").slice(0, 10),
+        amount: document.draft.amount ?? document.amount ?? "",
+        glAccount: document.draft.glAccount ?? document.glAccount ?? "",
+        qbVendorId: document.draft.qbVendorId ?? document.qbVendorId ?? "",
+        qbAccountId: document.draft.qbAccountId ?? document.qbAccountId ?? "",
+      });
+      return response.json() as Promise<{ qbBillId: string; attachmentMessage?: string }>;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables"] });
+      toast({ title: "Bill sent to QuickBooks", description: result.attachmentMessage || `QuickBooks bill ${result.qbBillId}` });
+    },
+    onError: (err: Error) => toast({ title: "Could not send the bill", description: err.message, variant: "destructive" }),
+  });
+  const reread = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("POST", `/api/accounting/payables/${id}/read`);
+      return response.json() as Promise<{ reason?: string }>;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables"] });
+      toast({ title: "Bill read" });
+    },
+    onError: (err: Error) => toast({ title: "Could not read the bill", description: err.message, variant: "destructive" }),
   });
   const vendors = (reference.data?.vendors ?? []).filter((vendor) => vendor.active);
   const accounts = (reference.data?.accounts ?? []).filter((account) => account.active);
@@ -154,7 +194,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
         <CardHeader>
           <CardTitle>Inbox</CardTitle>
           <CardDescription>
-            Send vendor bills to {data?.inboxEmail ?? "bills@nashobawinery.com"}. Email delivery is the next step. For now, add a PDF here.
+            Mail sent to {data?.inboxEmail ?? "bills@nashobawinery.com"} lands here and does not open a support ticket. The reading uses the vendors and accounts stored from QuickBooks, shows the invoice, and explains the account. Send to QuickBooks posts the bill and attaches the file.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -189,7 +229,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
           ) : (
             <div className="space-y-3">
               {documents.map((document) => (
-                <PayableRow key={document.id} document={document} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...document, draft })} saving={save.isPending} />
+                <PayableRow key={document.id} document={document} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...document, draft })} saving={save.isPending} onPost={(draft) => postBill.mutate({ ...document, draft })} posting={postBill.isPending} onRead={() => reread.mutate(document.id)} reading={reread.isPending} />
               ))}
             </div>
           )}
@@ -233,7 +273,7 @@ function QuickBooksAdmin({
         <div>
           <CardTitle>QuickBooks sync</CardTitle>
           <CardDescription>
-            Nashoba Valley’s QuickBooks is the connected company. Sync copies its vendors and chart of accounts here. The Gables is not connected.
+            Nashoba Valley’s QuickBooks is the connected company. Sync stores its vendors and chart of accounts here, and bill reading uses that stored list. The Gables is not connected.
             {syncedAt ? ` Last sync ${new Date(syncedAt).toLocaleString()}.` : ""}
           </CardDescription>
         </div>
@@ -281,6 +321,10 @@ function PayableRow({
   accounts,
   onSave,
   saving,
+  onPost,
+  posting,
+  onRead,
+  reading,
 }: {
   document: Payable;
   companies: Company[];
@@ -288,31 +332,69 @@ function PayableRow({
   accounts: QbAccount[];
   onSave: (draft: Partial<Payable> & { companyId?: string; qbVendorId?: string; qbAccountId?: string }) => void;
   saving: boolean;
+  onPost: (draft: Partial<Payable> & { qbVendorId?: string; qbAccountId?: string }) => void;
+  posting: boolean;
+  onRead: () => void;
+  reading: boolean;
 }) {
   const [vendorName, setVendorName] = useState(document.vendorName ?? "");
-  const [qbVendorId, setQbVendorId] = useState("");
-  const [qbAccountId, setQbAccountId] = useState("");
+  const [qbVendorId, setQbVendorId] = useState(document.qbVendorId ?? "");
+  const [qbAccountId, setQbAccountId] = useState(document.qbAccountId ?? "");
   const [documentKind, setDocumentKind] = useState(document.documentKind);
   const [invoiceNumber, setInvoiceNumber] = useState(document.invoiceNumber ?? "");
   const [billDate, setBillDate] = useState(document.billDate?.slice(0, 10) ?? "");
+  const [dueDate, setDueDate] = useState(document.dueDate?.slice(0, 10) ?? "");
   const [amount, setAmount] = useState(document.amount ?? "");
   const [glAccount, setGlAccount] = useState(document.glAccount ?? "");
   const [rowCompanyId, setRowCompanyId] = useState(document.companyId ?? "");
+  useEffect(() => {
+    setVendorName(document.vendorName ?? "");
+    setQbVendorId(document.qbVendorId ?? "");
+    setQbAccountId(document.qbAccountId ?? "");
+    setDocumentKind(document.documentKind);
+    setInvoiceNumber(document.invoiceNumber ?? "");
+    setBillDate(document.billDate?.slice(0, 10) ?? "");
+    setDueDate(document.dueDate?.slice(0, 10) ?? "");
+    setAmount(document.amount ?? "");
+    setGlAccount(document.glAccount ?? "");
+    setRowCompanyId(document.companyId ?? "");
+  }, [document.vendorName, document.qbVendorId, document.qbAccountId, document.documentKind, document.invoiceNumber, document.billDate, document.dueDate, document.amount, document.glAccount, document.companyId]);
+  const draft = { vendorName, documentKind, invoiceNumber, billDate, dueDate, amount, glAccount, companyId: rowCompanyId, qbVendorId, qbAccountId };
+  const expenseAccounts = accounts.filter((account) => /expense|cost of goods sold/i.test(account.accountType ?? ""));
+  const accountChoices = expenseAccounts.length > 0 ? expenseAccounts : accounts;
 
   return (
     <div className="border rounded-lg p-3 space-y-3" data-testid={`payable-${document.id}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-medium">{document.vendorName || document.originalFilename}</p>
-          <p className="text-sm text-muted-foreground">{document.companyName ?? "No company"} · {money(document.amount)}</p>
+          <p className="font-medium">{document.vendorName || document.subject || document.originalFilename}</p>
+          <p className="text-sm text-muted-foreground">
+            {document.source === "email" ? "Email" : "Upload"}
+            {document.subject ? ` · ${document.subject}` : ""} · {document.companyName ?? "No company"} · {money(document.amount)}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          {document.qbBillId && <Badge>QuickBooks {document.qbBillId}</Badge>}
           <Badge variant={document.documentKind === "unreviewed" ? "outline" : "secondary"}>{kindLabel[document.documentKind]}</Badge>
+          <Button variant="outline" size="sm" disabled={reading || Boolean(document.qbBillId)} onClick={onRead}>
+            {reading ? "Reading" : "Read bill"}
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <a href={`/api/accounting/payables/${document.id}/file`} target="_blank" rel="noreferrer">Open</a>
           </Button>
         </div>
       </div>
+      {document.accountReason && (
+        <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+          <p className="font-medium mb-1">Why this account</p>
+          <p>{document.accountReason}</p>
+        </div>
+      )}
+      {/pdf/i.test(document.originalFilename) ? (
+        <iframe title={document.originalFilename} src={`/api/accounting/payables/${document.id}/file`} className="w-full h-96 rounded-lg border" />
+      ) : /\.(png|jpe?g|webp|gif)$/i.test(document.originalFilename) ? (
+        <img src={`/api/accounting/payables/${document.id}/file`} alt={document.originalFilename} className="max-h-96 rounded-lg border" />
+      ) : null}
       <div className="grid gap-3 md:grid-cols-3">
         {vendors.length > 0 ? (
           <Select value={qbVendorId || undefined} onValueChange={(value) => {
@@ -347,7 +429,8 @@ function PayableRow({
           </SelectContent>
         </Select>
         <Input value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} placeholder="Invoice number" />
-        <Input type="date" value={billDate} onChange={(event) => setBillDate(event.target.value)} />
+        <Input type="date" aria-label="Invoice date" value={billDate} onChange={(event) => setBillDate(event.target.value)} />
+        <Input type="date" aria-label="Due date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
         <Input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" inputMode="decimal" />
         {accounts.length > 0 ? (
           <Select value={qbAccountId || undefined} onValueChange={(value) => {
@@ -357,7 +440,7 @@ function PayableRow({
           }}>
             <SelectTrigger className="md:col-span-2"><SelectValue placeholder={glAccount || "General ledger account"} /></SelectTrigger>
             <SelectContent>
-              {accounts.map((account) => (
+              {accountChoices.map((account) => (
                 <SelectItem key={account.qbId} value={account.qbId}>{account.accountNumber ? `${account.accountNumber} ` : ""}{account.fullyQualifiedName}</SelectItem>
               ))}
             </SelectContent>
@@ -368,9 +451,16 @@ function PayableRow({
         <Button
           variant="outline"
           disabled={saving}
-          onClick={() => onSave({ vendorName, documentKind, invoiceNumber, billDate, amount, glAccount, companyId: rowCompanyId, qbVendorId, qbAccountId })}
+          onClick={() => onSave(draft)}
         >
           Save
+        </Button>
+        <Button
+          disabled={posting || Boolean(document.qbBillId) || documentKind !== "invoice"}
+          title={documentKind === "invoice" ? "Create this bill in QuickBooks" : "Mark this document as an invoice first"}
+          onClick={() => onPost(draft)}
+        >
+          {document.qbBillId ? "In QuickBooks" : "Send to QuickBooks"}
         </Button>
       </div>
     </div>

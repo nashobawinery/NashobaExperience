@@ -108,6 +108,37 @@ export async function postQuickBooks(endpoint: string, body: unknown) {
   return qbApiRequest(conn, endpoint, "POST", body);
 }
 
+export async function uploadQuickBooksAttachment(input: { entityType: string; entityId: string; filename: string; mimeType: string; content: Buffer }) {
+  const conn = await getActiveConnection();
+  if (!conn) throw new Error("QuickBooks is not connected");
+  const accessToken = await refreshTokenIfNeeded(conn);
+  const boundary = `----Nashoba${crypto.randomBytes(8).toString("hex")}`;
+  const filename = input.filename.replace(/["\r\n]/g, "") || "invoice.pdf";
+  const metadata = JSON.stringify({
+    AttachableRef: [{ EntityRef: { type: input.entityType, value: input.entityId } }],
+    FileName: filename,
+    ContentType: input.mimeType || "application/pdf",
+  });
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file_metadata_01"\r\nContent-Type: application/json\r\n\r\n${metadata}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="file_content_01"; filename="${filename}"\r\nContent-Type: ${input.mimeType || "application/pdf"}\r\n\r\n`,
+    ),
+    input.content,
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  const url = `${getApiBase()}/v3/company/${conn.realmId}/upload?minorversion=75`;
+  const response = await axios.post(url, body, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    },
+    maxBodyLength: 30 * 1024 * 1024,
+  });
+  return response.data;
+}
+
 async function qbApiRequest(conn: typeof qbConnection.$inferSelect, endpoint: string, method = "GET", data?: any) {
   const accessToken = await refreshTokenIfNeeded(conn);
   const url = `${getApiBase()}/v3/company/${conn.realmId}${endpoint}`;
