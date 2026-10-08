@@ -16591,15 +16591,17 @@ Generate a professional response:`;
       }
 
       const isFromOurDomain = ourDomains.some(d => fromEmailLower.includes(d));
-      const isAutoReply = 
-        subject.toLowerCase().includes("we've received your request") ||
-        subject.toLowerCase().includes("new support ticket:") ||
-        subject.toLowerCase().includes("support request received") ||
-        parsedHeaders['auto-submitted'] ||
-        parsedHeaders['x-auto-response-suppress'] ||
-        fromEmailLower.includes('noreply') ||
-        fromEmailLower.includes('no-reply') ||
-        fromEmailLower.includes('mailer-daemon');
+      const recipientText = `${to} ${(envelope.to || []).join(" ")}`.toLowerCase();
+      const isBillCopy = recipientText.includes("bills@inbound.nashobawinery.com");
+      const subjectLowerForSkip = subject.toLowerCase();
+      const isSupportNotice = subjectLowerForSkip.includes("we've received your request")
+        || subjectLowerForSkip.includes("new support ticket:")
+        || subjectLowerForSkip.includes("support request received");
+      const isAutoReply = isSupportNotice
+        || fromEmailLower.includes('noreply')
+        || fromEmailLower.includes('no-reply')
+        || fromEmailLower.includes('mailer-daemon')
+        || (!isBillCopy && (parsedHeaders['auto-submitted'] || parsedHeaders['x-auto-response-suppress']));
       
       if (isFromOurDomain && isAutoReply) {
         console.log('[Email Inbound] Skipping auto-generated email from our domain:', subject);
@@ -17625,8 +17627,8 @@ Generate a professional response:`;
           console.error('[Email Inbound] Failed to generate AI draft or notify agents:', err);
         });
 
-        // Send confirmation receipt to customer (non-blocking)
-        if (fromEmail) {
+        // A bill copy is forwarded by the Accounts Payable mailbox. A receipt back to that mailbox would be sent on to QuickBooks.
+        if (fromEmail && !isBillCopy) {
           sendSupportRequestReceipt(
             fromEmail,
             fromName || null,
