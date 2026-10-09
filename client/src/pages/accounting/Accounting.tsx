@@ -16,7 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import Expenses from "./Expenses";
-import UsFoods from "./UsFoods";
 import ToastSales from "./ToastSales";
 
 type BooksSection =
@@ -32,8 +31,6 @@ type BooksSection =
   | "sales-tax"
   | "business-tax"
   | "lending"
-  | "healthcare"
-  | "us-foods"
   | "dsr";
 
 const ribbon: { id: BooksSection; label: string }[] = [
@@ -49,12 +46,10 @@ const ribbon: { id: BooksSection; label: string }[] = [
   { id: "sales-tax", label: "Sales Tax" },
   { id: "business-tax", label: "Business Tax" },
   { id: "lending", label: "Lending" },
-  { id: "healthcare", label: "Health Care" },
-  { id: "us-foods", label: "US Foods" },
   { id: "dsr", label: "DSR" },
 ];
 
-const booksDetail: Record<Exclude<BooksSection, "expenses" | "healthcare" | "us-foods" | "dsr">, string> = {
+const booksDetail: Record<Exclude<BooksSection, "expenses" | "dsr">, string> = {
   accounting: "Chart of accounts, registers, and journal entries for Nashoba Valley. The Gables is a second set of books.",
   sales: "Invoices you send, payments you receive, and deposits.",
   customers: "Customers and the balances they owe.",
@@ -1008,8 +1003,7 @@ export default function AccountingPage() {
 
       <main className="container py-8 space-y-6">
         {section === "expenses" ? (
-          <Expenses companies={data?.companies ?? []} />
-        ) : section === "healthcare" ? (
+          <Expenses companies={data?.companies ?? []} healthcare={(
         <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-semibold">Health Care Insurance Allocation</h2>
@@ -1759,8 +1753,7 @@ export default function AccountingPage() {
           </Tabs>
         )}
         </div>
-        ) : section === "us-foods" ? (
-          <UsFoods />
+          )} />
         ) : section === "dsr" ? (
           <ToastSales />
         ) : (

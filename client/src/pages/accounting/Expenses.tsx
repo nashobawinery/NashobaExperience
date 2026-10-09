@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -7,18 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import BillPay from "./BillPay";
+import UsFoods from "./UsFoods";
+import VendorAnalysis from "./VendorAnalysis";
 
 type Company = { id: string; name: string };
-type Screen = "overview" | "transactions" | "vendors" | "bills" | "bill-pay" | "payments" | "job-costing" | "mileage" | "contractors" | "forms";
+type Screen = "overview" | "transactions" | "vendors" | "analysis" | "bills" | "bill-pay" | "payments" | "job-costing" | "us-foods" | "healthcare" | "mileage" | "contractors" | "forms";
 
 const screens: { id: Screen; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "transactions", label: "Expense transactions" },
   { id: "vendors", label: "Vendors" },
+  { id: "analysis", label: "Vendor analysis" },
   { id: "bills", label: "Bills" },
   { id: "bill-pay", label: "Bill Pay" },
   { id: "payments", label: "Bill payments" },
   { id: "job-costing", label: "Job costing" },
+  { id: "us-foods", label: "US Foods" },
+  { id: "healthcare", label: "Health Care" },
   { id: "mileage", label: "Mileage" },
   { id: "contractors", label: "Contractors" },
   { id: "forms", label: "1099s" },
@@ -43,7 +48,7 @@ function money(value: string | null) {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
-export default function Expenses({ companies }: { companies: Company[] }) {
+export default function Expenses({ companies, healthcare }: { companies: Company[]; healthcare: ReactNode }) {
   const [screen, setScreen] = useState<Screen>("bill-pay");
   const reference = useQuery<{ vendors: Vendor[]; accounts: Account[] }>({
     queryKey: ["/api/accounting/payables/reference"],
@@ -86,9 +91,12 @@ export default function Expenses({ companies }: { companies: Company[] }) {
       {screen === "overview" && <Overview vendors={vendors.length} accounts={accounts.length} documents={documents} />}
       {screen === "transactions" && <ScreenNote title="Expense transactions" body="Checks and expenses recorded for Nashoba Valley will be listed here." />}
       {screen === "vendors" && <Vendors vendors={vendors} accounts={accounts.length} />}
+      {screen === "analysis" && <VendorAnalysis vendors={vendors} />}
       {screen === "bills" && <Bills documents={documents} onOpen={() => setScreen("bill-pay")} />}
       {screen === "payments" && <ScreenNote title="Bill payments" body="Payments applied to vendor bills will be listed here." />}
       {screen === "job-costing" && <ScreenNote title="Job costing" body="Costs assigned to a job will be listed here." />}
+      {screen === "us-foods" && <UsFoods />}
+      {screen === "healthcare" && healthcare}
       {screen === "mileage" && <ScreenNote title="Mileage" body="Mileage records will be listed here." />}
       {screen === "contractors" && <ScreenNote title="Contractors" body="Contractors paid outside payroll will be listed here." />}
       {screen === "forms" && <ScreenNote title="1099s" body="1099 worksheets will be listed here." />}

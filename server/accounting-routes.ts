@@ -554,6 +554,21 @@ export async function ensureAccountingTables() {
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS qb_bill_id varchar;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS account_reason text;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS storage_key text;
+    CREATE TABLE IF NOT EXISTS accounting_vendor_analyses (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      qb_vendor_id varchar NOT NULL,
+      vendor_name varchar NOT NULL,
+      original_filename text NOT NULL,
+      stored_filename varchar NOT NULL,
+      storage_key text,
+      mime_type varchar,
+      file_size integer,
+      statement_date date,
+      statement_balance numeric(12, 2),
+      qb_balance numeric(12, 2),
+      analysis jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamp NOT NULL DEFAULT now()
+    );
     CREATE UNIQUE INDEX IF NOT EXISTS accounting_payables_message_id_key
       ON accounting_payables (message_id)
       WHERE message_id IS NOT NULL AND message_id <> '';
@@ -2760,6 +2775,320 @@ router.post("/payables/sync", isAdmin, async (_req, res) => {
     console.error("Error syncing QuickBooks vendors and accounts:", error);
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to sync QuickBooks" });
   }
+});
+
+type StatementLine = { kind: "invoice" | "payment" | "credit"; reference: string; date: string | null; amount: number | null };
+type AnalysisIssue = { severity: "high" | "medium" | "low"; title: string; detail: string };
+type ComparedLine = {
+  reference: string;
+  kind: string;
+  statementAmount: number | null;
+  booksAmount: number | null;
+  booksBalance: number | null;
+  status: "matched" | "amount" | "missing-in-books" | "open-not-on-statement" | "paid-in-books";
+  note: string;
+};
+
+function referenceKey(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function roundedMoney(value: unknown) {
+  const amount = Number(String(value ?? "").replace(/[$,]/g, ""));
+  return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : null;
+}
+
+function isoOrNull(value: unknown) {
+  const text = String(value || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+async function quickBooksVendorRows(entity: string, where: string) {
+  try {
+    const page = await queryQuickBooks(`SELECT * FROM ${entity} WHERE ${where} MAXRESULTS 400`);
+    return (page.data?.QueryResponse?.[entity] ?? []) as Record<string, unknown>[];
+  } catch (error) {
+    console.error(`[Vendor analysis] ${entity} query failed:`, error);
+    return [];
+  }
+}
+
+async function readStatementLines(input: { text: string; filename: string; mime: string; content: Buffer; books: string }) {
+  const empty = { statementDate: null as string | null, statementBalance: null as number | null, summary: "", lines: [] as StatementLine[], recommendations: [] as { title: string; detail: string }[] };
+  if (!input.text.trim() && !/^image\//i.test(input.mime)) return empty;
+  try {
+    const OpenAI = (await import("openai")).default;
+    const openai = new OpenAI();
+    const content: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> = [{
+      type: "text",
+      text: `File: ${input.filename}\n\nStatement text:\n${input.text.slice(0, 16000)}\n\nQuickBooks activity for this vendor:\n${input.books}`,
+    }];
+    if (/^image\//i.test(input.mime)) {
+      content.push({ type: "image_url", image_url: { url: `data:${input.mime};base64,${input.content.toString("base64")}` } });
+    }
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You reconcile a vendor statement to the QuickBooks vendor activity supplied with it. Return JSON with statementDate, statementBalance, summary, statementLines, and recommendations. statementDate is YYYY-MM-DD or null. statementBalance is the amount the vendor says is owed, or null. summary is two to four sentences. statementLines is an array of {kind, reference, date, amount} using kind invoice, payment, or credit. recommendations is an array of {title, detail} telling a bookkeeper what to check and how to reconcile. Use a reference only when it appears in the statement or in the QuickBooks activity. Do not say a transaction was posted.",
+        },
+        { role: "user", content },
+      ],
+    });
+    const raw = JSON.parse(response.choices[0]?.message?.content || "{}") as Record<string, unknown>;
+    const lines = Array.isArray(raw.statementLines) ? raw.statementLines : [];
+    const recommendations = Array.isArray(raw.recommendations) ? raw.recommendations : [];
+    return {
+      statementDate: isoOrNull(raw.statementDate),
+      statementBalance: roundedMoney(raw.statementBalance),
+      summary: String(raw.summary || "").trim().slice(0, 1600),
+      lines: lines.slice(0, 80).map((line) => {
+        const item = line as Record<string, unknown>;
+        const kind = String(item.kind || "invoice");
+        return {
+          kind: (kind === "payment" || kind === "credit" ? kind : "invoice") as StatementLine["kind"],
+          reference: String(item.reference || "").trim().slice(0, 40),
+          date: isoOrNull(item.date),
+          amount: roundedMoney(item.amount),
+        };
+      }).filter((line) => line.reference),
+      recommendations: recommendations.slice(0, 6).map((item) => {
+        const row = item as Record<string, unknown>;
+        return { title: String(row.title || "Check this item").slice(0, 140), detail: String(row.detail || "").slice(0, 800) };
+      }).filter((item) => item.detail),
+    };
+  } catch (error) {
+    console.error("[Vendor analysis] Reading failed:", error);
+    return empty;
+  }
+}
+
+function compareStatement(input: {
+  text: string;
+  statementBalance: number | null;
+  qbBalance: number | null;
+  lines: StatementLine[];
+  books: { kind: string; reference: string; date: string; total: number | null; balance: number | null }[];
+}) {
+  const textKey = referenceKey(input.text);
+  const readable = input.text.trim().length > 40;
+  const trusted = input.lines.filter((line) => {
+    const key = referenceKey(line.reference);
+    if (key.length < 3) return false;
+    if (!readable) return true;
+    return textKey.includes(key) || input.books.some((row) => referenceKey(row.reference) === key);
+  });
+  const byReference = new Map<string, { kind: string; reference: string; date: string; total: number | null; balance: number | null }>();
+  for (const row of input.books) {
+    const key = referenceKey(row.reference);
+    if (key && !byReference.has(key)) byReference.set(key, row);
+  }
+  const seen = new Set<string>();
+  const lines: ComparedLine[] = [];
+  for (const line of trusted) {
+    const key = referenceKey(line.reference);
+    seen.add(key);
+    const book = byReference.get(key);
+    if (!book) {
+      lines.push({
+        reference: line.reference,
+        kind: line.kind,
+        statementAmount: line.amount,
+        booksAmount: null,
+        booksBalance: null,
+        status: "missing-in-books",
+        note: "This reference is on the statement and is not on a QuickBooks bill, credit, payment, or expense for this vendor.",
+      });
+      continue;
+    }
+    const booksAmount = book.total;
+    const amountDiffers = line.amount != null && booksAmount != null && Math.abs(line.amount - booksAmount) > 0.02;
+    const paidInBooks = line.kind === "invoice" && (book.balance ?? 0) === 0 && (line.amount ?? 0) > 0.02;
+    lines.push({
+      reference: line.reference,
+      kind: line.kind,
+      statementAmount: line.amount,
+      booksAmount,
+      booksBalance: book.balance,
+      status: amountDiffers ? "amount" : paidInBooks ? "paid-in-books" : "matched",
+      note: amountDiffers
+        ? "The statement amount and the QuickBooks amount are different."
+        : paidInBooks
+          ? "QuickBooks shows this item paid, and the statement still lists it."
+          : "The reference is in both places.",
+    });
+  }
+  for (const row of input.books) {
+    if (row.kind !== "bill" || (row.balance ?? 0) <= 0.02) continue;
+    const key = referenceKey(row.reference);
+    if (!key || seen.has(key) || (input.text && textKey.includes(key))) continue;
+    lines.push({
+      reference: row.reference,
+      kind: "invoice",
+      statementAmount: null,
+      booksAmount: row.total,
+      booksBalance: row.balance,
+      status: "open-not-on-statement",
+      note: "This bill is open in QuickBooks and its number is not on the statement.",
+    });
+  }
+  const issues: AnalysisIssue[] = [];
+  if (input.statementBalance != null && input.qbBalance != null && Math.abs(input.statementBalance - input.qbBalance) > 0.02) {
+    const gap = Math.round((input.statementBalance - input.qbBalance) * 100) / 100;
+    issues.push({
+      severity: "high",
+      title: "The balances do not match",
+      detail: `The statement says ${input.statementBalance.toFixed(2)} is owed. QuickBooks says ${input.qbBalance.toFixed(2)}. The difference is ${gap.toFixed(2)}.`,
+    });
+  }
+  const missing = lines.filter((line) => line.status === "missing-in-books");
+  const amounts = lines.filter((line) => line.status === "amount");
+  const paid = lines.filter((line) => line.status === "paid-in-books");
+  const absent = lines.filter((line) => line.status === "open-not-on-statement");
+  if (missing.length) issues.push({ severity: "high", title: "On the statement, not in QuickBooks", detail: missing.slice(0, 12).map((line) => line.reference).join(", ") });
+  if (amounts.length) issues.push({ severity: "high", title: "Amounts do not match", detail: amounts.slice(0, 12).map((line) => `${line.reference}: statement ${line.statementAmount ?? "—"}, books ${line.booksAmount ?? "—"}`).join("; ") });
+  if (paid.length) issues.push({ severity: "medium", title: "Paid in QuickBooks and still on the statement", detail: paid.slice(0, 12).map((line) => line.reference).join(", ") });
+  if (absent.length) issues.push({ severity: "medium", title: "Open in QuickBooks and not on the statement", detail: absent.slice(0, 12).map((line) => line.reference).join(", ") });
+  if (!issues.length) issues.push({ severity: "low", title: "No difference stood out", detail: "The references and amounts that could be read agree. Confirm the statement date is the same date as the QuickBooks balance." });
+  return { lines, issues };
+}
+
+router.get("/vendor-analyses", isAdmin, async (_req, res) => {
+  try {
+    await ensureAccountingTables();
+    const rows = await db.execute(sql`
+      SELECT id, qb_vendor_id as "qbVendorId", vendor_name as "vendorName",
+             original_filename as "originalFilename", mime_type as "mimeType",
+             statement_date as "statementDate", statement_balance as "statementBalance",
+             qb_balance as "qbBalance", analysis, created_at as "createdAt"
+      FROM accounting_vendor_analyses
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+    res.json({ analyses: rows.rows });
+  } catch (error) {
+    console.error("Error loading vendor analyses:", error);
+    res.status(500).json({ message: "Failed to load vendor analyses" });
+  }
+});
+
+router.get("/vendor-analyses/:id/file", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const result = await db.execute(sql`
+      SELECT original_filename as "originalFilename", stored_filename as "storedFilename",
+             storage_key as "storageKey", mime_type as "mimeType"
+      FROM accounting_vendor_analyses WHERE id = ${req.params.id}
+    `);
+    const document = result.rows[0] as { originalFilename: string; storedFilename: string; storageKey: string | null; mimeType: string | null } | undefined;
+    if (!document) return res.status(404).json({ message: "Statement not found" });
+    const content = await loadPayableBytes(document.storedFilename, document.storageKey);
+    if (!content) return res.status(404).json({ message: missingPayableFile });
+    const downloadName = document.originalFilename.replace(/[^\w.\- ()]/g, "_");
+    res.setHeader("Content-Type", document.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${downloadName}"`);
+    res.send(content);
+  } catch (error) {
+    console.error("Error opening vendor statement:", error);
+    res.status(500).json({ message: "Failed to open the statement" });
+  }
+});
+
+router.post("/vendor-analyses", isAdmin, (req, res) => {
+  upload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message || "Upload failed" });
+    try {
+      await ensureAccountingTables();
+      const file = req.file;
+      const vendorId = String(req.body?.qbVendorId ?? "").trim();
+      if (!file) return res.status(400).json({ message: "Choose a vendor statement" });
+      if (!/^\d+$/.test(vendorId)) return res.status(400).json({ message: "Choose a vendor from the stored list" });
+      const vendorRow = await db.execute(sql`
+        SELECT display_name as "displayName" FROM accounting_qb_vendors WHERE qb_id = ${vendorId} LIMIT 1
+      `);
+      const vendorName = (vendorRow.rows[0] as { displayName?: string } | undefined)?.displayName;
+      if (!vendorName) return res.status(400).json({ message: "Store vendors from QuickBooks before comparing a statement" });
+
+      const since = new Date();
+      since.setMonth(since.getMonth() - 18);
+      const sinceIso = since.toISOString().slice(0, 10);
+      const vendor = await quickBooksVendorRows("Vendor", `Id = '${vendorId}'`);
+      const qbBalance = roundedMoney((vendor[0] as { Balance?: unknown } | undefined)?.Balance);
+      const [openBills, recentBills, payments, credits] = await Promise.all([
+        quickBooksVendorRows("Bill", `VendorRef = '${vendorId}' AND Balance > '0'`),
+        quickBooksVendorRows("Bill", `VendorRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`),
+        quickBooksVendorRows("BillPayment", `VendorRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`),
+        quickBooksVendorRows("VendorCredit", `VendorRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`),
+      ]);
+      const purchases = await quickBooksVendorRows("Purchase", `EntityRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`);
+      const books = new Map<string, { kind: string; reference: string; date: string; total: number | null; balance: number | null }>();
+      const addBook = (kind: string, row: Record<string, unknown>, balance: number | null) => {
+        const reference = String(row.DocNumber || row.Id || "").trim();
+        if (!reference || books.has(`${kind}:${reference}`)) return;
+        books.set(`${kind}:${reference}`, {
+          kind,
+          reference,
+          date: String(row.TxnDate || "").slice(0, 10),
+          total: roundedMoney(row.TotalAmt),
+          balance,
+        });
+      };
+      for (const row of openBills) addBook("bill", row, roundedMoney(row.Balance));
+      for (const row of recentBills) addBook("bill", row, roundedMoney(row.Balance));
+      for (const row of payments) addBook("payment", row, 0);
+      for (const row of credits) addBook("credit", row, roundedMoney(row.Balance));
+      for (const row of purchases) addBook("expense", row, 0);
+      const bookRows: { kind: string; reference: string; date: string; total: number | null; balance: number | null }[] = [];
+      books.forEach((row) => bookRows.push(row));
+      const booksText = bookRows.slice(0, 180).map((row) => `${row.kind}\t${row.reference}\t${row.date}\t${row.total ?? ""}\t${row.balance ?? ""}`).join("\n");
+      const text = /pdf/i.test(`${file.mimetype} ${file.originalname}`) ? await pdfText(file.buffer) : "";
+      const reading = await readStatementLines({ text, filename: file.originalname, mime: file.mimetype, content: file.buffer, books: `Vendor balance: ${qbBalance ?? "unknown"}\n${booksText}` });
+      const compared = compareStatement({ text, statementBalance: reading.statementBalance, qbBalance, lines: reading.lines, books: bookRows });
+      const recommendations = reading.recommendations.length ? reading.recommendations : compared.issues.map((issue) => ({
+        title: issue.severity === "low" ? "Confirm the statement date" : `Reconcile: ${issue.title}`,
+        detail: issue.severity === "low"
+          ? "Open the vendor in QuickBooks on the statement date and confirm the open balance. If the dates differ, the balances will not match even when every invoice does."
+          : `${issue.detail} Match each of those items to a bill, payment, or credit before changing the vendor balance.`,
+      }));
+      const analysis = {
+        summary: reading.summary || "The statement was compared with the open and recent QuickBooks activity for this vendor.",
+        issues: compared.issues,
+        recommendations,
+        lines: compared.lines,
+      };
+      const stored = await storePayableCopy(file.originalname, file.mimetype, file.buffer);
+      const inserted = await db.execute(sql`
+        INSERT INTO accounting_vendor_analyses (
+          qb_vendor_id, vendor_name, original_filename, stored_filename, storage_key, mime_type, file_size,
+          statement_date, statement_balance, qb_balance, analysis
+        ) VALUES (
+          ${vendorId}, ${vendorName}, ${file.originalname}, ${stored.storedFilename}, ${stored.storageKey},
+          ${file.mimetype}, ${stored.size}, ${reading.statementDate}, ${reading.statementBalance}, ${qbBalance},
+          ${JSON.stringify(analysis)}::jsonb
+        )
+        RETURNING id, created_at as "createdAt"
+      `);
+      const saved = inserted.rows[0] as { id: string; createdAt: string };
+      res.status(201).json({
+        id: saved.id,
+        qbVendorId: vendorId,
+        vendorName,
+        originalFilename: file.originalname,
+        mimeType: file.mimetype,
+        statementDate: reading.statementDate,
+        statementBalance: reading.statementBalance,
+        qbBalance,
+        analysis,
+        createdAt: saved.createdAt,
+      });
+    } catch (error) {
+      console.error("Error comparing vendor statement:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to compare the statement" });
+    }
+  });
 });
 
 router.get("/payables", isAdmin, async (_req, res) => {
