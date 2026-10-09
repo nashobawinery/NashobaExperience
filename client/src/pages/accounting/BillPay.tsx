@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileText, Inbox, Receipt, Upload } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -150,6 +150,27 @@ export default function BillPay({ companies }: { companies: Company[] }) {
   const vendors = (reference.data?.vendors ?? []).filter((vendor) => vendor.active);
   const accounts = (reference.data?.accounts ?? []).filter((account) => account.active);
   const documents = data?.documents ?? [];
+  const prepare = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/accounting/payables/prepare");
+      return response.json() as Promise<{ read: number }>;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables/reference"] });
+      if (result.read > 0) toast({ title: "Bill read", description: "The vendor, dates, and account were filled from the stored lists." });
+    },
+    onError: (err: Error) => toast({ title: "Could not read the bill", description: err.message, variant: "destructive" }),
+  });
+  const prepared = useRef(false);
+  useEffect(() => {
+    if (prepared.current || !reference.isFetched || !data) return;
+    const needsReading = documents.some((document) => !document.qbVendorId && !document.qbBillId);
+    const listsMissing = vendors.length === 0 || accounts.length === 0;
+    if (!needsReading && !listsMissing) return;
+    prepared.current = true;
+    prepare.mutate();
+  }, [reference.isFetched, data, documents, vendors.length, accounts.length]);
   const waiting = documents.filter((document) => document.documentKind === "unreviewed");
   const invoices = documents.filter((document) => document.documentKind === "invoice");
   const statements = documents.filter((document) => document.documentKind === "statement");
@@ -193,6 +214,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
       <Card>
         <CardHeader>
           <CardTitle>Inbox</CardTitle>
+          {prepare.isPending && <CardDescription>Storing vendors and accounts, then reading the open bills.</CardDescription>}
           <CardDescription>
             Mail sent to {data?.inboxEmail ?? "bills@nashobawinery.com"} lands here and does not open a support ticket. The reading uses the vendors and accounts stored from QuickBooks, shows the invoice, and explains the account. Send to QuickBooks posts the bill and attaches the file.
           </CardDescription>
@@ -396,58 +418,66 @@ function PayableRow({
         <img src={`/api/accounting/payables/${document.id}/file`} alt={document.originalFilename} className="max-h-96 rounded-lg border" />
       ) : null}
       <div className="grid gap-3 md:grid-cols-3">
-        {vendors.length > 0 ? (
-          <Select value={qbVendorId || undefined} onValueChange={(value) => {
+        <SearchSelect
+          label="Vendor"
+          placeholder={vendors.length ? (vendorName || "Choose a vendor") : "Store vendors first"}
+          value={qbVendorId}
+          options={vendors.map((vendor) => ({ id: vendor.qbId, label: vendor.displayName }))}
+          onChange={(value) => {
             const vendor = vendors.find((item) => item.qbId === value);
             setQbVendorId(value);
             setVendorName(vendor?.displayName ?? "");
-          }}>
-            <SelectTrigger><SelectValue placeholder={vendorName || "Vendor"} /></SelectTrigger>
+          }}
+        />
+        <div className="space-y-1">
+          <Label>Document</Label>
+          <Select value={documentKind} onValueChange={(value) => setDocumentKind(value as Payable["documentKind"])}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {vendors.map((vendor) => (
-                <SelectItem key={vendor.qbId} value={vendor.qbId}>{vendor.displayName}</SelectItem>
+              <SelectItem value="unreviewed">Needs review</SelectItem>
+              <SelectItem value="invoice">Invoice</SelectItem>
+              <SelectItem value="statement">Statement</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label>Company</Label>
+          <Select value={rowCompanyId} onValueChange={setRowCompanyId}>
+            <SelectTrigger><SelectValue placeholder="Company" /></SelectTrigger>
+            <SelectContent>
+              {companies.map((company) => (
+                <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        ) : (
-          <Input value={vendorName} onChange={(event) => setVendorName(event.target.value)} placeholder="Vendor" />
-        )}
-        <Select value={documentKind} onValueChange={(value) => setDocumentKind(value as Payable["documentKind"])}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="unreviewed">Needs review</SelectItem>
-            <SelectItem value="invoice">Invoice</SelectItem>
-            <SelectItem value="statement">Statement</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={rowCompanyId} onValueChange={setRowCompanyId}>
-          <SelectTrigger><SelectValue placeholder="Company" /></SelectTrigger>
-          <SelectContent>
-            {companies.map((company) => (
-              <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} placeholder="Invoice number" />
-        <Input type="date" aria-label="Invoice date" value={billDate} onChange={(event) => setBillDate(event.target.value)} />
-        <Input type="date" aria-label="Due date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-        <Input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" inputMode="decimal" />
-        {accounts.length > 0 ? (
-          <Select value={qbAccountId || undefined} onValueChange={(value) => {
-            const account = accounts.find((item) => item.qbId === value);
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`invoice-${document.id}`}>Invoice number</Label>
+          <Input id={`invoice-${document.id}`} value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`bill-date-${document.id}`}>Invoice date</Label>
+          <Input id={`bill-date-${document.id}`} type="date" value={billDate} onChange={(event) => setBillDate(event.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`due-date-${document.id}`}>Due date</Label>
+          <Input id={`due-date-${document.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`amount-${document.id}`}>Amount</Label>
+          <Input id={`amount-${document.id}`} value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" />
+        </div>
+        <SearchSelect
+          label="Account"
+          placeholder={accountChoices.length ? (glAccount || "Choose an account") : "Store accounts first"}
+          value={qbAccountId}
+          options={accountChoices.map((account) => ({ id: account.qbId, label: `${account.accountNumber ? `${account.accountNumber} ` : ""}${account.fullyQualifiedName}` }))}
+          onChange={(value) => {
+            const account = accountChoices.find((item) => item.qbId === value);
             setQbAccountId(value);
             setGlAccount(account?.fullyQualifiedName ?? "");
-          }}>
-            <SelectTrigger className="md:col-span-2"><SelectValue placeholder={glAccount || "General ledger account"} /></SelectTrigger>
-            <SelectContent>
-              {accountChoices.map((account) => (
-                <SelectItem key={account.qbId} value={account.qbId}>{account.accountNumber ? `${account.accountNumber} ` : ""}{account.fullyQualifiedName}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <Input className="md:col-span-2" value={glAccount} onChange={(event) => setGlAccount(event.target.value)} placeholder="General ledger account" />
-        )}
+          }}
+        />
         <Button
           variant="outline"
           disabled={saving}
@@ -463,6 +493,32 @@ function PayableRow({
           {document.qbBillId ? "In QuickBooks" : "Send to QuickBooks"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function SearchSelect({ label, placeholder, value, options, onChange }: {
+  label: string;
+  placeholder: string;
+  value: string;
+  options: { id: string; label: string }[];
+  onChange: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const term = query.trim().toLowerCase();
+  const shown = options.filter((option) => !term || option.label.toLowerCase().includes(term)).slice(0, 40);
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Find a ${label.toLowerCase()}`} />
+      <Select value={value || undefined} onValueChange={onChange} disabled={options.length === 0}>
+        <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
+        <SelectContent>
+          {shown.map((option) => (
+            <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

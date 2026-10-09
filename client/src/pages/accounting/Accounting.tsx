@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import BillPay from "./BillPay";
+import Expenses from "./Expenses";
 import UsFoods from "./UsFoods";
 import ToastSales from "./ToastSales";
 
@@ -32,7 +32,6 @@ type BooksSection =
   | "sales-tax"
   | "business-tax"
   | "lending"
-  | "payables"
   | "healthcare"
   | "us-foods"
   | "dsr";
@@ -50,15 +49,13 @@ const ribbon: { id: BooksSection; label: string }[] = [
   { id: "sales-tax", label: "Sales Tax" },
   { id: "business-tax", label: "Business Tax" },
   { id: "lending", label: "Lending" },
-  { id: "payables", label: "Bill Pay" },
   { id: "healthcare", label: "Health Care" },
   { id: "us-foods", label: "US Foods" },
   { id: "dsr", label: "DSR" },
 ];
 
-const booksDetail: Record<Exclude<BooksSection, "payables" | "healthcare" | "us-foods" | "dsr">, string> = {
+const booksDetail: Record<Exclude<BooksSection, "expenses" | "healthcare" | "us-foods" | "dsr">, string> = {
   accounting: "Chart of accounts, registers, and journal entries for Nashoba Valley. The Gables is a second set of books.",
-  expenses: "Vendor bills, checks, and expenses. Incoming vendor documents are reviewed in Bill Pay.",
   sales: "Invoices you send, payments you receive, and deposits.",
   customers: "Customers and the balances they owe.",
   payroll: "Paychecks and payroll liabilities.",
@@ -546,7 +543,7 @@ function QuickBooksRenewButton() {
 
 export default function AccountingPage() {
   const [, setLocation] = useLocation();
-  const [section, setSection] = useState<BooksSection>("payables");
+  const [section, setSection] = useState<BooksSection>("accounting");
   const { toast } = useToast();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -990,7 +987,6 @@ export default function AccountingPage() {
           <div className="container flex h-11 items-stretch overflow-x-auto">
             {ribbon.map((item) => (
               <div key={item.id} className="flex items-stretch">
-                {item.id === "payables" && <div className="mx-2 w-px self-center h-5 bg-border shrink-0" aria-hidden />}
                 <button
                   type="button"
                   onClick={() => setSection(item.id)}
@@ -1011,8 +1007,8 @@ export default function AccountingPage() {
       </header>
 
       <main className="container py-8 space-y-6">
-        {section === "payables" ? (
-          <BillPay companies={data?.companies ?? []} />
+        {section === "expenses" ? (
+          <Expenses companies={data?.companies ?? []} />
         ) : section === "healthcare" ? (
         <div className="space-y-6">
         <div>

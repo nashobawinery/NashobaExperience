@@ -2339,8 +2339,8 @@ function moneyDate(value: string) {
 }
 
 function readInvoiceFields(text: string) {
-  const invoiceMatch = text.match(/(?:invoice|inv)\s*(?:number|no|#)?\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{2,20})/i);
-  const billMatch = text.match(/(?:invoice\s+date|bill\s+date|date)\s*[:\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  const invoiceMatch = text.match(/\binvoice\s*(?:number|no\.?|#)\s*[:#]?\s*([A-Z0-9-]*\d[A-Z0-9-]*)/i);
+  const billMatch = text.match(/\b(?:invoice\s+date|inv\s+date|bill\s+date)\s*[:\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
   const dueMatch = text.match(/(?:due\s+date)\s*[:\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
   const totalMatches: RegExpExecArray[] = [];
   const totalPattern = /(?:invoice\s+total|amount\s+due|total\s+due|balance\s+due|total)\s*[:\s]*\$?\s*([0-9,]+\.\d{2})/gi;
@@ -2621,6 +2621,59 @@ async function syncQuickBooksCatalog() {
   return { companyName: accounts.companyName, vendors: vendors.rows.length, accounts: accounts.rows.length };
 }
 
+async function applyBillReading(id: string) {
+  const result = await db.execute(sql`
+    SELECT qb_bill_id as "qbBillId", stored_filename as "storedFilename",
+           original_filename as "originalFilename", mime_type as "mimeType", subject
+    FROM accounting_payables WHERE id = ${id}
+  `);
+  const document = result.rows[0] as { qbBillId?: string | null; storedFilename?: string; originalFilename?: string; mimeType?: string | null; subject?: string | null } | undefined;
+  if (!document) throw new Error("Document not found");
+  if (document.qbBillId) return "This invoice is already in QuickBooks.";
+  const fullPath = path.join(payableDir, path.basename(document.storedFilename || ""));
+  if (!fs.existsSync(fullPath)) throw new Error("Document file is missing");
+  const content = fs.readFileSync(fullPath);
+  const text = /pdf/i.test(`${document.mimeType || ""} ${document.originalFilename || ""}`) ? await pdfText(content) : String(document.subject || "");
+  const reading = await readBill({ text, filename: document.originalFilename || "invoice", mime: document.mimeType || "application/pdf", content });
+  await db.execute(sql`
+    UPDATE accounting_payables
+    SET vendor_name = ${reading.vendorName},
+        document_kind = ${reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount ? "invoice" : "unreviewed"},
+        invoice_number = ${reading.invoiceNumber},
+        bill_date = ${reading.billDate},
+        due_date = ${reading.dueDate},
+        amount = ${reading.amount},
+        gl_account = ${reading.glAccount},
+        qb_vendor_id = ${reading.qbVendorId},
+        qb_account_id = ${reading.qbAccountId},
+        account_reason = ${reading.reason}
+    WHERE id = ${id}
+  `);
+  return reading.reason;
+}
+
+router.post("/payables/prepare", isAdmin, async (_req, res) => {
+  try {
+    await ensureAccountingTables();
+    const counted = await db.execute(sql`SELECT COUNT(*)::int as count FROM accounting_qb_vendors`);
+    const haveVendors = Number((counted.rows[0] as { count?: number } | undefined)?.count || 0) > 0;
+    const catalog = haveVendors ? null : await syncQuickBooksCatalog();
+    const pending = await db.execute(sql`
+      SELECT id FROM accounting_payables
+      WHERE qb_bill_id IS NULL AND qb_vendor_id IS NULL
+      ORDER BY created_at DESC
+      LIMIT 8
+    `);
+    for (const row of pending.rows as { id: string }[]) {
+      await applyBillReading(row.id);
+    }
+    res.json({ vendors: catalog?.vendors ?? null, accounts: catalog?.accounts ?? null, read: pending.rows.length });
+  } catch (error) {
+    console.error("Error preparing payables:", error);
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to prepare the bill inbox" });
+  }
+});
+
 router.post("/payables/sync", isAdmin, async (_req, res) => {
   try {
     res.json(await syncQuickBooksCatalog());
@@ -2761,29 +2814,11 @@ router.post("/payables/:id/read", isAdmin, async (req, res) => {
              original_filename as "originalFilename", mime_type as "mimeType", subject
       FROM accounting_payables WHERE id = ${req.params.id}
     `);
-    const document = result.rows[0] as { qbBillId?: string | null; storedFilename?: string; originalFilename?: string; mimeType?: string | null; subject?: string | null } | undefined;
+    const document = result.rows[0] as { qbBillId?: string | null } | undefined;
     if (!document) return res.status(404).json({ message: "Document not found" });
     if (document.qbBillId) return res.status(400).json({ message: "This invoice is already in QuickBooks." });
-    const fullPath = path.join(payableDir, path.basename(document.storedFilename || ""));
-    if (!fs.existsSync(fullPath)) return res.status(404).json({ message: "Document file is missing" });
-    const content = fs.readFileSync(fullPath);
-    const text = /pdf/i.test(`${document.mimeType || ""} ${document.originalFilename || ""}`) ? await pdfText(content) : String(document.subject || "");
-    const reading = await readBill({ text, filename: document.originalFilename || "invoice", mime: document.mimeType || "application/pdf", content });
-    await db.execute(sql`
-      UPDATE accounting_payables
-      SET vendor_name = ${reading.vendorName},
-          document_kind = ${reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount ? "invoice" : "unreviewed"},
-          invoice_number = ${reading.invoiceNumber},
-          bill_date = ${reading.billDate},
-          due_date = ${reading.dueDate},
-          amount = ${reading.amount},
-          gl_account = ${reading.glAccount},
-          qb_vendor_id = ${reading.qbVendorId},
-          qb_account_id = ${reading.qbAccountId},
-          account_reason = ${reading.reason}
-      WHERE id = ${req.params.id}
-    `);
-    res.json({ ok: true, reason: reading.reason });
+    const reason = await applyBillReading(req.params.id);
+    res.json({ ok: true, reason });
   } catch (error) {
     console.error("Error reading payable:", error);
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to read the bill" });
