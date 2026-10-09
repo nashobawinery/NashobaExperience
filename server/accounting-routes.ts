@@ -6,6 +6,7 @@ import multer from "multer";
 import sgMail from "@sendgrid/mail";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
+import { objectStorageClient } from "./objectStorage";
 import { postQuickBooks, queryQuickBooks, uploadQuickBooksAttachment } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 import { registerUsFoodsRoutes } from "./us-foods-sync";
@@ -552,6 +553,7 @@ export async function ensureAccountingTables() {
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS due_date date;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS qb_bill_id varchar;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS account_reason text;
+    ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS storage_key text;
     CREATE UNIQUE INDEX IF NOT EXISTS accounting_payables_message_id_key
       ON accounting_payables (message_id)
       WHERE message_id IS NOT NULL AND message_id <> '';
@@ -2492,6 +2494,61 @@ async function readBill(input: { text: string; filename: string; mime: string; c
   }
 }
 
+const missingPayableFile = "The invoice file is no longer on the server. Forward the same email again or upload the file.";
+
+function payableBucket() {
+  const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID || process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  return bucketId ? objectStorageClient.bucket(bucketId) : null;
+}
+
+function localPayablePath(storedFilename?: string | null) {
+  const name = path.basename(storedFilename || "");
+  return name ? path.join(payableDir, name) : "";
+}
+
+async function payableFileReady(storedFilename?: string | null, storageKey?: string | null) {
+  const local = localPayablePath(storedFilename);
+  if (local && fs.existsSync(local)) return true;
+  if (!storageKey) return false;
+  const bucket = payableBucket();
+  if (!bucket) return false;
+  const [exists] = await bucket.file(`.private/${storageKey}`).exists();
+  return exists;
+}
+
+async function loadPayableBytes(storedFilename?: string | null, storageKey?: string | null) {
+  const local = localPayablePath(storedFilename);
+  if (local && fs.existsSync(local)) return fs.readFileSync(local);
+  if (!storageKey) return null;
+  const bucket = payableBucket();
+  if (!bucket) return null;
+  const remote = bucket.file(`.private/${storageKey}`);
+  const [exists] = await remote.exists();
+  if (!exists) return null;
+  const [contents] = await remote.download();
+  return contents;
+}
+
+async function storePayableCopy(originalFilename: string, mime: string, contents: Buffer) {
+  const ext = path.extname(originalFilename).toLowerCase().slice(0, 12)
+    || (/pdf/i.test(mime) ? ".pdf" : /png/i.test(mime) ? ".png" : /jpe?g/i.test(mime) ? ".jpg" : ".bin");
+  const storedFilename = `${randomUUID()}${ext}`;
+  fs.mkdirSync(payableDir, { recursive: true });
+  fs.writeFileSync(path.join(payableDir, storedFilename), contents);
+  let storageKey: string | null = null;
+  const bucket = payableBucket();
+  if (!bucket) {
+    console.error("[Payables] Object storage is not configured, so this invoice file will not survive the next deploy");
+  } else {
+    storageKey = `payables/${storedFilename}`;
+    await bucket.file(`.private/${storageKey}`).save(contents, {
+      contentType: mime || "application/octet-stream",
+      metadata: { originalFilename },
+    });
+  }
+  return { storedFilename, storageKey, size: contents.length };
+}
+
 export async function receivePayableEmail(input: {
   fromEmail: string;
   fromName: string;
@@ -2503,15 +2560,37 @@ export async function receivePayableEmail(input: {
 }) {
   await ensureAccountingTables();
   const messageId = input.messageId.trim();
-  if (messageId) {
-    const existing = await db.execute(sql`SELECT id FROM accounting_payables WHERE message_id = ${messageId} LIMIT 1`);
-    const id = (existing.rows[0] as { id?: string } | undefined)?.id;
-    if (id) return { id, duplicate: true };
-  }
-
   const file = input.attachments.find((item) => /pdf/i.test(item.type) || /\.pdf$/i.test(item.filename))
     || input.attachments.find((item) => /^image\//i.test(item.type))
     || input.attachments[0];
+  if (messageId) {
+    const existing = await db.execute(sql`
+      SELECT id, stored_filename as "storedFilename", storage_key as "storageKey"
+      FROM accounting_payables WHERE message_id = ${messageId} LIMIT 1
+    `);
+    const prior = existing.rows[0] as { id?: string; storedFilename?: string | null; storageKey?: string | null } | undefined;
+    if (prior?.id) {
+      const ready = await payableFileReady(prior.storedFilename, prior.storageKey);
+      if (ready || !file) return { id: prior.id, duplicate: true };
+      const stored = await storePayableCopy(file.filename || "invoice.pdf", file.type || "application/pdf", file.content);
+      await db.execute(sql`
+        UPDATE accounting_payables
+        SET original_filename = ${file.filename || "invoice.pdf"},
+            stored_filename = ${stored.storedFilename},
+            storage_key = ${stored.storageKey},
+            mime_type = ${file.type || "application/pdf"},
+            file_size = ${stored.size}
+        WHERE id = ${prior.id}
+      `);
+      try {
+        await applyBillReading(prior.id);
+      } catch (error) {
+        console.error("[Payables] Restored the invoice file and could not read it:", error);
+      }
+      return { id: prior.id, duplicate: false };
+    }
+  }
+
   const emailText = plainEmailText(input.textBody, input.htmlBody);
   const attachmentText = file && /pdf/i.test(file.type + file.filename) ? (await pdfText(file.content)).slice(0, 20000) : "";
   const readable = `${input.fromName}\n${input.subject}\n${emailText}\n${attachmentText}`;
@@ -2524,26 +2603,21 @@ export async function receivePayableEmail(input: {
   const company = await db.execute(sql`SELECT id FROM accounting_companies WHERE name = 'Nashoba Valley' LIMIT 1`);
   const companyId = (company.rows[0] as { id?: string } | undefined)?.id ?? null;
 
-  fs.mkdirSync(payableDir, { recursive: true });
-  const ext = file
-    ? (path.extname(file.filename).toLowerCase().slice(0, 12) || (/pdf/i.test(file.type) ? ".pdf" : /png/i.test(file.type) ? ".png" : /jpe?g/i.test(file.type) ? ".jpg" : ".bin"))
-    : ".txt";
-  const storedFilename = `${randomUUID()}${ext}`;
-  const contents = file?.content ?? Buffer.from(emailText || input.subject || "Vendor bill");
-  fs.writeFileSync(path.join(payableDir, storedFilename), contents);
   const originalFilename = file?.filename || `${input.subject || "vendor-bill"}.txt`;
+  const contents = file?.content ?? Buffer.from(emailText || input.subject || "Vendor bill");
+  const stored = await storePayableCopy(originalFilename, file?.type || "text/plain", contents);
 
   try {
     const inserted = await db.execute(sql`
       INSERT INTO accounting_payables (
         company_id, vendor_name, document_kind, invoice_number, bill_date, due_date, amount,
-        gl_account, qb_vendor_id, qb_account_id, account_reason, original_filename, stored_filename, mime_type, file_size,
+        gl_account, qb_vendor_id, qb_account_id, account_reason, original_filename, stored_filename, storage_key, mime_type, file_size,
         source, from_email, subject, message_id
       ) VALUES (
         ${companyId}, ${reading.vendorName}, ${reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount ? "invoice" : "unreviewed"},
         ${reading.invoiceNumber}, ${reading.billDate}, ${reading.dueDate}, ${reading.amount},
         ${reading.glAccount}, ${reading.qbVendorId}, ${reading.qbAccountId}, ${reading.reason},
-        ${originalFilename}, ${storedFilename}, ${file?.type || "text/plain"}, ${contents.length},
+        ${originalFilename}, ${stored.storedFilename}, ${stored.storageKey}, ${file?.type || "text/plain"}, ${stored.size},
         'email', ${input.fromEmail || null}, ${input.subject || null}, ${messageId || null}
       )
       RETURNING id
@@ -2623,16 +2697,15 @@ async function syncQuickBooksCatalog() {
 
 async function applyBillReading(id: string) {
   const result = await db.execute(sql`
-    SELECT qb_bill_id as "qbBillId", stored_filename as "storedFilename",
+    SELECT qb_bill_id as "qbBillId", stored_filename as "storedFilename", storage_key as "storageKey",
            original_filename as "originalFilename", mime_type as "mimeType", subject
     FROM accounting_payables WHERE id = ${id}
   `);
-  const document = result.rows[0] as { qbBillId?: string | null; storedFilename?: string; originalFilename?: string; mimeType?: string | null; subject?: string | null } | undefined;
+  const document = result.rows[0] as { qbBillId?: string | null; storedFilename?: string | null; storageKey?: string | null; originalFilename?: string; mimeType?: string | null; subject?: string | null } | undefined;
   if (!document) throw new Error("Document not found");
   if (document.qbBillId) return "This invoice is already in QuickBooks.";
-  const fullPath = path.join(payableDir, path.basename(document.storedFilename || ""));
-  if (!fs.existsSync(fullPath)) throw new Error("Document file is missing");
-  const content = fs.readFileSync(fullPath);
+  const content = await loadPayableBytes(document.storedFilename, document.storageKey);
+  if (!content) throw new Error(missingPayableFile);
   const text = /pdf/i.test(`${document.mimeType || ""} ${document.originalFilename || ""}`) ? await pdfText(content) : String(document.subject || "");
   const reading = await readBill({ text, filename: document.originalFilename || "invoice", mime: document.mimeType || "application/pdf", content });
   await db.execute(sql`
@@ -2664,10 +2737,16 @@ router.post("/payables/prepare", isAdmin, async (_req, res) => {
       ORDER BY created_at DESC
       LIMIT 8
     `);
+    let read = 0;
     for (const row of pending.rows as { id: string }[]) {
-      await applyBillReading(row.id);
+      try {
+        await applyBillReading(row.id);
+        read += 1;
+      } catch (error) {
+        console.error("[Payables] Could not read bill", row.id, error);
+      }
     }
-    res.json({ vendors: catalog?.vendors ?? null, accounts: catalog?.accounts ?? null, read: pending.rows.length });
+    res.json({ vendors: catalog?.vendors ?? null, accounts: catalog?.accounts ?? null, read });
   } catch (error) {
     console.error("Error preparing payables:", error);
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to prepare the bill inbox" });
@@ -2692,15 +2771,42 @@ router.get("/payables", isAdmin, async (_req, res) => {
              p.invoice_number as "invoiceNumber", p.bill_date as "billDate", p.due_date as "dueDate",
              p.amount, p.gl_account as "glAccount", p.qb_vendor_id as "qbVendorId",
              p.qb_account_id as "qbAccountId", p.qb_bill_id as "qbBillId", p.account_reason as "accountReason",
-             p.original_filename as "originalFilename", p.source, p.from_email as "fromEmail",
+             p.original_filename as "originalFilename", p.stored_filename as "storedFilename",
+             p.storage_key as "storageKey", p.source, p.from_email as "fromEmail",
              p.subject, p.created_at as "createdAt"
       FROM accounting_payables p
       LEFT JOIN accounting_companies c ON c.id = p.company_id
       ORDER BY p.created_at DESC
     `);
+    const documents = [];
+    for (const row of rows.rows as Array<Record<string, unknown>>) {
+      const hasFile = await payableFileReady(row.storedFilename as string | null, row.storageKey as string | null);
+      documents.push({
+        id: row.id,
+        companyId: row.companyId,
+        companyName: row.companyName,
+        vendorName: row.vendorName,
+        documentKind: row.documentKind,
+        invoiceNumber: row.invoiceNumber,
+        billDate: row.billDate,
+        dueDate: row.dueDate,
+        amount: row.amount,
+        glAccount: row.glAccount,
+        qbVendorId: row.qbVendorId,
+        qbAccountId: row.qbAccountId,
+        qbBillId: row.qbBillId,
+        accountReason: row.accountReason,
+        originalFilename: row.originalFilename,
+        source: row.source,
+        fromEmail: row.fromEmail,
+        subject: row.subject,
+        createdAt: row.createdAt,
+        hasFile,
+      });
+    }
     res.json({
       inboxEmail: "bills@nashobawinery.com",
-      documents: rows.rows,
+      documents,
     });
   } catch (error) {
     console.error("Error loading payables:", error);
@@ -2716,23 +2822,20 @@ router.post("/payables", isAdmin, (req, res) => {
       const file = req.file;
       if (!file) return res.status(400).json({ message: "Choose a bill or statement" });
       const companyId = String(req.body?.companyId ?? "").trim() || null;
-      fs.mkdirSync(payableDir, { recursive: true });
-      const ext = path.extname(file.originalname).toLowerCase().slice(0, 12);
-      const storedFilename = `${randomUUID()}${ext}`;
-      fs.writeFileSync(path.join(payableDir, storedFilename), file.buffer);
+      const stored = await storePayableCopy(file.originalname, file.mimetype, file.buffer);
       const text = /pdf/i.test(`${file.mimetype} ${file.originalname}`) ? await pdfText(file.buffer) : "";
       const reading = await readBill({ text, filename: file.originalname, mime: file.mimetype, content: file.buffer });
       const inserted = await db.execute(sql`
         INSERT INTO accounting_payables (
           company_id, vendor_name, document_kind, invoice_number, bill_date, due_date, amount,
           gl_account, qb_vendor_id, qb_account_id, account_reason,
-          original_filename, stored_filename, mime_type, file_size, source
+          original_filename, stored_filename, storage_key, mime_type, file_size, source
         ) VALUES (
           ${companyId}, ${reading.vendorName},
           ${reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount ? "invoice" : "unreviewed"},
           ${reading.invoiceNumber}, ${reading.billDate}, ${reading.dueDate}, ${reading.amount},
           ${reading.glAccount}, ${reading.qbVendorId}, ${reading.qbAccountId}, ${reading.reason},
-          ${file.originalname}, ${storedFilename}, ${file.mimetype}, ${file.size}, 'upload'
+          ${file.originalname}, ${stored.storedFilename}, ${stored.storageKey}, ${file.mimetype}, ${stored.size}, 'upload'
         )
         RETURNING id
       `);
@@ -2744,21 +2847,62 @@ router.post("/payables", isAdmin, (req, res) => {
   });
 });
 
+router.post("/payables/:id/file", isAdmin, (req, res) => {
+  upload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message || "Upload failed" });
+    try {
+      await ensureAccountingTables();
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: "Choose a bill or statement" });
+      const current = await db.execute(sql`SELECT id, qb_bill_id as "qbBillId" FROM accounting_payables WHERE id = ${req.params.id}`);
+      const existing = current.rows[0] as { id?: string; qbBillId?: string | null } | undefined;
+      if (!existing?.id) return res.status(404).json({ message: "Document not found" });
+      if (existing.qbBillId) return res.status(400).json({ message: "This invoice is already in QuickBooks." });
+      const stored = await storePayableCopy(file.originalname, file.mimetype, file.buffer);
+      await db.execute(sql`
+        UPDATE accounting_payables
+        SET original_filename = ${file.originalname},
+            stored_filename = ${stored.storedFilename},
+            storage_key = ${stored.storageKey},
+            mime_type = ${file.mimetype},
+            file_size = ${stored.size}
+        WHERE id = ${existing.id}
+      `);
+      const reason = await applyBillReading(existing.id);
+      res.json({ ok: true, reason });
+    } catch (error) {
+      console.error("Error replacing payable file:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to save the document" });
+    }
+  });
+});
+
 router.get("/payables/:id/file", isAdmin, async (req, res) => {
   try {
     await ensureAccountingTables();
     const result = await db.execute(sql`
-      SELECT original_filename as "originalFilename", stored_filename as "storedFilename", mime_type as "mimeType"
+      SELECT original_filename as "originalFilename", stored_filename as "storedFilename",
+             storage_key as "storageKey", mime_type as "mimeType"
       FROM accounting_payables WHERE id = ${req.params.id}
     `);
-    const document = result.rows[0] as { originalFilename: string; storedFilename: string; mimeType: string | null } | undefined;
+    const document = result.rows[0] as { originalFilename: string; storedFilename: string; storageKey: string | null; mimeType: string | null } | undefined;
     if (!document) return res.status(404).json({ message: "Document not found" });
-    const fullPath = path.join(payableDir, path.basename(document.storedFilename));
-    if (!fs.existsSync(fullPath)) return res.status(404).json({ message: "Document file is missing" });
     const downloadName = document.originalFilename.replace(/[^\w.\- ()]/g, "_");
     res.setHeader("Content-Type", document.mimeType || "application/octet-stream");
     res.setHeader("Content-Disposition", `inline; filename="${downloadName}"`);
-    fs.createReadStream(fullPath).pipe(res);
+    const local = localPayablePath(document.storedFilename);
+    if (local && fs.existsSync(local)) {
+      fs.createReadStream(local).pipe(res);
+      return;
+    }
+    const bucket = document.storageKey ? payableBucket() : null;
+    const remote = bucket && document.storageKey ? bucket.file(`.private/${document.storageKey}`) : null;
+    const remoteReady = remote ? (await remote.exists())[0] : false;
+    if (remote && remoteReady) {
+      remote.createReadStream().pipe(res);
+      return;
+    }
+    return res.status(404).json({ message: missingPayableFile });
   } catch (error) {
     console.error("Error opening payable:", error);
     res.status(500).json({ message: "Failed to open the document" });
@@ -2829,12 +2973,12 @@ router.post("/payables/:id/quickbooks", isAdmin, async (req, res) => {
   try {
     await ensureAccountingTables();
     const current = await db.execute(sql`
-      SELECT qb_bill_id as "qbBillId", stored_filename as "storedFilename",
+      SELECT qb_bill_id as "qbBillId", stored_filename as "storedFilename", storage_key as "storageKey",
              original_filename as "originalFilename", mime_type as "mimeType",
              account_reason as "accountReason"
       FROM accounting_payables WHERE id = ${req.params.id}
     `);
-    const existing = current.rows[0] as { qbBillId?: string | null; storedFilename?: string; originalFilename?: string; mimeType?: string | null; accountReason?: string | null } | undefined;
+    const existing = current.rows[0] as { qbBillId?: string | null; storedFilename?: string | null; storageKey?: string | null; originalFilename?: string; mimeType?: string | null; accountReason?: string | null } | undefined;
     if (!existing) return res.status(404).json({ message: "Document not found" });
     if (existing.qbBillId) return res.status(400).json({ message: "This invoice is already in QuickBooks." });
 
@@ -2865,16 +3009,17 @@ router.post("/payables/:id/quickbooks", isAdmin, async (req, res) => {
     });
     const billId = created?.Bill?.Id as string | undefined;
     if (!billId) return res.status(502).json({ message: "QuickBooks did not return the bill." });
-    let attachmentMessage = "The invoice file is attached in QuickBooks.";
-    const stored = existing.storedFilename ? path.join(payableDir, path.basename(existing.storedFilename)) : "";
-    if (stored && fs.existsSync(stored) && !/text\/plain/i.test(existing.mimeType || "")) {
+    let attachmentMessage = "The bill is in QuickBooks. The invoice file was not attached.";
+    const content = await loadPayableBytes(existing.storedFilename, existing.storageKey);
+    if (content && !/text\/plain/i.test(existing.mimeType || "")) {
+      attachmentMessage = "The invoice file is attached in QuickBooks.";
       try {
         await uploadQuickBooksAttachment({
           entityType: "Bill",
           entityId: billId,
           filename: existing.originalFilename || "invoice.pdf",
           mimeType: existing.mimeType || "application/pdf",
-          content: fs.readFileSync(stored),
+          content,
         });
       } catch (attachError) {
         console.error("[Payables] Bill was created and the file was not attached:", attachError);

@@ -63,7 +63,7 @@ export default function Expenses({ companies }: { companies: Company[] }) {
           Expenditures, job costing, and paying. This row appears only on this page.
         </p>
       </div>
-      <nav className="border-b overflow-x-auto" aria-label="Expenses and bills">
+      <nav className="sticky top-0 z-20 border-b bg-background overflow-x-auto" aria-label="Expenses and bills">
         <div className="flex h-11 items-stretch min-w-max">
           {screens.map((item) => (
             <button

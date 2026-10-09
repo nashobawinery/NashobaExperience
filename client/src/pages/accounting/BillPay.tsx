@@ -32,6 +32,7 @@ type Payable = {
   qbBillId: string | null;
   accountReason: string | null;
   originalFilename: string;
+  hasFile?: boolean;
   source: string | null;
   fromEmail: string | null;
   subject: string | null;
@@ -136,6 +137,23 @@ export default function BillPay({ companies }: { companies: Company[] }) {
     },
     onError: (err: Error) => toast({ title: "Could not send the bill", description: err.message, variant: "destructive" }),
   });
+  const replaceFile = useMutation({
+    mutationFn: async ({ id, next }: { id: string; next: File }) => {
+      const body = new FormData();
+      body.append("file", next);
+      const res = await fetch(`/api/accounting/payables/${id}/file`, { method: "POST", body, credentials: "include" });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(payload.message || "Upload failed");
+      }
+      return res.json();
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables"] });
+      toast({ title: "Invoice file restored" });
+    },
+    onError: (err: Error) => toast({ title: "Could not restore the file", description: err.message, variant: "destructive" }),
+  });
   const reread = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest("POST", `/api/accounting/payables/${id}/read`);
@@ -208,6 +226,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
       <Tabs defaultValue="inbox">
         <TabsList>
           <TabsTrigger value="inbox" data-testid="tab-payables-inbox">Inbox</TabsTrigger>
+          <TabsTrigger value="vendors" data-testid="tab-payables-vendors">Vendors</TabsTrigger>
           <TabsTrigger value="admin" data-testid="tab-payables-admin">QuickBooks</TabsTrigger>
         </TabsList>
         <TabsContent value="inbox" className="mt-4">
@@ -251,12 +270,19 @@ export default function BillPay({ companies }: { companies: Company[] }) {
           ) : (
             <div className="space-y-3">
               {documents.map((document) => (
-                <PayableRow key={document.id} document={document} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...document, draft })} saving={save.isPending} onPost={(draft) => postBill.mutate({ ...document, draft })} posting={postBill.isPending} onRead={() => reread.mutate(document.id)} reading={reread.isPending} />
+                <PayableRow key={document.id} document={document} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...document, draft })} saving={save.isPending} onPost={(draft) => postBill.mutate({ ...document, draft })} posting={postBill.isPending} onRead={() => reread.mutate(document.id)} reading={reread.isPending} onReplace={(next) => replaceFile.mutate({ id: document.id, next })} replacing={replaceFile.isPending} />
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+        <TabsContent value="vendors" className="mt-4">
+          <VendorDirectory
+            vendors={reference.data?.vendors ?? []}
+            syncing={syncQuickBooks.isPending}
+            onSync={() => syncQuickBooks.mutate()}
+          />
         </TabsContent>
         <TabsContent value="admin" className="mt-4">
           <QuickBooksAdmin
@@ -269,6 +295,46 @@ export default function BillPay({ companies }: { companies: Company[] }) {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function VendorDirectory({
+  vendors,
+  syncing,
+  onSync,
+}: {
+  vendors: QbVendor[];
+  syncing: boolean;
+  onSync: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLowerCase();
+  const shown = vendors.filter((vendor) => !term || `${vendor.displayName} ${vendor.companyName ?? ""}`.toLowerCase().includes(term));
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle>Vendors</CardTitle>
+          <CardDescription>{vendors.length} vendors stored from QuickBooks. Choose one of these on a bill.</CardDescription>
+        </div>
+        <Button onClick={onSync} disabled={syncing} data-testid="button-store-vendors-tab">{syncing ? "Storing" : "Store from QuickBooks"}</Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a vendor" />
+        {shown.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No vendors stored yet. Store them from QuickBooks, then choose one on the bill.</p>
+        ) : (
+          <div className="max-h-[32rem] overflow-auto border rounded-lg">
+            {shown.map((vendor) => (
+              <div key={vendor.qbId} className="px-3 py-2 border-b last:border-0 text-sm flex justify-between gap-3">
+                <span>{vendor.displayName}</span>
+                <span className="text-muted-foreground">{!vendor.active ? "Inactive" : vendor.companyName && vendor.companyName !== vendor.displayName ? vendor.companyName : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -347,6 +413,8 @@ function PayableRow({
   posting,
   onRead,
   reading,
+  onReplace,
+  replacing,
 }: {
   document: Payable;
   companies: Company[];
@@ -358,6 +426,8 @@ function PayableRow({
   posting: boolean;
   onRead: () => void;
   reading: boolean;
+  onReplace: (file: File) => void;
+  replacing: boolean;
 }) {
   const [vendorName, setVendorName] = useState(document.vendorName ?? "");
   const [qbVendorId, setQbVendorId] = useState(document.qbVendorId ?? "");
@@ -401,9 +471,11 @@ function PayableRow({
           <Button variant="outline" size="sm" disabled={reading || Boolean(document.qbBillId)} onClick={onRead}>
             {reading ? "Reading" : "Read bill"}
           </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href={`/api/accounting/payables/${document.id}/file`} target="_blank" rel="noreferrer">Open</a>
-          </Button>
+          {document.hasFile !== false && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/api/accounting/payables/${document.id}/file`} target="_blank" rel="noreferrer">Open</a>
+            </Button>
+          )}
         </div>
       </div>
       {document.accountReason && (
@@ -412,7 +484,22 @@ function PayableRow({
           <p>{document.accountReason}</p>
         </div>
       )}
-      {/pdf/i.test(document.originalFilename) ? (
+      {document.hasFile === false ? (
+        <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-2">
+          <p>The invoice is still listed, but the file was kept on the server disk and was removed when the app updated.</p>
+          <p>Forward the same email to bills@nashobawinery.com again, or upload the file here. New copies are stored so the next update will not remove them.</p>
+          <Input
+            type="file"
+            accept="application/pdf,image/*"
+            capture="environment"
+            disabled={replacing}
+            onChange={(event) => {
+              const next = event.target.files?.[0];
+              if (next) onReplace(next);
+            }}
+          />
+        </div>
+      ) : /pdf/i.test(document.originalFilename) ? (
         <iframe title={document.originalFilename} src={`/api/accounting/payables/${document.id}/file`} className="w-full h-96 rounded-lg border" />
       ) : /\.(png|jpe?g|webp|gif)$/i.test(document.originalFilename) ? (
         <img src={`/api/accounting/payables/${document.id}/file`} alt={document.originalFilename} className="max-h-96 rounded-lg border" />
