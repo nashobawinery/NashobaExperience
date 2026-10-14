@@ -247,7 +247,7 @@ function NameTable({ rows, accounts, classes, accountsReady, onChange }: {
   );
 }
 
-function DsrFrame({ children }: { children: ReactNode }) {
+function DsrFrame({ dsr, outstanding, guests }: { dsr: ReactNode; outstanding: ReactNode; guests: ReactNode }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const mappingQuery = useQuery<MappingPayload>({
@@ -278,16 +278,27 @@ function DsrFrame({ children }: { children: ReactNode }) {
     setDraft((current) => (current ?? rows).map((row) => row.kind === kind && row.name === name ? { ...row, ...patch } : row));
   };
   return (
-    <Tabs defaultValue="sales">
+    <Tabs defaultValue="dsr">
       <TabsList className="flex h-auto flex-wrap justify-start">
+        <TabsTrigger value="dsr">DSR</TabsTrigger>
+        <TabsTrigger value="outstanding">Outstanding deposits</TabsTrigger>
+        <TabsTrigger value="guests">Guest deposits</TabsTrigger>
+        <TabsTrigger value="sync-log">Sync log</TabsTrigger>
         <TabsTrigger value="general">General Settings</TabsTrigger>
         <TabsTrigger value="accounting">Accounting Options</TabsTrigger>
         {rowSections.map((section) => (
           <TabsTrigger key={section.id} value={section.id}>{section.label}</TabsTrigger>
         ))}
-        <TabsTrigger value="sync-log">Sync log</TabsTrigger>
-        <TabsTrigger value="journal">Journal</TabsTrigger>
       </TabsList>
+      <TabsContent value="dsr">
+        <div className="space-y-6">{dsr}</div>
+      </TabsContent>
+      <TabsContent value="outstanding">
+        <div className="space-y-6">{outstanding}</div>
+      </TabsContent>
+      <TabsContent value="guests">
+        <div className="space-y-6">{guests}</div>
+      </TabsContent>
       <TabsContent value="general">
         <Card>
           <CardHeader>
@@ -340,9 +351,6 @@ function DsrFrame({ children }: { children: ReactNode }) {
       <TabsContent value="sync-log">
         <DsrSyncLog />
       </TabsContent>
-      <TabsContent value="journal">
-        <div className="space-y-6">{children}</div>
-      </TabsContent>
     </Tabs>
   );
 }
@@ -361,6 +369,7 @@ export default function ToastSales() {
   const [liabilityMonths, setLiabilityMonths] = useState<LiabilityMonth[]>([]);
   const [liabilityProgress, setLiabilityProgress] = useState("");
   const [openSources, setOpenSources] = useState<Record<string, boolean>>({});
+  const [checkError, setCheckError] = useState("");
   const [guestSearch, setGuestSearch] = useState("");
   const [guestKey, setGuestKey] = useState<string | null>(null);
   const [ledgerProgress, setLedgerProgress] = useState("");
@@ -394,8 +403,12 @@ export default function ToastSales() {
     onSuccess: (result) => {
       setDate(result.date);
       setReview(result);
+      setCheckError("");
     },
-    onError: (error: Error) => toast({ title: "Could not check Toast", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => {
+      setCheckError(error.message);
+      toast({ title: "Could not check Toast", description: error.message, variant: "destructive" });
+    },
   });
 
   const scanDays = useMutation({
@@ -534,59 +547,190 @@ export default function ToastSales() {
       <div>
         <h2 className="text-2xl font-semibold">DSR</h2>
         <p className="text-muted-foreground mt-1 max-w-3xl">
-          The Shogo mapping for Nashoba Valley Spirits, Ltd. Account and class on each mapping tab are chosen from the current QuickBooks lists. Save the mapping, and the next daily sales journal uses it.
+          The DSR tab checks one Toast business date and shows that day’s lines underneath. Outstanding deposits and guest deposits each have their own tab. Account and class on each mapping tab are chosen from the current QuickBooks lists. Save the mapping, and the next daily sales journal uses it.
         </p>
       </div>
-      <DsrFrame>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Notice emails</CardTitle>
-          <CardDescription>Each notice can go to more than one person. Separate addresses with a comma. Leave a notice blank to turn it off.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 max-w-2xl">
-          {(noticeQuery.data?.notices ?? []).map((notice) => (
-            <div key={notice.key} className="space-y-2">
-              <Label htmlFor={`notice-${notice.key}`}>{notice.label}</Label>
-              <Input
-                id={`notice-${notice.key}`}
-                value={noticeDraft[notice.key] ?? notice.emails}
-                onChange={(event) => setNoticeDraft((current) => ({ ...current, [notice.key]: event.target.value }))}
-                placeholder="name@nashobawinery.com, other@nashobawinery.com"
-              />
-            </div>
-          ))}
-          <Button onClick={() => saveNotices.mutate()} disabled={saveNotices.isPending || !noticeQuery.data}>
-            {saveNotices.isPending ? "Saving" : "Save notice emails"}
-          </Button>
-        </CardContent>
-      </Card>
-
+      <DsrFrame
+        dsr={(
+        <>
       <Card>
         <CardHeader>
           <CardTitle>Business date</CardTitle>
-          <CardDescription>Turn Shogo off for a date before posting that date here. A date Shogo already posted can still be corrected.</CardDescription>
+          <CardDescription>Turn Shogo off for a date before posting that date here. A date Shogo already posted can still be corrected. The lines for the day show under this date.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="toast-date">Date</Label>
-            <Input id="toast-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} data-testid="input-toast-date" />
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="toast-date">Date</Label>
+              <Input id="toast-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} data-testid="input-toast-date" />
+            </div>
+            <Button onClick={() => check.mutate(date)} disabled={check.isPending} data-testid="button-toast-check">
+              {check.isPending ? "Checking" : "Check this date"}
+            </Button>
+            <Button variant="outline" onClick={() => scanDays.mutate()} disabled={scanDays.isPending} data-testid="button-toast-scan">
+              {scanDays.isPending ? "Scanning" : "Find a mismatch in the last 7 days"}
+            </Button>
           </div>
-          <Button onClick={() => check.mutate(date)} disabled={check.isPending} data-testid="button-toast-check">
-            {check.isPending ? "Checking" : "Check this date"}
-          </Button>
-          <Button variant="outline" onClick={() => scanDays.mutate()} disabled={scanDays.isPending} data-testid="button-toast-scan">
-            {scanDays.isPending ? "Scanning" : "Find a mismatch in the last 7 days"}
-          </Button>
-          <Button variant="outline" onClick={() => depositsCheck.mutate()} disabled={depositsCheck.isPending} data-testid="button-toast-deposits">
-            {depositsCheck.isPending ? "Comparing deposits" : "Compare deposits"}
-          </Button>
-          <Button variant="outline" onClick={() => outstandingCheck.mutate()} disabled={outstandingCheck.isPending} data-testid="button-toast-outstanding">
-            {outstandingCheck.isPending ? "Listing deposits" : "Outstanding deposits"}
-          </Button>
+          {check.isPending && <p className="text-sm text-muted-foreground">Reading Toast for {date}. The lines will show here.</p>}
+          {checkError && !check.isPending && <p className="text-sm text-destructive">{checkError}</p>}
         </CardContent>
       </Card>
+      {review && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>{review.date}</CardTitle>
+              <CardDescription>{review.orderCount} Toast orders. {review.journals.length ? `Journal ${review.journals.map((journal) => journal.doc).join(", ")} is already in QuickBooks.` : "No Toast journal is in QuickBooks for this date yet."}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p>{review.finding}</p>
+              <p className="text-sm text-muted-foreground">The journal would deposit {money(review.bankExpected)} to Clinton Savings Bank. That deposit is compared after it arrives, not on the sales date.</p>
+              {review.plugNote && <p className="text-sm text-muted-foreground">{review.plugNote}</p>}
+              {review.postBlock && !review.matched && <p className="text-sm text-muted-foreground">{review.postBlock}</p>}
+              <Button onClick={() => post.mutate()} disabled={!review.canPost || post.isPending} data-testid="button-toast-post">
+                {review.mode === "post-day" ? "Post this day" : "Post the difference"}
+              </Button>
+            </CardContent>
+          </Card>
 
+          {review.unmapped.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Not in the mapping</CardTitle>
+                <CardDescription>These Toast names need an account before the day can be posted.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {review.unmapped.map((item) => (
+                      <TableRow key={`${item.kind}-${item.name}`}>
+                        <TableCell>{item.kind}</TableCell>
+                        <TableCell>{item.name}</TableCell>
+                        <TableCell className="text-right">{money(item.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Accounts</CardTitle>
+              <CardDescription>Positive amounts are credits, the way sales appear. The difference is Toast minus QuickBooks. Names that share an account are added into one line. Open Amounts to see each name and the dollars that were added. Cash deposits and card deposits stay on their own lines.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead className="text-right">Toast</TableHead>
+                    <TableHead className="text-right">QuickBooks</TableHead>
+                    <TableHead className="text-right">Difference</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {review.lines.map((line) => {
+                    const lineKey = `${line.accountName}|${line.className}|${line.detail || ""}`;
+                    const sources = line.sources ?? [];
+                    const open = Boolean(openSources[lineKey]);
+                    return (
+                      <Fragment key={lineKey}>
+                        <TableRow>
+                          <TableCell>
+                            <div>{line.accountName}</div>
+                            {line.detail ? <div className="text-xs text-muted-foreground">{line.detail}</div> : null}
+                            {sources.length > 0 ? (
+                              <button
+                                type="button"
+                                className="text-xs text-muted-foreground underline"
+                                onClick={() => setOpenSources((current) => ({ ...current, [lineKey]: !current[lineKey] }))}
+                              >
+                                {open ? "Hide amounts" : `Amounts (${sources.length})`}
+                              </button>
+                            ) : null}
+                          </TableCell>
+                          <TableCell>{line.className}</TableCell>
+                          <TableCell className="text-right">{money(line.toast)}</TableCell>
+                          <TableCell className="text-right">{money(line.quickbooks)}</TableCell>
+                          <TableCell className="text-right">{money(line.difference)}</TableCell>
+                        </TableRow>
+                        {open ? sources.map((source) => (
+                          <TableRow key={`${lineKey}|${source.name}`}>
+                            <TableCell className="pl-8 text-muted-foreground">{source.name}</TableCell>
+                            <TableCell />
+                            <TableCell className="text-right text-muted-foreground">{money(source.amount)}</TableCell>
+                            <TableCell />
+                            <TableCell />
+                          </TableRow>
+                        )) : null}
+                      </Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {review.deposits.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Bank deposits that day</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {review.deposits.map((deposit) => (
+                  <p key={deposit.id} className="text-sm text-muted-foreground">{deposit.account} {money(deposit.total)} {deposit.note}</p>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+      {scan.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Where the days disagree</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Largest gap</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scan.map((row) => (
+                  <TableRow key={row.date}>
+                    <TableCell>{row.date}</TableCell>
+                    <TableCell>{row.matched ? "Matches" : row.note}</TableCell>
+                    <TableCell>{row.matched ? "—" : `${row.account} ${money(row.difference)}`}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" onClick={() => check.mutate(row.date)}>Open</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+        </>
+        )}
+        guests={(
+        <>
       <Card>
         <CardHeader>
           <CardTitle>Guest deposits since January 1</CardTitle>
@@ -763,6 +907,51 @@ export default function ToastSales() {
           )}
         </CardContent>
       </Card>
+        </>
+        )}
+        outstanding={(
+        <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Notice emails</CardTitle>
+          <CardDescription>Each notice can go to more than one person. Separate addresses with a comma. Leave a notice blank to turn it off.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 max-w-2xl">
+          {(noticeQuery.data?.notices ?? []).map((notice) => (
+            <div key={notice.key} className="space-y-2">
+              <Label htmlFor={`notice-${notice.key}`}>{notice.label}</Label>
+              <Input
+                id={`notice-${notice.key}`}
+                value={noticeDraft[notice.key] ?? notice.emails}
+                onChange={(event) => setNoticeDraft((current) => ({ ...current, [notice.key]: event.target.value }))}
+                placeholder="name@nashobawinery.com, other@nashobawinery.com"
+              />
+            </div>
+          ))}
+          <Button onClick={() => saveNotices.mutate()} disabled={saveNotices.isPending || !noticeQuery.data}>
+            {saveNotices.isPending ? "Saving" : "Save notice emails"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bank deposits</CardTitle>
+          <CardDescription>Compare the sales posting with the deposit that reached the bank, and list cash and cards that are still outstanding.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="deposit-date">Through date</Label>
+            <Input id="deposit-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </div>
+          <Button variant="outline" onClick={() => depositsCheck.mutate()} disabled={depositsCheck.isPending} data-testid="button-toast-deposits">
+            {depositsCheck.isPending ? "Comparing deposits" : "Compare deposits"}
+          </Button>
+          <Button onClick={() => outstandingCheck.mutate()} disabled={outstandingCheck.isPending} data-testid="button-toast-outstanding">
+            {outstandingCheck.isPending ? "Listing deposits" : "Outstanding deposits"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {outstanding && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -874,160 +1063,9 @@ export default function ToastSales() {
           </CardContent>
         </Card>
       )}
-
-      {scan.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Where the days disagree</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Largest gap</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {scan.map((row) => (
-                  <TableRow key={row.date}>
-                    <TableCell>{row.date}</TableCell>
-                    <TableCell>{row.matched ? "Matches" : row.note}</TableCell>
-                    <TableCell>{row.matched ? "—" : `${row.account} ${money(row.difference)}`}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" onClick={() => check.mutate(row.date)}>Open</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {review && (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{review.date}</CardTitle>
-              <CardDescription>{review.orderCount} Toast orders. {review.journals.length ? `Journal ${review.journals.map((journal) => journal.doc).join(", ")} is already in QuickBooks.` : "No Toast journal is in QuickBooks for this date yet."}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p>{review.finding}</p>
-              <p className="text-sm text-muted-foreground">The journal would deposit {money(review.bankExpected)} to Clinton Savings Bank. That deposit is compared after it arrives, not on the sales date.</p>
-              {review.plugNote && <p className="text-sm text-muted-foreground">{review.plugNote}</p>}
-              {review.postBlock && !review.matched && <p className="text-sm text-muted-foreground">{review.postBlock}</p>}
-              <Button onClick={() => post.mutate()} disabled={!review.canPost || post.isPending} data-testid="button-toast-post">
-                {review.mode === "post-day" ? "Post this day" : "Post the difference"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {review.unmapped.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Not in the mapping</CardTitle>
-                <CardDescription>These Toast names need an account before the day can be posted.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {review.unmapped.map((item) => (
-                      <TableRow key={`${item.kind}-${item.name}`}>
-                        <TableCell>{item.kind}</TableCell>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell className="text-right">{money(item.amount)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Accounts</CardTitle>
-              <CardDescription>Positive amounts are credits, the way sales appear. The difference is Toast minus QuickBooks. Names that share an account are added into one line. Open Amounts to see each name and the dollars that were added. Cash deposits and card deposits stay on their own lines.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Account</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead className="text-right">Toast</TableHead>
-                    <TableHead className="text-right">QuickBooks</TableHead>
-                    <TableHead className="text-right">Difference</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {review.lines.map((line) => {
-                    const lineKey = `${line.accountName}|${line.className}|${line.detail || ""}`;
-                    const sources = line.sources ?? [];
-                    const open = Boolean(openSources[lineKey]);
-                    return (
-                      <Fragment key={lineKey}>
-                        <TableRow>
-                          <TableCell>
-                            <div>{line.accountName}</div>
-                            {line.detail ? <div className="text-xs text-muted-foreground">{line.detail}</div> : null}
-                            {sources.length > 0 ? (
-                              <button
-                                type="button"
-                                className="text-xs text-muted-foreground underline"
-                                onClick={() => setOpenSources((current) => ({ ...current, [lineKey]: !current[lineKey] }))}
-                              >
-                                {open ? "Hide amounts" : `Amounts (${sources.length})`}
-                              </button>
-                            ) : null}
-                          </TableCell>
-                          <TableCell>{line.className}</TableCell>
-                          <TableCell className="text-right">{money(line.toast)}</TableCell>
-                          <TableCell className="text-right">{money(line.quickbooks)}</TableCell>
-                          <TableCell className="text-right">{money(line.difference)}</TableCell>
-                        </TableRow>
-                        {open ? sources.map((source) => (
-                          <TableRow key={`${lineKey}|${source.name}`}>
-                            <TableCell className="pl-8 text-muted-foreground">{source.name}</TableCell>
-                            <TableCell />
-                            <TableCell className="text-right text-muted-foreground">{money(source.amount)}</TableCell>
-                            <TableCell />
-                            <TableCell />
-                          </TableRow>
-                        )) : null}
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {review.deposits.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Bank deposits that day</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1">
-                {review.deposits.map((deposit) => (
-                  <p key={deposit.id} className="text-sm text-muted-foreground">{deposit.account} {money(deposit.total)} {deposit.note}</p>
-                ))}
-              </CardContent>
-            </Card>
-          )}
         </>
-      )}
-      </DsrFrame>
+        )}
+      />
     </div>
   );
 }
