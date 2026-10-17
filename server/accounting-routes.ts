@@ -556,6 +556,7 @@ export async function ensureAccountingTables() {
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS storage_key text;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS analysis jsonb;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS read_at timestamp;
+    ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS coding_note text;
     CREATE TABLE IF NOT EXISTS accounting_vendor_analyses (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       qb_vendor_id varchar NOT NULL,
@@ -2374,16 +2375,19 @@ function readInvoiceFields(text: string) {
   };
 }
 
-function suggestVendor(text: string, vendors: { qbId: string; displayName: string }[]) {
+function suggestVendor(text: string, vendors: { qbId: string; displayName: string; companyName?: string | null }[]) {
   const haystack = text.toLowerCase().replace(/[^a-z0-9]+/g, " ");
   const skip = new Set(["inc", "llc", "ltd", "co", "company", "corp", "the"]);
   let best: { qbId: string; displayName: string; score: number } | null = null;
   for (const vendor of vendors) {
-    const words = vendor.displayName.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((word) => word.length > 2 && !skip.has(word));
-    if (words.length < 2 && !(words.length === 1 && words[0].length >= 6)) continue;
-    if (!words.every((word) => haystack.includes(word))) continue;
-    const score = words.join(" ").length;
-    if (!best || score > best.score) best = { ...vendor, score };
+    const names = [vendor.displayName, vendor.companyName || ""];
+    for (const name of names) {
+      const words = name.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((word) => word.length > 2 && !skip.has(word));
+      if (words.length < 2 && !(words.length === 1 && words[0].length >= 6)) continue;
+      if (!words.every((word) => haystack.includes(word))) continue;
+      const score = words.join(" ").length;
+      if (!best || score > best.score) best = { qbId: vendor.qbId, displayName: vendor.displayName, score };
+    }
   }
   return best;
 }
@@ -2418,9 +2422,9 @@ function documentKindFromReading(text: string, aiKind: string) {
   return "unreviewed" as const;
 }
 
-async function readBill(input: { text: string; filename: string; mime: string; content: Buffer | null }) {
+async function readBill(input: { text: string; filename: string; mime: string; content: Buffer | null; purpose?: string }) {
   const vendorRows = await db.execute(sql`
-    SELECT qb_id as "qbId", display_name as "displayName"
+    SELECT qb_id as "qbId", display_name as "displayName", company_name as "companyName"
     FROM accounting_qb_vendors WHERE active = true ORDER BY display_name
   `);
   const accountRows = await db.execute(sql`
@@ -2430,14 +2434,15 @@ async function readBill(input: { text: string; filename: string; mime: string; c
       AND (account_type ILIKE '%expense%' OR account_type ILIKE '%cost of goods%')
     ORDER BY fully_qualified_name
   `);
-  const vendors = vendorRows.rows as { qbId: string; displayName: string }[];
+  const vendors = vendorRows.rows as { qbId: string; displayName: string; companyName: string | null }[];
   const accounts = accountRows.rows as { qbId: string; fullyQualifiedName: string; accountNumber: string | null; accountType: string | null }[];
   const historyRows = await db.execute(sql`
-    SELECT vendor_name as "vendorName", gl_account as "glAccount"
+    SELECT vendor_name as "vendorName", gl_account as "glAccount", COUNT(*)::int as uses
     FROM accounting_payables
-    WHERE vendor_name IS NOT NULL AND gl_account IS NOT NULL
-    ORDER BY created_at DESC
-    LIMIT 30
+    WHERE vendor_name IS NOT NULL AND gl_account IS NOT NULL AND qb_account_id IS NOT NULL
+    GROUP BY vendor_name, gl_account
+    ORDER BY COUNT(*) DESC
+    LIMIT 80
   `);
   const parsed = readInvoiceFields(input.text);
   const guessed = suggestVendor(input.text, vendors);
@@ -2470,20 +2475,21 @@ async function readBill(input: { text: string; filename: string; mime: string; c
   try {
     const OpenAI = (await import("openai")).default;
     const openai = new OpenAI();
-    const haystack = input.text.toLowerCase();
+    const haystack = `${input.text}\n${input.purpose || ""}`.toLowerCase();
     const vendorList = vendors.filter((vendor) => {
-      const words = vendor.displayName.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 3);
+      const words = `${vendor.displayName} ${vendor.companyName || ""}`.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 3);
       return words.some((word) => haystack.includes(word));
     });
-    const vendorLines = (vendorList.length >= 5 ? vendorList : vendors).slice(0, 500)
-      .map((vendor) => `${vendor.qbId}\t${vendor.displayName}`).join("\n");
-    const accountLines = accounts.slice(0, 500)
+    const chosenVendors = (vendorList.length >= 5 ? vendorList : vendors).slice(0, 160);
+    const vendorLines = chosenVendors
+      .map((vendor) => `${vendor.qbId}\t${vendor.displayName}${vendor.companyName && vendor.companyName !== vendor.displayName ? `\t${vendor.companyName}` : ""}`).join("\n");
+    const accountLines = accounts.slice(0, 400)
       .map((account) => `${account.qbId}\t${account.accountNumber || ""}\t${account.fullyQualifiedName}`).join("\n");
-    const history = (historyRows.rows as { vendorName: string; glAccount: string }[])
-      .map((row) => `${row.vendorName}\t${row.glAccount}`).join("\n");
+    const history = (historyRows.rows as { vendorName: string; glAccount: string; uses: number }[])
+      .map((row) => `${row.vendorName}\t${row.glAccount}\t${row.uses}`).join("\n");
     const content: { type: "text" | "image_url"; text?: string; image_url?: { url: string } }[] = [{
       type: "text",
-      text: `File: ${input.filename}\n\nBill text:\n${input.text.slice(0, 14000)}\n\nVendors (id, name):\n${vendorLines}\n\nExpense accounts (id, number, name):\n${accountLines}\n\nRecent vendor and account pairs:\n${history || "none"}`,
+      text: `File: ${input.filename}\n\nWhat the bookkeeper says this invoice is for:\n${input.purpose?.trim() || "Not provided"}\n\nBill text:\n${input.text.slice(0, 14000)}\n\nVendors (id, name, company):\n${vendorLines}\n\nExpense accounts (id, number, name):\n${accountLines}\n\nAccounts used before (vendor, account, times used):\n${history || "none"}`,
     }];
     if (input.content && /^image\//i.test(input.mime)) {
       content.push({ type: "image_url", image_url: { url: `data:${input.mime};base64,${input.content.toString("base64")}` } });
@@ -2495,7 +2501,7 @@ async function readBill(input: { text: string; filename: string; mime: string; c
       messages: [
         {
           role: "system",
-          content: "You read a vendor document for Nashoba Valley Spirits. Decide whether it is one invoice or a statement of account. Choose the vendor and, for an invoice, the expense account only from the supplied ids. Return JSON with documentKind, vendorId, invoiceNumber, billDate, dueDate, amount, accountId, and reason. documentKind is invoice or statement. Use statement for a statement of account, a monthly account summary, or a list of several invoices with payments, credits, and a balance. Use invoice for a single bill asking to be paid. Use null when a value is not on the document or not in the lists. Dates are YYYY-MM-DD. amount is a number, the invoice total or the statement balance. For a statement, invoiceNumber is null. reason is two to four sentences. For an invoice, name the goods or service and why that account fits. For a statement, say that it is a statement and name the vendor.",
+          content: "You read a vendor document for Nashoba Valley Spirits. Decide whether it is one invoice or a statement of account. Recommend one vendor from the supplied ids by the name printed on the invoice. For an invoice, recommend one expense account from the supplied ids. Use the account this vendor has been coded to most often when this purchase is the same kind. When the bookkeeper says what the invoice is for, choose the account that matches that description, even if it differs from the usual account, and say that you followed the note. Return JSON with documentKind, vendorId, invoiceNumber, billDate, dueDate, amount, accountId, and reason. documentKind is invoice or statement. Use statement for a statement of account, a monthly account summary, or a list of several invoices with payments, credits, and a balance. Use invoice for a single bill asking to be paid. Use null when a value is not on the document or not in the lists. Dates are YYYY-MM-DD. amount is a number, the invoice total or the statement balance. For a statement, invoiceNumber is null. reason names the recommended vendor, the recommended account, and why, in two to four sentences.",
         },
         { role: "user", content },
       ],
@@ -2770,13 +2776,14 @@ async function syncQuickBooksCatalog() {
   return { companyName: accounts.companyName, vendors: vendors.rows.length, accounts: accounts.rows.length };
 }
 
-async function applyBillReading(id: string) {
+async function applyBillReading(id: string, purpose?: string) {
   const result = await db.execute(sql`
     SELECT qb_bill_id as "qbBillId", stored_filename as "storedFilename", storage_key as "storageKey",
-           original_filename as "originalFilename", mime_type as "mimeType", subject
+           original_filename as "originalFilename", mime_type as "mimeType", subject,
+           coding_note as "codingNote"
     FROM accounting_payables WHERE id = ${id}
   `);
-  const document = result.rows[0] as { qbBillId?: string | null; storedFilename?: string | null; storageKey?: string | null; originalFilename?: string; mimeType?: string | null; subject?: string | null } | undefined;
+  const document = result.rows[0] as { qbBillId?: string | null; storedFilename?: string | null; storageKey?: string | null; originalFilename?: string; mimeType?: string | null; subject?: string | null; codingNote?: string | null } | undefined;
   if (!document) throw new Error("Document not found");
   if (document.qbBillId) return "This invoice is already in QuickBooks.";
   const content = await loadPayableBytes(document.storedFilename, document.storageKey);
@@ -2788,7 +2795,8 @@ async function applyBillReading(id: string) {
     : /^text\//i.test(mime) || /\.txt$/i.test(name)
       ? content.toString("utf8")
       : String(document.subject || "");
-  const reading = await readBill({ text, filename: name || "invoice", mime: mime || "application/pdf", content });
+  const note = (purpose !== undefined ? purpose : document.codingNote || "").trim().slice(0, 500);
+  const reading = await readBill({ text, filename: name || "invoice", mime: mime || "application/pdf", content, purpose: note });
   const kind = payableKind(reading);
   await db.execute(sql`
     UPDATE accounting_payables
@@ -2802,6 +2810,7 @@ async function applyBillReading(id: string) {
         qb_vendor_id = ${reading.qbVendorId},
         qb_account_id = ${reading.qbAccountId},
         account_reason = ${reading.reason},
+        coding_note = ${note || null},
         read_at = now()
     WHERE id = ${id}
   `);
@@ -3554,7 +3563,7 @@ router.get("/payables", isAdmin, async (_req, res) => {
              p.qb_account_id as "qbAccountId", p.qb_bill_id as "qbBillId", p.account_reason as "accountReason",
              p.original_filename as "originalFilename", p.stored_filename as "storedFilename",
              p.storage_key as "storageKey", p.source, p.from_email as "fromEmail",
-             p.subject, p.analysis, p.read_at as "readAt", p.created_at as "createdAt"
+             p.subject, p.analysis, p.read_at as "readAt", p.coding_note as "codingNote", p.created_at as "createdAt"
       FROM accounting_payables p
       LEFT JOIN accounting_companies c ON c.id = p.company_id
       ORDER BY p.created_at DESC
@@ -3583,6 +3592,7 @@ router.get("/payables", isAdmin, async (_req, res) => {
         subject: row.subject,
         analysis: row.analysis,
         readAt: row.readAt,
+        codingNote: row.codingNote,
         createdAt: row.createdAt,
         hasFile,
       });
@@ -3759,7 +3769,8 @@ router.post("/payables/:id/read", isAdmin, async (req, res) => {
     const document = result.rows[0] as { qbBillId?: string | null } | undefined;
     if (!document) return res.status(404).json({ message: "Document not found" });
     if (document.qbBillId) return res.status(400).json({ message: "This invoice is already in QuickBooks." });
-    const reason = await applyBillReading(req.params.id);
+    const purpose = req.body?.purpose === undefined ? undefined : String(req.body.purpose);
+    const reason = await applyBillReading(req.params.id, purpose);
     res.json({ ok: true, reason });
   } catch (error) {
     console.error("Error reading payable:", error);

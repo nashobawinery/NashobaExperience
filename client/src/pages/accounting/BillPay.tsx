@@ -38,6 +38,7 @@ type Payable = {
   subject: string | null;
   analysis: StatementAnalysis | string | null;
   readAt: string | null;
+  codingNote: string | null;
   createdAt: string;
 };
 
@@ -171,13 +172,13 @@ export default function BillPay({ companies }: { companies: Company[] }) {
     onError: (err: Error) => toast({ title: "Could not restore the file", description: err.message, variant: "destructive" }),
   });
   const reread = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiRequest("POST", `/api/accounting/payables/${id}/read`);
+    mutationFn: async ({ id, purpose }: { id: string; purpose?: string }) => {
+      const response = await apiRequest("POST", `/api/accounting/payables/${id}/read`, purpose === undefined ? {} : { purpose });
       return response.json() as Promise<{ reason?: string }>;
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables"] });
-      toast({ title: "Bill read" });
+      toast({ title: "Vendor and account recommended" });
     },
     onError: (err: Error) => toast({ title: "Could not read the bill", description: err.message, variant: "destructive" }),
   });
@@ -302,7 +303,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
                 ))}
               </div>
               {selected && (
-                <PayableRow key={selected.id} document={selected} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...selected, draft })} saving={save.isPending} onPost={(draft) => postBill.mutate({ ...selected, draft })} posting={postBill.isPending} onRead={() => reread.mutate(selected.id)} reading={reread.isPending} onReplace={(next) => replaceFile.mutate({ id: selected.id, next })} replacing={replaceFile.isPending} />
+                <PayableRow key={selected.id} document={selected} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...selected, draft })} saving={save.isPending} onPost={(draft) => postBill.mutate({ ...selected, draft })} posting={postBill.isPending} onRead={(purpose) => reread.mutate({ id: selected.id, purpose })} reading={reread.isPending} onReplace={(next) => replaceFile.mutate({ id: selected.id, next })} replacing={replaceFile.isPending} />
               )}
             </div>
           )}
@@ -335,7 +336,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
                 <StatementCard
                   key={document.id}
                   document={document}
-                  onReread={() => reread.mutate(document.id)}
+                  onReread={() => reread.mutate({ id: document.id })}
                   reading={reread.isPending}
                   onMarkInvoice={() => save.mutate({ ...document, draft: { documentKind: "invoice" } })}
                 />
@@ -548,7 +549,7 @@ function PayableRow({
   saving: boolean;
   onPost: (draft: Partial<Payable> & { qbVendorId?: string; qbAccountId?: string }) => void;
   posting: boolean;
-  onRead: () => void;
+  onRead: (purpose: string) => void;
   reading: boolean;
   onReplace: (file: File) => void;
   replacing: boolean;
@@ -563,6 +564,7 @@ function PayableRow({
   const [amount, setAmount] = useState(document.amount ?? "");
   const [glAccount, setGlAccount] = useState(document.glAccount ?? "");
   const [rowCompanyId, setRowCompanyId] = useState(document.companyId ?? "");
+  const [purpose, setPurpose] = useState(document.codingNote ?? "");
   useEffect(() => {
     setVendorName(document.vendorName ?? "");
     setQbVendorId(document.qbVendorId ?? "");
@@ -574,7 +576,8 @@ function PayableRow({
     setAmount(document.amount ?? "");
     setGlAccount(document.glAccount ?? "");
     setRowCompanyId(document.companyId ?? "");
-  }, [document.vendorName, document.qbVendorId, document.qbAccountId, document.documentKind, document.invoiceNumber, document.billDate, document.dueDate, document.amount, document.glAccount, document.companyId]);
+    setPurpose(document.codingNote ?? "");
+  }, [document.vendorName, document.qbVendorId, document.qbAccountId, document.documentKind, document.invoiceNumber, document.billDate, document.dueDate, document.amount, document.glAccount, document.companyId, document.codingNote]);
   const draft = { vendorName, documentKind, invoiceNumber, billDate, dueDate, amount, glAccount, companyId: rowCompanyId, qbVendorId, qbAccountId };
   const expenseAccounts = accounts.filter((account) => /expense|cost of goods sold/i.test(account.accountType ?? ""));
   const accountChoices = expenseAccounts.length > 0 ? expenseAccounts : accounts;
@@ -592,7 +595,7 @@ function PayableRow({
         <div className="flex items-center gap-2">
           {document.qbBillId && <Badge>QuickBooks {document.qbBillId}</Badge>}
           <Badge variant={document.documentKind === "unreviewed" ? "outline" : "secondary"}>{kindLabel[document.documentKind]}</Badge>
-          <Button variant="outline" size="sm" disabled={reading || Boolean(document.qbBillId)} onClick={onRead}>
+          <Button variant="outline" size="sm" disabled={reading || Boolean(document.qbBillId)} onClick={() => onRead(purpose)}>
             {reading ? "Reading" : "Read again"}
           </Button>
           {!document.qbBillId && (
@@ -607,9 +610,30 @@ function PayableRow({
           )}
         </div>
       </div>
+      {!document.qbBillId && (
+        <div className="rounded-lg border p-3 space-y-2">
+          <Label htmlFor={`purpose-${document.id}`}>What is this invoice for?</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id={`purpose-${document.id}`}
+              value={purpose}
+              onChange={(event) => setPurpose(event.target.value)}
+              placeholder="Bottles, glass, a repair, landscaping"
+              className="max-w-xl"
+            />
+            <Button disabled={reading} onClick={() => onRead(purpose)}>
+              {reading ? "Recommending" : "Recommend vendor and account"}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">The recommendation uses the name on the invoice, the accounts this vendor has used before, and this note when you add one.</p>
+        </div>
+      )}
       {document.accountReason && (
         <div className="rounded-lg border bg-muted/40 p-3 text-sm">
-          <p className="font-medium mb-1">Why this account</p>
+          <p className="font-medium mb-1">Recommendation</p>
+          {(document.vendorName || document.glAccount) && (
+            <p className="mb-1">{document.vendorName || "No vendor"} · {document.glAccount || "No account"}</p>
+          )}
           <p>{document.accountReason}</p>
         </div>
       )}
@@ -722,19 +746,37 @@ function SearchSelect({ label, placeholder, value, options, onChange }: {
 }) {
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
-  const shown = options.filter((option) => !term || option.label.toLowerCase().includes(term)).slice(0, 40);
+  const selected = options.find((option) => option.id === value);
+  const shown = term ? options.filter((option) => option.label.toLowerCase().includes(term)).slice(0, 12) : [];
   return (
     <div className="space-y-1">
       <Label>{label}</Label>
-      <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Find a ${label.toLowerCase()}`} />
-      <Select value={value || undefined} onValueChange={onChange} disabled={options.length === 0}>
-        <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
-        <SelectContent>
-          {shown.map((option) => (
-            <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+      <Input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={selected?.label || placeholder}
+        disabled={options.length === 0}
+      />
+      {term && (
+        <div className="max-h-48 overflow-auto rounded-md border bg-background">
+          {shown.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-muted-foreground">No matches</p>
+          ) : shown.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className="block w-full border-b px-3 py-2 text-left text-sm last:border-0 hover:bg-muted"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onChange(option.id);
+                setQuery("");
+              }}
+            >
+              {option.label}
+            </button>
           ))}
-        </SelectContent>
-      </Select>
+        </div>
+      )}
     </div>
   );
 }
