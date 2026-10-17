@@ -16568,6 +16568,28 @@ Generate a professional response:`;
         headerKeys: Object.keys(parsedHeaders).slice(0, 10)
       });
 
+      const recipientText = `${to} ${emailData.cc || ""} ${(envelope.to || []).join(" ")}`.toLowerCase();
+      const isBillCopy = /bills@(?:inbound\.)?nashobawinery\.com/.test(recipientText);
+
+      if (isBillCopy) {
+        try {
+          const saved = await receivePayableEmail({
+            fromEmail,
+            fromName,
+            subject,
+            textBody,
+            htmlBody,
+            messageId,
+            attachments,
+          });
+          console.log("[Email Inbound] Saved accounts payable bill", saved.id, saved.duplicate ? "duplicate" : "new", saved.count ? `(${saved.count})` : "");
+          return res.status(200).json({ message: saved.duplicate ? "Bill already saved" : "Bill saved", id: saved.id });
+        } catch (billError) {
+          console.error("[Email Inbound] Failed to save accounts payable bill:", billError);
+          return res.status(500).json({ message: "Failed to save the bill" });
+        }
+      }
+
       // Check for duplicate message
       if (messageId) {
         const existingMessage = await storage.getSupportMessageByEmailId(messageId);
@@ -16591,8 +16613,6 @@ Generate a professional response:`;
       }
 
       const isFromOurDomain = ourDomains.some(d => fromEmailLower.includes(d));
-      const recipientText = `${to} ${(envelope.to || []).join(" ")}`.toLowerCase();
-      const isBillCopy = recipientText.includes("bills@inbound.nashobawinery.com");
       const subjectLowerForSkip = subject.toLowerCase();
       const isSupportNotice = subjectLowerForSkip.includes("we've received your request")
         || subjectLowerForSkip.includes("new support ticket:")
@@ -16606,25 +16626,6 @@ Generate a professional response:`;
       if (isFromOurDomain && isAutoReply) {
         console.log('[Email Inbound] Skipping auto-generated email from our domain:', subject);
         return res.status(200).json({ message: 'Auto-generated email skipped' });
-      }
-
-      if (isBillCopy) {
-        try {
-          const saved = await receivePayableEmail({
-            fromEmail,
-            fromName,
-            subject,
-            textBody,
-            htmlBody,
-            messageId,
-            attachments,
-          });
-          console.log("[Email Inbound] Saved accounts payable bill", saved.id, saved.duplicate ? "duplicate" : "new");
-          return res.status(200).json({ message: saved.duplicate ? "Bill already saved" : "Bill saved", id: saved.id });
-        } catch (billError) {
-          console.error("[Email Inbound] Failed to save accounts payable bill:", billError);
-          return res.status(500).json({ message: "Failed to save the bill" });
-        }
       }
 
       // ============================================

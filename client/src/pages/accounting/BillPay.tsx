@@ -36,7 +36,23 @@ type Payable = {
   source: string | null;
   fromEmail: string | null;
   subject: string | null;
+  analysis: StatementAnalysis | string | null;
+  readAt: string | null;
   createdAt: string;
+};
+
+type StatementLineView = {
+  reference: string;
+  kind: string;
+  status: string;
+  statementAmount: number | null;
+  note: string;
+};
+
+type StatementAnalysis = {
+  summary?: string;
+  issues?: { severity: string; title: string; detail: string }[];
+  lines?: StatementLineView[];
 };
 
 const kindLabel: Record<Payable["documentKind"], string> = {
@@ -45,8 +61,8 @@ const kindLabel: Record<Payable["documentKind"], string> = {
   statement: "Statement",
 };
 
-function money(value: string | null) {
-  if (!value) return "—";
+function money(value: string | number | null) {
+  if (value == null || value === "") return "—";
   const amount = Number(value);
   if (Number.isNaN(amount)) return "—";
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -92,8 +108,8 @@ export default function BillPay({ companies }: { companies: Company[] }) {
         dueDate: (document.draft.dueDate ?? document.dueDate ?? "").slice(0, 10),
         amount: document.draft.amount ?? document.amount ?? "",
         glAccount: document.draft.glAccount ?? document.glAccount ?? "",
-        qbVendorId: document.draft.qbVendorId ?? "",
-        qbAccountId: document.draft.qbAccountId ?? "",
+        qbVendorId: document.draft.qbVendorId ?? document.qbVendorId ?? "",
+        qbAccountId: document.draft.qbAccountId ?? document.qbAccountId ?? "",
       });
     },
     onSuccess: async () => {
@@ -168,51 +184,53 @@ export default function BillPay({ companies }: { companies: Company[] }) {
   const vendors = (reference.data?.vendors ?? []).filter((vendor) => vendor.active);
   const accounts = (reference.data?.accounts ?? []).filter((account) => account.active);
   const documents = data?.documents ?? [];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const prepare = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/accounting/payables/prepare");
       return response.json() as Promise<{ read: number }>;
     },
-    onSuccess: async (result) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/accounting/payables/reference"] });
-      if (result.read > 0) toast({ title: "Bill read", description: "The vendor, dates, and account were filled from the stored lists." });
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/vendor-analyses"] });
     },
     onError: (err: Error) => toast({ title: "Could not read the bill", description: err.message, variant: "destructive" }),
   });
-  const prepared = useRef(false);
+  const passes = useRef(0);
   useEffect(() => {
-    if (prepared.current || !reference.isFetched || !data) return;
-    const needsReading = documents.some((document) => !document.qbVendorId && !document.qbBillId);
+    if (!reference.isFetched || !data || prepare.isPending || passes.current >= 6) return;
+    const needsReading = documents.some((document) => !document.qbBillId && (!document.readAt || (document.documentKind === "statement" && !document.analysis)));
     const listsMissing = vendors.length === 0 || accounts.length === 0;
     if (!needsReading && !listsMissing) return;
-    prepared.current = true;
+    passes.current += 1;
     prepare.mutate();
-  }, [reference.isFetched, data, documents, vendors.length, accounts.length]);
-  const waiting = documents.filter((document) => document.documentKind === "unreviewed");
-  const invoices = documents.filter((document) => document.documentKind === "invoice");
+  }, [reference.isFetched, data, documents, vendors.length, accounts.length, prepare.isPending]);
+  const approval = documents.filter((document) => document.documentKind !== "statement" && !document.qbBillId);
+  const posted = documents.filter((document) => document.documentKind !== "statement" && document.qbBillId);
   const statements = documents.filter((document) => document.documentKind === "statement");
+  const selected = approval.find((document) => document.id === selectedId) ?? approval[0] ?? null;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">Bill Pay</h2>
         <p className="text-muted-foreground mt-1 max-w-3xl">
-          Vendor bills land in one inbox. Mark each file as an invoice or a statement, set the general-ledger account, and review it before it is sent to QuickBooks.
+          Invoices emailed to bills@nashobawinery.com wait here for approval. A statement is filed on the Statements tab and compared with the invoices we already have.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2"><Inbox className="h-4 w-4" /> Needs review</CardDescription>
-            <CardTitle>{waiting.length}</CardTitle>
+            <CardDescription className="flex items-center gap-2"><Inbox className="h-4 w-4" /> Waiting for approval</CardDescription>
+            <CardTitle>{approval.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2"><Receipt className="h-4 w-4" /> Invoices</CardDescription>
-            <CardTitle>{invoices.length}</CardTitle>
+            <CardDescription className="flex items-center gap-2"><Receipt className="h-4 w-4" /> Sent to QuickBooks</CardDescription>
+            <CardTitle>{posted.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -225,17 +243,18 @@ export default function BillPay({ companies }: { companies: Company[] }) {
 
       <Tabs defaultValue="inbox">
         <TabsList>
-          <TabsTrigger value="inbox" data-testid="tab-payables-inbox">Inbox</TabsTrigger>
+          <TabsTrigger value="inbox" data-testid="tab-payables-inbox">For approval</TabsTrigger>
+          <TabsTrigger value="statements" data-testid="tab-payables-statements">Statements</TabsTrigger>
           <TabsTrigger value="vendors" data-testid="tab-payables-vendors">Vendors</TabsTrigger>
           <TabsTrigger value="admin" data-testid="tab-payables-admin">QuickBooks</TabsTrigger>
         </TabsList>
         <TabsContent value="inbox" className="mt-4">
       <Card>
         <CardHeader>
-          <CardTitle>Inbox</CardTitle>
-          {prepare.isPending && <CardDescription>Storing vendors and accounts, then reading the open bills.</CardDescription>}
+          <CardTitle>For approval</CardTitle>
+          {prepare.isPending && <CardDescription>Reading new mail and separating statements from invoices.</CardDescription>}
           <CardDescription>
-            Mail sent to {data?.inboxEmail ?? "bills@nashobawinery.com"} lands here and does not open a support ticket. The reading uses the vendors and accounts stored from QuickBooks, shows the invoice, and explains the account. Send to QuickBooks posts the bill and attaches the file.
+            Mail sent to {data?.inboxEmail ?? "bills@nashobawinery.com"} lands here and does not open a support ticket. Open one invoice, confirm the vendor and account, then approve it. Approval sends the bill to QuickBooks and attaches the file.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -265,17 +284,64 @@ export default function BillPay({ companies }: { companies: Company[] }) {
             <Skeleton className="h-24 w-full" />
           ) : error ? (
             <p className="text-sm text-destructive">Could not load the inbox.</p>
-          ) : documents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No vendor documents yet.</p>
+          ) : approval.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No invoices are waiting for approval.</p>
           ) : (
-            <div className="space-y-3">
-              {documents.map((document) => (
-                <PayableRow key={document.id} document={document} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...document, draft })} saving={save.isPending} onPost={(draft) => postBill.mutate({ ...document, draft })} posting={postBill.isPending} onRead={() => reread.mutate(document.id)} reading={reread.isPending} onReplace={(next) => replaceFile.mutate({ id: document.id, next })} replacing={replaceFile.isPending} />
+            <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
+              <div className="border rounded-lg overflow-auto max-h-[40rem]">
+                {approval.map((document) => (
+                  <button
+                    key={document.id}
+                    type="button"
+                    onClick={() => setSelectedId(document.id)}
+                    className={`block w-full text-left px-3 py-2 border-b last:border-0 text-sm ${selected?.id === document.id ? "bg-muted" : ""}`}
+                  >
+                    <span className="block font-medium">{document.vendorName || document.subject || document.originalFilename}</span>
+                    <span className="text-muted-foreground">{document.invoiceNumber || "No number"} · {money(document.amount)}</span>
+                  </button>
+                ))}
+              </div>
+              {selected && (
+                <PayableRow key={selected.id} document={selected} companies={companies} vendors={vendors} accounts={accounts} onSave={(draft) => save.mutate({ ...selected, draft })} saving={save.isPending} onPost={(draft) => postBill.mutate({ ...selected, draft })} posting={postBill.isPending} onRead={() => reread.mutate(selected.id)} reading={reread.isPending} onReplace={(next) => replaceFile.mutate({ id: selected.id, next })} replacing={replaceFile.isPending} />
+              )}
+            </div>
+          )}
+          {posted.length > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              <p className="px-3 py-2 text-sm font-medium border-b">Already approved</p>
+              {posted.map((document) => (
+                <div key={document.id} className="px-3 py-2 border-b last:border-0 text-sm flex flex-wrap justify-between gap-2">
+                  <span>{document.vendorName || document.originalFilename} · {document.invoiceNumber || "No number"}</span>
+                  <span className="text-muted-foreground">{money(document.amount)} · QuickBooks {document.qbBillId}</span>
+                </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+        <TabsContent value="statements" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Statements</CardTitle>
+              <CardDescription>
+                These are account statements, not bills to approve. Each one is checked against invoices received here and against QuickBooks. The same comparison is listed under Vendor analysis.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {statements.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No statements yet. A statement emailed to bills@nashobawinery.com is placed here.</p>
+              ) : statements.map((document) => (
+                <StatementCard
+                  key={document.id}
+                  document={document}
+                  onReread={() => reread.mutate(document.id)}
+                  reading={reread.isPending}
+                  onMarkInvoice={() => save.mutate({ ...document, draft: { documentKind: "invoice" } })}
+                />
+              ))}
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="vendors" className="mt-4">
           <VendorDirectory
@@ -402,6 +468,64 @@ function QuickBooksAdmin({
   );
 }
 
+function readStatementAnalysis(value: Payable["analysis"]): StatementAnalysis {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as StatementAnalysis;
+    } catch {
+      return {};
+    }
+  }
+  return value;
+}
+
+function StatementCard({ document, onReread, reading, onMarkInvoice }: { document: Payable; onReread: () => void; reading: boolean; onMarkInvoice: () => void }) {
+  const analysis = readStatementAnalysis(document.analysis);
+  const lines = (analysis.lines ?? []).filter((line) => line.kind === "invoice");
+  const missing = lines.filter((line) => line.status === "missing-in-books");
+  const paid = lines.filter((line) => line.status === "paid-in-books" || line.status === "paid-on-statement");
+  return (
+    <div className="border rounded-lg p-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium">{document.vendorName || document.subject || document.originalFilename}</p>
+          <p className="text-sm text-muted-foreground">
+            {document.billDate?.slice(0, 10) || "No date"} · Balance {money(document.amount)}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={reading} onClick={onReread}>{reading ? "Reading" : "Compare again"}</Button>
+          <Button variant="outline" size="sm" onClick={onMarkInvoice}>This is an invoice</Button>
+          {document.hasFile !== false && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/api/accounting/payables/${document.id}/file`} target="_blank" rel="noreferrer">Open</a>
+            </Button>
+          )}
+        </div>
+      </div>
+      {analysis.summary && <p className="text-sm">{analysis.summary}</p>}
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-lg border p-3 text-sm">
+          <p className="font-medium mb-1">Invoices we do not have</p>
+          {missing.length === 0 ? <p className="text-muted-foreground">Every invoice that could be read is already here or in QuickBooks.</p> : missing.map((line) => (
+            <p key={line.reference}>{line.reference} · {money(line.statementAmount)}</p>
+          ))}
+        </div>
+        <div className="rounded-lg border p-3 text-sm">
+          <p className="font-medium mb-1">Already paid</p>
+          {paid.length === 0 ? <p className="text-muted-foreground">None of the open invoices are marked paid.</p> : paid.map((line) => (
+            <p key={`${line.status}-${line.reference}`}>{line.reference} · {line.status === "paid-in-books" ? "Paid in QuickBooks" : "Shown paid on the statement"}</p>
+          ))}
+        </div>
+      </div>
+      {document.hasFile !== false && /pdf/i.test(document.originalFilename) && (
+        <iframe title={document.originalFilename} src={`/api/accounting/payables/${document.id}/file`} className="w-full h-96 rounded-lg border" />
+      )}
+    </div>
+  );
+}
+
 function PayableRow({
   document,
   companies,
@@ -469,8 +593,13 @@ function PayableRow({
           {document.qbBillId && <Badge>QuickBooks {document.qbBillId}</Badge>}
           <Badge variant={document.documentKind === "unreviewed" ? "outline" : "secondary"}>{kindLabel[document.documentKind]}</Badge>
           <Button variant="outline" size="sm" disabled={reading || Boolean(document.qbBillId)} onClick={onRead}>
-            {reading ? "Reading" : "Read bill"}
+            {reading ? "Reading" : "Read again"}
           </Button>
+          {!document.qbBillId && (
+            <Button variant="outline" size="sm" disabled={saving} onClick={() => onSave({ ...draft, documentKind: "statement" })}>
+              This is a statement
+            </Button>
+          )}
           {document.hasFile !== false && (
             <Button variant="outline" size="sm" asChild>
               <a href={`/api/accounting/payables/${document.id}/file`} target="_blank" rel="noreferrer">Open</a>
@@ -500,7 +629,7 @@ function PayableRow({
           />
         </div>
       ) : /pdf/i.test(document.originalFilename) ? (
-        <iframe title={document.originalFilename} src={`/api/accounting/payables/${document.id}/file`} className="w-full h-96 rounded-lg border" />
+        <iframe title={document.originalFilename} src={`/api/accounting/payables/${document.id}/file`} className="w-full h-[32rem] rounded-lg border" />
       ) : /\.(png|jpe?g|webp|gif)$/i.test(document.originalFilename) ? (
         <img src={`/api/accounting/payables/${document.id}/file`} alt={document.originalFilename} className="max-h-96 rounded-lg border" />
       ) : null}
@@ -577,7 +706,7 @@ function PayableRow({
           title={documentKind === "invoice" ? "Create this bill in QuickBooks" : "Mark this document as an invoice first"}
           onClick={() => onPost(draft)}
         >
-          {document.qbBillId ? "In QuickBooks" : "Send to QuickBooks"}
+          {document.qbBillId ? "In QuickBooks" : "Approve and send to QuickBooks"}
         </Button>
       </div>
     </div>

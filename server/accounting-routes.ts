@@ -554,6 +554,8 @@ export async function ensureAccountingTables() {
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS qb_bill_id varchar;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS account_reason text;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS storage_key text;
+    ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS analysis jsonb;
+    ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS read_at timestamp;
     CREATE TABLE IF NOT EXISTS accounting_vendor_analyses (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       qb_vendor_id varchar NOT NULL,
@@ -2404,6 +2406,18 @@ async function pdfText(buffer: Buffer) {
   }
 }
 
+function documentKindFromReading(text: string, aiKind: string) {
+  const lower = text.toLowerCase();
+  const strongStatement = /\b(statement of account|account statement|monthly statement|customer statement)\b/.test(lower);
+  const mentionsStatement = /\bstatement\b/.test(lower);
+  const invoiceLabels = lower.match(/\binvoice\s*(?:number|no\.?|#)\s*[:#]?\s*[a-z0-9-]{0,12}\d/g) || [];
+  if (strongStatement) return "statement" as const;
+  if (aiKind === "statement" && (mentionsStatement || invoiceLabels.length !== 1)) return "statement" as const;
+  if (aiKind === "invoice" || invoiceLabels.length === 1) return "invoice" as const;
+  if (invoiceLabels.length >= 3) return "statement" as const;
+  return "unreviewed" as const;
+}
+
 async function readBill(input: { text: string; filename: string; mime: string; content: Buffer | null }) {
   const vendorRows = await db.execute(sql`
     SELECT qb_id as "qbId", display_name as "displayName"
@@ -2445,6 +2459,7 @@ async function readBill(input: { text: string; filename: string; mime: string; c
     amount: parsed.amount,
     glAccount: priorAccount?.glAccount ?? null,
     qbAccountId: priorAccount?.qbAccountId ?? null,
+    documentKind: documentKindFromReading(input.text, ""),
     reason: guessed
       ? `The vendor name on the bill matches ${guessed.displayName}. ${priorAccount?.glAccount ? `The last bill for this vendor used ${priorAccount.glAccount}.` : "No earlier bill for this vendor has an account yet."}`
       : "The vendor and account lists are saved, and this bill did not match a vendor name closely enough to choose an account.",
@@ -2480,7 +2495,7 @@ async function readBill(input: { text: string; filename: string; mime: string; c
       messages: [
         {
           role: "system",
-          content: "You read a vendor bill for Nashoba Valley Spirits. Choose the vendor and the expense account only from the supplied ids. Return JSON with vendorId, invoiceNumber, billDate, dueDate, amount, accountId, and reason. Use null when a value is not on the bill or not in the lists. Dates are YYYY-MM-DD. amount is a number. reason is two to four sentences naming the goods or service on the invoice and why that account fits, including when a recent bill for the same vendor used the same account.",
+          content: "You read a vendor document for Nashoba Valley Spirits. Decide whether it is one invoice or a statement of account. Choose the vendor and, for an invoice, the expense account only from the supplied ids. Return JSON with documentKind, vendorId, invoiceNumber, billDate, dueDate, amount, accountId, and reason. documentKind is invoice or statement. Use statement for a statement of account, a monthly account summary, or a list of several invoices with payments, credits, and a balance. Use invoice for a single bill asking to be paid. Use null when a value is not on the document or not in the lists. Dates are YYYY-MM-DD. amount is a number, the invoice total or the statement balance. For a statement, invoiceNumber is null. reason is two to four sentences. For an invoice, name the goods or service and why that account fits. For a statement, say that it is a statement and name the vendor.",
         },
         { role: "user", content },
       ],
@@ -2492,15 +2507,17 @@ async function readBill(input: { text: string; filename: string; mime: string; c
     const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.dueDate || "")) ? String(raw.dueDate) : parsed.dueDate;
     const amount = Number(raw.amount);
     const reason = String(raw.reason || "").trim().slice(0, 1200) || fallback.reason;
+    const documentKind = documentKindFromReading(input.text, String(raw.documentKind || ""));
     return {
       vendorName: vendor?.displayName ?? fallback.vendorName,
       qbVendorId: vendor?.qbId ?? fallback.qbVendorId,
-      invoiceNumber: String(raw.invoiceNumber || "").trim().slice(0, 40) || parsed.invoiceNumber,
+      documentKind,
+      invoiceNumber: documentKind === "statement" ? null : (String(raw.invoiceNumber || "").trim().slice(0, 40) || parsed.invoiceNumber),
       billDate,
       dueDate,
       amount: Number.isFinite(amount) && amount > 0 ? amount : parsed.amount,
-      glAccount: account?.fullyQualifiedName ?? fallback.glAccount,
-      qbAccountId: account?.qbId ?? fallback.qbAccountId,
+      glAccount: documentKind === "statement" ? null : (account?.fullyQualifiedName ?? fallback.glAccount),
+      qbAccountId: documentKind === "statement" ? null : (account?.qbId ?? fallback.qbAccountId),
       reason,
     };
   } catch (error) {
@@ -2556,12 +2573,34 @@ async function storePayableCopy(originalFilename: string, mime: string, contents
     console.error("[Payables] Object storage is not configured, so this invoice file will not survive the next deploy");
   } else {
     storageKey = `payables/${storedFilename}`;
-    await bucket.file(`.private/${storageKey}`).save(contents, {
-      contentType: mime || "application/octet-stream",
-      metadata: { originalFilename },
-    });
+    try {
+      await bucket.file(`.private/${storageKey}`).save(contents, {
+        contentType: mime || "application/octet-stream",
+        metadata: { originalFilename },
+      });
+    } catch (error) {
+      console.error("[Payables] Could not copy the invoice into object storage:", error);
+      storageKey = null;
+    }
   }
   return { storedFilename, storageKey, size: contents.length };
+}
+
+function billAttachment(item: { filename: string; type: string; content: Buffer }) {
+  const name = item.filename.toLowerCase();
+  const type = item.type.toLowerCase();
+  if (/pdf/.test(type) || name.endsWith(".pdf")) return true;
+  const image = /^image\//.test(type) || /\.(png|jpe?g|webp|gif|heic|heif)$/.test(name);
+  if (!image) return false;
+  if (item.content.length < 30_000) return false;
+  if (/^(image\d+|logo|signature|icon)/.test(name)) return false;
+  return true;
+}
+
+function payableKind(reading: { documentKind: "invoice" | "statement" | "unreviewed"; qbVendorId: string | null; qbAccountId: string | null; billDate: string | null; amount: number | null }) {
+  if (reading.documentKind === "statement") return "statement";
+  if (reading.documentKind === "invoice" && reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount) return "invoice";
+  return "unreviewed";
 }
 
 export async function receivePayableEmail(input: {
@@ -2575,77 +2614,98 @@ export async function receivePayableEmail(input: {
 }) {
   await ensureAccountingTables();
   const messageId = input.messageId.trim();
-  const file = input.attachments.find((item) => /pdf/i.test(item.type) || /\.pdf$/i.test(item.filename))
-    || input.attachments.find((item) => /^image\//i.test(item.type))
-    || input.attachments[0];
-  if (messageId) {
-    const existing = await db.execute(sql`
-      SELECT id, stored_filename as "storedFilename", storage_key as "storageKey"
-      FROM accounting_payables WHERE message_id = ${messageId} LIMIT 1
-    `);
-    const prior = existing.rows[0] as { id?: string; storedFilename?: string | null; storageKey?: string | null } | undefined;
-    if (prior?.id) {
-      const ready = await payableFileReady(prior.storedFilename, prior.storageKey);
-      if (ready || !file) return { id: prior.id, duplicate: true };
-      const stored = await storePayableCopy(file.filename || "invoice.pdf", file.type || "application/pdf", file.content);
-      await db.execute(sql`
-        UPDATE accounting_payables
-        SET original_filename = ${file.filename || "invoice.pdf"},
-            stored_filename = ${stored.storedFilename},
-            storage_key = ${stored.storageKey},
-            mime_type = ${file.type || "application/pdf"},
-            file_size = ${stored.size}
-        WHERE id = ${prior.id}
-      `);
-      try {
-        await applyBillReading(prior.id);
-      } catch (error) {
-        console.error("[Payables] Restored the invoice file and could not read it:", error);
-      }
-      return { id: prior.id, duplicate: false };
-    }
-  }
-
   const emailText = plainEmailText(input.textBody, input.htmlBody);
-  const attachmentText = file && /pdf/i.test(file.type + file.filename) ? (await pdfText(file.content)).slice(0, 20000) : "";
-  const readable = `${input.fromName}\n${input.subject}\n${emailText}\n${attachmentText}`;
-  const reading = await readBill({
-    text: readable,
-    filename: file?.filename || input.subject || "vendor-bill",
-    mime: file?.type || "text/plain",
-    content: file?.content ?? null,
-  });
+  const files = input.attachments.filter(billAttachment);
+  const batch = files.length
+    ? files
+    : [{ filename: `${input.subject || "vendor-bill"}.txt`, type: "text/plain", content: Buffer.from(emailText || input.subject || "Vendor bill") }];
   const company = await db.execute(sql`SELECT id FROM accounting_companies WHERE name = 'Nashoba Valley' LIMIT 1`);
   const companyId = (company.rows[0] as { id?: string } | undefined)?.id ?? null;
+  const saved: { id: string; duplicate: boolean }[] = [];
 
-  const originalFilename = file?.filename || `${input.subject || "vendor-bill"}.txt`;
-  const contents = file?.content ?? Buffer.from(emailText || input.subject || "Vendor bill");
-  const stored = await storePayableCopy(originalFilename, file?.type || "text/plain", contents);
-
-  try {
-    const inserted = await db.execute(sql`
-      INSERT INTO accounting_payables (
-        company_id, vendor_name, document_kind, invoice_number, bill_date, due_date, amount,
-        gl_account, qb_vendor_id, qb_account_id, account_reason, original_filename, stored_filename, storage_key, mime_type, file_size,
-        source, from_email, subject, message_id
-      ) VALUES (
-        ${companyId}, ${reading.vendorName}, ${reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount ? "invoice" : "unreviewed"},
-        ${reading.invoiceNumber}, ${reading.billDate}, ${reading.dueDate}, ${reading.amount},
-        ${reading.glAccount}, ${reading.qbVendorId}, ${reading.qbAccountId}, ${reading.reason},
-        ${originalFilename}, ${stored.storedFilename}, ${stored.storageKey}, ${file?.type || "text/plain"}, ${stored.size},
-        'email', ${input.fromEmail || null}, ${input.subject || null}, ${messageId || null}
-      )
-      RETURNING id
-    `);
-    return { id: (inserted.rows[0] as { id: string }).id, duplicate: false };
-  } catch (error) {
-    if (messageId && /duplicate|unique/i.test(String(error))) {
-      const again = await db.execute(sql`SELECT id FROM accounting_payables WHERE message_id = ${messageId} LIMIT 1`);
-      const id = (again.rows[0] as { id?: string } | undefined)?.id;
-      if (id) return { id, duplicate: true };
+  for (let index = 0; index < batch.length; index += 1) {
+    const file = batch[index];
+    const fileMessageId = messageId ? (index === 0 ? messageId : `${messageId}#${index}:${file.filename}`.slice(0, 500)) : null;
+    if (fileMessageId) {
+      const existing = await db.execute(sql`
+        SELECT id, stored_filename as "storedFilename", storage_key as "storageKey"
+        FROM accounting_payables WHERE message_id = ${fileMessageId} LIMIT 1
+      `);
+      const prior = existing.rows[0] as { id?: string; storedFilename?: string | null; storageKey?: string | null } | undefined;
+      if (prior?.id) {
+        const ready = await payableFileReady(prior.storedFilename, prior.storageKey);
+        if (ready) {
+          saved.push({ id: prior.id, duplicate: true });
+          continue;
+        }
+        const stored = await storePayableCopy(file.filename || "invoice.pdf", file.type || "application/pdf", file.content);
+        await db.execute(sql`
+          UPDATE accounting_payables
+          SET original_filename = ${file.filename || "invoice.pdf"},
+              stored_filename = ${stored.storedFilename},
+              storage_key = ${stored.storageKey},
+              mime_type = ${file.type || "application/pdf"},
+              file_size = ${stored.size}
+          WHERE id = ${prior.id}
+        `);
+        try {
+          await applyBillReading(prior.id);
+        } catch (error) {
+          console.error("[Payables] Restored the invoice file and could not read it:", error);
+        }
+        saved.push({ id: prior.id, duplicate: false });
+        continue;
+      }
     }
-    throw error;
+
+    const attachmentText = /pdf/i.test(`${file.type} ${file.filename}`) ? (await pdfText(file.content)).slice(0, 20000) : "";
+    const readable = `${input.fromName}\n${input.subject}\n${emailText}\n${attachmentText}`;
+    const reading = await readBill({
+      text: readable,
+      filename: file.filename || input.subject || "vendor-bill",
+      mime: file.type || "text/plain",
+      content: file.content,
+    });
+    const stored = await storePayableCopy(file.filename || "vendor-bill.txt", file.type || "text/plain", file.content);
+    const kind = payableKind(reading);
+    try {
+      const inserted = await db.execute(sql`
+        INSERT INTO accounting_payables (
+          company_id, vendor_name, document_kind, invoice_number, bill_date, due_date, amount,
+          gl_account, qb_vendor_id, qb_account_id, account_reason, original_filename, stored_filename, storage_key, mime_type, file_size,
+          source, from_email, subject, message_id, read_at
+        ) VALUES (
+          ${companyId}, ${reading.vendorName}, ${kind},
+          ${reading.invoiceNumber}, ${reading.billDate}, ${reading.dueDate}, ${reading.amount},
+          ${reading.glAccount}, ${reading.qbVendorId}, ${reading.qbAccountId}, ${reading.reason},
+          ${file.filename || "vendor-bill.txt"}, ${stored.storedFilename}, ${stored.storageKey}, ${file.type || "text/plain"}, ${stored.size},
+          'email', ${input.fromEmail || null}, ${input.subject || null}, ${fileMessageId}, now()
+        )
+        RETURNING id
+      `);
+      const id = (inserted.rows[0] as { id: string }).id;
+      if (kind === "statement") {
+        try {
+          await analyzePayableStatement(id);
+        } catch (error) {
+          console.error("[Payables] Statement saved and the comparison failed:", error);
+        }
+      }
+      saved.push({ id, duplicate: false });
+    } catch (error) {
+      if (fileMessageId && /duplicate|unique/i.test(String(error))) {
+        const again = await db.execute(sql`SELECT id FROM accounting_payables WHERE message_id = ${fileMessageId} LIMIT 1`);
+        const id = (again.rows[0] as { id?: string } | undefined)?.id;
+        if (id) {
+          saved.push({ id, duplicate: true });
+          continue;
+        }
+      }
+      throw error;
+    }
   }
+
+  return { id: saved[0]?.id || "", duplicate: saved.length > 0 && saved.every((item) => item.duplicate), count: saved.length };
 }
 
 router.get("/payables/reference", isAdmin, async (_req, res) => {
@@ -2721,12 +2781,19 @@ async function applyBillReading(id: string) {
   if (document.qbBillId) return "This invoice is already in QuickBooks.";
   const content = await loadPayableBytes(document.storedFilename, document.storageKey);
   if (!content) throw new Error(missingPayableFile);
-  const text = /pdf/i.test(`${document.mimeType || ""} ${document.originalFilename || ""}`) ? await pdfText(content) : String(document.subject || "");
-  const reading = await readBill({ text, filename: document.originalFilename || "invoice", mime: document.mimeType || "application/pdf", content });
+  const mime = document.mimeType || "";
+  const name = document.originalFilename || "";
+  const text = /pdf/i.test(`${mime} ${name}`)
+    ? await pdfText(content)
+    : /^text\//i.test(mime) || /\.txt$/i.test(name)
+      ? content.toString("utf8")
+      : String(document.subject || "");
+  const reading = await readBill({ text, filename: name || "invoice", mime: mime || "application/pdf", content });
+  const kind = payableKind(reading);
   await db.execute(sql`
     UPDATE accounting_payables
     SET vendor_name = ${reading.vendorName},
-        document_kind = ${reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount ? "invoice" : "unreviewed"},
+        document_kind = ${kind},
         invoice_number = ${reading.invoiceNumber},
         bill_date = ${reading.billDate},
         due_date = ${reading.dueDate},
@@ -2734,9 +2801,11 @@ async function applyBillReading(id: string) {
         gl_account = ${reading.glAccount},
         qb_vendor_id = ${reading.qbVendorId},
         qb_account_id = ${reading.qbAccountId},
-        account_reason = ${reading.reason}
+        account_reason = ${reading.reason},
+        read_at = now()
     WHERE id = ${id}
   `);
+  if (kind === "statement") await analyzePayableStatement(id);
   return reading.reason;
 }
 
@@ -2748,9 +2817,12 @@ router.post("/payables/prepare", isAdmin, async (_req, res) => {
     const catalog = haveVendors ? null : await syncQuickBooksCatalog();
     const pending = await db.execute(sql`
       SELECT id FROM accounting_payables
-      WHERE qb_bill_id IS NULL AND qb_vendor_id IS NULL
+      WHERE qb_bill_id IS NULL AND (
+        read_at IS NULL
+        OR (document_kind = 'statement' AND analysis IS NULL)
+      )
       ORDER BY created_at DESC
-      LIMIT 8
+      LIMIT 4
     `);
     let read = 0;
     for (const row of pending.rows as { id: string }[]) {
@@ -2759,6 +2831,7 @@ router.post("/payables/prepare", isAdmin, async (_req, res) => {
         read += 1;
       } catch (error) {
         console.error("[Payables] Could not read bill", row.id, error);
+        await db.execute(sql`UPDATE accounting_payables SET read_at = now() WHERE id = ${row.id}`);
       }
     }
     res.json({ vendors: catalog?.vendors ?? null, accounts: catalog?.accounts ?? null, read });
@@ -2777,7 +2850,7 @@ router.post("/payables/sync", isAdmin, async (_req, res) => {
   }
 });
 
-type StatementLine = { kind: "invoice" | "payment" | "credit"; reference: string; date: string | null; amount: number | null };
+type StatementLine = { kind: "invoice" | "payment" | "credit"; reference: string; date: string | null; amount: number | null; paid: boolean };
 type AnalysisIssue = { severity: "high" | "medium" | "low"; title: string; detail: string };
 type ComparedLine = {
   reference: string;
@@ -2785,7 +2858,7 @@ type ComparedLine = {
   statementAmount: number | null;
   booksAmount: number | null;
   booksBalance: number | null;
-  status: "matched" | "amount" | "missing-in-books" | "open-not-on-statement" | "paid-in-books";
+  status: "matched" | "amount" | "missing-in-books" | "received-here" | "open-not-on-statement" | "paid-in-books" | "paid-on-statement";
   note: string;
 };
 
@@ -2833,7 +2906,7 @@ async function readStatementLines(input: { text: string; filename: string; mime:
       messages: [
         {
           role: "system",
-          content: "You reconcile a vendor statement to the QuickBooks vendor activity supplied with it. Return JSON with statementDate, statementBalance, summary, statementLines, and recommendations. statementDate is YYYY-MM-DD or null. statementBalance is the amount the vendor says is owed, or null. summary is two to four sentences. statementLines is an array of {kind, reference, date, amount} using kind invoice, payment, or credit. recommendations is an array of {title, detail} telling a bookkeeper what to check and how to reconcile. Use a reference only when it appears in the statement or in the QuickBooks activity. Do not say a transaction was posted.",
+          content: "You reconcile a vendor statement to the QuickBooks vendor activity supplied with it. Return JSON with statementDate, statementBalance, summary, statementLines, and recommendations. statementDate is YYYY-MM-DD or null. statementBalance is the amount the vendor says is owed, or null. summary is two to four sentences. statementLines is an array of {kind, reference, date, amount, paid}. kind is invoice, payment, or credit. reference for an invoice is the invoice number. paid is true when the statement shows that invoice as paid, settled, credited, or with nothing left open. recommendations is an array of {title, detail} telling a bookkeeper which invoices are missing and which are already paid. Use a reference only when it appears in the statement or in the QuickBooks activity. Do not say a transaction was posted.",
         },
         { role: "user", content },
       ],
@@ -2853,6 +2926,7 @@ async function readStatementLines(input: { text: string; filename: string; mime:
           reference: String(item.reference || "").trim().slice(0, 40),
           date: isoOrNull(item.date),
           amount: roundedMoney(item.amount),
+          paid: item.paid === true || String(item.paid || "").toLowerCase() === "true",
         };
       }).filter((line) => line.reference),
       recommendations: recommendations.slice(0, 6).map((item) => {
@@ -2872,6 +2946,7 @@ function compareStatement(input: {
   qbBalance: number | null;
   lines: StatementLine[];
   books: { kind: string; reference: string; date: string; total: number | null; balance: number | null }[];
+  receivedKeys?: Set<string>;
 }) {
   const textKey = referenceKey(input.text);
   const readable = input.text.trim().length > 40;
@@ -2888,37 +2963,49 @@ function compareStatement(input: {
   }
   const seen = new Set<string>();
   const lines: ComparedLine[] = [];
+  const paidReferences = new Set(input.lines.filter((line) => line.kind === "payment" || line.paid).map((line) => referenceKey(line.reference)));
   for (const line of trusted) {
     const key = referenceKey(line.reference);
     seen.add(key);
     const book = byReference.get(key);
+    const statementSaysPaid = line.kind === "invoice" && (line.paid || paidReferences.has(key));
+    const receivedHere = Boolean(input.receivedKeys?.has(key));
     if (!book) {
+      const paidOnlyOnStatement = statementSaysPaid;
       lines.push({
         reference: line.reference,
         kind: line.kind,
         statementAmount: line.amount,
         booksAmount: null,
         booksBalance: null,
-        status: "missing-in-books",
-        note: "This reference is on the statement and is not on a QuickBooks bill, credit, payment, or expense for this vendor.",
+        status: paidOnlyOnStatement ? "paid-on-statement" : receivedHere && line.kind === "invoice" ? "received-here" : "missing-in-books",
+        note: paidOnlyOnStatement
+          ? "The statement shows this invoice as paid. It is not on a QuickBooks bill for this vendor."
+          : receivedHere && line.kind === "invoice"
+            ? "This invoice was received for approval and has not been sent to QuickBooks."
+            : "This reference is on the statement and is not on a QuickBooks bill, credit, payment, or expense for this vendor.",
       });
       continue;
     }
     const booksAmount = book.total;
-    const amountDiffers = line.amount != null && booksAmount != null && Math.abs(line.amount - booksAmount) > 0.02;
-    const paidInBooks = line.kind === "invoice" && (book.balance ?? 0) === 0 && (line.amount ?? 0) > 0.02;
+    const amountDiffers = line.amount != null && booksAmount != null && Math.abs(line.amount - booksAmount) > 0.02 && !statementSaysPaid;
+    const paidInBooks = line.kind === "invoice" && ((book.balance ?? 0) === 0 && (line.amount ?? 0) > 0.02 || statementSaysPaid && (book.balance ?? 0) === 0);
     lines.push({
       reference: line.reference,
       kind: line.kind,
       statementAmount: line.amount,
       booksAmount,
       booksBalance: book.balance,
-      status: amountDiffers ? "amount" : paidInBooks ? "paid-in-books" : "matched",
-      note: amountDiffers
-        ? "The statement amount and the QuickBooks amount are different."
-        : paidInBooks
-          ? "QuickBooks shows this item paid, and the statement still lists it."
-          : "The reference is in both places.",
+      status: paidInBooks ? "paid-in-books" : statementSaysPaid ? "paid-on-statement" : amountDiffers ? "amount" : "matched",
+      note: paidInBooks
+        ? "This invoice is already paid in QuickBooks."
+        : statementSaysPaid
+          ? "The statement shows this invoice as paid, and QuickBooks still has it open."
+          : amountDiffers
+            ? "The statement amount and the QuickBooks amount are different."
+            : receivedHere
+              ? "The invoice is in the approval queue and in QuickBooks."
+              : "The reference is in both places.",
     });
   }
   for (const row of input.books) {
@@ -2944,13 +3031,15 @@ function compareStatement(input: {
       detail: `The statement says ${input.statementBalance.toFixed(2)} is owed. QuickBooks says ${input.qbBalance.toFixed(2)}. The difference is ${gap.toFixed(2)}.`,
     });
   }
-  const missing = lines.filter((line) => line.status === "missing-in-books");
+  const missing = lines.filter((line) => line.kind === "invoice" && line.status === "missing-in-books");
+  const received = lines.filter((line) => line.status === "received-here");
   const amounts = lines.filter((line) => line.status === "amount");
-  const paid = lines.filter((line) => line.status === "paid-in-books");
+  const paid = lines.filter((line) => line.kind === "invoice" && (line.status === "paid-in-books" || line.status === "paid-on-statement"));
   const absent = lines.filter((line) => line.status === "open-not-on-statement");
-  if (missing.length) issues.push({ severity: "high", title: "On the statement, not in QuickBooks", detail: missing.slice(0, 12).map((line) => line.reference).join(", ") });
+  if (missing.length) issues.push({ severity: "high", title: "Invoices on the statement we do not have", detail: missing.slice(0, 12).map((line) => line.reference).join(", ") });
+  if (received.length) issues.push({ severity: "medium", title: "Received for approval, not in QuickBooks yet", detail: received.slice(0, 12).map((line) => line.reference).join(", ") });
   if (amounts.length) issues.push({ severity: "high", title: "Amounts do not match", detail: amounts.slice(0, 12).map((line) => `${line.reference}: statement ${line.statementAmount ?? "—"}, books ${line.booksAmount ?? "—"}`).join("; ") });
-  if (paid.length) issues.push({ severity: "medium", title: "Paid in QuickBooks and still on the statement", detail: paid.slice(0, 12).map((line) => line.reference).join(", ") });
+  if (paid.length) issues.push({ severity: "medium", title: "Already paid", detail: paid.slice(0, 12).map((line) => `${line.reference} (${line.status === "paid-in-books" ? "paid in QuickBooks" : "shown paid on the statement"})`).join(", ") });
   if (absent.length) issues.push({ severity: "medium", title: "Open in QuickBooks and not on the statement", detail: absent.slice(0, 12).map((line) => line.reference).join(", ") });
   if (!issues.length) issues.push({ severity: "low", title: "No difference stood out", detail: "The references and amounts that could be read agree. Confirm the statement date is the same date as the QuickBooks balance." });
   return { lines, issues };
@@ -2997,6 +3086,185 @@ router.get("/vendor-analyses/:id/file", isAdmin, async (req, res) => {
   }
 });
 
+async function receivedInvoiceKeys(vendorId: string) {
+  const rows = await db.execute(sql`
+    SELECT invoice_number as "invoiceNumber"
+    FROM accounting_payables
+    WHERE document_kind = 'invoice' AND qb_vendor_id = ${vendorId} AND invoice_number IS NOT NULL
+  `);
+  const keys = new Set<string>();
+  for (const row of rows.rows as { invoiceNumber?: string }[]) {
+    const key = referenceKey(String(row.invoiceNumber || ""));
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+async function buildStatementAnalysis(input: { vendorId: string; filename: string; mime: string; content: Buffer }) {
+  const since = new Date();
+  since.setMonth(since.getMonth() - 18);
+  const sinceIso = since.toISOString().slice(0, 10);
+  const vendor = await quickBooksVendorRows("Vendor", `Id = '${input.vendorId}'`);
+  const qbBalance = roundedMoney((vendor[0] as { Balance?: unknown } | undefined)?.Balance);
+  const [openBills, recentBills, payments, credits, purchases, receivedKeys] = await Promise.all([
+    quickBooksVendorRows("Bill", `VendorRef = '${input.vendorId}' AND Balance > '0'`),
+    quickBooksVendorRows("Bill", `VendorRef = '${input.vendorId}' AND TxnDate >= '${sinceIso}'`),
+    quickBooksVendorRows("BillPayment", `VendorRef = '${input.vendorId}' AND TxnDate >= '${sinceIso}'`),
+    quickBooksVendorRows("VendorCredit", `VendorRef = '${input.vendorId}' AND TxnDate >= '${sinceIso}'`),
+    quickBooksVendorRows("Purchase", `EntityRef = '${input.vendorId}' AND TxnDate >= '${sinceIso}'`),
+    receivedInvoiceKeys(input.vendorId),
+  ]);
+  const books = new Map<string, { kind: string; reference: string; date: string; total: number | null; balance: number | null }>();
+  const addBook = (kind: string, row: Record<string, unknown>, balance: number | null) => {
+    const reference = String(row.DocNumber || row.Id || "").trim();
+    if (!reference || books.has(`${kind}:${reference}`)) return;
+    books.set(`${kind}:${reference}`, {
+      kind,
+      reference,
+      date: String(row.TxnDate || "").slice(0, 10),
+      total: roundedMoney(row.TotalAmt),
+      balance,
+    });
+  };
+  for (const row of openBills) addBook("bill", row, roundedMoney(row.Balance));
+  for (const row of recentBills) addBook("bill", row, roundedMoney(row.Balance));
+  for (const row of payments) addBook("payment", row, 0);
+  for (const row of credits) addBook("credit", row, roundedMoney(row.Balance));
+  for (const row of purchases) addBook("expense", row, 0);
+  const bookRows: { kind: string; reference: string; date: string; total: number | null; balance: number | null }[] = [];
+  books.forEach((row) => bookRows.push(row));
+  const booksText = bookRows.slice(0, 180).map((row) => `${row.kind}\t${row.reference}\t${row.date}\t${row.total ?? ""}\t${row.balance ?? ""}`).join("\n");
+  const text = /pdf/i.test(`${input.mime} ${input.filename}`) ? await pdfText(input.content) : "";
+  const reading = await readStatementLines({ text, filename: input.filename, mime: input.mime, content: input.content, books: `Vendor balance: ${qbBalance ?? "unknown"}\n${booksText}` });
+  const compared = compareStatement({ text, statementBalance: reading.statementBalance, qbBalance, lines: reading.lines, books: bookRows, receivedKeys });
+  const recommendations = reading.recommendations.length ? reading.recommendations : compared.issues.map((issue) => ({
+    title: issue.severity === "low" ? "Confirm the statement date" : issue.title,
+    detail: issue.severity === "low"
+      ? "Open the vendor in QuickBooks on the statement date and confirm the open balance. If the dates differ, the balances will not match even when every invoice does."
+      : issue.detail,
+  }));
+  return {
+    statementDate: reading.statementDate,
+    statementBalance: reading.statementBalance,
+    qbBalance,
+    analysis: {
+      summary: reading.summary || "The statement was compared with invoices received here and with this vendor's QuickBooks bills and payments.",
+      issues: compared.issues,
+      recommendations,
+      lines: compared.lines,
+    },
+  };
+}
+
+async function saveVendorAnalysis(input: {
+  vendorId: string;
+  vendorName: string;
+  filename: string;
+  mime: string;
+  storedFilename: string;
+  storageKey: string | null;
+  size: number;
+  statementDate: string | null;
+  statementBalance: number | null;
+  qbBalance: number | null;
+  analysis: unknown;
+}) {
+  const existing = await db.execute(sql`
+    SELECT id FROM accounting_vendor_analyses WHERE stored_filename = ${input.storedFilename} LIMIT 1
+  `);
+  const analysis = JSON.stringify(input.analysis);
+  const current = existing.rows[0] as { id?: string } | undefined;
+  if (current?.id) {
+    await db.execute(sql`
+      UPDATE accounting_vendor_analyses
+      SET qb_vendor_id = ${input.vendorId},
+          vendor_name = ${input.vendorName},
+          original_filename = ${input.filename},
+          storage_key = ${input.storageKey},
+          mime_type = ${input.mime},
+          file_size = ${input.size},
+          statement_date = ${input.statementDate},
+          statement_balance = ${input.statementBalance},
+          qb_balance = ${input.qbBalance},
+          analysis = ${analysis}::jsonb
+      WHERE id = ${current.id}
+    `);
+    return current.id;
+  }
+  const inserted = await db.execute(sql`
+    INSERT INTO accounting_vendor_analyses (
+      qb_vendor_id, vendor_name, original_filename, stored_filename, storage_key, mime_type, file_size,
+      statement_date, statement_balance, qb_balance, analysis
+    ) VALUES (
+      ${input.vendorId}, ${input.vendorName}, ${input.filename}, ${input.storedFilename}, ${input.storageKey},
+      ${input.mime}, ${input.size}, ${input.statementDate}, ${input.statementBalance}, ${input.qbBalance},
+      ${analysis}::jsonb
+    )
+    RETURNING id
+  `);
+  return (inserted.rows[0] as { id: string }).id;
+}
+
+async function analyzePayableStatement(id: string) {
+  const result = await db.execute(sql`
+    SELECT vendor_name as "vendorName", qb_vendor_id as "qbVendorId",
+           original_filename as "originalFilename", stored_filename as "storedFilename",
+           storage_key as "storageKey", mime_type as "mimeType", file_size as "fileSize"
+    FROM accounting_payables WHERE id = ${id}
+  `);
+  const document = result.rows[0] as {
+    vendorName?: string | null;
+    qbVendorId?: string | null;
+    originalFilename?: string;
+    storedFilename?: string | null;
+    storageKey?: string | null;
+    mimeType?: string | null;
+    fileSize?: number | null;
+  } | undefined;
+  if (!document) return;
+  if (!document.qbVendorId) {
+    await db.execute(sql`
+      UPDATE accounting_payables
+      SET analysis = ${JSON.stringify({
+        summary: "This is a statement. Choose the vendor, then read it again so the invoices can be compared.",
+        issues: [],
+        recommendations: [],
+        lines: [],
+      })}::jsonb
+      WHERE id = ${id}
+    `);
+    return;
+  }
+  const content = await loadPayableBytes(document.storedFilename, document.storageKey);
+  if (!content) throw new Error(missingPayableFile);
+  const built = await buildStatementAnalysis({
+    vendorId: document.qbVendorId,
+    filename: document.originalFilename || "statement.pdf",
+    mime: document.mimeType || "application/pdf",
+    content,
+  });
+  await db.execute(sql`
+    UPDATE accounting_payables
+    SET analysis = ${JSON.stringify(built.analysis)}::jsonb,
+        amount = COALESCE(${built.statementBalance}, amount),
+        bill_date = COALESCE(${built.statementDate}, bill_date)
+    WHERE id = ${id}
+  `);
+  await saveVendorAnalysis({
+    vendorId: document.qbVendorId,
+    vendorName: document.vendorName || "Vendor",
+    filename: document.originalFilename || "statement.pdf",
+    mime: document.mimeType || "application/pdf",
+    storedFilename: document.storedFilename || "",
+    storageKey: document.storageKey ?? null,
+    size: document.fileSize || content.length,
+    statementDate: built.statementDate,
+    statementBalance: built.statementBalance,
+    qbBalance: built.qbBalance,
+    analysis: built.analysis,
+  });
+}
+
 router.post("/vendor-analyses", isAdmin, (req, res) => {
   upload.single("file")(req, res, async (err) => {
     if (err) return res.status(400).json({ message: err.message || "Upload failed" });
@@ -3012,53 +3280,13 @@ router.post("/vendor-analyses", isAdmin, (req, res) => {
       const vendorName = (vendorRow.rows[0] as { displayName?: string } | undefined)?.displayName;
       if (!vendorName) return res.status(400).json({ message: "Store vendors from QuickBooks before comparing a statement" });
 
-      const since = new Date();
-      since.setMonth(since.getMonth() - 18);
-      const sinceIso = since.toISOString().slice(0, 10);
-      const vendor = await quickBooksVendorRows("Vendor", `Id = '${vendorId}'`);
-      const qbBalance = roundedMoney((vendor[0] as { Balance?: unknown } | undefined)?.Balance);
-      const [openBills, recentBills, payments, credits] = await Promise.all([
-        quickBooksVendorRows("Bill", `VendorRef = '${vendorId}' AND Balance > '0'`),
-        quickBooksVendorRows("Bill", `VendorRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`),
-        quickBooksVendorRows("BillPayment", `VendorRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`),
-        quickBooksVendorRows("VendorCredit", `VendorRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`),
-      ]);
-      const purchases = await quickBooksVendorRows("Purchase", `EntityRef = '${vendorId}' AND TxnDate >= '${sinceIso}'`);
-      const books = new Map<string, { kind: string; reference: string; date: string; total: number | null; balance: number | null }>();
-      const addBook = (kind: string, row: Record<string, unknown>, balance: number | null) => {
-        const reference = String(row.DocNumber || row.Id || "").trim();
-        if (!reference || books.has(`${kind}:${reference}`)) return;
-        books.set(`${kind}:${reference}`, {
-          kind,
-          reference,
-          date: String(row.TxnDate || "").slice(0, 10),
-          total: roundedMoney(row.TotalAmt),
-          balance,
-        });
-      };
-      for (const row of openBills) addBook("bill", row, roundedMoney(row.Balance));
-      for (const row of recentBills) addBook("bill", row, roundedMoney(row.Balance));
-      for (const row of payments) addBook("payment", row, 0);
-      for (const row of credits) addBook("credit", row, roundedMoney(row.Balance));
-      for (const row of purchases) addBook("expense", row, 0);
-      const bookRows: { kind: string; reference: string; date: string; total: number | null; balance: number | null }[] = [];
-      books.forEach((row) => bookRows.push(row));
-      const booksText = bookRows.slice(0, 180).map((row) => `${row.kind}\t${row.reference}\t${row.date}\t${row.total ?? ""}\t${row.balance ?? ""}`).join("\n");
-      const text = /pdf/i.test(`${file.mimetype} ${file.originalname}`) ? await pdfText(file.buffer) : "";
-      const reading = await readStatementLines({ text, filename: file.originalname, mime: file.mimetype, content: file.buffer, books: `Vendor balance: ${qbBalance ?? "unknown"}\n${booksText}` });
-      const compared = compareStatement({ text, statementBalance: reading.statementBalance, qbBalance, lines: reading.lines, books: bookRows });
-      const recommendations = reading.recommendations.length ? reading.recommendations : compared.issues.map((issue) => ({
-        title: issue.severity === "low" ? "Confirm the statement date" : `Reconcile: ${issue.title}`,
-        detail: issue.severity === "low"
-          ? "Open the vendor in QuickBooks on the statement date and confirm the open balance. If the dates differ, the balances will not match even when every invoice does."
-          : `${issue.detail} Match each of those items to a bill, payment, or credit before changing the vendor balance.`,
-      }));
-      const analysis = {
-        summary: reading.summary || "The statement was compared with the open and recent QuickBooks activity for this vendor.",
-        issues: compared.issues,
-        recommendations,
-        lines: compared.lines,
-      };
+      const built = await buildStatementAnalysis({
+        vendorId,
+        filename: file.originalname,
+        mime: file.mimetype,
+        content: file.buffer,
+      });
+      const { statementDate, statementBalance, qbBalance, analysis } = built;
       const stored = await storePayableCopy(file.originalname, file.mimetype, file.buffer);
       const inserted = await db.execute(sql`
         INSERT INTO accounting_vendor_analyses (
@@ -3066,7 +3294,7 @@ router.post("/vendor-analyses", isAdmin, (req, res) => {
           statement_date, statement_balance, qb_balance, analysis
         ) VALUES (
           ${vendorId}, ${vendorName}, ${file.originalname}, ${stored.storedFilename}, ${stored.storageKey},
-          ${file.mimetype}, ${stored.size}, ${reading.statementDate}, ${reading.statementBalance}, ${qbBalance},
+          ${file.mimetype}, ${stored.size}, ${statementDate}, ${statementBalance}, ${qbBalance},
           ${JSON.stringify(analysis)}::jsonb
         )
         RETURNING id, created_at as "createdAt"
@@ -3078,8 +3306,8 @@ router.post("/vendor-analyses", isAdmin, (req, res) => {
         vendorName,
         originalFilename: file.originalname,
         mimeType: file.mimetype,
-        statementDate: reading.statementDate,
-        statementBalance: reading.statementBalance,
+        statementDate,
+        statementBalance,
         qbBalance,
         analysis,
         createdAt: saved.createdAt,
@@ -3089,6 +3317,230 @@ router.post("/vendor-analyses", isAdmin, (req, res) => {
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to compare the statement" });
     }
   });
+});
+
+function qbFaultMessage(error: unknown) {
+  const err = error as { response?: { data?: { Fault?: { Error?: { Detail?: string; Message?: string }[] } } }; message?: string };
+  const item = err.response?.data?.Fault?.Error?.[0];
+  return item?.Detail || item?.Message || err.message || "QuickBooks request failed";
+}
+
+function refField(ref: unknown, field: "name" | "value") {
+  if (!ref || typeof ref !== "object") return "";
+  const value = (ref as Record<string, unknown>)[field];
+  return value == null ? "" : String(value);
+}
+
+function qbEntityRows(data: { QueryResponse?: Record<string, unknown> } | undefined, entity: string) {
+  const rows = data?.QueryResponse?.[entity];
+  return Array.isArray(rows) ? rows as Record<string, unknown>[] : [];
+}
+
+function easternToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+
+function daysPastDue(dueDate: string | null, asOf: string) {
+  if (!dueDate) return 0;
+  const ms = Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`);
+  return Math.round(ms / 86400000);
+}
+
+function agingBucket(days: number) {
+  if (days <= 0) return "current";
+  if (days <= 30) return "1-30";
+  if (days <= 60) return "31-60";
+  if (days <= 90) return "61-90";
+  return "91+";
+}
+
+function sinceDate(value: unknown) {
+  const text = String(value || "").slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const since = new Date();
+  since.setDate(since.getDate() - 90);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(since);
+}
+
+function purchaseAccounts(row: Record<string, unknown>) {
+  const lines = Array.isArray(row.Line) ? row.Line as Record<string, unknown>[] : [];
+  const names = new Set<string>();
+  for (const line of lines) {
+    const detail = (line.AccountBasedExpenseLineDetail || line.ItemBasedExpenseLineDetail) as { AccountRef?: unknown; ItemRef?: unknown } | undefined;
+    const name = refField(detail?.AccountRef, "name") || refField(detail?.ItemRef, "name");
+    if (name) names.add(name);
+  }
+  return Array.from(names).slice(0, 4).join(", ");
+}
+
+router.get("/payables/open", isAdmin, async (_req, res) => {
+  try {
+    await ensureAccountingTables();
+    const asOf = easternToday();
+    const rows: Record<string, unknown>[] = [];
+    let start = 1;
+    let companyName = "QuickBooks";
+    for (;;) {
+      const result = await queryQuickBooks(`SELECT * FROM Bill WHERE Balance > '0' STARTPOSITION ${start} MAXRESULTS 1000`);
+      companyName = result.companyName;
+      const batch = qbEntityRows(result.data, "Bill");
+      rows.push(...batch);
+      if (batch.length < 1000 || rows.length >= 3000) break;
+      start += 1000;
+    }
+    const banks = await db.execute(sql`
+      SELECT qb_id as "qbId", fully_qualified_name as "name", account_type as "accountType"
+      FROM accounting_qb_accounts
+      WHERE active = true AND (account_type ILIKE 'bank' OR account_type ILIKE '%credit card%' OR account_type ILIKE 'creditcard')
+      ORDER BY fully_qualified_name
+    `);
+    const bills = rows.map((row) => {
+      const dueDate = isoOrNull(row.DueDate);
+      const pastDue = daysPastDue(dueDate, asOf);
+      return {
+        id: String(row.Id),
+        vendorId: refField(row.VendorRef, "value"),
+        vendorName: refField(row.VendorRef, "name") || "Vendor",
+        docNumber: String(row.DocNumber || ""),
+        txnDate: isoOrNull(row.TxnDate),
+        dueDate,
+        total: roundedMoney(row.TotalAmt) ?? 0,
+        balance: roundedMoney(row.Balance) ?? 0,
+        daysPastDue: pastDue,
+        bucket: agingBucket(pastDue),
+      };
+    }).sort((left, right) => (left.dueDate || "9999").localeCompare(right.dueDate || "9999") || left.vendorName.localeCompare(right.vendorName));
+    const balance = Math.round(bills.reduce((sum, bill) => sum + bill.balance, 0) * 100) / 100;
+    const overdue = Math.round(bills.filter((bill) => bill.daysPastDue > 0).reduce((sum, bill) => sum + bill.balance, 0) * 100) / 100;
+    res.json({
+      companyName,
+      asOf,
+      bills,
+      banks: banks.rows,
+      totals: { count: bills.length, balance, overdue },
+    });
+  } catch (error) {
+    console.error("Error loading open bills:", error);
+    res.status(500).json({ message: qbFaultMessage(error) });
+  }
+});
+
+router.get("/payables/payments", isAdmin, async (req, res) => {
+  try {
+    const since = sinceDate(req.query.since);
+    const result = await queryQuickBooks(`SELECT * FROM BillPayment WHERE TxnDate >= '${since}' ORDERBY TxnDate DESC MAXRESULTS 200`);
+    const payments = qbEntityRows(result.data, "BillPayment").map((row) => {
+      const check = row.CheckPayment as { BankAccountRef?: unknown } | undefined;
+      const card = row.CreditCardPayment as { CCAccountRef?: unknown } | undefined;
+      return {
+        id: String(row.Id),
+        txnDate: isoOrNull(row.TxnDate),
+        vendorName: refField(row.VendorRef, "name") || "Vendor",
+        vendorId: refField(row.VendorRef, "value"),
+        total: roundedMoney(row.TotalAmt) ?? 0,
+        payType: String(row.PayType || ""),
+        docNumber: String(row.DocNumber || ""),
+        accountName: refField(check?.BankAccountRef, "name") || refField(card?.CCAccountRef, "name"),
+        billCount: Array.isArray(row.Line) ? row.Line.length : 0,
+      };
+    });
+    res.json({ companyName: result.companyName, since, payments });
+  } catch (error) {
+    console.error("Error loading bill payments:", error);
+    res.status(500).json({ message: qbFaultMessage(error) });
+  }
+});
+
+router.post("/payables/payments", isAdmin, async (req, res) => {
+  try {
+    await ensureAccountingTables();
+    const vendorId = String(req.body?.vendorId ?? "").trim();
+    const accountId = String(req.body?.accountId ?? "").trim();
+    const txnDate = String(req.body?.txnDate ?? "").trim();
+    const docNumber = String(req.body?.docNumber ?? "").trim().slice(0, 21);
+    const linesIn = Array.isArray(req.body?.lines) ? req.body.lines as { billId?: unknown; amount?: unknown }[] : [];
+    if (!/^\d+$/.test(vendorId)) return res.status(400).json({ message: "Choose bills from one vendor." });
+    if (!/^\d+$/.test(accountId)) return res.status(400).json({ message: "Choose the bank account." });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(txnDate)) return res.status(400).json({ message: "Enter the payment date." });
+    const requested = linesIn.map((line) => ({
+      billId: String(line?.billId ?? "").trim(),
+      amount: Math.round(Number(String(line?.amount ?? "").replace(/[$,]/g, "")) * 100) / 100,
+    })).filter((line) => line.billId);
+    if (!requested.length) return res.status(400).json({ message: "Choose at least one bill." });
+    if (requested.some((line) => !/^\d+$/.test(line.billId) || !Number.isFinite(line.amount) || line.amount <= 0)) {
+      return res.status(400).json({ message: "Each bill needs an amount greater than zero." });
+    }
+    const account = await db.execute(sql`
+      SELECT account_type as "accountType", fully_qualified_name as "name"
+      FROM accounting_qb_accounts
+      WHERE qb_id = ${accountId} AND active = true
+      LIMIT 1
+    `);
+    const bank = account.rows[0] as { accountType?: string; name?: string } | undefined;
+    if (!bank) return res.status(400).json({ message: "Store accounts from QuickBooks, then choose the bank account again." });
+    const creditCard = /credit card/i.test(bank.accountType || "");
+    const bankAccount = /^bank$/i.test(bank.accountType || "");
+    if (!creditCard && !bankAccount) return res.status(400).json({ message: "Choose a bank account or a credit card." });
+
+    const ids = requested.map((line) => `'${line.billId}'`).join(", ");
+    const current = await queryQuickBooks(`SELECT * FROM Bill WHERE Id IN (${ids})`);
+    const bills = qbEntityRows(current.data, "Bill");
+    if (bills.length !== requested.length) return res.status(400).json({ message: "One of the bills is no longer open in QuickBooks. Refresh the list and try again." });
+    const byId = new Map(bills.map((bill) => [String(bill.Id), bill]));
+    for (const line of requested) {
+      const bill = byId.get(line.billId);
+      if (refField(bill?.VendorRef, "value") !== vendorId) return res.status(400).json({ message: "A payment can cover bills from one vendor." });
+      const balance = roundedMoney(bill?.Balance) ?? 0;
+      if (line.amount - balance > 0.001) {
+        return res.status(400).json({ message: `The payment is more than the open balance on invoice ${bill?.DocNumber || line.billId}.` });
+      }
+    }
+    const total = Math.round(requested.reduce((sum, line) => sum + line.amount, 0) * 100) / 100;
+    const created = await postQuickBooks("/billpayment", {
+      VendorRef: { value: vendorId },
+      TxnDate: txnDate,
+      TotalAmt: total,
+      PayType: creditCard ? "CreditCard" : "Check",
+      DocNumber: docNumber || undefined,
+      PrivateNote: "Paid from Nashoba Experience accounts payable.",
+      ...(creditCard
+        ? { CreditCardPayment: { CCAccountRef: { value: accountId } } }
+        : { CheckPayment: { BankAccountRef: { value: accountId }, PrintStatus: "PrintComplete" } }),
+      Line: requested.map((line) => ({
+        Amount: line.amount,
+        LinkedTxn: [{ TxnId: line.billId, TxnType: "Bill" }],
+      })),
+    });
+    const paymentId = created?.BillPayment?.Id as string | undefined;
+    if (!paymentId) return res.status(502).json({ message: "QuickBooks did not return the payment." });
+    res.json({ qbPaymentId: paymentId, total, accountName: bank.name || "" });
+  } catch (error) {
+    console.error("Error paying bills:", error);
+    res.status(500).json({ message: qbFaultMessage(error) });
+  }
+});
+
+router.get("/payables/expenses", isAdmin, async (req, res) => {
+  try {
+    const since = sinceDate(req.query.since);
+    const result = await queryQuickBooks(`SELECT * FROM Purchase WHERE TxnDate >= '${since}' ORDERBY TxnDate DESC MAXRESULTS 200`);
+    const expenses = qbEntityRows(result.data, "Purchase").map((row) => ({
+      id: String(row.Id),
+      txnDate: isoOrNull(row.TxnDate),
+      vendorName: refField(row.EntityRef, "name") || "No vendor",
+      total: roundedMoney(row.TotalAmt) ?? 0,
+      paymentType: String(row.PaymentType || ""),
+      docNumber: String(row.DocNumber || ""),
+      accountName: refField(row.AccountRef, "name"),
+      expenseAccount: purchaseAccounts(row),
+      memo: String(row.PrivateNote || ""),
+      credit: row.Credit === true,
+    }));
+    res.json({ companyName: result.companyName, since, expenses });
+  } catch (error) {
+    console.error("Error loading expenses:", error);
+    res.status(500).json({ message: qbFaultMessage(error) });
+  }
 });
 
 router.get("/payables", isAdmin, async (_req, res) => {
@@ -3102,7 +3554,7 @@ router.get("/payables", isAdmin, async (_req, res) => {
              p.qb_account_id as "qbAccountId", p.qb_bill_id as "qbBillId", p.account_reason as "accountReason",
              p.original_filename as "originalFilename", p.stored_filename as "storedFilename",
              p.storage_key as "storageKey", p.source, p.from_email as "fromEmail",
-             p.subject, p.created_at as "createdAt"
+             p.subject, p.analysis, p.read_at as "readAt", p.created_at as "createdAt"
       FROM accounting_payables p
       LEFT JOIN accounting_companies c ON c.id = p.company_id
       ORDER BY p.created_at DESC
@@ -3129,6 +3581,8 @@ router.get("/payables", isAdmin, async (_req, res) => {
         source: row.source,
         fromEmail: row.fromEmail,
         subject: row.subject,
+        analysis: row.analysis,
+        readAt: row.readAt,
         createdAt: row.createdAt,
         hasFile,
       });
@@ -3154,21 +3608,29 @@ router.post("/payables", isAdmin, (req, res) => {
       const stored = await storePayableCopy(file.originalname, file.mimetype, file.buffer);
       const text = /pdf/i.test(`${file.mimetype} ${file.originalname}`) ? await pdfText(file.buffer) : "";
       const reading = await readBill({ text, filename: file.originalname, mime: file.mimetype, content: file.buffer });
+      const kind = payableKind(reading);
       const inserted = await db.execute(sql`
         INSERT INTO accounting_payables (
           company_id, vendor_name, document_kind, invoice_number, bill_date, due_date, amount,
           gl_account, qb_vendor_id, qb_account_id, account_reason,
-          original_filename, stored_filename, storage_key, mime_type, file_size, source
+          original_filename, stored_filename, storage_key, mime_type, file_size, source, read_at
         ) VALUES (
-          ${companyId}, ${reading.vendorName},
-          ${reading.qbVendorId && reading.qbAccountId && reading.billDate && reading.amount ? "invoice" : "unreviewed"},
+          ${companyId}, ${reading.vendorName}, ${kind},
           ${reading.invoiceNumber}, ${reading.billDate}, ${reading.dueDate}, ${reading.amount},
           ${reading.glAccount}, ${reading.qbVendorId}, ${reading.qbAccountId}, ${reading.reason},
-          ${file.originalname}, ${stored.storedFilename}, ${stored.storageKey}, ${file.mimetype}, ${stored.size}, 'upload'
+          ${file.originalname}, ${stored.storedFilename}, ${stored.storageKey}, ${file.mimetype}, ${stored.size}, 'upload', now()
         )
         RETURNING id
       `);
-      res.status(201).json({ id: (inserted.rows[0] as { id: string }).id });
+      const id = (inserted.rows[0] as { id: string }).id;
+      if (kind === "statement") {
+        try {
+          await analyzePayableStatement(id);
+        } catch (error) {
+          console.error("[Payables] Statement saved and the comparison failed:", error);
+        }
+      }
+      res.status(201).json({ id });
     } catch (error) {
       console.error("Error saving payable:", error);
       res.status(500).json({ message: "Failed to save the document" });
@@ -3272,6 +3734,13 @@ router.put("/payables/:id", isAdmin, async (req, res) => {
       RETURNING id
     `);
     if (!result.rows[0]) return res.status(404).json({ message: "Document not found" });
+    if (kind === "statement") {
+      try {
+        await analyzePayableStatement(req.params.id);
+      } catch (error) {
+        console.error("[Payables] Statement saved and the comparison failed:", error);
+      }
+    }
     res.json({ ok: true });
   } catch (error) {
     console.error("Error updating payable:", error);

@@ -36,11 +36,13 @@ type Analysis = {
 };
 
 const statusLabel: Record<string, string> = {
-  matched: "Agrees",
+  matched: "We have this invoice",
   amount: "Amount differs",
-  "missing-in-books": "Not in QuickBooks",
+  "missing-in-books": "We do not have this invoice",
+  "received-here": "Received, not in QuickBooks yet",
   "open-not-on-statement": "Open, not on statement",
-  "paid-in-books": "Paid in QuickBooks",
+  "paid-in-books": "Already paid in QuickBooks",
+  "paid-on-statement": "Statement shows it paid",
 };
 
 function money(value: string | number | null | undefined) {
@@ -106,7 +108,7 @@ export default function VendorAnalysis({ vendors }: { vendors: Vendor[] }) {
       <div>
         <h2 className="text-2xl font-semibold">Vendor account analysis</h2>
         <p className="text-muted-foreground mt-1 max-w-3xl">
-          Upload a vendor statement. The reading compares it with that vendor’s QuickBooks bills, payments, credits, and balance, then points out what does not agree and how to reconcile it. QuickBooks is not changed.
+          A statement emailed to bills@nashobawinery.com is filed here, away from the bills waiting for approval. The reading checks the invoices on the statement against invoices received here and against QuickBooks, including which ones are already paid. QuickBooks is not changed.
         </p>
       </div>
       <Card>

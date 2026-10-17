@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import BillPay from "./BillPay";
+import { BillPayments, ExpenseTransactions, OpenBills } from "./PayablesLedger";
 import UsFoods from "./UsFoods";
 import VendorAnalysis from "./VendorAnalysis";
 
@@ -89,11 +90,16 @@ export default function Expenses({ companies, healthcare }: { companies: Company
         </div>
       </nav>
       {screen === "overview" && <Overview vendors={vendors.length} accounts={accounts.length} documents={documents} />}
-      {screen === "transactions" && <ScreenNote title="Expense transactions" body="Checks and expenses recorded for Nashoba Valley will be listed here." />}
+      {screen === "transactions" && <ExpenseTransactions />}
       {screen === "vendors" && <Vendors vendors={vendors} accounts={accounts.length} />}
       {screen === "analysis" && <VendorAnalysis vendors={vendors} />}
-      {screen === "bills" && <Bills documents={documents} onOpen={() => setScreen("bill-pay")} />}
-      {screen === "payments" && <ScreenNote title="Bill payments" body="Payments applied to vendor bills will be listed here." />}
+      {screen === "bills" && (
+        <div className="space-y-6">
+          <OpenBills />
+          <Bills documents={documents} onOpen={() => setScreen("bill-pay")} />
+        </div>
+      )}
+      {screen === "payments" && <BillPayments />}
       {screen === "job-costing" && <ScreenNote title="Job costing" body="Costs assigned to a job will be listed here." />}
       {screen === "us-foods" && <UsFoods />}
       {screen === "healthcare" && healthcare}
@@ -174,8 +180,8 @@ function Bills({ documents, onOpen }: { documents: Payable[]; onOpen: () => void
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div>
-          <CardTitle>Bills</CardTitle>
-          <CardDescription>Invoices read in Bill Pay.</CardDescription>
+          <CardTitle>Bills entered here</CardTitle>
+          <CardDescription>Invoices read in Bill Pay. Open balances and payments come from QuickBooks above.</CardDescription>
         </div>
         <Button variant="outline" onClick={onOpen}>Open Bill Pay</Button>
       </CardHeader>
