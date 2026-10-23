@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { interpretCategoryRoute, mailboxesForCategories, type CategoryRouteCandidate } from "./support-category-route";
+import { eventCategory, interpretCategoryRoute, isEventBooking, mailboxesForCategories, type CategoryRouteCandidate } from "./support-category-route";
 
 const categories: CategoryRouteCandidate[] = [
   { id: "acct", name: "Accounting", notifyEmail: "Rap@nashobawinery.com" },
@@ -58,6 +58,21 @@ test("an inactive category is ignored", () => {
     categories,
   );
   assert.equal(route.unsure, true);
+});
+
+test("weddings and large parties are events, and smaller parties stay reservations", () => {
+  assert.equal(isEventBooking("We want to host a wedding at the winery."), true);
+  assert.equal(isEventBooking("Line: Winery\nReservation for 19 people at the Knoll."), true);
+  assert.equal(isEventBooking("Line: J's Restaurant\nTable for 9 tonight."), true);
+  assert.equal(isEventBooking("Line: Winery\nCan we book the Knoll for a party of twenty?"), true);
+  assert.equal(isEventBooking("Line: J's Restaurant\nParty of 16 at the Knoll."), false);
+  assert.equal(isEventBooking("Line: Winery\nTable for 12 at the Knoll."), false);
+  assert.equal(isEventBooking("Line: J's Restaurant\nTable for 8."), false);
+  assert.equal(isEventBooking("What time do you open?"), false);
+  assert.equal(eventCategory([
+    { id: "res", name: "Reservations", slug: "reservations" },
+    { id: "events", name: "Events & Entertainment", slug: "events-entertainment" },
+  ])?.id, "events");
 });
 
 test("mailbox selection emails each match and uses the default when a match has no address", () => {

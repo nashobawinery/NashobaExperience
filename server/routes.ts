@@ -65,6 +65,7 @@ import { initContractReminders } from "./contractReminders";
 import { scheduleNightlySync } from "./nightlySync";
 import emailDeliveryRouter from "./email-delivery-routes";
 import retellRouter, { ensureSupportPhoneColumns } from "./retell-webhook";
+import jsCallsRouter, { JS_CALLS_CODE_SETTING, currentAccessCode, listRestaurantCalls } from "./js-calls";
 import { ensureSupportCategoryRouting, routeSupportTicket } from "./support-category-routing";
 import { ensureMediaDayBannerTables } from "./ensure-media-day-banner-tables";
 import { z } from "zod";
@@ -249,6 +250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(quickbooksRouter);
   app.use(emailDeliveryRouter);
   app.use(retellRouter);
+  app.use(jsCallsRouter);
 
   // AI-powered feature search endpoint
   app.post("/api/platform/feature-search", async (req, res) => {
@@ -15049,6 +15051,36 @@ ${webSourcesContext}`
     } catch (error) {
       console.error('Error fetching web source content:', error);
       res.status(500).json({ message: 'Failed to fetch web source content' });
+    }
+  });
+
+  app.get('/api/admin/support/js-calls', isAdmin, async (_req, res) => {
+    try {
+      const [code, calls] = await Promise.all([currentAccessCode(), listRestaurantCalls()]);
+      res.json({ code, staffPath: "/js-calls", calls });
+    } catch (error) {
+      console.error('Error fetching restaurant calls:', error);
+      res.status(500).json({ message: 'Failed to fetch restaurant calls' });
+    }
+  });
+
+  app.put('/api/admin/support/js-calls/code', isAdmin, async (req, res) => {
+    try {
+      const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+      if (!/^\d{4}$/.test(code)) {
+        return res.status(400).json({ message: 'The access code must be 4 digits.' });
+      }
+      const user = req.user as { id?: string; firstName?: string; lastName?: string } | undefined;
+      const setting = await storage.upsertSupportSetting(
+        JS_CALLS_CODE_SETTING,
+        code,
+        user?.id,
+        user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'
+      );
+      res.json({ code: setting.settingValue, staffPath: "/js-calls" });
+    } catch (error) {
+      console.error('Error updating restaurant call code:', error);
+      res.status(500).json({ message: 'Failed to update the access code' });
     }
   });
 

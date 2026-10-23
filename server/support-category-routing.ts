@@ -1,6 +1,6 @@
 import { pool } from "./db";
 import { storage } from "./storage";
-import { interpretCategoryRoute } from "./support-category-route";
+import { eventCategory, interpretCategoryRoute, isEventBooking } from "./support-category-route";
 
 export type SupportTicketRoute = {
   categoryIds: string[];
@@ -23,6 +23,17 @@ export async function routeSupportTicket(subject: string, message: string): Prom
   const categories = await storage.getSupportCategories(true);
   if (categories.length === 0) {
     return { ...EMPTY_ROUTE, assignedAgentId: await assignRoutedAgent(null) };
+  }
+
+  const event = eventCategory(categories);
+  if (event && isEventBooking(`${subject}\n${message}`)) {
+    return {
+      categoryIds: [event.id],
+      categoryNames: [event.name],
+      categoryId: event.id,
+      assignedAgentId: await assignRoutedAgent(event.id),
+      unsure: false,
+    };
   }
 
   let raw: string | null = null;
@@ -52,7 +63,11 @@ Rules:
 - confident true and exactly one id only when the message clearly belongs to that one category.
 - If more than one category is a reasonable fit, set confident to false and include every plausible category id.
 - If none fit, or you are not sure, set confident to false and categoryIds to an empty array.
-- Use only ids from the list above.`,
+- Use only ids from the list above.
+- A wedding, a request to host an event, or a function belongs only to the events category. Set confident true and return that one id.
+- A reservation for more than 18 people at the Knoll belongs only to the events category, whether the caller used the winery line or the restaurant line.
+- A reservation for more than 8 people at J's Restaurant belongs only to the events category, whether the caller used the winery line or the restaurant line.
+- A smaller party stays a reservation: 18 or fewer at the Knoll, and 8 or fewer at J's.`,
           },
           {
             role: "user",

@@ -1403,7 +1403,7 @@ export default function SupportAdminDashboard() {
               <p className="text-sm text-muted-foreground">Manage customer inquiries and conversations</p>
             </div>
           </div>
-          <div className="flex gap-1 shrink-0">
+          <div className="flex gap-1 shrink-0 flex-wrap justify-end">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button size="icon" variant="outline" onClick={() => setDocsOpen(true)} data-testid="button-documentation">
@@ -1447,6 +1447,10 @@ export default function SupportAdminDashboard() {
             <Button variant="outline" onClick={() => setLocation("/admin/support/categories")} data-testid="button-categories">
               <FolderOpen className="h-4 w-4 mr-2" />
               Categories
+            </Button>
+            <Button variant="outline" onClick={() => setLocation("/admin/support/restaurant-calls")} data-testid="button-restaurant-calls">
+              <Phone className="h-4 w-4 mr-2" />
+              J's Calls
             </Button>
           </div>
         </div>

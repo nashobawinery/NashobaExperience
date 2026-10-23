@@ -125,6 +125,8 @@ const FAQWidgetPage = lazy(() => import("@/pages/support/FAQWidgetPage"));
 const SupportAgentsPage = lazy(() => import("@/pages/support/SupportAgentsPage"));
 const SupportAgentTicketPage = lazy(() => import("@/pages/support/SupportAgentTicketPage"));
 const SupportCategoriesPage = lazy(() => import("@/pages/support/SupportCategoriesPage"));
+const RestaurantCallsPage = lazy(() => import("@/pages/support/RestaurantCallsPage"));
+const RestaurantCallsAdminPage = lazy(() => import("@/pages/support/RestaurantCallsAdminPage"));
 
 // Lazy load RCC (Revenue Command Center) module
 const RccDashboard = lazy(() => import("@/pages/rcc/RccDashboard"));
@@ -603,6 +605,25 @@ function SupportAgentsRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <SupportAgentsPage />
+    </Suspense>
+  );
+}
+
+function RestaurantCallsRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <RestaurantCallsPage />
+    </Suspense>
+  );
+}
+
+function RestaurantCallsAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <RestaurantCallsAdminPage />
     </Suspense>
   );
 }
@@ -1462,6 +1483,8 @@ function Router() {
         <Route path="/staff/work-order" component={StaffWorkOrderRoute} />
         <Route path="/event-registration" component={EventRegistrationPortalRoute} />
         <Route path="/event-calendar" component={EventCalendarRoute} />
+        <Route path="/js-calls" component={RestaurantCallsRoute} />
+        <Route path="/admin/support/restaurant-calls" component={RestaurantCallsAdminRoute} />
         <Route path="/support" component={SupportAdminRoute} />
         <Route path="/support/admin" component={SupportAdminRoute} />
         <Route path="/support/knowledge-base" component={SupportKnowledgeBaseRoute} />

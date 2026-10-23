@@ -10,6 +10,7 @@
     "check": "tsc",
     "test:retell": "tsx --test server/retell-webhook.test.ts",
     "test:support-routing": "tsx --test server/support-category-route.test.ts",
+    "test:js-calls": "tsx --test server/js-calls.test.ts",
     "db:push": "drizzle-kit push",
     "manage-users": "tsx scripts/manage-users.ts"
   },
