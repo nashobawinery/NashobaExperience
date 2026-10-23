@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { supportRequests } from "@shared/schema";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -26,6 +26,19 @@ export type RestaurantCall = {
   reservation: boolean;
   recordingUrl: string | null;
 };
+
+export const RESTAURANT_CALL_RECIPIENTS = [
+  { id: "justin", name: "Justin", email: "jp@nashobawinery.com" },
+  { id: "anne", name: "Anne", email: "aparrow@nashobawinery.com" },
+  { id: "richard", name: "Richard", email: "rap@nashobawinery.com" },
+  { id: "cindy", name: "Cindy", email: "crp@nashobawinery.com" },
+] as const;
+
+export type RestaurantCallRecipient = (typeof RESTAURANT_CALL_RECIPIENTS)[number];
+
+export function restaurantCallRecipient(id: string): RestaurantCallRecipient | undefined {
+  return RESTAURANT_CALL_RECIPIENTS.find((person) => person.id === id);
+}
 
 const LATE_PATTERN = /\b(running late|be late|i'm late|im late|we're late|were late|delayed|on (?:my|our) way|can't make it|cannot make it|stuck in traffic)\b/i;
 const RESERVATION_PATTERN = /\b(reserv\w*|book(?:ing)? a table|table for|party of|seating)\b/i;
@@ -122,6 +135,7 @@ export async function listRestaurantCalls(): Promise<RestaurantCall[]> {
   }).from(supportRequests)
     .where(and(
       eq(supportRequests.source, "phone"),
+      ne(supportRequests.status, "closed"),
       sql`${supportRequests.initialMessage} like ${"%" + LINE + "%"}`,
     ))
     .orderBy(desc(supportRequests.createdAt))
@@ -162,9 +176,93 @@ function readToken(req: Request): string | undefined {
   return header?.trim() || undefined;
 }
 
+export class RestaurantCallActionError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function openRestaurantCall(id: string) {
+  const request = await storage.getSupportRequest(id);
+  if (!request || request.source !== "phone" || request.status === "closed" || !request.initialMessage.includes(LINE)) {
+    return undefined;
+  }
+  return request;
+}
+
+function noteForAction(action: "spam" | "complete" | "forward", detail: string): string {
+  if (action === "spam") return "Marked Spam/NA and closed from the restaurant call page.";
+  if (action === "complete") return `Completed from the restaurant call page.\n\n${detail}`;
+  return detail;
+}
+
+export async function applyRestaurantCallAction(
+  id: string,
+  action: "spam" | "complete" | "forward",
+  detail = "",
+): Promise<void> {
+  const request = await openRestaurantCall(id);
+  if (!request) {
+    throw new RestaurantCallActionError(404, "That call is no longer on this page.");
+  }
+
+  let content = noteForAction(action, detail);
+  if (action === "forward") {
+    const recipient = restaurantCallRecipient(detail);
+    if (!recipient) throw new RestaurantCallActionError(400, "Choose Justin, Anne, Richard, or Cindy.");
+    const call = parseRestaurantCall({
+      id: request.id,
+      customerName: request.customerName,
+      customerPhone: request.customerPhone,
+      initialMessage: request.initialMessage,
+      createdAt: request.createdAt,
+    });
+    const { sendEmail } = await import("./email");
+    const summary = call?.summary || request.subject || "Restaurant call";
+    const transcript = (call?.transcript || "").slice(0, 8000);
+    const text = [
+      `A J's restaurant call was forwarded to ${recipient.name}.`,
+      `Caller: ${call?.callerName || request.customerName || "Unknown caller"}`,
+      `Phone: ${call?.phone || request.customerPhone || "Not provided"}`,
+      call?.callTime ? `Call time: ${call.callTime}` : undefined,
+      "",
+      summary,
+      "",
+      transcript,
+      "",
+      "Open Customer Support: https://nashobawinery.org/support",
+    ].filter((line): line is string => line !== undefined).join("\n");
+    const html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+    try {
+      await sendEmail(recipient.email, `J's call forwarded: ${call?.callerName || "Unknown caller"}`, `<p>${html}</p>`, text);
+    } catch {
+      throw new RestaurantCallActionError(502, "The email could not be sent. The call is still open.");
+    }
+    content = `Forwarded to ${recipient.name} (${recipient.email}) and closed from the restaurant call page.`;
+  }
+
+  await storage.createSupportMessage({
+    requestId: id,
+    senderType: "agent",
+    senderName: "J's host",
+    content,
+    isInternal: true,
+    metadata: { action, source: "js-calls" },
+  });
+  await storage.closeSupportRequest(id, "js-calls", "J's host");
+}
+
 export function createJsCallsRouter(
   listCalls: () => Promise<RestaurantCall[]> = listRestaurantCalls,
   readCode: () => Promise<string> = currentAccessCode,
+  applyAction: typeof applyRestaurantCallAction = applyRestaurantCallAction,
 ) {
   const router = Router();
 
@@ -198,11 +296,47 @@ export function createJsCallsRouter(
   router.get("/api/js-calls", requireCallAccess, async (_req, res) => {
     try {
       const calls = await listCalls();
-      res.json({ calls });
+      res.json({ calls, recipients: RESTAURANT_CALL_RECIPIENTS });
     } catch {
       console.error("[JsCalls] Failed to list restaurant calls");
       res.status(500).json({ message: "Restaurant calls could not be loaded." });
     }
+  });
+
+  async function runAction(req: Request, res: Response, action: "spam" | "complete" | "forward", detail = "") {
+    try {
+      await applyAction(req.params.id, action, detail);
+      res.json({ ok: true });
+    } catch (error) {
+      if (error instanceof RestaurantCallActionError) {
+        res.status(error.status).json({ message: error.message });
+        return;
+      }
+      console.error(`[JsCalls] Failed to ${action} call ${req.params.id}`);
+      res.status(500).json({ message: "The call could not be updated." });
+    }
+  }
+
+  router.post("/api/js-calls/:id/spam", requireCallAccess, (req, res) => {
+    void runAction(req, res, "spam");
+  });
+
+  router.post("/api/js-calls/:id/complete", requireCallAccess, (req, res) => {
+    const notes = typeof req.body?.notes === "string" ? req.body.notes.trim() : "";
+    if (!notes) {
+      res.status(400).json({ message: "Add a note before completing the call." });
+      return;
+    }
+    void runAction(req, res, "complete", notes);
+  });
+
+  router.post("/api/js-calls/:id/forward", requireCallAccess, (req, res) => {
+    const recipientId = typeof req.body?.recipientId === "string" ? req.body.recipientId : "";
+    if (!restaurantCallRecipient(recipientId)) {
+      res.status(400).json({ message: "Choose Justin, Anne, Richard, or Cindy." });
+      return;
+    }
+    void runAction(req, res, "forward", recipientId);
   });
 
   return router;

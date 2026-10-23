@@ -1,7 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+type CallRecipient = { id: string; name: string; email: string };
 
 type RestaurantCall = {
   id: string;
@@ -85,8 +89,59 @@ function CodeGate({ onReady }: { onReady: (token: string) => void }) {
   );
 }
 
-function CallCard({ call }: { call: RestaurantCall }) {
+async function postCallAction(token: string, id: string, path: string, body?: Record<string, string>) {
+  const response = await fetch(`/api/js-calls/${id}/${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-js-calls-access": token },
+    body: JSON.stringify(body ?? {}),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(typeof payload.message === "string" ? payload.message : "The call could not be updated.");
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
+  }
+}
+
+function CallCard({
+  call,
+  token,
+  recipients,
+  onResolved,
+  onExpired,
+}: {
+  call: RestaurantCall;
+  token: string;
+  recipients: CallRecipient[];
+  onResolved: () => void;
+  onExpired: () => void;
+}) {
   const [open, setOpen] = useState(call.late);
+  const [mode, setMode] = useState<"spam" | "complete" | "forward" | null>(null);
+  const [notes, setNotes] = useState("");
+  const [recipientId, setRecipientId] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
+  const run = async (path: string, body?: Record<string, string>) => {
+    setPending(true);
+    setError("");
+    try {
+      await postCallAction(token, call.id, path, body);
+      setMode(null);
+      onResolved();
+    } catch (actionError) {
+      const status = (actionError as Error & { status?: number }).status;
+      if (status === 401) {
+        onExpired();
+        return;
+      }
+      setError(actionError instanceof Error ? actionError.message : "The call could not be updated.");
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <article className="rounded-lg border bg-background p-4" data-testid={`js-call-${call.id}`}>
       <div className="flex items-start justify-between gap-3">
@@ -117,13 +172,88 @@ function CallCard({ call }: { call: RestaurantCall }) {
           Listen to recording
         </a>
       )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setMode("spam"); }} data-testid={`button-spam-${call.id}`}>
+          Spam/NA
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setNotes(""); setMode("complete"); }} data-testid={`button-complete-${call.id}`}>
+          Complete
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setRecipientId(""); setMode("forward"); }} data-testid={`button-forward-${call.id}`}>
+          Forward
+        </Button>
+      </div>
+      {error && mode === null && <p className="mt-2 text-sm text-destructive">{error}</p>}
+
+      <Dialog open={mode === "spam"} onOpenChange={(next) => { if (!next) setMode(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Spam/NA</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">This closes the ticket and removes it from the call list.</p>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMode(null)} disabled={pending}>Cancel</Button>
+            <Button type="button" onClick={() => void run("spam")} disabled={pending}>Close call</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mode === "complete"} onOpenChange={(next) => { if (!next) setMode(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete call</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="What was done for this caller?"
+            rows={4}
+            data-testid={`input-complete-notes-${call.id}`}
+          />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMode(null)} disabled={pending}>Cancel</Button>
+            <Button type="button" onClick={() => void run("complete", { notes: notes.trim() })} disabled={pending || notes.trim().length === 0}>
+              Save and close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mode === "forward"} onOpenChange={(next) => { if (!next) setMode(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Forward call</DialogTitle>
+          </DialogHeader>
+          <select
+            value={recipientId}
+            onChange={(event) => setRecipientId(event.target.value)}
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            data-testid={`select-forward-${call.id}`}
+          >
+            <option value="">Choose a person</option>
+            {recipients.map((person) => (
+              <option key={person.id} value={person.id}>{person.name} — {person.email}</option>
+            ))}
+          </select>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMode(null)} disabled={pending}>Cancel</Button>
+            <Button type="button" onClick={() => void run("forward", { recipientId })} disabled={pending || !recipientId}>
+              Forward and close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </article>
   );
 }
 
 function CallList({ token, onExpired }: { token: string; onExpired: () => void }) {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<"all" | "late" | "reservation">("all");
-  const { data, isLoading, error } = useQuery<{ calls: RestaurantCall[] }>({
+  const { data, isLoading, error } = useQuery<{ calls: RestaurantCall[]; recipients: CallRecipient[] }>({
     queryKey: ["/api/js-calls", token],
     refetchInterval: 20000,
     queryFn: async () => {
@@ -167,7 +297,16 @@ function CallList({ token, onExpired }: { token: string; onExpired: () => void }
       {!isLoading && calls.length === 0 && (
         <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">No restaurant calls in this view yet.</p>
       )}
-      {calls.map((call) => <CallCard key={call.id} call={call} />)}
+      {calls.map((call) => (
+        <CallCard
+          key={call.id}
+          call={call}
+          token={token}
+          recipients={data?.recipients ?? []}
+          onExpired={onExpired}
+          onResolved={() => queryClient.invalidateQueries({ queryKey: ["/api/js-calls", token] })}
+        />
+      ))}
     </div>
   );
 }
