@@ -2,6 +2,7 @@ import type { Product, CartItem, Favorite, B2bSystemTemplateCustomization } from
 import sgMail from "@sendgrid/mail";
 import crypto from "crypto";
 import { storage } from "./storage";
+import { mailboxesForCategories } from "./support-category-route";
 import { generateUnsubscribeUrl } from "./unsubscribe-routes";
 
 interface EmailCustomization {
@@ -2100,22 +2101,98 @@ Nashoba Valley Winery
  * Sends notification emails to all relevant support agents for a new ticket
  * Creates time-limited access tokens for secure quick actions from email links
  */
+async function routingMailboxes(names: string[]): Promise<string[]> {
+  const rows = [];
+  for (const name of names) {
+    const match = await storage.getSupportCategoryByName(name);
+    rows.push({ notifyEmail: match?.notifyEmail ?? null });
+  }
+  const fallback = await storage.getSupportSetting("default_notify_email");
+  return names.length === 0
+    ? mailboxesForCategories([], fallback?.settingValue)
+    : mailboxesForCategories(rows, fallback?.settingValue);
+}
+
+async function agentsForCategoryNames(names: string[]) {
+  if (names.length <= 1) {
+    return storage.getSupportAgentsForNotification(names[0] ?? null);
+  }
+
+  const byId = new Map<string, Awaited<ReturnType<typeof storage.getSupportAgentsForNotification>>[number]>();
+  for (const name of names) {
+    const category = await storage.getSupportCategoryByName(name);
+    if (!category) continue;
+    const agents = await storage.getAgentsForCategory(category.id);
+    for (const agent of agents) {
+      if (agent.receiveEmailNotifications) byId.set(agent.id, agent);
+    }
+  }
+  if (byId.size === 0) {
+    return storage.getSupportAgentsForNotification(null);
+  }
+  return [...byId.values()];
+}
+
+async function sendCategoryRoutingEmail(data: {
+  to: string;
+  ticketId: string;
+  ticketSubject: string;
+  message: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  category: string | null;
+  source: 'chat' | 'email' | 'form' | 'phone';
+}): Promise<void> {
+  const viewUrl = `${getBaseUrl()}/support`;
+  const sourceLabel = data.source === 'email' ? 'Email' : data.source === 'form' ? 'Contact Form' : data.source === 'phone' ? 'Phone' : 'Chat Widget';
+  const preview = data.message.length > 500 ? `${data.message.slice(0, 500)}...` : data.message;
+  const safePreview = preview
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const subject = `New Support Ticket: ${data.ticketSubject}`;
+  const html = `
+    <p>A new ${data.category || "support"} ticket is waiting.</p>
+    <p><strong>Subject:</strong> ${data.ticketSubject}</p>
+    <p><strong>From:</strong> ${data.customerName || "Unknown"}${data.customerEmail ? ` (${data.customerEmail})` : ""}</p>
+    <p><strong>Source:</strong> ${sourceLabel}</p>
+    <p style="white-space: pre-wrap;">${safePreview}</p>
+    <p><a href="${viewUrl}">Open Customer Support</a></p>
+  `;
+  const text = [
+    `A new ${data.category || "support"} ticket is waiting.`,
+    `Subject: ${data.ticketSubject}`,
+    `From: ${data.customerName || "Unknown"}${data.customerEmail ? ` (${data.customerEmail})` : ""}`,
+    `Source: ${sourceLabel}`,
+    "",
+    preview,
+    "",
+    `Open Customer Support: ${viewUrl}`,
+  ].join("\n");
+  await sendEmail(data.to, subject, html, text);
+}
+
 export async function notifySupportAgents(
   ticketId: string,
   ticketSubject: string,
   message: string,
   customerName: string | null,
   customerEmail: string | null,
-  category: string | null,
+  category: string | string[] | null,
   source: 'chat' | 'email' | 'form' | 'phone',
   aiDraft?: string | null
 ): Promise<void> {
   try {
-    // Get agents to notify based on category or default agent
-    const agents = await storage.getSupportAgentsForNotification(category);
-    
-    if (agents.length === 0) {
-      console.log('[Support Email] No agents configured for notification');
+    const names = (Array.isArray(category) ? category : category ? [category] : [])
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    const categoryLabel = names.length > 0 ? names.join(", ") : null;
+    const routingEmails = await routingMailboxes(names);
+    const agents = await agentsForCategoryNames(names);
+    const sent = new Set<string>();
+
+    if (agents.length === 0 && routingEmails.length === 0) {
+      console.log('[Support Email] No agents or category email configured for notification');
       return;
     }
     
@@ -2125,6 +2202,7 @@ export async function notifySupportAgents(
       if (!agent.email || !agent.receiveEmailNotifications) {
         continue;
       }
+      sent.add(agent.email.toLowerCase());
       
       // Create a cryptographically secure, time-limited access token (24 hours for email links)
       const token = crypto.randomBytes(32).toString('hex');
@@ -2147,7 +2225,7 @@ export async function notifySupportAgents(
         customerName,
         customerEmail,
         message,
-        category,
+        category: categoryLabel,
         source,
         aiDraft,
         accessToken: token
@@ -2158,6 +2236,26 @@ export async function notifySupportAgents(
         console.log(`[Support Email] Notification sent to ${agent.email}`);
       } catch (emailError) {
         console.error(`[Support Email] Failed to send to ${agent.email}:`, emailError);
+      }
+    }
+
+    for (const routingEmail of routingEmails) {
+      if (sent.has(routingEmail.toLowerCase())) continue;
+      sent.add(routingEmail.toLowerCase());
+      try {
+        await sendCategoryRoutingEmail({
+          to: routingEmail,
+          ticketId,
+          ticketSubject,
+          message,
+          customerName,
+          customerEmail,
+          category: categoryLabel,
+          source,
+        });
+        console.log(`[Support Email] Category notification sent to ${routingEmail}`);
+      } catch (emailError) {
+        console.error(`[Support Email] Failed to send category notification to ${routingEmail}:`, emailError);
       }
     }
   } catch (error) {

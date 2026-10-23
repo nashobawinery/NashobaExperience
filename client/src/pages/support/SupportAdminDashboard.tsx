@@ -58,7 +58,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent, SupportAttachment, EmailDeliveryLog } from "@shared/schema";
+import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent, SupportAttachment, EmailDeliveryLog, SupportCategory } from "@shared/schema";
 
 type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] };
 
@@ -205,6 +205,11 @@ function RequestList({
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 
+  const { data: categories = [] } = useQuery<SupportCategory[]>({
+    queryKey: ["/api/admin/support/categories"],
+  });
+  const categoryNameById = new Map(categories.map((category) => [category.id, category.name]));
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -349,6 +354,11 @@ function RequestList({
                           <Badge className={status.className} variant="secondary">
                             {status.label}
                           </Badge>
+                          {request.categoryId && categoryNameById.get(request.categoryId) && (
+                            <Badge variant="outline" className="text-xs">
+                              {categoryNameById.get(request.categoryId)}
+                            </Badge>
+                          )}
                           {(request as any).assignedAgentName && (
                             <Badge variant="outline" className="text-xs">
                               <User className="h-3 w-3 mr-1" />
@@ -399,6 +409,11 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     queryKey: ["/api/admin/support/requests", requestId],
     enabled: !!requestId,
   });
+
+  const { data: categories = [] } = useQuery<SupportCategory[]>({
+    queryKey: ["/api/admin/support/categories"],
+  });
+  const categoryName = categories.find((category) => category.id === request?.categoryId)?.name;
 
   // Pre-populate AI draft content if the request has an auto-generated draft
   useEffect(() => {
@@ -671,6 +686,9 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                   <Phone className="h-3 w-3" />
                   Phone
                 </Badge>
+              )}
+              {categoryName && (
+                <Badge variant="outline" className="shrink-0">{categoryName}</Badge>
               )}
               <CardTitle className="text-lg truncate">{request.subject}</CardTitle>
             </div>
@@ -1426,14 +1444,10 @@ export default function SupportAdminDashboard() {
               </TooltipTrigger>
               <TooltipContent>Agents</TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" variant="outline" onClick={() => setLocation("/admin/support/categories")} data-testid="button-categories">
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Categories</TooltipContent>
-            </Tooltip>
+            <Button variant="outline" onClick={() => setLocation("/admin/support/categories")} data-testid="button-categories">
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Categories
+            </Button>
           </div>
         </div>
       </header>

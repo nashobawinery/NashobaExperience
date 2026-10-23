@@ -5579,6 +5579,11 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async getSupportCategoryByName(name: string): Promise<SupportCategory | undefined> {
+    const [result] = await db.select().from(supportCategories).where(eq(supportCategories.name, name));
+    return result;
+  }
+
   async createSupportCategory(data: InsertSupportCategory): Promise<SupportCategory> {
     const [result] = await db.insert(supportCategories).values(data).returning();
     return result;

@@ -7,6 +7,7 @@ import express from "express";
 import type { InsertSupportMessage, InsertSupportRequest, SupportAgent, SupportCategory } from "@shared/schema";
 import { pool } from "./db";
 import { createRetellRouter, type RetellWebhookDeps, type RetellWebhookStorage } from "./retell-webhook";
+import type { SupportTicketRoute } from "./support-category-routing";
 
 process.env.RETELL_WEBHOOK_API_KEY = "test-webhook-key";
 process.env.RETELL_AGENT_ID_WINERY = "agent_winery";
@@ -60,7 +61,7 @@ type Notification = {
   ticketId: string;
   subject: string;
   message: string;
-  category: string | null;
+  category: string | string[] | null;
   source: string;
 };
 
@@ -110,9 +111,23 @@ function createHarness() {
     notifySupportAgents: async (ticketId, subject, message, _customerName, _customerEmail, categoryName, source) => {
       notifications.push({ ticketId, subject, message, category: categoryName, source });
     },
+    routeTicket: async (subject): Promise<SupportTicketRoute> => {
+      const reservation = /reservation/i.test(subject);
+      return {
+        categoryIds: reservation ? ["cat-res"] : [],
+        categoryNames: reservation ? ["Reservations"] : [],
+        categoryId: reservation ? "cat-res" : null,
+        assignedAgentId: reservation ? "agent-res" : "agent-default",
+        unsure: !reservation,
+      };
+    },
   };
 
   return { requests, messages, notifications, deps };
+}
+
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 async function listen(deps: RetellWebhookDeps): Promise<{ server: Server; port: number }> {
@@ -204,6 +219,7 @@ test("a signed call_analyzed event creates one ticket, and a repeat does not cre
     assert.equal(ticket.initialMessage?.includes(TRANSCRIPT), true);
     assert.equal(harness.messages[0].content.includes(TRANSCRIPT), true);
 
+    await flush();
     assert.equal(harness.notifications.length, 1);
     assert.equal(harness.notifications[0].category, "Reservations");
     assert.equal(harness.notifications[0].source, "phone");
@@ -232,6 +248,7 @@ test("the webhook responds before the agent notification email is sent", { timeo
   try {
     const rawBody = JSON.stringify(analyzedPayload({}, { call_id: "call_order_1" }));
     const response = await post(port, rawBody, sign(rawBody));
+    await flush();
 
     assert.equal(response.status, 200);
     assert.equal(response.json.outcome, "created");
@@ -239,7 +256,7 @@ test("the webhook responds before the agent notification email is sent", { timeo
     assert.equal(harness.notifications.length, 0);
 
     releaseNotify();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flush();
     assert.equal(harness.notifications.length, 1);
   } finally {
     releaseNotify();
@@ -355,6 +372,7 @@ test("an accounting call still creates a ticket when that category slug is missi
       { call_id: "call_acct_1" },
     ));
     const response = await post(port, rawBody, sign(rawBody));
+    await flush();
 
     assert.equal(response.status, 200);
     assert.equal(response.json.outcome, "created");
@@ -363,6 +381,29 @@ test("an accounting call still creates a ticket when that category slug is missi
     assert.equal(harness.requests[0].assignedAgentId, "agent-default");
     assert.equal(harness.notifications.length, 1);
     assert.equal(harness.notifications[0].category, null);
+  } finally {
+    await close(server);
+  }
+});
+
+test("a message-taken call emails every category the router returns", async () => {
+  const harness = createHarness();
+  harness.deps.routeTicket = async () => ({
+    categoryIds: ["cat-res", "cat-acct"],
+    categoryNames: ["Reservations", "Accounting"],
+    categoryId: "cat-res",
+    assignedAgentId: "agent-res",
+    unsure: false,
+  });
+  const { server, port } = await listen(harness.deps);
+  try {
+    const rawBody = JSON.stringify(analyzedPayload({}, { call_id: "call_multi_1" }));
+    const response = await post(port, rawBody, sign(rawBody));
+    await flush();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(harness.notifications[0].category, ["Reservations", "Accounting"]);
+    assert.equal(harness.notifications[0].message.includes(TRANSCRIPT), false);
   } finally {
     await close(server);
   }

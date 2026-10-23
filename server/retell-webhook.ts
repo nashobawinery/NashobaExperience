@@ -9,6 +9,7 @@ import type {
 import { pool } from "./db";
 import { notifySupportAgents } from "./email";
 import { storage } from "./storage";
+import { routeSupportTicket, type SupportTicketRoute } from "./support-category-routing";
 
 const SIGNATURE_HEADER = "x-retell-signature";
 const MAX_SIGNATURE_AGE_MS = 5 * 60 * 1000;
@@ -33,16 +34,19 @@ export type RetellWebhookStorage = {
   getLeadAgentForCategory(categoryId: string): Promise<SupportAgent | undefined>;
   getAgentsForCategory(categoryId: string): Promise<SupportAgent[]>;
   getDefaultSupportAgent(): Promise<SupportAgent | undefined>;
+  updateSupportRequest?(id: string, data: Partial<InsertSupportRequest>): Promise<unknown>;
 };
 
 export type RetellWebhookDeps = {
   storage: RetellWebhookStorage;
   notifySupportAgents: typeof notifySupportAgents;
+  routeTicket?: (subject: string, message: string) => Promise<SupportTicketRoute>;
 };
 
 const productionDeps: RetellWebhookDeps = {
   storage,
   notifySupportAgents,
+  routeTicket: routeSupportTicket,
 };
 
 export function verifyRetellSignature(
@@ -291,7 +295,32 @@ export async function handleRetellWebhook(
         `Line: ${line}`,
         recordingUrl ? `Recording: ${recordingUrl}` : undefined,
       ].filter((lineText): lineText is string => Boolean(lineText)).join("\n");
+      const routeTicket = deps.routeTicket ?? routeSupportTicket;
+      const routeMessage = [
+        notificationMessage,
+        transcript ? `Transcript:\n${transcript.slice(0, 1500)}` : undefined,
+      ].filter((part): part is string => Boolean(part)).join("\n\n");
       void (async () => {
+        let categoryArg: string | string[] | null = null;
+        try {
+          const route = await routeTicket(subject, routeMessage || "Phone message taken.");
+          categoryArg = route.categoryNames.length === 1
+            ? route.categoryNames[0]
+            : route.categoryNames.length > 1
+              ? route.categoryNames
+              : null;
+          logRetell(callId, "routed", `categories=${route.categoryNames.join("|") || "default"}`);
+          if (route.categoryId && deps.storage.updateSupportRequest) {
+            await deps.storage.updateSupportRequest(created.id, {
+              categoryId: route.categoryId,
+              ...(route.assignedAgentId ? { assignedAgentId: route.assignedAgentId } : {}),
+            });
+          }
+        } catch {
+          console.error(`[Retell] call_id=${callId} outcome=route_failed`);
+          categoryArg = null;
+        }
+
         try {
           await deps.notifySupportAgents(
             created.id,
@@ -299,7 +328,7 @@ export async function handleRetellWebhook(
             notificationMessage || "Phone message taken.",
             callerName ?? null,
             null,
-            category?.name ?? null,
+            categoryArg,
             "phone",
             null,
           );

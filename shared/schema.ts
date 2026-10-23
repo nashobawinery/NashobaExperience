@@ -4370,6 +4370,7 @@ export const supportCategories = pgTable("support_categories", {
   icon: varchar("icon", { length: 100 }), // Lucide icon name
   color: varchar("color", { length: 50 }), // Tailwind color class
   tags: text("tags").array().default([]), // Keywords/phrases to help AI categorize incoming requests
+  notifyEmail: varchar("notify_email"), // Mailbox that receives new tickets in this category
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),

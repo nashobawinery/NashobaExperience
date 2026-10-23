@@ -65,6 +65,7 @@ import { initContractReminders } from "./contractReminders";
 import { scheduleNightlySync } from "./nightlySync";
 import emailDeliveryRouter from "./email-delivery-routes";
 import retellRouter, { ensureSupportPhoneColumns } from "./retell-webhook";
+import { ensureSupportCategoryRouting, routeSupportTicket } from "./support-category-routing";
 import { ensureMediaDayBannerTables } from "./ensure-media-day-banner-tables";
 import { z } from "zod";
 import { and, desc, eq, ilike, sql } from "drizzle-orm";
@@ -153,6 +154,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await ensureSupportPhoneColumns();
   } catch (err) {
     console.error("[Support] phone ticket columns setup failed:", err);
+  }
+
+  try {
+    await ensureSupportCategoryRouting();
+  } catch (err) {
+    console.error("[Support] category email routing setup failed:", err);
   }
 
   const isAdmin = requirePlatformRole(['super_admin']);
@@ -13961,10 +13968,11 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       });
 
       // AI Categorization and Auto-Assignment
-      let categoryName: string | null = null;
+      let categoryNames: string[] = [];
       let assignedAgentId: string | null = null;
       try {
         const aiResult = await categorizeTicketWithAI(request.id, subject, initialMessage);
+        categoryNames = aiResult.categoryNames;
         
         if (aiResult.categoryId || aiResult.assignedAgentId) {
           // Update the ticket with category and assignment
@@ -13972,9 +13980,8 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
             categoryId: aiResult.categoryId,
             assignedAgentId: aiResult.assignedAgentId
           });
-          categoryName = aiResult.categoryName;
           assignedAgentId = aiResult.assignedAgentId;
-          console.log(`[Support] Ticket ${request.id} categorized as "${categoryName}" and assigned to agent ${assignedAgentId}`);
+          console.log(`[Support] Ticket ${request.id} routed to ${categoryNames.length > 0 ? categoryNames.join(", ") : "the default mailbox"} and assigned to agent ${assignedAgentId}`);
         } else {
           // No category matched - fallback to default agent
           const defaultAgent = await storage.getDefaultSupportAgent();
@@ -14020,7 +14027,7 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
           initialMessage,
           name || null,
           email || null,
-          categoryName,
+          categoryNames.length > 0 ? categoryNames : null,
           'chat',
           draft || null
         );
@@ -14154,106 +14161,21 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     ticketId: string,
     subject: string,
     message: string
-  ): Promise<{ categoryId: string | null; categoryName: string | null; assignedAgentId: string | null }> {
+  ): Promise<{ categoryId: string | null; categoryName: string | null; categoryNames: string[]; assignedAgentId: string | null }> {
+    console.log(`[AI Categorization] Starting for ticket ${ticketId}`);
     try {
-      console.log(`[AI Categorization] Starting for ticket ${ticketId}`);
-      
-      // Get all active categories with their tags
-      const categories = await storage.getSupportCategories();
-      
-      if (categories.length === 0) {
-        console.log('[AI Categorization] No categories configured');
-        return { categoryId: null, categoryName: null, assignedAgentId: null };
-      }
-      
-      // Build category context for AI
-      const categoryList = categories.map(c => ({
-        id: c.id,
-        name: c.name,
-        description: c.description || '',
-        tags: c.tags || []
-      }));
-      
-      const categoryContext = categoryList.map(c => 
-        `Category: "${c.name}" (ID: ${c.id})\nDescription: ${c.description}\nKeywords/Tags: ${c.tags.join(', ')}`
-      ).join('\n\n');
-      
-      // Call OpenAI for categorization
-      const openai = (await import('openai')).default;
-      const client = new openai();
-      
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { 
-            role: 'system', 
-            content: `You are a support ticket categorization assistant. Analyze the customer's message and determine which category it best fits into.
-
-AVAILABLE CATEGORIES:
-${categoryContext}
-
-INSTRUCTIONS:
-1. Read the customer's subject and message carefully
-2. Match it to the most appropriate category based on keywords, tags, and description
-3. Return ONLY the category ID that best matches (or "NONE" if no good match)
-4. Common spam indicators: unsolicited business offers, loans, financing, unsubscribe requests, promotional content
-
-Respond with ONLY the category ID (e.g., "abc-123-def") or "NONE". No other text.`
-          },
-          { 
-            role: 'user', 
-            content: `Subject: ${subject}\n\nMessage: ${message}` 
-          }
-        ],
-        max_tokens: 100
-      });
-      
-      const aiResponse = completion.choices[0]?.message?.content?.trim();
-      console.log(`[AI Categorization] AI response: ${aiResponse}`);
-      
-      if (!aiResponse || aiResponse === 'NONE') {
-        console.log('[AI Categorization] No category match found');
-        return { categoryId: null, categoryName: null, assignedAgentId: null };
-      }
-      
-      // Verify the category exists
-      const matchedCategory = categories.find(c => c.id === aiResponse);
-      if (!matchedCategory) {
-        console.log(`[AI Categorization] Category ID ${aiResponse} not found in database`);
-        return { categoryId: null, categoryName: null, assignedAgentId: null };
-      }
-      
-      console.log(`[AI Categorization] Matched category: ${matchedCategory.name}`);
-      
-      // Find the best agent for this category
-      let assignedAgentId: string | null = null;
-      
-      // First try to find a lead agent for this category
-      const categoryAgents = await storage.getAgentsForCategory(matchedCategory.id);
-      const activeAgents = categoryAgents.filter(a => a.isActive && a.receiveEmailNotifications);
-      
-      if (activeAgents.length > 0) {
-        // Prefer lead agent, otherwise take first active agent
-        const leadAgent = activeAgents.find(a => (a as any).isLead);
-        assignedAgentId = leadAgent ? leadAgent.id : activeAgents[0].id;
-        console.log(`[AI Categorization] Assigned to category agent: ${assignedAgentId}`);
-      } else {
-        // Fall back to default agent
-        const defaultAgent = await storage.getDefaultSupportAgent();
-        if (defaultAgent && defaultAgent.isActive) {
-          assignedAgentId = defaultAgent.id;
-          console.log(`[AI Categorization] Assigned to default agent: ${assignedAgentId}`);
-        }
-      }
-      
-      return { 
-        categoryId: matchedCategory.id, 
-        categoryName: matchedCategory.name,
-        assignedAgentId 
+      const route = await routeSupportTicket(subject, message);
+      const destination = route.categoryNames.length > 0 ? route.categoryNames.join(", ") : "the default mailbox";
+      console.log(`[AI Categorization] Ticket ${ticketId} routed to ${destination}`);
+      return {
+        categoryId: route.categoryId,
+        categoryName: route.categoryNames[0] ?? null,
+        categoryNames: route.categoryNames,
+        assignedAgentId: route.assignedAgentId,
       };
     } catch (error) {
       console.error('[AI Categorization] Error:', error);
-      return { categoryId: null, categoryName: null, assignedAgentId: null };
+      return { categoryId: null, categoryName: null, categoryNames: [], assignedAgentId: null };
     }
   }
 
@@ -17582,20 +17504,20 @@ Generate a professional response:`;
         }
 
         // AI Categorization and Auto-Assignment
-        let categoryName: string | null = null;
+        let categoryNames: string[] = [];
         let assignedAgentId: string | null = null;
         try {
           console.log('[Email Inbound] Starting AI categorization for:', newRequest.id);
           const aiResult = await categorizeTicketWithAI(newRequest.id, subject, cleanBody || 'No content');
+          categoryNames = aiResult.categoryNames;
           
           if (aiResult.categoryId || aiResult.assignedAgentId) {
             await storage.updateSupportRequest(newRequest.id, {
               categoryId: aiResult.categoryId,
               assignedAgentId: aiResult.assignedAgentId
             });
-            categoryName = aiResult.categoryName;
             assignedAgentId = aiResult.assignedAgentId;
-            console.log(`[Email Inbound] Ticket categorized as "${categoryName}" and assigned to agent ${assignedAgentId}`);
+            console.log(`[Email Inbound] Ticket routed to ${categoryNames.length > 0 ? categoryNames.join(", ") : "the default mailbox"} and assigned to agent ${assignedAgentId}`);
           } else {
             // No category matched - fallback to default agent
             const defaultAgent = await storage.getDefaultSupportAgent();
@@ -17642,7 +17564,7 @@ Generate a professional response:`;
             cleanBody || 'No content',
             fromName || null,
             fromEmail || null,
-            categoryName,
+            categoryNames.length > 0 ? categoryNames : null,
             'email',
             aiDraft || null
           );

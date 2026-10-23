@@ -8,7 +8,8 @@ import {
   Trash2, 
   FolderOpen, 
   Tag,
-  X
+  X,
+  Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,10 @@ export default function SupportCategoriesPage() {
     tags: [] as string[],
     sortOrder: 0,
     isActive: true,
+    notifyEmail: "",
   });
+  const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({});
+  const [defaultEmailDraft, setDefaultEmailDraft] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -61,8 +65,14 @@ export default function SupportCategoriesPage() {
     queryKey: ["/api/admin/support/categories"],
   });
 
+  const { data: settings = [] } = useQuery<Array<{ settingKey: string; settingValue: string | null }>>({
+    queryKey: ["/api/admin/support/settings"],
+  });
+  const savedDefaultEmail = settings.find((setting) => setting.settingKey === "default_notify_email")?.settingValue ?? "";
+  const defaultEmail = defaultEmailDraft ?? savedDefaultEmail;
+
   const createMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: Omit<typeof formData, "notifyEmail"> & { notifyEmail: string | null }) => {
       return apiRequest("POST", "/api/admin/support/categories", data);
     },
     onSuccess: () => {
@@ -77,7 +87,7 @@ export default function SupportCategoriesPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Omit<typeof formData, "notifyEmail"> & { notifyEmail: string | null } }) => {
       return apiRequest("PATCH", `/api/admin/support/categories/${id}`, data);
     },
     onSuccess: () => {
@@ -89,6 +99,33 @@ export default function SupportCategoriesPage() {
     },
     onError: () => {
       toast({ title: "Failed to update category", variant: "destructive" });
+    },
+  });
+
+  const defaultEmailMutation = useMutation({
+    mutationFn: async (value: string) => {
+      return apiRequest("PUT", "/api/admin/support/settings/default_notify_email", { value });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/settings"] });
+      setDefaultEmailDraft(null);
+      toast({ title: "Default mailbox saved" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save default mailbox", variant: "destructive" });
+    },
+  });
+
+  const categoryEmailMutation = useMutation({
+    mutationFn: async ({ id, notifyEmail }: { id: string; notifyEmail: string | null }) => {
+      return apiRequest("PATCH", `/api/admin/support/categories/${id}`, { notifyEmail });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/categories"] });
+      toast({ title: "Category mailbox saved" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save category mailbox", variant: "destructive" });
     },
   });
 
@@ -116,6 +153,7 @@ export default function SupportCategoriesPage() {
       tags: [],
       sortOrder: 0,
       isActive: true,
+      notifyEmail: "",
     });
     setNewTag("");
   };
@@ -131,6 +169,7 @@ export default function SupportCategoriesPage() {
       tags: category.tags || [],
       sortOrder: category.sortOrder || 0,
       isActive: category.isActive ?? true,
+      notifyEmail: category.notifyEmail || "",
     });
     setNewTag("");
     setIsDialogOpen(true);
@@ -151,10 +190,11 @@ export default function SupportCategoriesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const slug = formData.slug || formData.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const payload = { ...formData, slug, notifyEmail: formData.notifyEmail.trim() || null };
     if (editingCategory) {
-      updateMutation.mutate({ id: editingCategory.id, data: { ...formData, slug } });
+      updateMutation.mutate({ id: editingCategory.id, data: payload });
     } else {
-      createMutation.mutate({ ...formData, slug });
+      createMutation.mutate(payload);
     }
   };
 
@@ -174,7 +214,7 @@ export default function SupportCategoriesPage() {
                 Support Categories
               </h1>
               <p className="text-sm text-muted-foreground">
-                Manage categories for ticket routing and AI classification
+                Add categories and set the email for each one. AI sends a clear match to that mailbox, sends several possible matches to each of those mailboxes, and sends an unclear message to the default mailbox.
               </p>
             </div>
           </div>
@@ -185,7 +225,36 @@ export default function SupportCategoriesPage() {
         </div>
       </header>
 
-      <main className="p-4 max-w-4xl mx-auto">
+      <main className="p-4 max-w-4xl mx-auto space-y-4">
+        <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Default mailbox</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Unclear tickets, and any selected category without its own email, are sent here.
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="email"
+                value={defaultEmail}
+                onChange={(e) => setDefaultEmailDraft(e.target.value)}
+                placeholder="name@nashobawinery.com"
+                className="pl-9"
+                data-testid="input-default-notify-email"
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={() => defaultEmailMutation.mutate(defaultEmail.trim())}
+              disabled={defaultEmailMutation.isPending || defaultEmail.trim() === savedDefaultEmail.trim()}
+              data-testid="button-save-default-notify-email"
+            >
+              Save default
+            </Button>
+          </CardContent>
+        </Card>
         {isLoading ? (
           <div className="text-center p-8 text-muted-foreground">Loading...</div>
         ) : categories.length === 0 ? (
@@ -219,6 +288,38 @@ export default function SupportCategoriesPage() {
                         {category.description && (
                           <p className="text-sm text-muted-foreground">{category.description}</p>
                         )}
+                        <div className="mt-2 flex items-center gap-2">
+                          <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <Input
+                            type="email"
+                            value={emailDrafts[category.id] ?? category.notifyEmail ?? ""}
+                            onChange={(e) => setEmailDrafts((prev) => ({ ...prev, [category.id]: e.target.value }))}
+                            onBlur={(e) => {
+                              const next = e.target.value.trim();
+                              const current = (category.notifyEmail ?? "").trim();
+                              if (next === current) return;
+                              categoryEmailMutation.mutate({ id: category.id, notifyEmail: next || null });
+                            }}
+                            placeholder="Uses the default mailbox"
+                            data-testid={`input-category-email-${category.id}`}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              categoryEmailMutation.isPending ||
+                              (emailDrafts[category.id] ?? category.notifyEmail ?? "").trim() === (category.notifyEmail ?? "").trim()
+                            }
+                            onClick={() => {
+                              const next = (emailDrafts[category.id] ?? category.notifyEmail ?? "").trim();
+                              categoryEmailMutation.mutate({ id: category.id, notifyEmail: next || null });
+                            }}
+                            data-testid={`button-save-category-email-${category.id}`}
+                          >
+                            Save
+                          </Button>
+                        </div>
                         {category.tags && category.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {category.tags.slice(0, 5).map((tag, idx) => (
@@ -257,7 +358,7 @@ export default function SupportCategoriesPage() {
           <DialogHeader>
             <DialogTitle>{editingCategory ? "Edit Category" : "Add Category"}</DialogTitle>
             <DialogDescription>
-              Categories help organize tickets, route requests to agents, and allow AI to classify incoming messages
+              Add a category and the email that should receive those tickets. You can change the name, description, and email later.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -280,6 +381,17 @@ export default function SupportCategoriesPage() {
                 onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                 placeholder="reservations"
                 data-testid="input-category-slug"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category-notify-email">Notification email</Label>
+              <Input
+                id="category-notify-email"
+                type="email"
+                value={formData.notifyEmail}
+                onChange={(e) => setFormData({ ...formData, notifyEmail: e.target.value })}
+                placeholder="Uses the default mailbox when blank"
+                data-testid="input-category-notify-email"
               />
             </div>
             <div className="space-y-2">
