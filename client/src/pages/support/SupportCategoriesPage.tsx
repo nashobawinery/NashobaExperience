@@ -237,10 +237,10 @@ export default function SupportCategoriesPage() {
             <div className="relative flex-1">
               <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                type="email"
+                type="text"
                 value={defaultEmail}
                 onChange={(e) => setDefaultEmailDraft(e.target.value)}
-                placeholder="name@nashobawinery.com"
+                placeholder="name@nashobawinery.com, other@nashobawinery.com"
                 className="pl-9"
                 data-testid="input-default-notify-email"
               />
@@ -291,7 +291,7 @@ export default function SupportCategoriesPage() {
                         <div className="mt-2 flex items-center gap-2">
                           <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
                           <Input
-                            type="email"
+                            type="text"
                             value={emailDrafts[category.id] ?? category.notifyEmail ?? ""}
                             onChange={(e) => setEmailDrafts((prev) => ({ ...prev, [category.id]: e.target.value }))}
                             onBlur={(e) => {
@@ -300,7 +300,7 @@ export default function SupportCategoriesPage() {
                               if (next === current) return;
                               categoryEmailMutation.mutate({ id: category.id, notifyEmail: next || null });
                             }}
-                            placeholder="Uses the default mailbox"
+                            placeholder="one@nashobawinery.com, two@nashobawinery.com"
                             data-testid={`input-category-email-${category.id}`}
                           />
                           <Button
@@ -384,15 +384,16 @@ export default function SupportCategoriesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="category-notify-email">Notification email</Label>
+              <Label htmlFor="category-notify-email">Notification emails</Label>
               <Input
                 id="category-notify-email"
-                type="email"
+                type="text"
                 value={formData.notifyEmail}
                 onChange={(e) => setFormData({ ...formData, notifyEmail: e.target.value })}
-                placeholder="Uses the default mailbox when blank"
+                placeholder="one@nashobawinery.com, two@nashobawinery.com"
                 data-testid="input-category-notify-email"
               />
+              <p className="text-xs text-muted-foreground">Separate multiple addresses with a comma. Leave blank to use the default mailbox.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="category-description">Description</Label>

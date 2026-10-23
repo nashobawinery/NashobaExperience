@@ -52,31 +52,47 @@ export function interpretCategoryRoute(
   return { categoryIds: [], categoryNames: [], unsure: true };
 }
 
-export function mailboxesForCategories(
-  categories: Array<{ notifyEmail?: string | null }>,
-  defaultEmail: string | null | undefined,
-): string[] {
-  const fallback = defaultEmail?.trim() || null;
+/** Splits a mailbox field on commas or semicolons. Blank pieces are ignored. */
+export function splitMailboxList(value: string | null | undefined): string[] {
+  if (!value) return [];
   const emails: string[] = [];
   const seen = new Set<string>();
-  let missing = false;
-
-  for (const category of categories) {
-    const email = category.notifyEmail?.trim() || "";
-    if (!email) {
-      missing = true;
-      continue;
-    }
+  for (const part of value.split(/[,;]/)) {
+    const email = part.trim();
+    if (!email.includes("@")) continue;
     const key = email.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     emails.push(email);
   }
+  return emails;
+}
+
+export function mailboxesForCategories(
+  categories: Array<{ notifyEmail?: string | null }>,
+  defaultEmail: string | null | undefined,
+): string[] {
+  const emails: string[] = [];
+  const seen = new Set<string>();
+  let missing = false;
+
+  const addAll = (value: string | null | undefined) => {
+    const parts = splitMailboxList(value);
+    for (const email of parts) {
+      const key = email.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      emails.push(email);
+    }
+    return parts.length;
+  };
+
+  for (const category of categories) {
+    if (addAll(category.notifyEmail) === 0) missing = true;
+  }
 
   const needsFallback = categories.length === 0 || missing || emails.length === 0;
-  if (needsFallback && fallback && !seen.has(fallback.toLowerCase())) {
-    emails.push(fallback);
-  }
+  if (needsFallback) addAll(defaultEmail);
   return emails;
 }
 

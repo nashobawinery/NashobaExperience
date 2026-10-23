@@ -76,4 +76,12 @@ test("mailbox selection emails each match and uses the default when a match has 
     ["jp@nashobawinery.com"],
   );
   assert.deepEqual(mailboxesForCategories([], "  "), []);
+  assert.deepEqual(
+    mailboxesForCategories([{ notifyEmail: "aparrow@nashobawinery.com, staff@nashobawinery.com" }], fallback),
+    ["aparrow@nashobawinery.com", "staff@nashobawinery.com"],
+  );
+  assert.deepEqual(
+    mailboxesForCategories([{ notifyEmail: "aparrow@nashobawinery.com; staff@nashobawinery.com" }], fallback),
+    ["aparrow@nashobawinery.com", "staff@nashobawinery.com"],
+  );
 });
