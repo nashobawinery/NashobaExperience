@@ -21,6 +21,7 @@ import {
   BarChart3,
   Star,
   Mail,
+  Phone,
   Loader2,
   CircleDot,
   CheckCircle,
@@ -329,6 +330,9 @@ function RequestList({
                         <div className="flex items-center gap-2 mb-1">
                           {request.source === 'email' && (
                             <Mail className="h-4 w-4 shrink-0 text-blue-500" />
+                          )}
+                          {request.source === 'phone' && (
+                            <Phone className="h-4 w-4 shrink-0 text-emerald-600" />
                           )}
                           <span className="font-medium truncate">{request.subject}</span>
                         </div>
@@ -660,6 +664,12 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                 <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300 shrink-0">
                   <Mail className="h-3 w-3" />
                   Email
+                </Badge>
+              )}
+              {request.source === 'phone' && (
+                <Badge variant="outline" className="gap-1 text-emerald-700 border-emerald-300 shrink-0">
+                  <Phone className="h-3 w-3" />
+                  Phone
                 </Badge>
               )}
               <CardTitle className="text-lg truncate">{request.subject}</CardTitle>

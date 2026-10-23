@@ -10,6 +10,7 @@ import {
   Loader2, 
   Lock, 
   Mail,
+  Phone,
   MessageSquare,
   Clock,
   User,
@@ -447,8 +448,8 @@ export default function SupportAgentTicketPage() {
               <div>
                 <Label className="text-xs text-muted-foreground">Source</Label>
                 <p className="text-sm font-medium flex items-center gap-1">
-                  {ticket.source === 'email' ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
-                  {ticket.source || 'Unknown'}
+                  {ticket.source === 'email' ? <Mail className="h-3 w-3" /> : ticket.source === 'phone' ? <Phone className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+                  {ticket.source === 'phone' ? 'Phone' : ticket.source === 'email' ? 'Email' : ticket.source || 'Unknown'}
                 </p>
               </div>
               <div>

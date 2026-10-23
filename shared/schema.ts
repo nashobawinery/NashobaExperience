@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique, pgEnum, index, serial, date, numeric, uniqueIndex, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique, pgEnum, index, serial, date, numeric, uniqueIndex, real, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -4190,9 +4190,13 @@ export const supportRequests = pgTable("support_requests", {
   botResponseConfidence: decimal("bot_response_confidence", { precision: 5, scale: 2 }), // 0-100
   sourcesUsed: jsonb("sources_used").default([]), // Array of source IDs/URLs used for bot response
   tags: text("tags").array().default([]),
-  source: varchar("source").notNull().default("widget"), // widget, email, api
+  source: varchar("source").notNull().default("widget"), // widget, email, api, phone
   emailMessageId: varchar("email_message_id"), // For email thread tracking
   emailThreadId: varchar("email_thread_id"), // Groups related emails
+  retellCallId: varchar("retell_call_id"), // Retell call_id; unique so a retried call_analyzed event creates one ticket
+  // Category row id (support_categories.id). Email and chat categorization already pass this id.
+  // The callback keeps this reference lazy: supportCategories is declared further down in this file.
+  categoryId: varchar("category_id").references((): AnyPgColumn => supportCategories.id, { onDelete: "set null" }),
   aiDraft: text("ai_draft"), // Auto-generated AI draft response
   aiDraftGeneratedAt: timestamp("ai_draft_generated_at"), // When the AI draft was generated
   closedAt: timestamp("closed_at"),
@@ -4212,6 +4216,8 @@ export const supportRequests = pgTable("support_requests", {
   index("idx_support_req_assigned").on(table.assignedToId),
   index("idx_support_req_email_msg").on(table.emailMessageId),
   index("idx_support_req_email_thread").on(table.emailThreadId),
+  index("idx_support_req_category").on(table.categoryId),
+  uniqueIndex("uq_support_req_retell_call").on(table.retellCallId),
 ]);
 
 export const insertSupportRequestSchema = createInsertSchema(supportRequests).omit({

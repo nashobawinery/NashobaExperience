@@ -6002,6 +6002,14 @@ export class DatabaseStorage implements IStorage {
 
   // ============ Email Inbound Support ============
 
+  async getSupportRequestByRetellCallId(retellCallId: string): Promise<SupportRequest | undefined> {
+    const [result] = await db.select()
+      .from(supportRequests)
+      .where(eq(supportRequests.retellCallId, retellCallId))
+      .limit(1);
+    return result;
+  }
+
   // Find existing request by email thread ID
   async getSupportRequestByEmailThread(emailThreadId: string): Promise<SupportRequest | undefined> {
     const [result] = await db.select()

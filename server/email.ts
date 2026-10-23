@@ -1936,7 +1936,7 @@ interface SupportAgentNotificationData {
   customerEmail: string | null;
   message: string;
   category: string | null;
-  source: 'chat' | 'email' | 'form';
+  source: 'chat' | 'email' | 'form' | 'phone';
   aiDraft?: string | null;
 }
 
@@ -1956,7 +1956,7 @@ export function generateSupportAgentNotificationEmail(data: SupportAgentNotifica
   const forwardUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=forward`;
   const spamUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=spam`;
   
-  const sourceLabel = data.source === 'email' ? 'Email' : data.source === 'form' ? 'Contact Form' : 'Chat Widget';
+  const sourceLabel = data.source === 'email' ? 'Email' : data.source === 'form' ? 'Contact Form' : data.source === 'phone' ? 'Phone' : 'Chat Widget';
   
   const html = `
     <!DOCTYPE html>
@@ -2107,7 +2107,7 @@ export async function notifySupportAgents(
   customerName: string | null,
   customerEmail: string | null,
   category: string | null,
-  source: 'chat' | 'email' | 'form',
+  source: 'chat' | 'email' | 'form' | 'phone',
   aiDraft?: string | null
 ): Promise<void> {
   try {

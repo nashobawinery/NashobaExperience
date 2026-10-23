@@ -64,6 +64,7 @@ import { initMaintenanceReminders } from "./maintenanceReminders";
 import { initContractReminders } from "./contractReminders";
 import { scheduleNightlySync } from "./nightlySync";
 import emailDeliveryRouter from "./email-delivery-routes";
+import retellRouter, { ensureSupportPhoneColumns } from "./retell-webhook";
 import { ensureMediaDayBannerTables } from "./ensure-media-day-banner-tables";
 import { z } from "zod";
 import { and, desc, eq, ilike, sql } from "drizzle-orm";
@@ -146,6 +147,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await ensureResyMasterPageFlags();
   } catch (err) {
     console.error("[Reservations] master page flags setup failed:", err);
+  }
+
+  try {
+    await ensureSupportPhoneColumns();
+  } catch (err) {
+    console.error("[Support] phone ticket columns setup failed:", err);
   }
 
   const isAdmin = requirePlatformRole(['super_admin']);
@@ -234,6 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(mediaFlyerRouter);
   app.use(quickbooksRouter);
   app.use(emailDeliveryRouter);
+  app.use(retellRouter);
 
   // AI-powered feature search endpoint
   app.post("/api/platform/feature-search", async (req, res) => {
