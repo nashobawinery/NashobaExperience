@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -201,21 +202,29 @@ function CallCard({
       </Dialog>
 
       <Dialog open={mode === "complete"} onOpenChange={(next) => { if (!next) setMode(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Complete call</DialogTitle>
           </DialogHeader>
-          <label className="space-y-1 text-sm">
-            <span className="font-medium">Your initials</span>
-            <input
+          <div className="space-y-2">
+            <label htmlFor={`complete-initials-${call.id}`} className="text-sm font-medium">
+              Your initials
+            </label>
+            <Input
+              id={`complete-initials-${call.id}`}
               value={initials}
               onChange={(event) => setInitials(event.target.value.replace(/[^A-Za-z]/g, "").slice(0, 4).toUpperCase())}
               placeholder="JP"
               maxLength={4}
-              className="h-10 w-24 rounded-md border bg-background px-3 text-center tracking-[0.2em]"
+              autoFocus
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              className="h-12 text-center text-lg uppercase tracking-[0.3em]"
               data-testid={`input-complete-initials-${call.id}`}
             />
-          </label>
+            <p className="text-xs text-muted-foreground">Enter 2 to 4 letters. They are saved on the ticket.</p>
+          </div>
           <Textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
@@ -223,6 +232,9 @@ function CallCard({
             rows={4}
             data-testid={`input-complete-notes-${call.id}`}
           />
+          {notes.trim().length > 0 && !/^[A-Z]{2,4}$/.test(initials) && (
+            <p className="text-sm text-destructive">Enter your initials in the box above before saving.</p>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setMode(null)} disabled={pending}>Cancel</Button>
