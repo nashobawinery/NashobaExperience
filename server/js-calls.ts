@@ -193,9 +193,9 @@ async function openRestaurantCall(id: string) {
   return request;
 }
 
-function noteForAction(action: "spam" | "complete" | "forward", detail: string): string {
+function noteForAction(action: "spam" | "complete" | "forward", detail: string, initials = ""): string {
   if (action === "spam") return "Marked Spam/NA and closed from the restaurant call page.";
-  if (action === "complete") return `Completed from the restaurant call page.\n\n${detail}`;
+  if (action === "complete") return `Completed by ${initials.toUpperCase()} from the restaurant call page.\n\n${detail}`;
   return detail;
 }
 
@@ -203,13 +203,14 @@ export async function applyRestaurantCallAction(
   id: string,
   action: "spam" | "complete" | "forward",
   detail = "",
+  initials = "",
 ): Promise<void> {
   const request = await openRestaurantCall(id);
   if (!request) {
     throw new RestaurantCallActionError(404, "That call is no longer on this page.");
   }
 
-  let content = noteForAction(action, detail);
+  let content = noteForAction(action, detail, initials);
   if (action === "forward") {
     const recipient = restaurantCallRecipient(detail);
     if (!recipient) throw new RestaurantCallActionError(400, "Choose Justin, Anne, Richard, or Cindy.");
@@ -256,7 +257,7 @@ export async function applyRestaurantCallAction(
     isInternal: true,
     metadata: { action, source: "js-calls" },
   });
-  await storage.closeSupportRequest(id, "js-calls", "J's host");
+  await storage.closeSupportRequest(id, "js-calls", action === "complete" && initials ? initials.toUpperCase() : "J's host");
 }
 
 export function createJsCallsRouter(
@@ -303,9 +304,9 @@ export function createJsCallsRouter(
     }
   });
 
-  async function runAction(req: Request, res: Response, action: "spam" | "complete" | "forward", detail = "") {
+  async function runAction(req: Request, res: Response, action: "spam" | "complete" | "forward", detail = "", initials = "") {
     try {
-      await applyAction(req.params.id, action, detail);
+      await applyAction(req.params.id, action, detail, initials);
       res.json({ ok: true });
     } catch (error) {
       if (error instanceof RestaurantCallActionError) {
@@ -323,11 +324,16 @@ export function createJsCallsRouter(
 
   router.post("/api/js-calls/:id/complete", requireCallAccess, (req, res) => {
     const notes = typeof req.body?.notes === "string" ? req.body.notes.trim() : "";
+    const initials = typeof req.body?.initials === "string" ? req.body.initials.trim().toUpperCase() : "";
+    if (!/^[A-Z]{2,4}$/.test(initials)) {
+      res.status(400).json({ message: "Enter your initials." });
+      return;
+    }
     if (!notes) {
       res.status(400).json({ message: "Add a note before completing the call." });
       return;
     }
-    void runAction(req, res, "complete", notes);
+    void runAction(req, res, "complete", notes, initials);
   });
 
   router.post("/api/js-calls/:id/forward", requireCallAccess, (req, res) => {

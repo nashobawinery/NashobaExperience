@@ -119,6 +119,7 @@ function CallCard({
   const [open, setOpen] = useState(call.late);
   const [mode, setMode] = useState<"spam" | "complete" | "forward" | null>(null);
   const [notes, setNotes] = useState("");
+  const [initials, setInitials] = useState("");
   const [recipientId, setRecipientId] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -176,7 +177,7 @@ function CallCard({
         <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setMode("spam"); }} data-testid={`button-spam-${call.id}`}>
           Spam/NA
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setNotes(""); setMode("complete"); }} data-testid={`button-complete-${call.id}`}>
+        <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setNotes(""); setInitials(""); setMode("complete"); }} data-testid={`button-complete-${call.id}`}>
           Complete
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setRecipientId(""); setMode("forward"); }} data-testid={`button-forward-${call.id}`}>
@@ -204,6 +205,17 @@ function CallCard({
           <DialogHeader>
             <DialogTitle>Complete call</DialogTitle>
           </DialogHeader>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium">Your initials</span>
+            <input
+              value={initials}
+              onChange={(event) => setInitials(event.target.value.replace(/[^A-Za-z]/g, "").slice(0, 4).toUpperCase())}
+              placeholder="JP"
+              maxLength={4}
+              className="h-10 w-24 rounded-md border bg-background px-3 text-center tracking-[0.2em]"
+              data-testid={`input-complete-initials-${call.id}`}
+            />
+          </label>
           <Textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
@@ -214,7 +226,11 @@ function CallCard({
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setMode(null)} disabled={pending}>Cancel</Button>
-            <Button type="button" onClick={() => void run("complete", { notes: notes.trim() })} disabled={pending || notes.trim().length === 0}>
+            <Button
+              type="button"
+              onClick={() => void run("complete", { notes: notes.trim(), initials })}
+              disabled={pending || notes.trim().length === 0 || !/^[A-Z]{2,4}$/.test(initials)}
+            >
               Save and close
             </Button>
           </DialogFooter>

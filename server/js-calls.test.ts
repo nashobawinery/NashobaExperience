@@ -142,10 +142,17 @@ test("spam, complete, and forward update the call and then it can leave the list
     });
     assert.equal(emptyNotes.status, 400);
 
-    const completed = await fetch(`http://127.0.0.1:${port}/api/js-calls/call-1/complete`, {
+    const missingInitials = await fetch(`http://127.0.0.1:${port}/api/js-calls/call-1/complete`, {
       method: "POST",
       headers,
       body: JSON.stringify({ notes: "Held a table for 7." }),
+    });
+    assert.equal(missingInitials.status, 400);
+
+    const completed = await fetch(`http://127.0.0.1:${port}/api/js-calls/call-1/complete`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ notes: "Held a table for 7.", initials: "jp" }),
     });
     assert.equal(completed.status, 200);
 
