@@ -826,7 +826,8 @@ export default function ToastSales() {
       {scan.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Where the days disagree</CardTitle>
+            <CardTitle>Last 7 days</CardTitle>
+            <CardDescription>A day with no journal yet can be posted. A gap appears only when QuickBooks already has a journal for that date.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -843,7 +844,7 @@ export default function ToastSales() {
                   <TableRow key={row.date}>
                     <TableCell>{row.date}</TableCell>
                     <TableCell>{row.matched ? "Matches" : row.note}</TableCell>
-                    <TableCell>{row.matched ? "—" : `${row.account} ${money(row.difference)}`}</TableCell>
+                    <TableCell>{row.matched || !row.account ? "—" : `${row.account} ${money(row.difference)}`}</TableCell>
                     <TableCell>
                       <Button variant="ghost" onClick={() => check.mutate(row.date)}>Open</Button>
                     </TableCell>

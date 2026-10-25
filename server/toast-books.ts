@@ -847,17 +847,19 @@ function fallbackFinding(day: Awaited<ReturnType<typeof booksForDate>>) {
     const where = gap.className ? `${gap.accountName}, class ${gap.className}` : gap.accountName;
     return `${day.date}: our journal ${ours} and Shogo ${shogo} are both in QuickBooks. The largest difference is ${gap.difference.toFixed(2)} on ${where}. Delete the journal you do not want to keep.`;
   }
-  if (day.matched) return `${day.date} matches Shogo.`;
-  if (!day.shogoJournals.length && !day.unmapped.length) {
-    return `${day.date} is not in QuickBooks yet. Toast balances and can be posted as our journal. Shogo can stay on; delete one of the two journals after you compare them.`;
-  }
+  if (day.matched) return `${day.date} matches the journal in QuickBooks.`;
   if (day.unmapped.length) {
     const names = day.unmapped.slice(0, 4).map((item) => `${item.name} (${item.amount.toFixed(2)})`).join(", ");
     return `${day.date} has Toast items that are not in the mapping: ${names}.`;
   }
+  if (!day.shogoJournals.length && !day.ourJournals.length) {
+    if (day.postBlock) return `${day.date}: ${day.postBlock}`;
+    return `${day.date} is not posted yet. Toast balances, so this day can be posted.`;
+  }
   const gap = day.lines.find((line) => line.difference !== 0);
   if (!gap) return day.postBlock || `${day.date} needs a look.`;
   const where = gap.className ? `${gap.accountName}, class ${gap.className}` : gap.accountName;
+  if (shogo && !ours) return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}. QuickBooks still has ${shogo}. Our journal is not posted yet.`;
   return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}. Shogo is ${shogo || "not posted"}. Our journal is ${ours || "not posted yet"}.`;
 }
 
@@ -1090,7 +1092,8 @@ export async function scanToastDays(through: string, days: number) {
     date.setUTCDate(date.getUTCDate() - offset);
     const businessDate = date.toISOString().slice(0, 10);
     const day = await booksForDate(businessDate);
-    const gap = day.lines.find((line) => line.difference !== 0);
+    const comparable = day.ourJournals.length > 0 || day.shogoJournals.length > 0;
+    const gap = comparable ? day.lines.find((line) => line.difference !== 0) : undefined;
     results.push({
       date: businessDate,
       matched: day.matched,
@@ -2020,29 +2023,55 @@ export function initToastDepositCheck() {
 
 const postingDays = new Map<string, Promise<{ id?: string; doc: string; lines: number; mode: string }>>();
 
-export function postToastDay(businessDate: string) {
+export function postToastDay(businessDate: string, options?: { creditTastings?: boolean }) {
   const current = postingDays.get(businessDate);
   if (current) return current;
-  const run = postToastDayOnce(businessDate).finally(() => postingDays.delete(businessDate));
+  const run = postToastDayOnce(businessDate, options).finally(() => postingDays.delete(businessDate));
   postingDays.set(businessDate, run);
   return run;
 }
 
-async function postToastDayOnce(businessDate: string) {
+function applyTastingCredit(day: Awaited<ReturnType<typeof booksForDate>>, accountId: string) {
+  const tastings = day.breaks.filter((item) => item.tastings);
+  const credit = tastings.reduce((sum, item) => sum + centsOf(item.amount), 0);
+  const imbalance = day.ourEntry.reduce((sum, line) => sum + line.cents, 0);
+  if (!tastings.length || credit !== imbalance) {
+    throw new Error(`The tour and tasting credit of ${money(credit).toFixed(2)} does not close the ${money(imbalance).toFixed(2)} gap, so ${day.date} was not posted.`);
+  }
+  const guests = tastings.reduce((sum, item) => sum + (item.tastings || 0), 0);
+  const existing = day.ourEntry.find((line) => line.accountId === accountId && !line.classId);
+  if (existing) existing.cents -= credit;
+  else day.ourEntry.push({ accountId, classId: "", cents: -credit, description: `Tours and tastings, ${guests} guests` });
+  return { credit, guests, checks: tastings.length };
+}
+
+async function postToastDayOnce(businessDate: string, options?: { creditTastings?: boolean }) {
   const day = await booksForDate(businessDate);
-  if (!day.canPost) throw new Error(day.postBlock || "This date already has our journal.");
+  let tastingCredit: { credit: number; guests: number; checks: number } | null = null;
+  if (options?.creditTastings && day.postBlock && /out of balance/i.test(day.postBlock)) {
+    const account = resolveAccount(await chartOfAccounts(), TASTING_ACCOUNT);
+    if (!account) throw new Error("QuickBooks account 3052010 Tours & Tastings was not found.");
+    tastingCredit = applyTastingCredit(day, account.id);
+  }
+  if (!day.canPost && !tastingCredit) throw new Error(day.postBlock || "This date already has our journal.");
+  if (tastingCredit && day.ourEntry.reduce((sum, line) => sum + line.cents, 0) !== 0) {
+    throw new Error(`${businessDate} is still out of balance after the tours and tastings credit, so it was not posted.`);
+  }
   const doc = `TOAST-${businessDate.replace(/-/g, "")}`.slice(0, 21);
   const existing = await journalsForDoc(doc);
   if (existing.length) {
     throw new Error(`${doc} is already in QuickBooks for this date.`);
   }
   const shogo = day.shogoJournals.map((journal) => journal.doc).join(", ");
+  const tastingNote = tastingCredit
+    ? ` Tours and tastings credited ${money(tastingCredit.credit).toFixed(2)} for ${tastingCredit.guests} guests on ${tastingCredit.checks} open checks.`
+    : "";
   const entry = await postQuickBooks("/journalentry", {
     TxnDate: businessDate,
     DocNumber: doc,
     PrivateNote: shogo
-      ? `CT. Toast sales for POS date ${businessDate}. Our journal, posted beside Shogo ${shogo} so the two can be compared. Delete one.`
-      : `CT. Toast sales for POS date ${businessDate}.`,
+      ? `CT. Toast sales for POS date ${businessDate}. Our journal, posted beside Shogo ${shogo} so the two can be compared. Delete one.${tastingNote}`
+      : `CT. Toast sales for POS date ${businessDate}.${tastingNote}`,
     Line: day.ourEntry.map((line) => ({
       Amount: money(Math.abs(line.cents)),
       Description: line.description,
