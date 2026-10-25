@@ -752,6 +752,12 @@
     },
     {
       "kind": "OTHERTENDER",
+      "name": "Gift Certificate (Paper)",
+      "account": "(2120001) Gift Cards Outstanding",
+      "className": ""
+    },
+    {
+      "kind": "OTHERTENDER",
       "name": "House Account",
       "account": "(116000) Toast House Accounts",
       "className": ""

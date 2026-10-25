@@ -27,7 +27,12 @@ type DayReview = {
   postBlock: string | null;
   finding: string;
   bankExpected: number;
+  advice?: DayAdvice;
 };
+type DayRecommendation = { title: string; detail: string; amount: number | null; account: string; kind: string; toastKind: string; name: string };
+type CheckBreak = { check: string; guest: string; amount: number; status: string; tenders: string; paidOn: string; deposit: number; tastings: number | null };
+type DayAdvice = { summary: string; recommendations: DayRecommendation[]; checks: CheckBreak[] };
+type DepositReport = { rows: DepositRow[]; advice: string };
 type ScanRow = { date: string; matched: boolean; mode: string; orderCount: number; unmapped: number; account: string; difference: number; note: string };
 type OutstandingReport = {
   cash: { date: string; amount: number; doc: string }[];
@@ -362,6 +367,7 @@ export default function ToastSales() {
   const [review, setReview] = useState<DayReview | null>(null);
   const [scan, setScan] = useState<ScanRow[]>([]);
   const [deposits, setDeposits] = useState<DepositRow[]>([]);
+  const [depositAdvice, setDepositAdvice] = useState("");
   const [outstanding, setOutstanding] = useState<OutstandingReport | null>(null);
   const [pickedCash, setPickedCash] = useState<string[]>([]);
   const [depositedOn, setDepositedOn] = useState(today);
@@ -423,9 +429,12 @@ export default function ToastSales() {
   const depositsCheck = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("GET", `/api/accounting/toast-sales/deposits?through=${date}&days=7`);
-      return response.json() as Promise<DepositRow[]>;
+      return response.json() as Promise<DepositReport>;
     },
-    onSuccess: (rows) => setDeposits(rows),
+    onSuccess: (report) => {
+      setDeposits(report.rows || []);
+      setDepositAdvice(report.advice || "");
+    },
     onError: (error: Error) => toast({ title: "Could not compare deposits", description: error.message, variant: "destructive" }),
   });
   const liabilityReview = useMutation({
@@ -516,6 +525,20 @@ export default function ToastSales() {
     onError: (error: Error) => toast({ title: "Notice emails were not saved", description: error.message, variant: "destructive" }),
   });
 
+  const useMapping = useMutation({
+    mutationFn: async (item: { kind: string; name: string; account: string }) => {
+      const response = await apiRequest("POST", "/api/accounting/toast-sales/mapping/name", item);
+      return response.json();
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/accounting/toast-sales/mapping"] });
+      toast({ title: "Mapping saved", description: "Check this date again. The next journal uses this account." });
+      const refreshed = await check.mutateAsync(date);
+      setReview(refreshed);
+    },
+    onError: (error: Error) => toast({ title: "The mapping was not saved", description: error.message, variant: "destructive" }),
+  });
+
   const post = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/accounting/toast-sales/post", { date });
@@ -583,7 +606,7 @@ export default function ToastSales() {
               <CardDescription>{review.orderCount} Toast orders. {review.journals.length ? `Journal ${review.journals.map((journal) => journal.doc).join(", ")} is already in QuickBooks.` : "No Toast journal is in QuickBooks for this date yet."}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p>{review.finding}</p>
+              {!review.advice?.recommendations.length && <p>{review.finding}</p>}
               <p className="text-sm text-muted-foreground">The journal would deposit {money(review.bankExpected)} to Clinton Savings Bank. That deposit is compared after it arrives, not on the sales date.</p>
               {review.plugNote && <p className="text-sm text-muted-foreground">{review.plugNote}</p>}
               {review.postBlock && !review.matched && <p className="text-sm text-muted-foreground">{review.postBlock}</p>}
@@ -592,6 +615,53 @@ export default function ToastSales() {
               </Button>
             </CardContent>
           </Card>
+
+          {(review.advice?.recommendations.length || review.advice?.checks.length) ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>How to fix this day</CardTitle>
+                <CardDescription>The recommendation uses the Toast checks and the mapping. A deposit with no item on the check, in multiples of $20, is a tasting or a tour and is credited to Tours & Tastings.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {review.advice?.summary && <p>{review.advice.summary}</p>}
+                {review.advice?.recommendations.map((item) => (
+                  <div key={`${item.kind}-${item.name}-${item.title}`} className="space-y-2">
+                    <p className="font-medium">{item.title}</p>
+                    <p className="text-sm text-muted-foreground">{item.detail}</p>
+                    {item.kind === "map" && item.account && item.name ? (
+                      <Button variant="outline" onClick={() => useMapping.mutate({ kind: item.toastKind || "OTHERTENDER", name: item.name, account: item.account })} disabled={useMapping.isPending}>
+                        {useMapping.isPending ? "Saving" : `Use ${item.account}`}
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+                {(review.advice?.checks.length || 0) > 0 && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Check</TableHead>
+                        <TableHead>Guest</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Paid</TableHead>
+                        <TableHead>What to do</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {review.advice?.checks.map((item) => (
+                        <TableRow key={`${item.check}-${item.guest}`}>
+                          <TableCell>{item.check}</TableCell>
+                          <TableCell>{item.guest}</TableCell>
+                          <TableCell className="text-right">{money(item.amount)}</TableCell>
+                          <TableCell>{item.paidOn || item.status || "—"}</TableCell>
+                          <TableCell>{item.tastings ? `Credit Tours & Tastings for ${item.tastings} guests` : item.deposit ? "Deposit used with no sale" : item.tenders}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
 
           {review.unmapped.length > 0 && (
             <Card>
@@ -1033,7 +1103,8 @@ export default function ToastSales() {
             <CardTitle>Deposits against the journal</CardTitle>
             <CardDescription>The sales posting is in before the bank deposit. Cards and cash are compared separately. When one day is short and the next day is over by the same card or cash amount, that deposit belongs to the earlier sales posting and the suggestion is to hold it in Toast Deposit in Transit. When they do not wash out, the suggestion names the account to debit or credit so the posting balances. Cash that has not gone to the bank yet is left on the sales posting.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {depositAdvice && <p>{depositAdvice}</p>}
             <Table>
               <TableHeader>
                 <TableRow>
