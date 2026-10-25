@@ -1132,6 +1132,8 @@ type DepositRow = {
   cashDeposit: number;
   gaps: DepositGap[];
   splitsLabeled: boolean;
+  synced: boolean;
+  dsrNote: string;
 };
 
 function postingAdjustment(row: DepositRow) {
@@ -1179,6 +1181,8 @@ function emptyDeposit(date: string, orderCount: number, journalDeposit: number, 
     cashDeposit: 0,
     gaps: [],
     splitsLabeled: false,
+    synced: false,
+    dsrNote: "",
   };
 }
 
@@ -1317,7 +1321,7 @@ export async function reviewDepositLiability(from: string, to: string) {
 
 export async function reviewDeposits(through: string, days: number) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(through)) throw new Error("Choose a business date.");
-  const count = Math.min(Math.max(days || 7, 1), 10);
+  const count = Math.min(Math.max(days || 7, 1), 15);
   const dates: string[] = [];
   for (let offset = 0; offset < count; offset += 1) dates.push(shiftIso(through, -offset));
   const newer = shiftIso(through, 1);
@@ -1336,6 +1340,8 @@ export async function reviewDeposits(through: string, days: number) {
       depositJournal: line.quickbooks,
       difference: line.difference,
     }));
+    const synced = day.ourJournals.some((journal) => journal.doc.startsWith("TOAST-") || journal.doc.startsWith("TFIX-"));
+    const dsrNote = synced ? day.ourJournals.map((journal) => journal.doc).join(", ") : (day.postBlock || "Not posted.");
     const base = {
       cardJournal: day.cardExpected,
       cardDeposit: day.cardRecorded,
@@ -1343,6 +1349,8 @@ export async function reviewDeposits(through: string, days: number) {
       cashDeposit: day.cashRecorded,
       gaps,
       splitsLabeled: day.cardRecorded !== 0 || day.cashRecorded !== 0 || centsOf(day.bankRecorded) === 0,
+      synced,
+      dsrNote,
     };
     if (!day.orderCount && expected === 0) {
       return { ...emptyDeposit(day.date, 0, 0, "quiet", "No Toast sales."), ...base };
@@ -1434,6 +1442,30 @@ export async function reviewDeposits(through: string, days: number) {
   }
 
   return rows.filter((row) => row.status !== "quiet" && row.date <= through);
+}
+
+function depositStanding(status: DepositRow["status"]) {
+  if (status === "match") return "Match" as const;
+  if (status === "mismatch" || status === "timing") return "Problem" as const;
+  if (status === "quiet") return "No sales" as const;
+  return "Pending" as const;
+}
+
+export async function closeStatusReport(through: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(through)) throw new Error("Choose a business date.");
+  const rows = await reviewDeposits(through, 15);
+  const byDate = new Map(rows.map((row) => [row.date, row]));
+  return Array.from({ length: 15 }, (_, offset) => shiftIso(through, -offset)).map((date) => {
+    const row = byDate.get(date);
+    if (!row) return { date, dsr: "No sales" as const, deposit: "No sales" as const, detail: "No Toast sales." };
+    const deposit = depositStanding(row.status);
+    const detail = !row.synced
+      ? (deposit === "Match" || deposit === "Problem" ? `${row.dsrNote} ${row.note}` : row.dsrNote)
+      : deposit === "Match"
+        ? `${row.dsrNote} is posted, and the deposit matches the sales posting.`
+        : row.note;
+    return { date, dsr: row.synced ? "Synced" as const : "Not synced" as const, deposit, detail };
+  });
 }
 
 async function chartOfAccounts() {
@@ -2869,6 +2901,15 @@ export function registerToastSalesRoutes(router: Router) {
     try {
       const days = Number(req.query.days || 7);
       res.json(await scanToastDays(String(req.query.through || ""), days));
+    } catch (error) {
+      res.status(500).json({ message: qbFault(error) });
+    }
+  });
+
+  router.get("/toast-sales/close-report", isAdmin, async (req, res) => {
+    try {
+      const through = String(req.query.through || shiftIso(todayIso(), -1));
+      res.json(await closeStatusReport(through));
     } catch (error) {
       res.status(500).json({ message: qbFault(error) });
     }

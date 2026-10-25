@@ -252,6 +252,60 @@ function NameTable({ rows, accounts, classes, accountsReady, onChange }: {
   );
 }
 
+type CloseDay = { date: string; dsr: "Synced" | "Not synced" | "No sales"; deposit: "Match" | "Problem" | "Pending" | "No sales"; detail: string };
+
+function closeTone(value: string) {
+  if (value === "Synced" || value === "Match") return "text-green-700";
+  if (value === "Problem" || value === "Not synced") return "text-red-700";
+  if (value === "Pending") return "text-amber-700";
+  return "text-muted-foreground";
+}
+
+function LastFifteenDays() {
+  const report = useQuery<CloseDay[]>({
+    queryKey: ["/api/accounting/toast-sales/close-report"],
+    enabled: false,
+  });
+  const rows = report.data ?? [];
+  return (
+    <Card>
+      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle>Last 15 days</CardTitle>
+          <CardDescription>Each closed day shows whether the daily sales report is in QuickBooks, and whether the deposit matches, needs a correction, or is still waiting.</CardDescription>
+        </div>
+        <Button onClick={() => report.refetch()} disabled={report.isFetching} data-testid="button-close-report">
+          {report.isFetching ? "Reading the last 15 days" : "Show the last 15 days"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {report.isError ? <p className="text-sm text-muted-foreground">{report.error instanceof Error ? report.error.message : "The report could not be loaded."}</p> : report.isFetching ? <p className="text-sm text-muted-foreground">Reading Toast and QuickBooks. This covers 15 days, so it takes a few minutes.</p> : rows.length === 0 ? <p className="text-sm text-muted-foreground">Show the last 15 days to see which sales reports are synced and which deposits match.</p> : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sales date</TableHead>
+                <TableHead>Daily sales report</TableHead>
+                <TableHead>Deposit</TableHead>
+                <TableHead>Detail</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.date}>
+                  <TableCell>{row.date}</TableCell>
+                  <TableCell className={closeTone(row.dsr)}>{row.dsr}</TableCell>
+                  <TableCell className={closeTone(row.deposit)}>{row.deposit}</TableCell>
+                  <TableCell className="max-w-xl text-sm text-muted-foreground">{row.detail}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DsrFrame({ dsr, outstanding, guests }: { dsr: ReactNode; outstanding: ReactNode; guests: ReactNode }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -289,6 +343,7 @@ function DsrFrame({ dsr, outstanding, guests }: { dsr: ReactNode; outstanding: R
         <TabsTrigger value="outstanding">Outstanding deposits</TabsTrigger>
         <TabsTrigger value="guests">Guest deposits</TabsTrigger>
         <TabsTrigger value="sync-log">Sync log</TabsTrigger>
+        <TabsTrigger value="close-report">Last 15 days</TabsTrigger>
         <TabsTrigger value="general">General Settings</TabsTrigger>
         <TabsTrigger value="accounting">Accounting Options</TabsTrigger>
         {rowSections.map((section) => (
@@ -355,6 +410,9 @@ function DsrFrame({ dsr, outstanding, guests }: { dsr: ReactNode; outstanding: R
       ))}
       <TabsContent value="sync-log">
         <DsrSyncLog />
+      </TabsContent>
+      <TabsContent value="close-report">
+        <LastFifteenDays />
       </TabsContent>
     </Tabs>
   );
