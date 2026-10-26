@@ -32,7 +32,7 @@ type DayReview = {
   advice?: DayAdvice;
 };
 type DayRecommendation = { title: string; detail: string; amount: number | null; account: string; kind: string; toastKind: string; name: string };
-type CheckBreak = { check: string; guest: string; amount: number; status: string; tenders: string; paidOn: string; deposit: number; tastings: number | null };
+type CheckBreak = { check: string; guest: string; amount: number; status: string; tenders: string; paidOn: string; deposit: number; tastings: number | null; depositNote?: string };
 type DayAdvice = { summary: string; recommendations: DayRecommendation[]; checks: CheckBreak[] };
 type DayTalk = { role: "user" | "assistant"; content: string };
 type DayProposal = { action: string; label: string; detail: string; name: string; account: string };
@@ -80,8 +80,8 @@ function yesterday() {
 
 type PastDeposit = { customerKey: string; name: string; email: string; phone: string; reservationDate: string; source: string; amount: number };
 type PastReport = { from: string; through: string; days: number; count: number; toastTables: number; total: number; toastTablesTotal: number; deposits: PastDeposit[] };
-type GuestBalance = { key: string; name: string; email: string; phone: string; credits: number; debits: number; balance: number };
-type GuestLedger = { key: string; name: string; email: string; phone: string; entries: { date: string; visitDate: string; memo: string; credit: number; debit: number; balance: number }[] };
+type GuestBalance = { key: string; name: string; email: string; phone: string; credits: number; debits: number; balance: number; events?: { date: string; amount: number }[] };
+type GuestLedger = { key: string; name: string; email: string; phone: string; entries: { date: string; visitDate: string; eventDate?: string; memo: string; credit: number; debit: number; balance: number }[] };
 type LedgerReport = { from: string; through: string; days: number; customers: GuestBalance[] };
 
 type LiabilityMonth = {
@@ -366,7 +366,7 @@ function DsrFrame({ dsr, outstanding, guests }: { dsr: ReactNode; outstanding: R
         <Card>
           <CardHeader>
             <CardTitle>General Settings</CardTitle>
-            <CardDescription>From the uploaded Shogo mapping. The journal memo uses the POS date.</CardDescription>
+            <CardDescription>Saved with the daily sales mapping. The journal memo uses the POS date.</CardDescription>
           </CardHeader>
           <CardContent>{mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : <SettingsTable rows={data?.general ?? []} />}</CardContent>
         </Card>
@@ -708,7 +708,7 @@ export default function ToastSales() {
       <Card>
         <CardHeader>
           <CardTitle>Business date</CardTitle>
-          <CardDescription>Turn Shogo off for a date before posting that date here. A date Shogo already posted can still be corrected. The lines for the day show under this date.</CardDescription>
+          <CardDescription>Check one business date. The lines for that day show under this date.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-end gap-3">
@@ -803,7 +803,7 @@ export default function ToastSales() {
             <Card>
               <CardHeader>
                 <CardTitle>How to fix this day</CardTitle>
-                <CardDescription>The recommendation uses the Toast checks and the mapping. A deposit with no item on the check, in multiples of $20, is a tasting or a tour and is credited to Tours & Tastings.</CardDescription>
+                <CardDescription>The recommendation uses the Toast checks and the mapping. A deposit with no item on the check, in multiples of $20, is a tasting or a tour and is credited to Tours & Tastings. Open guest deposits of those same amounts are reduced so the guest list stays in balance.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {review.advice?.summary && <p>{review.advice.summary}</p>}
@@ -836,7 +836,7 @@ export default function ToastSales() {
                           <TableCell>{item.guest}</TableCell>
                           <TableCell className="text-right">{money(item.amount)}</TableCell>
                           <TableCell>{item.paidOn || item.status || "—"}</TableCell>
-                          <TableCell>{item.tastings ? `Credit Tours & Tastings for ${item.tastings} guests` : item.deposit ? "Deposit used with no sale" : "Use Correct this day"}</TableCell>
+                          <TableCell>{item.depositNote || (item.tastings ? `Credit Tours & Tastings for ${item.tastings} guests` : item.deposit ? "Deposit used with no sale" : "Use Correct this day")}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -994,7 +994,7 @@ export default function ToastSales() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Journals Shogo already posted stay as they are. This reads Toast from January 1 through yesterday and compares it with the balance on 214000. It treats January 1 as a zero start. The result is one journal for the whole difference. Reading the year takes several minutes.
+            Journals already in QuickBooks stay as they are. This reads Toast from January 1 through yesterday and compares it with the balance on 214000. It treats January 1 as a zero start. The result is one journal for the whole difference. Reading the year takes several minutes.
           </p>
           <Button onClick={() => liabilityReview.mutate()} disabled={liabilityReview.isPending} data-testid="button-deposit-liability">
             {liabilityReview.isPending ? liabilityProgress || "Reading Toast" : "Review guest deposits"}
@@ -1035,7 +1035,7 @@ export default function ToastSales() {
         <CardHeader>
           <CardTitle>Guest deposit ledger</CardTitle>
           <CardDescription>
-            Each guest keeps a running record. A deposit collected, or paid ahead of the visit, is a credit. Using that deposit on the visit is a debit. The balance is what that guest still has with us. Checking a sales date saves that day. Update from Toast reads January 1 through yesterday and replaces each saved day. Cash taken to the bank stays on the outstanding cash list, separate from this ledger.
+            Each guest keeps a running record. A deposit collected, or paid ahead of the visit, is a credit. Using that deposit on the visit is a debit. The balance is what that guest still has with us. Event is the reservation date, including a visit that has not happened yet. Checking a sales date saves that day. Update from Toast reads January 1 through yesterday and replaces each saved day. Cash taken to the bank stays on the outstanding cash list, separate from this ledger.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1052,6 +1052,7 @@ export default function ToastSales() {
                 <TableRow>
                   <TableHead>Guest</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Event</TableHead>
                   <TableHead className="text-right">Credits</TableHead>
                   <TableHead className="text-right">Debits</TableHead>
                   <TableHead className="text-right">Still held</TableHead>
@@ -1063,6 +1064,11 @@ export default function ToastSales() {
                   <TableRow key={guest.key}>
                     <TableCell>{guest.name}</TableCell>
                     <TableCell>{guest.email || guest.phone || "—"}</TableCell>
+                    <TableCell>
+                      {(guest.events || []).length === 0 ? "—" : (guest.events || []).map((event) => (
+                        <div key={event.date}>{event.date}{(guest.events || []).length > 1 ? ` · ${money(event.amount)}` : ""}</div>
+                      ))}
+                    </TableCell>
                     <TableCell className="text-right">{money(guest.credits)}</TableCell>
                     <TableCell className="text-right">{money(guest.debits)}</TableCell>
                     <TableCell className="text-right">{money(guest.balance)}</TableCell>
@@ -1075,7 +1081,7 @@ export default function ToastSales() {
                 ))}
                 {guestRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground">{guestNeedle ? "No guest matches." : "No guest still has a deposit. Update from Toast, or search a name to see a guest whose deposit is used up."}</TableCell>
+                    <TableCell colSpan={7} className="text-muted-foreground">{guestNeedle ? "No guest matches." : "No guest still has a deposit. Update from Toast, or search a name to see a guest whose deposit is used up."}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -1089,6 +1095,7 @@ export default function ToastSales() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
+                      <TableHead>Event</TableHead>
                       <TableHead>Visit</TableHead>
                       <TableHead>What happened</TableHead>
                       <TableHead className="text-right">Credit</TableHead>
@@ -1100,6 +1107,7 @@ export default function ToastSales() {
                     {(guestQuery.data?.entries ?? []).map((entry, index) => (
                       <TableRow key={`${entry.date}-${entry.memo}-${index}`}>
                         <TableCell>{entry.date}</TableCell>
+                        <TableCell>{entry.eventDate || entry.visitDate}</TableCell>
                         <TableCell>{entry.visitDate}</TableCell>
                         <TableCell>{entry.memo}</TableCell>
                         <TableCell className="text-right">{entry.credit ? money(entry.credit) : "—"}</TableCell>

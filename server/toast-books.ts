@@ -338,10 +338,16 @@ type CheckBreak = {
   paidOn: string;
   deposit: number;
   tastings: number | null;
+  customerKey: string;
+  email: string;
+  phone: string;
+  source: string;
+  reservationDate: string;
+  depositNote: string;
 };
 
 function unbalancedCheck(
-  order: Parameters<typeof guestIdentity>[0] & { businessDate?: string | number; tabName?: string },
+  order: Parameters<typeof guestIdentity>[0] & { businessDate?: string | number; tabName?: string; source?: string; promisedDate?: string; estimatedFulfillmentDate?: string },
   check: {
     displayNumber?: string;
     guid?: string;
@@ -435,6 +441,7 @@ function unbalancedCheck(
   if (!net) return null;
   const tastings = redemptionPrincipal > 0 && net > 0 && Math.abs(net - redemptionPrincipal) <= 1 && net % 2000 === 0 ? net / 2000 : null;
   const guest = guestIdentity(order, check);
+  const context = depositContext(order, stampToIso(orderDay) || businessDate);
   return {
     check: String(check.displayNumber || check.guid || ""),
     guest: guest.customerName,
@@ -444,6 +451,12 @@ function unbalancedCheck(
     paidOn: paidOn.filter((day, index) => day && paidOn.indexOf(day) === index).join(", "),
     deposit: money(redemptionPrincipal),
     tastings,
+    customerKey: guest.customerKey,
+    email: guest.email,
+    phone: guest.phone,
+    source: context.source,
+    reservationDate: context.reservationDate,
+    depositNote: "",
   };
 }
 
@@ -549,18 +562,18 @@ async function toastBuckets(businessDate: string) {
           const orderGuid = String(order.guid || "").slice(0, 80);
           const held = collected + Math.max(0, wash - redemptionPaid);
           const used = earlyPaid + Math.max(0, redemptionPaid - wash);
+          const gap = unbalancedCheck(order, check, businessDate, alternatePayments);
+          if (gap) breaks.push(gap);
           if (held > 0) {
             movements.push({ ...guest, businessDate, visitDate, reservationDate: context.reservationDate, source: context.source, direction: "credit", cents: held, memo: "Deposit collected", orderGuid });
           }
-          if (used > 0) {
+          if (used > 0 && !gap?.tastings) {
             movements.push({ ...guest, businessDate, visitDate, reservationDate: context.reservationDate, source: context.source, direction: "debit", cents: used, memo: "Deposit used", orderGuid });
           }
           if (String(check.paymentStatus || "").toUpperCase() === "OPEN") {
             const due = centsOf(check.totalAmount);
             if (due > tendered) openChecks += due - tendered;
           }
-          const gap = unbalancedCheck(order, check, businessDate, alternatePayments);
-          if (gap) breaks.push(gap);
         }
       }
       page += 1;
@@ -728,12 +741,12 @@ async function booksForDate(businessDate: string) {
   }
   const shogoJournals = journals.filter((journal) => journal.source === "shogo");
   const ourJournals = journals.filter((journal) => journal.source === "ours");
-  const actual = shogoJournals.length ? shogoActual : ourActual;
+  const actual = ourJournals.length ? ourActual : shogoActual;
   let cardRecordedCents = 0;
   let cashRecordedCents = 0;
   for (const journal of journalRows) {
     const doc = journal.DocNumber || "";
-    const chosen = shogoJournals.length ? shogoJournals.some((item) => item.id === journal.Id) : ourJournals.some((item) => item.id === journal.Id);
+    const chosen = ourJournals.length ? ourJournals.some((item) => item.id === journal.Id) : shogoJournals.some((item) => item.id === journal.Id);
     if (!chosen || doc.startsWith("TDLY-") || doc.startsWith("TDLC-")) continue;
     for (const line of journal.Line || []) {
       if (line.JournalEntryLineDetail?.PostingType !== "Debit") continue;
@@ -809,14 +822,14 @@ async function booksForDate(businessDate: string) {
   const entryBalance = ourEntry.reduce((sum, line) => sum + line.cents, 0);
   const correction = lines.filter((line) => line.correction !== 0);
   const hasOurs = ourJournals.some((journal) => journal.doc.startsWith("TOAST-"));
-  const hasShogo = shogoJournals.length > 0;
+  const otherDocs = shogoJournals.map((journal) => journal.doc).join(", ");
   let postBlock: string | null = null;
   if (businessDate < OPEN_YEAR) postBlock = "A 2025 or earlier day is not posted.";
   else if (unmapped.length) postBlock = "A Toast category or account in the mapping could not be matched, so nothing was posted.";
   else if (imbalance !== 0) postBlock = `Toast's day is out of balance by ${money(imbalance).toFixed(2)}. The missing piece has to be identified before it is posted.`;
   else if (entryBalance !== 0) postBlock = `The entry is out of balance by ${money(entryBalance).toFixed(2)}.`;
-  else if (hasOurs) postBlock = hasShogo
-    ? `Our journal and Shogo's journal are both in QuickBooks. Compare them and delete one.`
+  else if (hasOurs) postBlock = otherDocs
+    ? `QuickBooks has this day's journal and ${otherDocs}. Remove ${otherDocs} so the day is not recorded twice.`
     : "Our journal is already in QuickBooks for this date.";
   else if (!ourEntry.length) postBlock = "This date has no Toast sales to post.";
 
@@ -838,7 +851,7 @@ async function booksForDate(businessDate: string) {
     })),
     unmapped,
     plugNote,
-    matched: hasShogo && correction.length === 0 && !unmapped.length && !imbalance,
+    matched: (hasOurs || shogoJournals.length > 0) && correction.length === 0 && !unmapped.length && !imbalance,
     mode: hasOurs ? "posted" : "post-day",
     canPost: !postBlock && ourEntry.length > 0,
     postBlock,
@@ -856,12 +869,12 @@ async function booksForDate(businessDate: string) {
 
 function fallbackFinding(day: Awaited<ReturnType<typeof booksForDate>>) {
   const ours = day.ourJournals.map((journal) => journal.doc).join(", ");
-  const shogo = day.shogoJournals.map((journal) => journal.doc).join(", ");
+  const other = day.shogoJournals.map((journal) => journal.doc).join(", ");
   if (day.ourJournals.length && day.shogoJournals.length) {
     const gap = day.lines.find((line) => line.difference !== 0);
-    if (!gap) return `${day.date}: our journal ${ours} matches Shogo ${shogo}. Delete one of them so the day is not recorded twice.`;
+    if (!gap) return `${day.date}: ${ours} is posted. QuickBooks also has ${other}. Remove ${other} so the day is not recorded twice.`;
     const where = gap.className ? `${gap.accountName}, class ${gap.className}` : gap.accountName;
-    return `${day.date}: our journal ${ours} and Shogo ${shogo} are both in QuickBooks. The largest difference is ${gap.difference.toFixed(2)} on ${where}. Delete the journal you do not want to keep.`;
+    return `${day.date}: ${ours} is posted, and QuickBooks also has ${other}. The largest difference is ${gap.difference.toFixed(2)} on ${where}. Remove the extra journal so the day is not recorded twice.`;
   }
   if (day.matched) return `${day.date} matches the journal in QuickBooks.`;
   if (day.unmapped.length) {
@@ -875,8 +888,8 @@ function fallbackFinding(day: Awaited<ReturnType<typeof booksForDate>>) {
   const gap = day.lines.find((line) => line.difference !== 0);
   if (!gap) return day.postBlock || `${day.date} needs a look.`;
   const where = gap.className ? `${gap.accountName}, class ${gap.className}` : gap.accountName;
-  if (shogo && !ours) return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}. QuickBooks still has ${shogo}. Our journal is not posted yet.`;
-  return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}. Shogo is ${shogo || "not posted"}. Our journal is ${ours || "not posted yet"}.`;
+  if (other && !ours) return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}. QuickBooks still has ${other}. This day's journal is not posted yet.`;
+  return `${day.date} is off by ${gap.difference.toFixed(2)} on ${where}.`;
 }
 
 async function explainGap(day: Awaited<ReturnType<typeof booksForDate>>) {
@@ -900,7 +913,7 @@ async function explainGap(day: Awaited<ReturnType<typeof booksForDate>>) {
             unmapped: day.unmapped,
             plugNote: day.plugNote,
             postBlock: day.postBlock,
-            journals: day.journals,
+            journals: day.journals.map((journal) => ({ doc: journal.doc })),
             deposits: day.deposits,
             gaps: day.lines.filter((line) => line.difference !== 0).slice(0, 8),
           }),
@@ -1097,6 +1110,8 @@ export async function reviewToastDay(businessDate: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) throw new Error("Choose a business date.");
   const day = await booksForDate(businessDate);
   const advice = await explainDayAdvice(day);
+  const plan = await matchTastingDeposits(day.breaks, businessDate, []);
+  noteTastingDeposits(advice, plan);
   const finding = advice.recommendations.length ? advice.summary : await explainGap(day);
   const reviewed = publicDay(day, finding, advice);
   dayTalk.set(businessDate, { at: Date.now(), day: reviewed });
@@ -1112,15 +1127,270 @@ type DayChoice = {
   account: string;
 };
 
-function dayChoices(day: ReturnType<typeof publicDay>): DayChoice[] {
+type OpenGuestDeposit = {
+  customerKey: string;
+  name: string;
+  email: string;
+  phone: string;
+  source: string;
+  reservationDate: string;
+  amount: number;
+};
+
+type TastingDepositMatch = {
+  check: string;
+  checkGuest: string;
+  amount: number;
+  customerKey: string;
+  customerName: string;
+  email: string;
+  phone: string;
+  source: string;
+  reservationDate: string;
+  how: "name" | "amount" | "group" | "named";
+};
+
+type AmbiguousTasting = {
+  amount: number;
+  checks: { check: string; guest: string }[];
+  guests: { name: string; reservationDate: string; amount: number }[];
+};
+
+type TastingDepositPlan = {
+  matches: TastingDepositMatch[];
+  ambiguous: AmbiguousTasting[];
+  ledgerFrom: string;
+  ledgerThrough: string;
+  ledgerDays: number;
+};
+
+function guestNameKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function unknownGuestName(value: string) {
+  const name = guestNameKey(value);
+  return !name || name === "unknown guest";
+}
+
+function sameGuestName(left: string, right: string) {
+  const a = guestNameKey(left);
+  const b = guestNameKey(right);
+  if (!a || !b || unknownGuestName(left) || unknownGuestName(right)) return false;
+  if (a === b) return true;
+  const aParts = a.split(" ");
+  const bParts = b.split(" ");
+  return aParts.length >= 2 && bParts.length >= 2 && aParts[0] === bParts[0] && aParts[aParts.length - 1] === bParts[bParts.length - 1];
+}
+
+function mentionsGuest(messages: { role: string; content: string }[], name: string) {
+  const parts = guestNameKey(name).split(" ").filter((part) => part.length > 2);
+  if (!parts.length) return false;
+  const hay = ` ${messages.filter((item) => item.role === "user").map((item) => guestNameKey(item.content)).join(" ")} `;
+  if (parts.length >= 2) return parts.every((part) => hay.includes(` ${part} `));
+  return parts[0].length >= 4 && hay.includes(` ${parts[0]} `);
+}
+
+function tastingGuestSentence(plan: TastingDepositPlan) {
+  const parts: string[] = [];
+  if (!plan.ledgerDays) {
+    parts.push("The guest deposit list has not been read from Toast yet. Open Guest deposits and choose Update from Toast so these checks can be tied to a guest.");
+  } else if (plan.matches.length) {
+    parts.push(`Open guest deposits that match: ${plan.matches.map((item) => `${item.customerName} ${item.amount.toFixed(2)}`).join(", ")}. Crediting tours and tastings reduces those deposits.`);
+  }
+  for (const group of plan.ambiguous) {
+    const shown = group.guests.slice(0, 12);
+    const names = shown.map((item) => item.name).join(", ");
+    const extra = group.guests.length > shown.length ? `, and ${group.guests.length - shown.length} more` : "";
+    parts.push(`${group.checks.length} checks of ${group.amount.toFixed(2)} match more than one open deposit: ${names}${extra}. Those stay open until you name the guest.`);
+  }
+  if (plan.ledgerDays && !plan.matches.length && !plan.ambiguous.length) {
+    parts.push(`No open guest deposit matches these amounts. The saved guest list runs from ${plan.ledgerFrom || "the first saved day"} through ${plan.ledgerThrough || "the last saved day"}.`);
+  }
+  return parts.join(" ");
+}
+
+function tastingGuestReply(plan: TastingDepositPlan) {
+  const parts = ["These open checks are round tasting amounts, so the open guest deposits were searched."];
+  const sentence = tastingGuestSentence(plan);
+  if (sentence) parts.push(sentence);
+  parts.push("Press the button to credit Tours & Tastings and post the day. Each guest named here is reduced by the same dollars, so the guest list stays in balance with the journal.");
+  return parts.join(" ");
+}
+
+function noteTastingDeposits(advice: DayAdvice, plan: TastingDepositPlan) {
+  const named = new Map<string, TastingDepositMatch>();
+  for (const match of plan.matches) {
+    if (match.how === "group") continue;
+    named.set(`${match.check}|${match.amount.toFixed(2)}`, match);
+  }
+  for (const item of advice.checks) {
+    if (!item.tastings) continue;
+    const match = named.get(`${item.check}|${item.amount.toFixed(2)}`);
+    if (match) item.depositNote = `Reduce ${match.customerName}'s deposit and credit Tours & Tastings`;
+    else if (plan.ambiguous.some((group) => group.amount.toFixed(2) === item.amount.toFixed(2))) item.depositNote = "More than one guest has an open deposit for this amount";
+    else if (plan.matches.some((row) => row.how === "group" && row.amount.toFixed(2) === item.amount.toFixed(2))) item.depositNote = "Credit Tours & Tastings and reduce the open guest deposits of this amount";
+  }
+  const sentence = tastingGuestSentence(plan);
+  if (!sentence) return;
+  const tasting = advice.recommendations.find((item) => item.kind === "tasting");
+  if (tasting) tasting.detail = `${tasting.detail} ${sentence}`;
+  if (advice.summary) advice.summary = `${advice.summary} ${sentence}`;
+}
+
+async function openRoundDeposits(through: string) {
+  await ensureGuestDepositTables();
+  const coverage = await db.execute(sql`
+    SELECT MIN(business_date) AS start_date, MAX(business_date) AS through, COUNT(*)::int AS days
+    FROM accounting_guest_deposit_days
+  `);
+  const span = (coverage.rows[0] || {}) as { start_date?: string; through?: string; days?: number };
+  const result = await db.execute(sql`
+    SELECT customer_key,
+      COALESCE(NULLIF(reservation_date, ''), visit_date) AS reservation_date,
+      MAX(customer_name) AS customer_name,
+      MAX(NULLIF(email, '')) AS email,
+      MAX(NULLIF(phone, '')) AS phone,
+      MAX(NULLIF(source, '')) AS source,
+      SUM(CASE WHEN direction = 'credit' THEN amount ELSE 0 END) AS credits,
+      SUM(CASE WHEN direction = 'debit' THEN amount ELSE 0 END) AS debits
+    FROM accounting_guest_deposit_ledger
+    GROUP BY customer_key, COALESCE(NULLIF(reservation_date, ''), visit_date)
+  `);
+  const reconciled = await db.execute(sql`SELECT customer_key, reservation_date FROM accounting_guest_deposit_reconciles`);
+  const done = new Set((reconciled.rows as { customer_key: string; reservation_date: string }[]).map((row) => `${row.customer_key}|${row.reservation_date}`));
+  const deposits = (result.rows as { customer_key: string; reservation_date: string; customer_name: string; email: string | null; phone: string | null; source: string | null; credits: string; debits: string }[])
+    .map((row) => {
+      const credits = ledgerAmount(row.credits);
+      const debits = ledgerAmount(row.debits);
+      return {
+        customerKey: row.customer_key,
+        name: row.customer_name,
+        email: row.email || "",
+        phone: row.phone || "",
+        source: row.source || "Toast",
+        reservationDate: row.reservation_date,
+        amount: ledgerAmount(credits - debits),
+      };
+    })
+    .filter((row) => row.reservationDate >= OPEN_YEAR && row.reservationDate <= through && row.amount >= 20 && centsOf(row.amount) % 2000 === 0 && !done.has(`${row.customerKey}|${row.reservationDate}`))
+    .sort((left, right) => left.reservationDate.localeCompare(right.reservationDate) || left.name.localeCompare(right.name));
+  return {
+    from: span.start_date || "",
+    through: span.through || "",
+    days: Number(span.days || 0),
+    deposits,
+  };
+}
+
+function takeDeposit(pool: (OpenGuestDeposit & { used: boolean })[], deposit: OpenGuestDeposit & { used: boolean }, check: CheckBreak, how: TastingDepositMatch["how"], matches: TastingDepositMatch[]) {
+  deposit.used = true;
+  matches.push({
+    check: check.check,
+    checkGuest: check.guest,
+    amount: deposit.amount,
+    customerKey: deposit.customerKey,
+    customerName: deposit.name,
+    email: deposit.email,
+    phone: deposit.phone,
+    source: deposit.source,
+    reservationDate: deposit.reservationDate,
+    how,
+  });
+}
+
+async function matchTastingDeposits(checks: CheckBreak[], businessDate: string, messages: { role: string; content: string }[]): Promise<TastingDepositPlan> {
+  const empty: TastingDepositPlan = { matches: [], ambiguous: [], ledgerFrom: "", ledgerThrough: "", ledgerDays: 0 };
+  const tastings = checks.filter((item) => item.tastings && Math.abs(item.amount) >= 1);
+  if (!tastings.length) return empty;
+  const open = await openRoundDeposits(businessDate);
+  const pool = open.deposits.map((item) => ({ ...item, used: false }));
+  const matches: TastingDepositMatch[] = [];
+  const remaining = new Set(tastings.map((_, index) => index));
+  const claim = (index: number, deposit: OpenGuestDeposit & { used: boolean }, how: TastingDepositMatch["how"]) => {
+    remaining.delete(index);
+    takeDeposit(pool, deposit, tastings[index], how, matches);
+  };
+  tastings.forEach((check, index) => {
+    const deposit = pool.find((item) => !item.used && centsOf(item.amount) === centsOf(check.amount) && sameGuestName(check.guest, item.name));
+    if (deposit) claim(index, deposit, "name");
+  });
+  for (const deposit of pool) {
+    if (deposit.used || !mentionsGuest(messages, deposit.name)) continue;
+    const indexes = Array.from(remaining).filter((index) => centsOf(tastings[index].amount) === centsOf(deposit.amount));
+    if (indexes.length) claim(indexes[0], deposit, "named");
+  }
+  const amounts = new Set<number>();
+  remaining.forEach((index) => amounts.add(centsOf(tastings[index].amount)));
+  pool.forEach((item) => { if (!item.used) amounts.add(centsOf(item.amount)); });
+  const ambiguous: AmbiguousTasting[] = [];
+  const amountList = Array.from(amounts).sort((left, right) => left - right);
+  for (const cents of amountList) {
+    const checkIndexes = Array.from(remaining).filter((index) => centsOf(tastings[index].amount) === cents);
+    const deposits = pool.filter((item) => !item.used && centsOf(item.amount) === cents);
+    if (!checkIndexes.length || !deposits.length) continue;
+    if (deposits.length <= checkIndexes.length) {
+      deposits.forEach((deposit, index) => claim(checkIndexes[index], deposit, deposits.length === 1 ? "amount" : "group"));
+      continue;
+    }
+    ambiguous.push({
+      amount: money(cents),
+      checks: checkIndexes.map((index) => ({ check: tastings[index].check, guest: tastings[index].guest })),
+      guests: deposits.map((item) => ({ name: item.name, reservationDate: item.reservationDate, amount: item.amount })),
+    });
+  }
+  return { matches, ambiguous, ledgerFrom: open.from, ledgerThrough: open.through, ledgerDays: open.days };
+}
+
+async function applyTastingDepositUses(businessDate: string, doc: string, matches: TastingDepositMatch[]) {
+  await ensureGuestDepositTables();
+  const applied: string[] = [];
+  for (const match of matches) {
+    const prior = await db.execute(sql`
+      SELECT id FROM accounting_guest_deposit_reconciles
+      WHERE customer_key = ${match.customerKey} AND reservation_date = ${match.reservationDate}
+      LIMIT 1
+    `);
+    if (prior.rows.length) continue;
+    const memo = `Reservation date passed. Tasting on ${businessDate} check ${match.check}. Journal ${doc}`.slice(0, 200);
+    await db.execute(sql`
+      INSERT INTO accounting_guest_deposit_reconciles (id, customer_key, reservation_date, amount, journal_doc, guest_name)
+      VALUES (${randomUUID()}, ${match.customerKey}, ${match.reservationDate}, ${match.amount}, ${doc}, ${match.customerName})
+    `);
+    await db.execute(sql`
+      INSERT INTO accounting_guest_deposit_ledger (
+        id, business_date, visit_date, customer_key, customer_name, email, phone, direction, amount, memo, order_guid, source, reservation_date
+      ) VALUES (
+        ${randomUUID()},
+        ${businessDate},
+        ${match.reservationDate},
+        ${match.customerKey},
+        ${match.customerName},
+        ${match.email},
+        ${match.phone},
+        'debit',
+        ${match.amount},
+        ${memo},
+        '',
+        ${match.source},
+        ${match.reservationDate}
+      )
+    `);
+    applied.push(`${match.customerName} ${match.amount.toFixed(2)}`);
+  }
+  if (!applied.length) return "No open guest deposit was reduced.";
+  return `Guest deposits reduced: ${applied.join(", ")}.`;
+}
+
+function dayChoices(day: ReturnType<typeof publicDay>, plan: TastingDepositPlan): DayChoice[] {
   const choices: DayChoice[] = [];
-  const shogo = day.journals.filter((journal) => journal.source === "shogo").map((journal) => journal.doc).join(", ");
+  const other = day.journals.filter((journal) => journal.source === "shogo").map((journal) => journal.doc).join(", ");
   if (day.canPost) {
     choices.push({
       action: "post",
       label: "Post this day",
-      detail: shogo
-        ? `${day.date} balances. Posting writes our journal beside Shogo ${shogo}. Delete the Shogo journal after you compare them.`
+      detail: other
+        ? `${day.date} balances and can be posted. QuickBooks also has ${other}. Remove that journal after this one is posted so the day is not recorded twice.`
         : `${day.date} balances and can be posted.`,
       kind: "",
       name: "",
@@ -1132,10 +1402,11 @@ function dayChoices(day: ReturnType<typeof publicDay>): DayChoice[] {
   const credit = tastings.reduce((sum, item) => sum + centsOf(item.amount), 0);
   if (gap && credit > 0 && centsOf(gap[1]) === credit) {
     const guests = tastings.reduce((sum, item) => sum + (item.tastings || 0), 0);
+    const guestsFound = tastingGuestSentence(plan);
     choices.push({
       action: "credit-tastings",
-      label: "Credit tours and tastings, then post",
-      detail: `${tastings.length} open checks, ${guests} guests, total ${money(credit).toFixed(2)}. Crediting Tours & Tastings for that amount lets this day post.`,
+      label: plan.matches.length ? "Credit tours and tastings and reduce these guest deposits" : "Credit tours and tastings, then post",
+      detail: `${tastings.length} open checks, ${guests} guests, total ${money(credit).toFixed(2)}. Crediting Tours & Tastings for that amount lets this day post. ${guestsFound}`.trim(),
       kind: "",
       name: "",
       account: TASTING_ACCOUNT,
@@ -1175,12 +1446,12 @@ function cleanTalk(input: unknown) {
   });
 }
 
-function talkFacts(day: ReturnType<typeof publicDay>, choices: DayChoice[]) {
+function talkFacts(day: ReturnType<typeof publicDay>, choices: DayChoice[], plan: TastingDepositPlan) {
   return {
     date: day.date,
     canPost: day.canPost,
     postBlock: day.postBlock,
-    journals: day.journals.map((journal) => ({ doc: journal.doc, source: journal.source })),
+    journals: day.journals.map((journal) => ({ doc: journal.doc })),
     unmapped: day.unmapped,
     checks: day.breaks.filter((item) => Math.abs(item.amount) >= 1).slice(0, 15).map((item) => ({
       check: item.check,
@@ -1190,12 +1461,24 @@ function talkFacts(day: ReturnType<typeof publicDay>, choices: DayChoice[]) {
       tenders: item.tenders,
       deposit: item.deposit,
       tastings: item.tastings,
+      depositNote: item.depositNote,
     })),
+    depositPlan: {
+      ledgerDays: plan.ledgerDays,
+      ledgerFrom: plan.ledgerFrom,
+      ledgerThrough: plan.ledgerThrough,
+      matches: plan.matches.map((item) => ({ guest: item.customerName, amount: item.amount, check: item.check, reservationDate: item.reservationDate })),
+      ambiguous: plan.ambiguous.map((group) => ({
+        amount: group.amount,
+        checks: group.checks,
+        guests: group.guests.slice(0, 12).map((item) => ({ guest: item.name, amount: item.amount, reservationDate: item.reservationDate })),
+      })),
+    },
     choices: choices.map((choice) => ({ action: choice.action, name: choice.name, detail: choice.detail })),
   };
 }
 
-function knownTalkAmounts(day: ReturnType<typeof publicDay>, choices: DayChoice[]) {
+function knownTalkAmounts(day: ReturnType<typeof publicDay>, choices: DayChoice[], plan: TastingDepositPlan) {
   const amounts = new Set<string>();
   const add = (value: number | string | null | undefined) => {
     const parsed = typeof value === "number" ? value : Number(value);
@@ -1208,6 +1491,11 @@ function knownTalkAmounts(day: ReturnType<typeof publicDay>, choices: DayChoice[
   });
   day.unmapped.forEach((item) => add(item.amount));
   choices.forEach((choice) => (choice.detail.match(/\d+\.\d{2}/g) || []).forEach(add));
+  plan.matches.forEach((item) => add(item.amount));
+  plan.ambiguous.forEach((group) => {
+    add(group.amount);
+    group.guests.forEach((item) => add(item.amount));
+  });
   (day.postBlock?.match(/\d+\.\d{2}/g) || []).forEach(add);
   return amounts;
 }
@@ -1236,7 +1524,8 @@ export async function discussToastDay(businessDate: string, input: unknown) {
   if (!messages.some((item) => item.role === "user")) throw new Error("Say what you know about this day.");
   const cached = dayTalk.get(businessDate);
   const day = cached && Date.now() - cached.at < 10 * 60 * 1000 ? cached.day : await reviewToastDay(businessDate);
-  const choices = dayChoices(day);
+  const plan = await matchTastingDeposits(day.breaks, businessDate, messages);
+  const choices = dayChoices(day, plan);
   const fallbackChoice = day.canPost ? choices.find((choice) => choice.action === "post") : choices.find((choice) => choice.action === "ask-manager");
   const fallback = day.canPost
     ? `${businessDate} balances. Press Post this day when you are ready.`
@@ -1254,9 +1543,9 @@ export async function discussToastDay(businessDate: string, input: unknown) {
       messages: [
         {
           role: "system",
-          content: "You help a winery employee who is not an accountant correct one Toast daily sales day. Use only the JSON facts. Write reply in 2 to 4 short sentences, plain words, no journal instructions they would have to type. Choose action only from choices. Use post only when canPost is true and the person is ready for the journal to be written. Use credit-tastings only when that choice exists and the person agrees those checks are tours or tastings. Use map only when that choice exists and the person agrees to that account; set name to the Toast name. Use ask-manager when the missing piece is not one of the choices, and tell them to ask the accounting manager. Use none when you only need another fact. Do not invent guests, checks, or amounts. Return JSON with reply, action, and name.",
+          content: "You help a winery employee who is not an accountant correct one Toast daily sales day. Use only the JSON facts. Write reply in 2 to 4 short sentences, plain words, no journal instructions they would have to type. Choose action only from choices. Use post only when canPost is true and the person is ready for the journal to be written. Use credit-tastings only when that choice exists and the person agrees those checks are tours or tastings, including when they also want the guest deposits reduced. depositPlan.matches are the open guest deposits that will be reduced by the same dollars. Name those guests and amounts. depositPlan.ambiguous lists amounts that fit more than one guest. Name those guests and say those deposits stay open until the person names the guest. Do not use ask-manager just because the person asked to find the customers. Use map only when that choice exists and the person agrees to that account; set name to the Toast name. Use ask-manager when the missing piece is not one of the choices, and tell them to ask the accounting manager. Use none when you only need another fact, such as which guest an open deposit belongs to. Do not invent guests, checks, or amounts. Return JSON with reply, action, and name.",
         },
-        { role: "user", content: JSON.stringify({ facts: talkFacts(day, choices), conversation: messages }) },
+        { role: "user", content: JSON.stringify({ facts: talkFacts(day, choices, plan), conversation: messages }) },
       ],
     });
     const parsed = JSON.parse(response.choices[0]?.message?.content || "{}") as { reply?: unknown; action?: unknown; name?: unknown };
@@ -1268,12 +1557,24 @@ export async function discussToastDay(businessDate: string, input: unknown) {
       name = allowed.name;
     }
     const text = String(parsed.reply || "").trim();
-    const known = knownTalkAmounts(day, choices);
+    const known = knownTalkAmounts(day, choices, plan);
     const used = text.match(/\d+\.\d{2}/g) || [];
     if (text && used.every((amount) => known.has(amount))) reply = text;
   } catch (error) {
     console.warn("[Toast DSR] the day conversation was not written:", error instanceof Error ? error.message : error);
     action = fallbackChoice?.action || "ask-manager";
+  }
+  const latestUser = [...messages].reverse().find((item) => item.role === "user")?.content || "";
+  const askedForGuests = /deposit|guest|customer|find the|who paid|which guest/i.test(latestUser);
+  const askedForManager = /accounting manager|email the manager/i.test(latestUser);
+  const tastingChoice = choices.find((choice) => choice.action === "credit-tastings");
+  if (tastingChoice && askedForGuests && !askedForManager && action === "ask-manager") {
+    action = "credit-tastings";
+    name = "";
+    reply = tastingGuestReply(plan);
+  } else if (action === "credit-tastings") {
+    const sentence = tastingGuestSentence(plan);
+    if (sentence && !/guest deposit/i.test(reply)) reply = `${reply} ${sentence}`;
   }
   const proposal = action === "none" ? null : choices.find((choice) => choice.action === action && (action !== "map" || choice.name === name)) || null;
   return { reply, proposal };
@@ -1281,8 +1582,16 @@ export async function discussToastDay(businessDate: string, input: unknown) {
 
 export async function applyToastDayChoice(businessDate: string, action: string, name = "", input: unknown = []) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) throw new Error("Choose a business date.");
+  const messages = cleanTalk(input);
   const day = await reviewToastDay(businessDate);
-  const choice = dayChoices(day).find((item) => item.action === action && (action !== "map" || item.name === name));
+  const plan = await matchTastingDeposits(day.breaks, businessDate, messages);
+  const choice = dayChoices(day, plan).find((item) => item.action === action && (action !== "map" || item.name === name));
+  if (!choice && action === "credit-tastings" && day.ourJournals.some((journal) => journal.doc.startsWith("TOAST-"))) {
+    const doc = day.ourJournals.find((journal) => journal.doc.startsWith("TOAST-"))?.doc || "";
+    const ledgerNote = await applyTastingDepositUses(businessDate, doc, plan.matches);
+    dayTalk.delete(businessDate);
+    return { reply: `${doc} is already posted. ${ledgerNote}`, proposal: null };
+  }
   if (!choice) throw new Error("That correction is not available for this day.");
   if (choice.action === "post") {
     const posted = await postToastDay(businessDate);
@@ -1291,8 +1600,16 @@ export async function applyToastDayChoice(businessDate: string, action: string, 
   }
   if (choice.action === "credit-tastings") {
     const posted = await postToastDay(businessDate, { creditTastings: true });
+    let ledgerNote = "No open guest deposit was reduced.";
+    try {
+      ledgerNote = await applyTastingDepositUses(businessDate, posted.doc, plan.matches);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Posted ${posted.doc}. The guest deposits were not fully reduced. Do not post this day again. ${message}`);
+    }
     dayTalk.delete(businessDate);
-    return { reply: `Credited Tours & Tastings and posted ${posted.doc}.`, proposal: null };
+    const stillOpen = plan.ambiguous.length ? ` ${tastingGuestSentence({ ...plan, matches: [], ledgerDays: plan.ledgerDays })}` : "";
+    return { reply: `Credited Tours & Tastings and posted ${posted.doc}. ${ledgerNote}${stillOpen}`, proposal: null };
   }
   if (choice.action === "map") {
     assignToastSalesName(choice.kind, choice.name, choice.account);
@@ -1365,12 +1682,33 @@ type DepositRow = {
   dsrNote: string;
 };
 
+function feeMissingFromJournal(row: DepositRow) {
+  let missing = 0;
+  row.gaps.forEach((gap) => {
+    if (!/fee/i.test(gap.accountName)) return;
+    missing += centsOf(gap.depositJournal) - centsOf(gap.salesPosting);
+  });
+  return missing;
+}
+
+function feeInsideCardDeposit(row: DepositRow) {
+  const cardGap = centsOf(row.cardDeposit) - centsOf(row.cardJournal);
+  const missing = feeMissingFromJournal(row);
+  if (cardGap <= DEPOSIT_MATCH_CENTS || missing <= DEPOSIT_MATCH_CENTS) return 0;
+  if (Math.abs(missing - cardGap) > 100) return 0;
+  return missing;
+}
+
 function postingAdjustment(row: DepositRow) {
   const cardGap = centsOf(row.cardDeposit) - centsOf(row.cardJournal);
+  const feeInside = feeInsideCardDeposit(row);
+  if (feeInside) {
+    return `Credit the card line and debit the Toast fee for ${money(feeInside).toFixed(2)}. Do not add to the card line. Sales accounts that differ only by class are the same revenue. Do not adjust those.`;
+  }
   if (cardGap > DEPOSIT_MATCH_CENTS) {
     return `Debit the card line on the ${row.date} sales posting ${money(cardGap).toFixed(2)} so it matches the card deposit of ${row.cardDeposit.toFixed(2)}. Sales accounts that differ only by class are the same revenue. Do not adjust those.`;
   }
-  if (cardGap >= -DEPOSIT_MATCH_CENTS) return "Sales accounts that differ only by class are the same revenue. Do not adjust those to balance the deposit.";
+  if (cardGap >= -DEPOSIT_MATCH_CENTS) return "";
   const short = Math.abs(cardGap);
   const fees: { accountName: string; cents: number }[] = [];
   const feeTotals = new Map<string, number>();
@@ -1673,21 +2011,28 @@ export async function reviewDeposits(through: string, days: number) {
     const nextCash = next && next.cashDeposit != null ? centsOf(next.cashDeposit) - centsOf(next.cashJournal) : null;
     const cashOffsets = nextCash != null && Math.abs(cashShort) > DEPOSIT_MATCH_CENTS && Math.abs(cashShort + nextCash) <= DEPOSIT_MATCH_CENTS;
     const cashUnmatched = row.cashAtBank == null && centsOf(row.cashJournal) > DEPOSIT_MATCH_CENTS;
-    const cashNote = cashUnmatched
-      ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} DSR is unmatched at the bank. Leave the sales posting alone until that cash is taken to the bank.`
-      : row.splitsLabeled && !cashOffsets && cashShort < -DEPOSIT_MATCH_CENTS
-        ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} sales posting is not in the deposit yet (${row.cashDeposit.toFixed(2)} deposited). Leave the sales posting alone until that cash is taken to the bank.`
-        : "";
+    const cashNote = Math.abs(cashShort) > DEPOSIT_MATCH_CENTS
+      ? `Cash on the sales journal is ${row.cashDeposit.toFixed(2)} and cash on the DSR is ${row.cashJournal.toFixed(2)}.${cashUnmatched ? " That cash has not been marked as taken to the bank." : ""}`
+      : cashUnmatched
+        ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} DSR is unmatched at the bank. Leave the sales posting alone until that cash is taken to the bank.`
+        : row.splitsLabeled && !cashOffsets && cashShort < -DEPOSIT_MATCH_CENTS
+          ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} sales posting is not in the deposit yet (${row.cashDeposit.toFixed(2)} deposited). Leave the sales posting alone until that cash is taken to the bank.`
+          : "";
     const adjustment = row.status === "timing" ? "" : postingAdjustment(row);
     const postingNote = adjustment
       ? `To balance the posting: ${adjustment} Do not book this difference to Toast Deposit in Transit.`
       : "";
-    const cashWords = row.cashAtBank == null && centsOf(row.cashJournal) > DEPOSIT_MATCH_CENTS
-      ? `cash ${row.cashJournal.toFixed(2)} on the DSR is unmatched at the bank`
-      : `cash ${row.cashDeposit.toFixed(2)} against ${row.cashJournal.toFixed(2)}`;
-    const which = row.splitsLabeled
-      ? `The deposit that belongs to the ${row.date} sales posting shows cards ${row.cardDeposit.toFixed(2)} against ${row.cardJournal.toFixed(2)} on the posting, and ${cashWords}.`
-      : "";
+    const cashWords = Math.abs(cashShort) > DEPOSIT_MATCH_CENTS
+      ? `cash ${row.cashDeposit.toFixed(2)} on the sales journal against ${row.cashJournal.toFixed(2)} on the DSR`
+      : row.cashAtBank == null && centsOf(row.cashJournal) > DEPOSIT_MATCH_CENTS
+        ? `cash ${row.cashJournal.toFixed(2)} on the DSR is unmatched at the bank`
+        : `cash ${row.cashDeposit.toFixed(2)} against ${row.cashJournal.toFixed(2)}`;
+    const feeInside = feeInsideCardDeposit(row);
+    const which = feeInside
+      ? `Cards are ${row.cardDeposit.toFixed(2)} on the sales journal. ${money(feeInside).toFixed(2)} of that is the Toast fee, so the card amount that reaches the bank is ${row.cardJournal.toFixed(2)}.`
+      : row.splitsLabeled
+        ? `The deposit that belongs to the ${row.date} sales posting shows cards ${row.cardDeposit.toFixed(2)} against ${row.cardJournal.toFixed(2)} on the posting, and ${cashWords}.`
+        : "";
     const suggestion = [which, row.suggestion, cashNote, postingNote].filter(Boolean).join(" ");
     if (suggestion) {
       row.suggestion = suggestion;
@@ -1698,7 +2043,7 @@ export async function reviewDeposits(through: string, days: number) {
   for (const row of rows) {
     if (row.cashAtBank != null || centsOf(row.cashJournal) <= DEPOSIT_MATCH_CENTS) continue;
     const line = `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} DSR is unmatched at the bank.`;
-    if (row.suggestion.includes(line) || row.note.includes(line)) continue;
+    if (row.suggestion.includes(line) || row.note.includes(line) || row.note.includes("taken to the bank")) continue;
     row.suggestion = [row.suggestion, line].filter(Boolean).join(" ");
     if (!row.note.includes("unmatched at the bank")) row.note = [row.note, line].filter(Boolean).join(" ");
   }
@@ -2035,7 +2380,9 @@ function depositFinding(row: DepositRow) {
   const cardGap = centsOf(row.cardDeposit) - centsOf(row.cardJournal);
   const cashGap = centsOf(row.cashDeposit) - centsOf(row.cashJournal);
   const lines: string[] = [];
-  if (Math.abs(cardGap) <= DEPOSIT_MATCH_CENTS) lines.push("Cards match.");
+  const feeInside = feeInsideCardDeposit(row);
+  if (feeInside) lines.push(`The card line still includes the Toast fee of ${usd(money(feeInside))}. After that fee, cards match.`);
+  else if (Math.abs(cardGap) <= DEPOSIT_MATCH_CENTS) lines.push("Cards match.");
   else lines.push(cardGap < 0 ? `The card deposit is ${usd(money(Math.abs(cardGap)))} lower than the sales journal.` : `The card deposit is ${usd(money(cardGap))} higher than the sales journal.`);
   if (Math.abs(cashGap) <= DEPOSIT_MATCH_CENTS) lines.push("Cash matches.");
   else lines.push(cashGap < 0 ? `The cash deposit is ${usd(money(Math.abs(cashGap)))} lower than the sales journal.` : `The cash deposit is ${usd(money(cashGap))} higher than the sales journal.`);
@@ -2053,7 +2400,10 @@ function depositRecommendation(row: DepositRow) {
   const steps: string[] = [];
   const when = longDate(row.date);
   const cardGap = centsOf(row.cardDeposit) - centsOf(row.cardJournal);
-  if (cardGap > DEPOSIT_MATCH_CENTS) {
+  const feeInside = feeInsideCardDeposit(row);
+  if (feeInside) {
+    steps.push(`The card line of ${usd(row.cardDeposit)} still includes the Toast fee of ${usd(money(feeInside))}. After that fee, cards match ${usd(row.cardJournal)}. Credit the card line and debit the Toast fee for ${usd(money(feeInside))}. Do not add to the card line.`);
+  } else if (cardGap > DEPOSIT_MATCH_CENTS) {
     steps.push(`Debit the card line on the ${when} sales journal by ${usd(money(cardGap))} so it matches the card deposit of ${usd(row.cardDeposit)}.`);
   } else if (cardGap < -DEPOSIT_MATCH_CENTS) {
     const short = Math.abs(cardGap);
@@ -2351,15 +2701,15 @@ async function postToastDayOnce(businessDate: string, options?: { creditTastings
   if (existing.length) {
     throw new Error(`${doc} is already in QuickBooks for this date.`);
   }
-  const shogo = day.shogoJournals.map((journal) => journal.doc).join(", ");
+  const other = day.shogoJournals.map((journal) => journal.doc).join(", ");
   const tastingNote = tastingCredit
     ? ` Tours and tastings credited ${money(tastingCredit.credit).toFixed(2)} for ${tastingCredit.guests} guests on ${tastingCredit.checks} open checks.`
     : "";
   const entry = await postQuickBooks("/journalentry", {
     TxnDate: businessDate,
     DocNumber: doc,
-    PrivateNote: shogo
-      ? `CT. Toast sales for POS date ${businessDate}. Our journal, posted beside Shogo ${shogo} so the two can be compared. Delete one.${tastingNote}`
+    PrivateNote: other
+      ? `CT. Toast sales for POS date ${businessDate}. QuickBooks also has ${other}. Remove that journal so the day is not recorded twice.${tastingNote}`
       : `CT. Toast sales for POS date ${businessDate}.${tastingNote}`,
     Line: day.ourEntry.map((line) => ({
       Amount: money(Math.abs(line.cents)),
@@ -2959,6 +3309,23 @@ export async function guestDepositLedger(search: string) {
     FROM accounting_guest_deposit_ledger
     GROUP BY customer_key
   `);
+  const eventRows = await db.execute(sql`
+    SELECT customer_key,
+      COALESCE(NULLIF(reservation_date, ''), visit_date) AS reservation_date,
+      SUM(CASE WHEN direction = 'credit' THEN amount ELSE 0 END) AS credits,
+      SUM(CASE WHEN direction = 'debit' THEN amount ELSE 0 END) AS debits
+    FROM accounting_guest_deposit_ledger
+    GROUP BY customer_key, COALESCE(NULLIF(reservation_date, ''), visit_date)
+  `);
+  const eventsByGuest = new Map<string, { date: string; amount: number }[]>();
+  for (const row of eventRows.rows as { customer_key: string; reservation_date: string; credits: string; debits: string }[]) {
+    const amount = ledgerAmount(ledgerAmount(row.credits) - ledgerAmount(row.debits));
+    if (amount < 0.01 || !row.reservation_date) continue;
+    const events = eventsByGuest.get(row.customer_key) || [];
+    events.push({ date: row.reservation_date, amount });
+    eventsByGuest.set(row.customer_key, events);
+  }
+  eventsByGuest.forEach((events) => events.sort((left, right) => left.date.localeCompare(right.date)));
   const needle = search.trim().toLowerCase();
   const customers = (result.rows as { customer_key: string; customer_name: string; email: string | null; phone: string | null; credits: string; debits: string }[])
     .map((row) => {
@@ -2972,6 +3339,7 @@ export async function guestDepositLedger(search: string) {
         credits,
         debits,
         balance: ledgerAmount(credits - debits),
+        events: eventsByGuest.get(row.customer_key) || [],
       };
     })
     .filter((row) => {
@@ -2992,12 +3360,12 @@ export async function guestDepositEntries(customerKey: string) {
   if (!key) throw new Error("Choose a guest.");
   await ensureGuestDepositTables();
   const result = await db.execute(sql`
-    SELECT business_date, visit_date, customer_name, email, phone, direction, amount, memo
+    SELECT business_date, visit_date, reservation_date, customer_name, email, phone, direction, amount, memo
     FROM accounting_guest_deposit_ledger
     WHERE customer_key = ${key}
     ORDER BY business_date, direction DESC, memo
   `);
-  const rows = result.rows as { business_date: string; visit_date: string; customer_name: string; email: string; phone: string; direction: string; amount: string; memo: string }[];
+  const rows = result.rows as { business_date: string; visit_date: string; reservation_date: string; customer_name: string; email: string; phone: string; direction: string; amount: string; memo: string }[];
   let running = 0;
   const entries = rows.map((row) => {
     const amount = ledgerAmount(row.amount);
@@ -3007,6 +3375,7 @@ export async function guestDepositEntries(customerKey: string) {
     return {
       date: row.business_date,
       visitDate: row.visit_date,
+      eventDate: row.reservation_date || row.visit_date,
       memo: row.memo,
       credit,
       debit,
