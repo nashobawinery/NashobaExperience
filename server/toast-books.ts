@@ -1358,6 +1358,7 @@ type DepositRow = {
   cardDeposit: number;
   cashJournal: number;
   cashDeposit: number;
+  cashAtBank: number | null;
   gaps: DepositGap[];
   splitsLabeled: boolean;
   synced: boolean;
@@ -1407,6 +1408,7 @@ function emptyDeposit(date: string, orderCount: number, journalDeposit: number, 
     cardDeposit: 0,
     cashJournal: 0,
     cashDeposit: 0,
+    cashAtBank: null,
     gaps: [],
     splitsLabeled: false,
     synced: false,
@@ -1607,6 +1609,24 @@ export async function reviewDeposits(through: string, days: number) {
     };
   });
 
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS accounting_toast_deposit_clears (
+      id varchar PRIMARY KEY,
+      business_date varchar NOT NULL,
+      kind varchar NOT NULL,
+      amount numeric NOT NULL,
+      deposited_on varchar NOT NULL,
+      created_at timestamp DEFAULT now()
+    )
+  `);
+  const clearedCash = await db.execute(sql`SELECT business_date, amount FROM accounting_toast_deposit_clears WHERE kind = 'cash'`);
+  const cashAtBank = new Map((clearedCash.rows as { business_date: string; amount: string }[]).map((row) => [row.business_date, Number(row.amount)]));
+  for (const row of rows) {
+    if (centsOf(row.cashJournal) <= DEPOSIT_MATCH_CENTS) row.cashAtBank = 0;
+    else if (cashAtBank.has(row.date)) row.cashAtBank = cashAtBank.get(row.date) ?? 0;
+    else row.cashAtBank = null;
+  }
+
   const timingNote = (kind: string, amount: string, shortDate: string, overDate: string) =>
     `The ${kind} deposit of ${amount} belongs to the ${shortDate} sales posting and arrived with the ${overDate} deposit. Debit Toast Deposit in Transit ${amount} on ${shortDate} and credit it on ${overDate}. Do not change the sales accounts.`;
 
@@ -1652,20 +1672,60 @@ export async function reviewDeposits(through: string, days: number) {
     const cashShort = centsOf(row.cashDeposit) - centsOf(row.cashJournal);
     const nextCash = next && next.cashDeposit != null ? centsOf(next.cashDeposit) - centsOf(next.cashJournal) : null;
     const cashOffsets = nextCash != null && Math.abs(cashShort) > DEPOSIT_MATCH_CENTS && Math.abs(cashShort + nextCash) <= DEPOSIT_MATCH_CENTS;
-    const cashNote = row.splitsLabeled && !cashOffsets && cashShort < -DEPOSIT_MATCH_CENTS
-      ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} sales posting is not in the deposit yet (${row.cashDeposit.toFixed(2)} deposited). Leave the sales posting alone until that cash is taken to the bank.`
-      : "";
+    const cashUnmatched = row.cashAtBank == null && centsOf(row.cashJournal) > DEPOSIT_MATCH_CENTS;
+    const cashNote = cashUnmatched
+      ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} DSR is unmatched at the bank. Leave the sales posting alone until that cash is taken to the bank.`
+      : row.splitsLabeled && !cashOffsets && cashShort < -DEPOSIT_MATCH_CENTS
+        ? `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} sales posting is not in the deposit yet (${row.cashDeposit.toFixed(2)} deposited). Leave the sales posting alone until that cash is taken to the bank.`
+        : "";
     const adjustment = row.status === "timing" ? "" : postingAdjustment(row);
     const postingNote = adjustment
       ? `To balance the posting: ${adjustment} Do not book this difference to Toast Deposit in Transit.`
       : "";
+    const cashWords = row.cashAtBank == null && centsOf(row.cashJournal) > DEPOSIT_MATCH_CENTS
+      ? `cash ${row.cashJournal.toFixed(2)} on the DSR is unmatched at the bank`
+      : `cash ${row.cashDeposit.toFixed(2)} against ${row.cashJournal.toFixed(2)}`;
     const which = row.splitsLabeled
-      ? `The deposit that belongs to the ${row.date} sales posting shows cards ${row.cardDeposit.toFixed(2)} against ${row.cardJournal.toFixed(2)} on the posting, and cash ${row.cashDeposit.toFixed(2)} against ${row.cashJournal.toFixed(2)}.`
+      ? `The deposit that belongs to the ${row.date} sales posting shows cards ${row.cardDeposit.toFixed(2)} against ${row.cardJournal.toFixed(2)} on the posting, and ${cashWords}.`
       : "";
     const suggestion = [which, row.suggestion, cashNote, postingNote].filter(Boolean).join(" ");
     if (suggestion) {
       row.suggestion = suggestion;
       row.note = suggestion;
+    }
+  }
+
+  for (const row of rows) {
+    if (row.cashAtBank != null || centsOf(row.cashJournal) <= DEPOSIT_MATCH_CENTS) continue;
+    const line = `Cash of ${row.cashJournal.toFixed(2)} on the ${row.date} DSR is unmatched at the bank.`;
+    if (row.suggestion.includes(line) || row.note.includes(line)) continue;
+    row.suggestion = [row.suggestion, line].filter(Boolean).join(" ");
+    if (!row.note.includes("unmatched at the bank")) row.note = [row.note, line].filter(Boolean).join(" ");
+  }
+
+  const cardGap = (row: DepositRow) => centsOf(row.cardDeposit) - centsOf(row.cardJournal);
+  const comparable = rows.filter((row) => row.status !== "quiet");
+  for (let index = 0; index < comparable.length; index += 1) {
+    const earlier = comparable[index];
+    const short = cardGap(earlier);
+    if (short >= -DEPOSIT_MATCH_CENTS) continue;
+    for (let laterIndex = index + 1; laterIndex < comparable.length; laterIndex += 1) {
+      const later = comparable[laterIndex];
+      const apart = Math.round((Date.parse(`${later.date}T00:00:00Z`) - Date.parse(`${earlier.date}T00:00:00Z`)) / 86400000);
+      if (apart > 3) break;
+      const over = cardGap(later);
+      if (over <= DEPOSIT_MATCH_CENTS) continue;
+      if (Math.abs(short + over) > 100) continue;
+      const amount = Math.abs(money(short)).toFixed(2);
+      const line = `Cards are short ${amount} on ${earlier.date} and over ${money(over).toFixed(2)} on ${later.date}. That is a credit card processing delay. Debit Toast Deposit in Transit ${amount} on ${earlier.date} and credit it on ${later.date}. Do not change the sales accounts.`;
+      for (const row of [earlier, later]) {
+        if (row.suggestion.includes("credit card processing delay") || row.suggestion.includes("belongs to the")) continue;
+        const withoutPostingChange = row.suggestion.replace(/To balance the posting:[\s\S]*?Do not book this difference to Toast Deposit in Transit\./g, "").replace(/\s+/g, " ").trim();
+        row.suggestion = [line, withoutPostingChange].filter(Boolean).join(" ");
+        row.note = row.suggestion;
+        if (row.status === "mismatch") row.status = "timing";
+      }
+      break;
     }
   }
 
@@ -1825,24 +1885,27 @@ async function explainDeposits(rows: DepositRow[]) {
       messages: [
         {
           role: "system",
-          content: "You email a bookkeeper when a bank deposit does not match the Toast sales posting. The sales posting is created first and the deposit arrives later. Use only the JSON. Repeat the suggestion's debit or credit and every dollar amount. A card or cash amount that is short on one sales date and over on the next by the same amount belongs to the earlier posting: debit Toast Deposit in Transit on the short date and credit it on the later date, and do not change sales. Cash that is short and not made up the next day stays in the drawer. A fee named in the suggestion is part of the card difference. Do not change a sales account because the class is different. Two to five sentences. Do not invent amounts.",
+          content: "You explain deposit differences to a bookkeeper. The days are in date order. cardOverUnder is cards at the bank minus cards on the daily sales report: negative means the bank is short, positive means the bank is over. Read consecutive days. A negative card amount followed within three days by a positive card amount of about the same dollars is a credit card processing delay. Name both dates and both amounts, and say to debit Toast Deposit in Transit on the short date and credit it on the later date. Do not change the sales accounts for that pair. A difference that is not followed by an opposite amount stays on that day: repeat the suggestion. Cash that is unmatched stays in the drawer. Use only amounts present in the JSON. Three to six sentences.",
         },
         {
           role: "user",
-          content: JSON.stringify(actionable.map((row) => ({
+          content: JSON.stringify(rows.map((row) => ({
             date: row.date,
+            cardOverUnder: money(centsOf(row.cardDeposit) - centsOf(row.cardJournal)),
             suggestion: row.suggestion,
             cardOnSalesPosting: row.cardJournal,
             cardOnDeposit: row.cardDeposit,
             cashOnSalesPosting: row.cashJournal,
-            cashOnDeposit: row.cashDeposit,
+            cashOnDeposit: row.cashAtBank,
           }))),
         },
       ],
     });
     const text = response.choices[0]?.message?.content?.trim();
-    const amounts = fallback.match(/\d+\.\d{2}/g) || [];
-    if (!text || amounts.some((amount) => !text.includes(amount))) return fallback;
+    const known = new Set<string>(fallback.match(/\d+\.\d{2}/g) || []);
+    rows.forEach((row) => known.add(Math.abs(money(centsOf(row.cardDeposit) - centsOf(row.cardJournal))).toFixed(2)));
+    const used = text?.match(/\d+\.\d{2}/g) || [];
+    if (!text || used.some((amount) => !known.has(amount))) return fallback;
     return text;
   } catch {
     return fallback;

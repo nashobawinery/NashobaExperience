@@ -56,6 +56,7 @@ type DepositRow = {
   cardDeposit: number;
   cashJournal: number;
   cashDeposit: number;
+  cashAtBank?: number | null;
 };
 
 function money(value: number) {
@@ -1239,7 +1240,7 @@ export default function ToastSales() {
         <Card>
           <CardHeader>
             <CardTitle>Deposits against the journal</CardTitle>
-            <CardDescription>The sales posting is in before the bank deposit. Cards and cash are compared separately. When one day is short and the next day is over by the same card or cash amount, that deposit belongs to the earlier sales posting and the suggestion is to hold it in Toast Deposit in Transit. When they do not wash out, the suggestion names the account to debit or credit so the posting balances. Cash that has not gone to the bank yet is left on the sales posting.</CardDescription>
+            <CardDescription>The sales posting is in before the bank deposit. Cards and cash are compared separately. When one day is short and the next day is over by the same card or cash amount, that deposit belongs to the earlier sales posting and the suggestion is to hold it in Toast Deposit in Transit. When they do not wash out, the suggestion names the account to debit or credit so the posting balances. Cash that has not gone to the bank yet is left on the sales posting. Cash - Bank says Unmatched until that cash is marked taken to the bank. Cards can still show the amount that reached the bank.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {depositAdvice && <p>{depositAdvice}</p>}
@@ -1247,11 +1248,11 @@ export default function ToastSales() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Sales date</TableHead>
-                  <TableHead className="text-right">Cards on posting</TableHead>
-                  <TableHead className="text-right">Cards deposited</TableHead>
-                  <TableHead className="text-right">Cash on posting</TableHead>
-                  <TableHead className="text-right">Cash deposited</TableHead>
-                  <TableHead className="text-right">Difference</TableHead>
+                  <TableHead className="text-right">CC - DSR</TableHead>
+                  <TableHead className="text-right">CC - Bank</TableHead>
+                  <TableHead className="text-right">Cash - DSR</TableHead>
+                  <TableHead className="text-right">Cash - Bank</TableHead>
+                  <TableHead className="text-right">Over/Under</TableHead>
                   <TableHead>Suggested adjustment</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1262,8 +1263,8 @@ export default function ToastSales() {
                     <TableCell className="text-right">{money(row.cardJournal || 0)}</TableCell>
                     <TableCell className="text-right">{money(row.cardDeposit || 0)}</TableCell>
                     <TableCell className="text-right">{money(row.cashJournal || 0)}</TableCell>
-                    <TableCell className="text-right">{money(row.cashDeposit || 0)}</TableCell>
-                    <TableCell className="text-right">{row.difference == null ? "—" : money(row.difference)}</TableCell>
+                    <TableCell className="text-right">{row.cashAtBank == null && (row.cashJournal || 0) > 0.05 ? "Unmatched" : money(row.cashAtBank || 0)}</TableCell>
+                    <TableCell className={`text-right ${row.difference == null ? "" : row.difference < -0.05 ? "text-red-700" : "text-green-700"}`}>{row.difference == null ? "—" : money(row.difference)}</TableCell>
                     <TableCell className="max-w-md whitespace-normal">{row.suggestion || row.note}</TableCell>
                   </TableRow>
                 ))}
