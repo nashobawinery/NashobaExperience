@@ -238,6 +238,20 @@ function guestIdentity(order: { guid?: string; customer?: { guid?: string; first
   return { customerKey: key.slice(0, 180), customerName: name.slice(0, 160), email: email.slice(0, 160), phone: phone.slice(0, 20) };
 }
 
+function extraOpenCard(check: { paymentStatus?: string; amount?: number; taxAmount?: number; payments?: { voidInfo?: unknown; paymentStatus?: string; type?: string; amount?: number }[] }, payment: { type?: string; paymentStatus?: string }) {
+  if (String(check.paymentStatus || "").toUpperCase() !== "CLOSED") return false;
+  if (String(payment.type || "").toUpperCase() !== "CREDIT") return false;
+  if (String(payment.paymentStatus || "").toUpperCase() !== "OPEN") return false;
+  const due = centsOf(check.amount) + centsOf(check.taxAmount);
+  if (due <= 0) return false;
+  const captured = (check.payments || []).reduce((sum, item) => {
+    if (item.voidInfo || String(item.paymentStatus || "").toUpperCase() !== "CAPTURED") return sum;
+    if (String(item.type || "").toUpperCase() !== "CREDIT") return sum;
+    return sum + centsOf(item.amount);
+  }, 0);
+  return captured + 1 >= due;
+}
+
 function bookPayment(buckets: Map<string, Bucket>, payment: { type?: string; amount?: number; tipAmount?: number; originalProcessingFee?: number; cardType?: string; otherPayment?: { name?: string; guid?: string } }, alternatePayments: Map<string, string>, creditTip = true) {
   const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
   const tip = centsOf(payment.tipAmount);
@@ -380,6 +394,7 @@ function unbalancedCheck(
   const paidOn: string[] = [];
   for (const payment of check.payments || []) {
     if (payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") continue;
+    if (extraOpenCard(check, payment)) continue;
     const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
     const tip = centsOf(payment.tipAmount);
     const paidDay = dayStamp(payment.paidBusinessDate) || orderDay;
@@ -505,6 +520,7 @@ async function toastBuckets(businessDate: string) {
           const orderDay = dayStamp(order.businessDate || businessDate);
           for (const payment of check.payments || []) {
             if (payment.voidInfo || payment.paymentStatus === "VOIDED" || payment.paymentStatus === "DENIED") continue;
+            if (extraOpenCard(check, payment)) continue;
             if (payment.guid) seenPayments.add(String(payment.guid));
             const paid = centsOf(payment.amount) + centsOf(payment.tipAmount);
             tendered += centsOf(payment.amount);
@@ -1075,12 +1091,221 @@ function publicDay(day: Awaited<ReturnType<typeof booksForDate>>, finding: strin
   };
 }
 
+const dayTalk = new Map<string, { at: number; day: ReturnType<typeof publicDay> }>();
+
 export async function reviewToastDay(businessDate: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) throw new Error("Choose a business date.");
   const day = await booksForDate(businessDate);
   const advice = await explainDayAdvice(day);
   const finding = advice.recommendations.length ? advice.summary : await explainGap(day);
-  return publicDay(day, finding, advice);
+  const reviewed = publicDay(day, finding, advice);
+  dayTalk.set(businessDate, { at: Date.now(), day: reviewed });
+  return reviewed;
+}
+
+type DayChoice = {
+  action: "post" | "credit-tastings" | "map" | "ask-manager";
+  label: string;
+  detail: string;
+  kind: string;
+  name: string;
+  account: string;
+};
+
+function dayChoices(day: ReturnType<typeof publicDay>): DayChoice[] {
+  const choices: DayChoice[] = [];
+  const shogo = day.journals.filter((journal) => journal.source === "shogo").map((journal) => journal.doc).join(", ");
+  if (day.canPost) {
+    choices.push({
+      action: "post",
+      label: "Post this day",
+      detail: shogo
+        ? `${day.date} balances. Posting writes our journal beside Shogo ${shogo}. Delete the Shogo journal after you compare them.`
+        : `${day.date} balances and can be posted.`,
+      kind: "",
+      name: "",
+      account: "",
+    });
+  }
+  const gap = day.postBlock?.match(/out of balance by (\d+\.\d{2})/);
+  const tastings = day.breaks.filter((item) => item.tastings && Math.abs(item.amount) >= 1);
+  const credit = tastings.reduce((sum, item) => sum + centsOf(item.amount), 0);
+  if (gap && credit > 0 && centsOf(gap[1]) === credit) {
+    const guests = tastings.reduce((sum, item) => sum + (item.tastings || 0), 0);
+    choices.push({
+      action: "credit-tastings",
+      label: "Credit tours and tastings, then post",
+      detail: `${tastings.length} open checks, ${guests} guests, total ${money(credit).toFixed(2)}. Crediting Tours & Tastings for that amount lets this day post.`,
+      kind: "",
+      name: "",
+      account: TASTING_ACCOUNT,
+    });
+  }
+  for (const item of day.unmapped) {
+    const account = suggestedAccount(item.name);
+    if (!account) continue;
+    choices.push({
+      action: "map",
+      label: `Use ${account}`,
+      detail: `${item.name} for ${item.amount.toFixed(2)} has no account. Saving it to ${account} uses that account the next time this date is checked.`,
+      kind: item.kind,
+      name: item.name,
+      account,
+    });
+  }
+  choices.push({
+    action: "ask-manager",
+    label: "Email the accounting manager",
+    detail: "This day needs the accounting manager. The email includes the date, the reason, and this conversation.",
+    kind: "",
+    name: "",
+    account: "",
+  });
+  return choices;
+}
+
+function cleanTalk(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  return input.slice(-12).flatMap((item) => {
+    const row = item as { role?: unknown; content?: unknown };
+    const role = row.role === "assistant" ? "assistant" as const : row.role === "user" ? "user" as const : "";
+    const content = String(row.content || "").trim().slice(0, 1000);
+    if (!role || !content) return [];
+    return [{ role, content }];
+  });
+}
+
+function talkFacts(day: ReturnType<typeof publicDay>, choices: DayChoice[]) {
+  return {
+    date: day.date,
+    canPost: day.canPost,
+    postBlock: day.postBlock,
+    journals: day.journals.map((journal) => ({ doc: journal.doc, source: journal.source })),
+    unmapped: day.unmapped,
+    checks: day.breaks.filter((item) => Math.abs(item.amount) >= 1).slice(0, 15).map((item) => ({
+      check: item.check,
+      guest: item.guest,
+      amount: item.amount,
+      status: item.status,
+      tenders: item.tenders,
+      deposit: item.deposit,
+      tastings: item.tastings,
+    })),
+    choices: choices.map((choice) => ({ action: choice.action, name: choice.name, detail: choice.detail })),
+  };
+}
+
+function knownTalkAmounts(day: ReturnType<typeof publicDay>, choices: DayChoice[]) {
+  const amounts = new Set<string>();
+  const add = (value: number | string | null | undefined) => {
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(parsed)) return;
+    amounts.add(Math.abs(parsed).toFixed(2));
+  };
+  day.breaks.forEach((item) => {
+    add(item.amount);
+    add(item.deposit);
+  });
+  day.unmapped.forEach((item) => add(item.amount));
+  choices.forEach((choice) => (choice.detail.match(/\d+\.\d{2}/g) || []).forEach(add));
+  (day.postBlock?.match(/\d+\.\d{2}/g) || []).forEach(add);
+  return amounts;
+}
+
+async function emailAccountingManager(day: ReturnType<typeof publicDay>, messages: { role: string; content: string }[]) {
+  const to = await noticeRecipients("dsr-manager");
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!to.length || !apiKey) return false;
+  const when = longDate(day.date);
+  const talk = messages.slice(-8).map((item) => `${item.role === "assistant" ? "Nashoba" : "Staff"}: ${item.content}`).join("\n\n");
+  const reason = day.postBlock || "The day could not be corrected from the conversation.";
+  sgMail.setApiKey(apiKey);
+  await sgMail.send({
+    to,
+    from: depositMailFrom(),
+    subject: `Nashoba Experience: ${when} needs the accounting manager`,
+    text: `Nashoba Experience\n\n${when} could not be corrected by the person working on the daily sales report.\n\n${reason}\n\n${talk}\n\nLog in at ${appHome()}/accounting, open DSR, and check ${day.date}.`,
+    html: `<div style="font-family:sans-serif;color:#111;max-width:640px;"><div style="background:#7a1f1f;color:#fff;padding:16px 18px;"><div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;">Nashoba Experience</div><div style="font-size:18px;font-weight:600;margin-top:4px;">${escapeHtml(when)} needs the accounting manager</div></div><div style="border:1px solid #e7c98a;border-top:none;background:#fff8eb;padding:16px 18px;"><p style="margin:0 0 12px;">${escapeHtml(when)} could not be corrected by the person working on the daily sales report.</p><p style="margin:0 0 12px;">${escapeHtml(reason)}</p><pre style="white-space:pre-wrap;font-family:sans-serif;margin:0 0 12px;">${escapeHtml(talk)}</pre><p style="margin:0;">Log in at ${escapeHtml(appHome())}/accounting, open DSR, and check ${escapeHtml(day.date)}.</p></div></div>`,
+  });
+  return true;
+}
+
+export async function discussToastDay(businessDate: string, input: unknown) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) throw new Error("Choose a business date.");
+  const messages = cleanTalk(input);
+  if (!messages.some((item) => item.role === "user")) throw new Error("Say what you know about this day.");
+  const cached = dayTalk.get(businessDate);
+  const day = cached && Date.now() - cached.at < 10 * 60 * 1000 ? cached.day : await reviewToastDay(businessDate);
+  const choices = dayChoices(day);
+  const fallbackChoice = day.canPost ? choices.find((choice) => choice.action === "post") : choices.find((choice) => choice.action === "ask-manager");
+  const fallback = day.canPost
+    ? `${businessDate} balances. Press Post this day when you are ready.`
+    : `${day.postBlock || `${businessDate} cannot be corrected from here.`} Ask the accounting manager.`;
+  let reply = fallback;
+  let action = "none";
+  let name = "";
+  try {
+    const OpenAI = (await import("openai")).default;
+    const openai = new OpenAI();
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You help a winery employee who is not an accountant correct one Toast daily sales day. Use only the JSON facts. Write reply in 2 to 4 short sentences, plain words, no journal instructions they would have to type. Choose action only from choices. Use post only when canPost is true and the person is ready for the journal to be written. Use credit-tastings only when that choice exists and the person agrees those checks are tours or tastings. Use map only when that choice exists and the person agrees to that account; set name to the Toast name. Use ask-manager when the missing piece is not one of the choices, and tell them to ask the accounting manager. Use none when you only need another fact. Do not invent guests, checks, or amounts. Return JSON with reply, action, and name.",
+        },
+        { role: "user", content: JSON.stringify({ facts: talkFacts(day, choices), conversation: messages }) },
+      ],
+    });
+    const parsed = JSON.parse(response.choices[0]?.message?.content || "{}") as { reply?: unknown; action?: unknown; name?: unknown };
+    const wanted = String(parsed.action || "none");
+    const allowed = choices.find((choice) => choice.action === wanted && (wanted !== "map" || choice.name === String(parsed.name || "")));
+    if (wanted === "none") action = "none";
+    else if (allowed) {
+      action = allowed.action;
+      name = allowed.name;
+    }
+    const text = String(parsed.reply || "").trim();
+    const known = knownTalkAmounts(day, choices);
+    const used = text.match(/\d+\.\d{2}/g) || [];
+    if (text && used.every((amount) => known.has(amount))) reply = text;
+  } catch (error) {
+    console.warn("[Toast DSR] the day conversation was not written:", error instanceof Error ? error.message : error);
+    action = fallbackChoice?.action || "ask-manager";
+  }
+  const proposal = action === "none" ? null : choices.find((choice) => choice.action === action && (action !== "map" || choice.name === name)) || null;
+  return { reply, proposal };
+}
+
+export async function applyToastDayChoice(businessDate: string, action: string, name = "", input: unknown = []) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) throw new Error("Choose a business date.");
+  const day = await reviewToastDay(businessDate);
+  const choice = dayChoices(day).find((item) => item.action === action && (action !== "map" || item.name === name));
+  if (!choice) throw new Error("That correction is not available for this day.");
+  if (choice.action === "post") {
+    const posted = await postToastDay(businessDate);
+    dayTalk.delete(businessDate);
+    return { reply: `Posted ${posted.doc}.`, proposal: null };
+  }
+  if (choice.action === "credit-tastings") {
+    const posted = await postToastDay(businessDate, { creditTastings: true });
+    dayTalk.delete(businessDate);
+    return { reply: `Credited Tours & Tastings and posted ${posted.doc}.`, proposal: null };
+  }
+  if (choice.action === "map") {
+    assignToastSalesName(choice.kind, choice.name, choice.account);
+    dayTalk.delete(businessDate);
+    return { reply: `${choice.name} now uses ${choice.account}. Check this date again, then post it if it balances.`, proposal: null };
+  }
+  const emailed = await emailAccountingManager(day, cleanTalk(input));
+  return {
+    reply: emailed
+      ? "Ask the accounting manager. The conversation and the reason were emailed."
+      : "Ask the accounting manager. The email could not be sent, so tell them which date you were correcting.",
+    proposal: null,
+  };
 }
 
 export async function scanToastDays(through: string, days: number) {
@@ -1628,6 +1853,7 @@ const TOAST_NOTICES = [
   { key: "cash-outstanding", label: "Outstanding cash deposits", fallback: "aparrow@nashobawinery.com" },
   { key: "card-outstanding", label: "Outstanding card deposits", fallback: "email@nashobawinery.com" },
   { key: "deposit-mismatch", label: "DSR out of balance, or a deposit amount differs", fallback: "email@nashobawinery.com" },
+  { key: "dsr-manager", label: "Accounting manager, when a daily sales day cannot be corrected", fallback: "email@nashobawinery.com" },
 ];
 
 function parseNoticeEmails(raw: string) {
@@ -3030,6 +3256,22 @@ export function registerToastSalesRoutes(router: Router) {
     try {
       const dates = Array.isArray(req.body?.dates) ? req.body.dates.map((date: unknown) => String(date)) : [];
       res.json(await clearDeposits(dates, String(req.body?.depositedOn || "")));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
+  });
+
+  router.post("/toast-sales/discuss", isAdmin, async (req, res) => {
+    try {
+      res.json(await discussToastDay(String(req.body?.date || ""), req.body?.messages));
+    } catch (error) {
+      res.status(400).json({ message: qbFault(error) });
+    }
+  });
+
+  router.post("/toast-sales/apply", isAdmin, async (req, res) => {
+    try {
+      res.json(await applyToastDayChoice(String(req.body?.date || ""), String(req.body?.action || ""), String(req.body?.name || ""), req.body?.messages));
     } catch (error) {
       res.status(400).json({ message: qbFault(error) });
     }

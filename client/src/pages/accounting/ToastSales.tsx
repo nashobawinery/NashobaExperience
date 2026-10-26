@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DsrSyncLog from "./DsrSyncLog";
@@ -32,6 +33,8 @@ type DayReview = {
 type DayRecommendation = { title: string; detail: string; amount: number | null; account: string; kind: string; toastKind: string; name: string };
 type CheckBreak = { check: string; guest: string; amount: number; status: string; tenders: string; paidOn: string; deposit: number; tastings: number | null };
 type DayAdvice = { summary: string; recommendations: DayRecommendation[]; checks: CheckBreak[] };
+type DayTalk = { role: "user" | "assistant"; content: string };
+type DayProposal = { action: string; label: string; detail: string; name: string; account: string };
 type DepositReport = { rows: DepositRow[]; advice: string };
 type ScanRow = { date: string; matched: boolean; mode: string; orderCount: number; unmapped: number; account: string; difference: number; note: string };
 type OutstandingReport = {
@@ -434,6 +437,9 @@ export default function ToastSales() {
   const [liabilityProgress, setLiabilityProgress] = useState("");
   const [openSources, setOpenSources] = useState<Record<string, boolean>>({});
   const [checkError, setCheckError] = useState("");
+  const [talk, setTalk] = useState<DayTalk[]>([]);
+  const [talkDraft, setTalkDraft] = useState("");
+  const [proposal, setProposal] = useState<DayProposal | null>(null);
   const [guestSearch, setGuestSearch] = useState("");
   const [guestKey, setGuestKey] = useState<string | null>(null);
   const [ledgerProgress, setLedgerProgress] = useState("");
@@ -458,6 +464,12 @@ export default function ToastSales() {
     noticeQuery.data.notices.forEach((notice) => { next[notice.key] = notice.emails; });
     setNoticeDraft(next);
   }, [noticeQuery.data]);
+
+  useEffect(() => {
+    setTalk([]);
+    setTalkDraft("");
+    setProposal(null);
+  }, [review?.date]);
 
   const check = useMutation({
     mutationFn: async (businessDate: string) => {
@@ -597,6 +609,33 @@ export default function ToastSales() {
     onError: (error: Error) => toast({ title: "The mapping was not saved", description: error.message, variant: "destructive" }),
   });
 
+  const discuss = useMutation({
+    mutationFn: async (messages: DayTalk[]) => {
+      const response = await apiRequest("POST", "/api/accounting/toast-sales/discuss", { date, messages });
+      return response.json() as Promise<{ reply: string; proposal: DayProposal | null }>;
+    },
+    onSuccess: (result) => {
+      setTalk((current) => [...current, { role: "assistant", content: result.reply }]);
+      setProposal(result.proposal);
+    },
+    onError: (error: Error) => toast({ title: "The day was not discussed", description: error.message, variant: "destructive" }),
+  });
+
+  const applyChoice = useMutation({
+    mutationFn: async (choice: DayProposal) => {
+      const response = await apiRequest("POST", "/api/accounting/toast-sales/apply", { date, action: choice.action, name: choice.name, messages: talk });
+      return response.json() as Promise<{ reply: string }>;
+    },
+    onSuccess: async (result) => {
+      setTalk((current) => [...current, { role: "assistant", content: result.reply }]);
+      setProposal(null);
+      toast({ title: result.reply });
+      const refreshed = await check.mutateAsync(date);
+      setReview(refreshed);
+    },
+    onError: (error: Error) => toast({ title: "The correction was not applied", description: error.message, variant: "destructive" }),
+  });
+
   const post = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/accounting/toast-sales/post", { date });
@@ -674,6 +713,46 @@ export default function ToastSales() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Correct this day</CardTitle>
+              <CardDescription>The lines are not typed in by hand. Say what happened in ordinary words. A correction or a post happens only when you press the button. If the day cannot be corrected here, ask the accounting manager.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {talk.length === 0 ? <p className="text-sm text-muted-foreground">For example: the second card was not charged, or the large party was a tour.</p> : talk.map((item, index) => (
+                <p key={`${item.role}-${index}`} className={item.role === "assistant" ? "text-sm" : "text-sm text-muted-foreground"}>{item.role === "assistant" ? item.content : `You: ${item.content}`}</p>
+              ))}
+              {proposal ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">{proposal.detail}</p>
+                  <Button onClick={() => applyChoice.mutate(proposal)} disabled={applyChoice.isPending || discuss.isPending}>
+                    {applyChoice.isPending ? "Working" : proposal.label}
+                  </Button>
+                </div>
+              ) : null}
+              <Textarea
+                value={talkDraft}
+                onChange={(event) => setTalkDraft(event.target.value)}
+                placeholder="What happened on this day?"
+                rows={3}
+              />
+              <Button
+                variant="outline"
+                disabled={discuss.isPending || applyChoice.isPending || !talkDraft.trim()}
+                onClick={() => {
+                  const content = talkDraft.trim();
+                  const messages = [...talk, { role: "user" as const, content }];
+                  setTalk(messages);
+                  setTalkDraft("");
+                  setProposal(null);
+                  discuss.mutate(messages);
+                }}
+              >
+                {discuss.isPending ? "Reading the day" : "Send"}
+              </Button>
+            </CardContent>
+          </Card>
+
           {(review.advice?.recommendations.length || review.advice?.checks.length) ? (
             <Card>
               <CardHeader>
@@ -711,7 +790,7 @@ export default function ToastSales() {
                           <TableCell>{item.guest}</TableCell>
                           <TableCell className="text-right">{money(item.amount)}</TableCell>
                           <TableCell>{item.paidOn || item.status || "—"}</TableCell>
-                          <TableCell>{item.tastings ? `Credit Tours & Tastings for ${item.tastings} guests` : item.deposit ? "Deposit used with no sale" : item.tenders}</TableCell>
+                          <TableCell>{item.tastings ? `Credit Tours & Tastings for ${item.tastings} guests` : item.deposit ? "Deposit used with no sale" : "Use Correct this day"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
