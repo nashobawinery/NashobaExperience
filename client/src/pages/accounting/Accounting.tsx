@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import Expenses from "./Expenses";
+import Reconcile from "./Reconcile";
 import ToastSales from "./ToastSales";
 
 type BooksSection =
@@ -31,6 +32,7 @@ type BooksSection =
   | "sales-tax"
   | "business-tax"
   | "lending"
+  | "reconcile"
   | "dsr";
 
 const ribbon: { id: BooksSection; label: string }[] = [
@@ -46,10 +48,11 @@ const ribbon: { id: BooksSection; label: string }[] = [
   { id: "sales-tax", label: "Sales Tax" },
   { id: "business-tax", label: "Business Tax" },
   { id: "lending", label: "Lending" },
+  { id: "reconcile", label: "Reconciliation" },
   { id: "dsr", label: "DSR" },
 ];
 
-const booksDetail: Record<Exclude<BooksSection, "expenses" | "dsr">, string> = {
+const booksDetail: Record<Exclude<BooksSection, "expenses" | "dsr" | "reconcile">, string> = {
   accounting: "Chart of accounts, registers, and journal entries for Nashoba Valley. The Gables is a second set of books.",
   sales: "Invoices you send, payments you receive, and deposits.",
   customers: "Customers and the balances they owe.",
@@ -1754,6 +1757,8 @@ export default function AccountingPage() {
         )}
         </div>
           )} />
+        ) : section === "reconcile" ? (
+          <Reconcile />
         ) : section === "dsr" ? (
           <ToastSales />
         ) : (

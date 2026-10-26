@@ -10,6 +10,7 @@ import { objectStorageClient } from "./objectStorage";
 import { postQuickBooks, queryQuickBooks, uploadQuickBooksAttachment } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 import { registerUsFoodsRoutes } from "./us-foods-sync";
+import { registerReconcileRoutes } from "./bank-reconcile";
 import { registerToastSalesRoutes } from "./toast-books";
 
 const router = Router();
@@ -3868,5 +3869,6 @@ export function initHealthcareBillUploadReminders() {
 
 registerUsFoodsRoutes(router);
 registerToastSalesRoutes(router);
+registerReconcileRoutes(router);
 
 export default router;
