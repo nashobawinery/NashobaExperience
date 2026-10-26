@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -350,9 +351,7 @@ function DsrFrame({ dsr, outstanding, guests }: { dsr: ReactNode; outstanding: R
         <TabsTrigger value="close-report">Last 15 days</TabsTrigger>
         <TabsTrigger value="general">General Settings</TabsTrigger>
         <TabsTrigger value="accounting">Accounting Options</TabsTrigger>
-        {rowSections.map((section) => (
-          <TabsTrigger key={section.id} value={section.id}>{section.label}</TabsTrigger>
-        ))}
+        <TabsTrigger value="mapping">Mapping</TabsTrigger>
       </TabsList>
       <TabsContent value="dsr">
         <div className="space-y-6">{dsr}</div>
@@ -380,38 +379,47 @@ function DsrFrame({ dsr, outstanding, guests }: { dsr: ReactNode; outstanding: R
           <CardContent>{mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : <SettingsTable rows={data?.accounting ?? []} />}</CardContent>
         </Card>
       </TabsContent>
-      {rowSections.map((section) => (
-        <TabsContent key={section.id} value={section.id}>
-          <Card>
-            <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle>{section.label}</CardTitle>
-                <CardDescription>Choose an account or class from the QuickBooks lists. Type in the list to search. Save mapping, and the next daily sales journal uses it.</CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => refsQuery.refetch()} disabled={refsQuery.isFetching}>
-                  {refsQuery.isFetching ? "Updating accounts" : "Update accounts from QuickBooks"}
-                </Button>
-                <Button onClick={() => saveMapping.mutate()} disabled={saveMapping.isPending || !draft}>
-                  {saveMapping.isPending ? "Saving" : "Save mapping"}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {refsQuery.isError && <p className="mb-3 text-sm text-muted-foreground">QuickBooks accounts could not be loaded. The names stay as they were last saved.</p>}
-              {mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : (
-                <NameTable
-                  rows={rows.filter((row) => section.kinds.includes(row.kind))}
-                  accounts={refsQuery.data?.accounts ?? []}
-                  classes={refsQuery.data?.classes ?? []}
-                  accountsReady={!refsQuery.isLoading && !refsQuery.isError}
-                  onChange={changeRow}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      ))}
+      <TabsContent value="mapping">
+        <Tabs defaultValue="sales">
+          <TabsList className="mt-2 flex h-auto flex-wrap justify-start">
+            {rowSections.map((section) => (
+              <TabsTrigger key={section.id} value={section.id}>{section.label}</TabsTrigger>
+            ))}
+          </TabsList>
+          {rowSections.map((section) => (
+            <TabsContent key={section.id} value={section.id}>
+              <Card>
+                <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle>{section.label}</CardTitle>
+                    <CardDescription>Choose an account or class from the QuickBooks lists. Type in the list to search. Save mapping, and the next daily sales journal uses it.</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => refsQuery.refetch()} disabled={refsQuery.isFetching}>
+                      {refsQuery.isFetching ? "Updating accounts" : "Update accounts from QuickBooks"}
+                    </Button>
+                    <Button onClick={() => saveMapping.mutate()} disabled={saveMapping.isPending || !draft}>
+                      {saveMapping.isPending ? "Saving" : "Save mapping"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {refsQuery.isError && <p className="mb-3 text-sm text-muted-foreground">QuickBooks accounts could not be loaded. The names stay as they were last saved.</p>}
+                  {mappingQuery.isError ? <p className="text-sm text-muted-foreground">The mapping could not be loaded.</p> : (
+                    <NameTable
+                      rows={rows.filter((row) => section.kinds.includes(row.kind))}
+                      accounts={refsQuery.data?.accounts ?? []}
+                      classes={refsQuery.data?.classes ?? []}
+                      accountsReady={!refsQuery.isLoading && !refsQuery.isError}
+                      onChange={changeRow}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </TabsContent>
       <TabsContent value="sync-log">
         <DsrSyncLog />
       </TabsContent>
@@ -438,6 +446,9 @@ export default function ToastSales() {
   const [liabilityProgress, setLiabilityProgress] = useState("");
   const [openSources, setOpenSources] = useState<Record<string, boolean>>({});
   const [checkError, setCheckError] = useState("");
+  const [agentBox, setAgentBox] = useState<"working" | "done" | null>(null);
+  const agentJobs = useRef(0);
+  const agentTimer = useRef<number | null>(null);
   const [talk, setTalk] = useState<DayTalk[]>([]);
   const [talkDraft, setTalkDraft] = useState("");
   const [proposal, setProposal] = useState<DayProposal | null>(null);
@@ -472,11 +483,28 @@ export default function ToastSales() {
     setProposal(null);
   }, [review?.date]);
 
+  useEffect(() => () => {
+    if (agentTimer.current) window.clearTimeout(agentTimer.current);
+  }, []);
+
+  const startAgent = () => {
+    if (agentTimer.current) window.clearTimeout(agentTimer.current);
+    agentJobs.current += 1;
+    setAgentBox("working");
+  };
+  const finishAgent = () => {
+    agentJobs.current = Math.max(0, agentJobs.current - 1);
+    if (agentJobs.current > 0) return;
+    setAgentBox("done");
+    agentTimer.current = window.setTimeout(() => setAgentBox(null), 10000);
+  };
+
   const check = useMutation({
     mutationFn: async (businessDate: string) => {
       const response = await apiRequest("GET", `/api/accounting/toast-sales?date=${businessDate}`);
       return response.json() as Promise<DayReview>;
     },
+    onMutate: () => startAgent(),
     onSuccess: (result) => {
       setDate(result.date);
       setReview(result);
@@ -486,6 +514,7 @@ export default function ToastSales() {
       setCheckError(error.message);
       toast({ title: "Could not check Toast", description: error.message, variant: "destructive" });
     },
+    onSettled: () => finishAgent(),
   });
 
   const scanDays = useMutation({
@@ -493,8 +522,10 @@ export default function ToastSales() {
       const response = await apiRequest("GET", `/api/accounting/toast-sales/scan?through=${date}&days=7`);
       return response.json() as Promise<ScanRow[]>;
     },
+    onMutate: () => startAgent(),
     onSuccess: (rows) => setScan(rows),
     onError: (error: Error) => toast({ title: "Could not scan the week", description: error.message, variant: "destructive" }),
+    onSettled: () => finishAgent(),
   });
 
   const depositsCheck = useMutation({
@@ -694,6 +725,20 @@ export default function ToastSales() {
           </div>
           {check.isPending && <p className="text-sm text-muted-foreground">Reading Toast for {date}. The lines will show here.</p>}
           {checkError && !check.isPending && <p className="text-sm text-destructive">{checkError}</p>}
+          <Dialog open={agentBox !== null} onOpenChange={(open) => {
+            if (open || agentBox === "working") return;
+            if (agentTimer.current) window.clearTimeout(agentTimer.current);
+            setAgentBox(null);
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{agentBox === "done" ? "Done" : "Your agent is working on your request"}</DialogTitle>
+                <DialogDescription>
+                  {agentBox === "done" ? "This box will close in 10 seconds." : "Check this date and Find a mismatch keep this box open until the work finishes."}
+                </DialogDescription>
+              </DialogHeader>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
       {review && (
