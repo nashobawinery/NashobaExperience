@@ -80,7 +80,8 @@ function yesterday() {
 
 type PastDeposit = { customerKey: string; name: string; email: string; phone: string; reservationDate: string; source: string; amount: number };
 type PastReport = { from: string; through: string; days: number; count: number; toastTables: number; total: number; toastTablesTotal: number; deposits: PastDeposit[] };
-type GuestBalance = { key: string; name: string; email: string; phone: string; credits: number; debits: number; balance: number; events?: { date: string; amount: number }[] };
+type GuestEvent = { date: string; amount: number; credits?: number; debits?: number };
+type GuestBalance = { key: string; name: string; email: string; phone: string; credits: number; debits: number; balance: number; events?: GuestEvent[] };
 type GuestLedger = { key: string; name: string; email: string; phone: string; entries: { date: string; visitDate: string; eventDate?: string; memo: string; credit: number; debit: number; balance: number }[] };
 type LedgerReport = { from: string; through: string; days: number; customers: GuestBalance[] };
 
@@ -682,9 +683,15 @@ export default function ToastSales() {
   });
 
   const guestNeedle = guestSearch.trim().toLowerCase();
-  const guestRows = (ledgerQuery.data?.customers ?? []).filter((guest) => {
-    if (!guestNeedle) return Math.abs(guest.balance) >= 0.01;
-    return [guest.name, guest.email, guest.phone].join(" ").toLowerCase().includes(guestNeedle);
+  const upcomingEvents = (guest: GuestBalance) => (guest.events || []).filter((event) => event.date >= today() && event.amount >= 0.01);
+  const guestRows = (ledgerQuery.data?.customers ?? []).flatMap((guest) => {
+    const events = upcomingEvents(guest);
+    const matches = !guestNeedle || [guest.name, guest.email, guest.phone].join(" ").toLowerCase().includes(guestNeedle);
+    if (!matches || events.length === 0) return [];
+    const credits = events.reduce((sum, event) => sum + (event.credits ?? event.amount), 0);
+    const debits = events.reduce((sum, event) => sum + (event.debits ?? 0), 0);
+    const balance = events.reduce((sum, event) => sum + event.amount, 0);
+    return [{ ...guest, events, credits: Math.round(credits * 100) / 100, debits: Math.round(debits * 100) / 100, balance: Math.round(balance * 100) / 100 }];
   });
   const ledgerSpan = ledgerQuery.data?.through
     ? `Saved from ${ledgerQuery.data.from} through ${ledgerQuery.data.through}.`
@@ -1035,7 +1042,7 @@ export default function ToastSales() {
         <CardHeader>
           <CardTitle>Guest deposit ledger</CardTitle>
           <CardDescription>
-            Each guest keeps a running record. A deposit collected, or paid ahead of the visit, is a credit. Using that deposit on the visit is a debit. The balance is what that guest still has with us. Event is the reservation date, including a visit that has not happened yet. Checking a sales date saves that day. Update from Toast reads January 1 through yesterday and replaces each saved day. Cash taken to the bank stays on the outstanding cash list, separate from this ledger.
+            Each guest keeps a running record. A deposit collected, or paid ahead of the visit, is a credit. Using that deposit on the visit is a debit. This list is money still held for an event that has not arrived. A reservation date that has passed is listed under Reservations that have passed. A guest who was charged more than was collected has no deposit left, so that guest is not listed here. Checking a sales date saves that day. Update from Toast reads January 1 through yesterday and replaces each saved day. Cash taken to the bank stays on the outstanding cash list, separate from this ledger.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1081,7 +1088,7 @@ export default function ToastSales() {
                 ))}
                 {guestRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground">{guestNeedle ? "No guest matches." : "No guest still has a deposit. Update from Toast, or search a name to see a guest whose deposit is used up."}</TableCell>
+                    <TableCell colSpan={7} className="text-muted-foreground">{guestNeedle ? "No upcoming deposit matches." : "No guest still has a deposit for an event that has not arrived."}</TableCell>
                   </TableRow>
                 )}
               </TableBody>

@@ -3317,12 +3317,14 @@ export async function guestDepositLedger(search: string) {
     FROM accounting_guest_deposit_ledger
     GROUP BY customer_key, COALESCE(NULLIF(reservation_date, ''), visit_date)
   `);
-  const eventsByGuest = new Map<string, { date: string; amount: number }[]>();
+  const eventsByGuest = new Map<string, { date: string; amount: number; credits: number; debits: number }[]>();
   for (const row of eventRows.rows as { customer_key: string; reservation_date: string; credits: string; debits: string }[]) {
-    const amount = ledgerAmount(ledgerAmount(row.credits) - ledgerAmount(row.debits));
-    if (amount < 0.01 || !row.reservation_date) continue;
+    const credits = ledgerAmount(row.credits);
+    const debits = ledgerAmount(row.debits);
+    const amount = ledgerAmount(credits - debits);
+    if (Math.abs(amount) < 0.01 || !row.reservation_date) continue;
     const events = eventsByGuest.get(row.customer_key) || [];
-    events.push({ date: row.reservation_date, amount });
+    events.push({ date: row.reservation_date, amount, credits, debits });
     eventsByGuest.set(row.customer_key, events);
   }
   eventsByGuest.forEach((events) => events.sort((left, right) => left.date.localeCompare(right.date)));
