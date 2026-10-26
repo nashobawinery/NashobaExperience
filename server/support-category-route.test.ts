@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { eventCategory, interpretCategoryRoute, isEventBooking, mailboxesForCategories, type CategoryRouteCandidate } from "./support-category-route";
+import { eventCategory, interpretCategoryRoute, isEventBooking, isReservationInquiry, mailboxesForCategories, reservationCategory, type CategoryRouteCandidate } from "./support-category-route";
 
 const categories: CategoryRouteCandidate[] = [
   { id: "acct", name: "Accounting", notifyEmail: "Rap@nashobawinery.com" },
@@ -60,19 +60,26 @@ test("an inactive category is ignored", () => {
   assert.equal(route.unsure, true);
 });
 
-test("weddings and large parties are events, and smaller parties stay reservations", () => {
+test("private events and functions go to events, and every reservation stays a reservation", () => {
   assert.equal(isEventBooking("We want to host a wedding at the winery."), true);
-  assert.equal(isEventBooking("Line: Winery\nReservation for 19 people at the Knoll."), true);
-  assert.equal(isEventBooking("Line: J's Restaurant\nTable for 9 tonight."), true);
-  assert.equal(isEventBooking("Line: Winery\nCan we book the Knoll for a party of twenty?"), true);
-  assert.equal(isEventBooking("Line: J's Restaurant\nParty of 16 at the Knoll."), false);
-  assert.equal(isEventBooking("Line: Winery\nTable for 12 at the Knoll."), false);
-  assert.equal(isEventBooking("Line: J's Restaurant\nTable for 8."), false);
-  assert.equal(isEventBooking("What time do you open?"), false);
-  assert.equal(eventCategory([
+  assert.equal(isEventBooking("We would like to book a function for 40 people."), true);
+  assert.equal(isEventBooking("Private event inquiry for a corporate dinner."), true);
+  assert.equal(isEventBooking("Line: Winery\nReservation for 19 people at the Knoll."), false);
+  assert.equal(isEventBooking("Line: J's Restaurant\nTable for 9 tonight."), false);
+  assert.equal(isEventBooking("Do I need reservations to come to today's event?"), false);
+  assert.equal(isReservationInquiry("Do I need reservations to come to today's event?"), true);
+  assert.equal(isReservationInquiry("Large group reservation at the Knoll for outdoor seating."), true);
+  assert.equal(isReservationInquiry("Table for 9 tonight."), true);
+  assert.equal(isReservationInquiry("We have 30 people coming for dinner at the Knoll."), true);
+  assert.equal(isReservationInquiry("We would like to book a function for 40 people."), false);
+  assert.equal(isReservationInquiry("We want to host a wedding and need a reservation."), false);
+  assert.equal(isReservationInquiry("What time do you open?"), false);
+  const list = [
     { id: "res", name: "Reservations", slug: "reservations" },
     { id: "events", name: "Events & Entertainment", slug: "events-entertainment" },
-  ])?.id, "events");
+  ];
+  assert.equal(eventCategory(list)?.id, "events");
+  assert.equal(reservationCategory(list)?.id, "res");
 });
 
 test("mailbox selection emails each match and uses the default when a match has no address", () => {

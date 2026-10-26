@@ -1,6 +1,6 @@
 import { pool } from "./db";
 import { storage } from "./storage";
-import { eventCategory, interpretCategoryRoute, isEventBooking } from "./support-category-route";
+import { eventCategory, interpretCategoryRoute, isEventBooking, isReservationInquiry, reservationCategory } from "./support-category-route";
 
 export type SupportTicketRoute = {
   categoryIds: string[];
@@ -25,13 +25,25 @@ export async function routeSupportTicket(subject: string, message: string): Prom
     return { ...EMPTY_ROUTE, assignedAgentId: await assignRoutedAgent(null) };
   }
 
+  const text = `${subject}\n${message}`;
   const event = eventCategory(categories);
-  if (event && isEventBooking(`${subject}\n${message}`)) {
+  if (event && isEventBooking(text)) {
     return {
       categoryIds: [event.id],
       categoryNames: [event.name],
       categoryId: event.id,
       assignedAgentId: await assignRoutedAgent(event.id),
+      unsure: false,
+    };
+  }
+
+  const reservations = reservationCategory(categories);
+  if (reservations && isReservationInquiry(text)) {
+    return {
+      categoryIds: [reservations.id],
+      categoryNames: [reservations.name],
+      categoryId: reservations.id,
+      assignedAgentId: await assignRoutedAgent(reservations.id),
       unsure: false,
     };
   }
@@ -64,10 +76,8 @@ Rules:
 - If more than one category is a reasonable fit, set confident to false and include every plausible category id.
 - If none fit, or you are not sure, set confident to false and categoryIds to an empty array.
 - Use only ids from the list above.
-- A wedding, a request to host an event, or a function belongs only to the events category. Set confident true and return that one id.
-- A reservation for more than 18 people at the Knoll belongs only to the events category, whether the caller used the winery line or the restaurant line.
-- A reservation for more than 8 people at J's Restaurant belongs only to the events category, whether the caller used the winery line or the restaurant line.
-- A smaller party stays a reservation: 18 or fewer at the Knoll, and 8 or fewer at J's.`,
+- A private event, a wedding, a banquet, or a function belongs only to the events category. Set confident true and return that one id.
+- A reservation belongs only to the reservations category. The number of people does not make it an event. A question about whether a reservation is needed also belongs to reservations.`,
           },
           {
             role: "user",

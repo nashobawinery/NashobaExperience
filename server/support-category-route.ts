@@ -11,75 +11,18 @@ export type InterpretedCategoryRoute = {
   unsure: boolean;
 };
 
-const PARTY_WORDS: Record<string, number> = {
-  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
-  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
-  thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
-};
+const EVENT_LANGUAGE = /\b(weddings?|bridal|rehearsal dinner|receptions?|get(?:ting)? married|banquets?|functions?|private events?|corporate events?|host(?:ing)? an event|book(?:ing)? an event|plan(?:ning)? an event|event inquir\w*)\b/i;
+const RESERVATION_LANGUAGE = /\b(reservations?|book(?:ing)?(?: a)? table|tables? for|part(?:y|ies) of|groups? of|seating|(?:\d{1,3}|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\s*(?:people|guests|persons|pax))\b/i;
 
-const EVENT_LANGUAGE = /\b(weddings?|bridal|rehearsal dinner|receptions?|get(?:ting)? married|banquets?|private events?|corporate events?|host(?:ing)? an event|book(?:ing)? an event|plan(?:ning)? an event|event inquir\w*)\b/i;
-
-function partyCount(raw: string): number | null {
-  const digits = raw.match(/\d{1,3}/);
-  if (digits) {
-    const count = Number(digits[0]);
-    return count >= 1 && count <= 500 ? count : null;
-  }
-  const word = raw.toLowerCase().replace(/-/g, " ").trim();
-  return PARTY_WORDS[word] ?? null;
-}
-
-function partyMentions(text: string): Array<{ size: number; index: number }> {
-  const mentions: Array<{ size: number; index: number }> = [];
-  const pattern = /(?:party|group|table|reservation|booking)\s+(?:of|for)\s+([a-z0-9-]+)|([a-z0-9-]+)\s*(?:people|guests|persons|pax)\b/gi;
-  for (const match of text.matchAll(pattern)) {
-    const raw = match[1] || match[2] || "";
-    const size = partyCount(raw);
-    if (size != null) mentions.push({ size, index: match.index ?? 0 });
-  }
-  return mentions;
-}
-
-function venueNear(text: string, index: number): "knoll" | "js" | null {
-  const window = text.slice(Math.max(0, index - 80), index + 80);
-  const knoll = /\bknoll\b/i.test(window);
-  const js = /\bj'?s\b/i.test(window);
-  if (knoll && !js) return "knoll";
-  if (js && !knoll) return "js";
-  return null;
-}
-
-/**
- * Weddings and hosted events always qualify.
- * A Knoll reservation of more than 18 people qualifies.
- * A J's reservation of more than 8 people qualifies.
- * The phone line is used when the caller does not name the venue.
- */
+/** A private event, wedding, banquet, or function. A reservation of any size does not qualify. */
 export function isEventBooking(text: string): boolean {
-  if (EVENT_LANGUAGE.test(text)) return true;
-  const spoken = text.replace(/^line:\s*.+$/gim, " ");
-  const mentions = partyMentions(spoken);
-  if (mentions.length === 0) return false;
-  const saysKnoll = /\bknoll\b/i.test(spoken);
-  const saysJs = /\bj'?s\b/i.test(spoken);
-  const lineJs = /line:\s*j'?s restaurant/i.test(text);
-  const lineWinery = /line:\s*winery/i.test(text);
-  const fallback = saysKnoll && !saysJs
-    ? "knoll"
-    : saysJs && !saysKnoll
-      ? "js"
-      : lineJs && !lineWinery
-        ? "js"
-        : lineWinery && !lineJs
-          ? "knoll"
-          : null;
+  return EVENT_LANGUAGE.test(text);
+}
 
-  return mentions.some((mention) => {
-    const venue = venueNear(spoken, mention.index) ?? fallback;
-    if (venue === "knoll") return mention.size > 18;
-    if (venue === "js") return mention.size > 8;
-    return mention.size > 18;
-  });
+/** A table, party, or seating request. A private event or function is handled separately. */
+export function isReservationInquiry(text: string): boolean {
+  if (isEventBooking(text)) return false;
+  return RESERVATION_LANGUAGE.test(text);
 }
 
 export function eventCategory<T extends { id: string; name: string; slug?: string; isActive?: boolean }>(categories: T[]): T | undefined {
@@ -87,6 +30,12 @@ export function eventCategory<T extends { id: string; name: string; slug?: strin
   return active.find((category) => category.slug === "events-entertainment")
     ?? active.find((category) => category.slug === "events-and-function")
     ?? active.find((category) => /event/i.test(category.slug || category.name));
+}
+
+export function reservationCategory<T extends { id: string; name: string; slug?: string; isActive?: boolean }>(categories: T[]): T | undefined {
+  const active = categories.filter((category) => category.isActive !== false);
+  return active.find((category) => category.slug === "reservations")
+    ?? active.find((category) => /reservation/i.test(category.slug || category.name));
 }
 
 function activeCategories(categories: CategoryRouteCandidate[]): CategoryRouteCandidate[] {
