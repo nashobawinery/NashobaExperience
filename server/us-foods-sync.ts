@@ -6,6 +6,8 @@ import { sql } from "drizzle-orm";
 import { db } from "./db";
 import { postQuickBooks, queryQuickBooks } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
+import { sendAccountingAttention } from "./accounting-notice";
+import { applyFailureNotice, draftNotice, paymentNotice, type NoticeLine } from "./accounting-notice-text";
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx") as {
@@ -426,6 +428,19 @@ export async function applyReadyCorrections() {
         notes.push(`The ${expense.date} expense was not replaced: ${qbFault(error)}`);
       }
     }
+    const gaps: NoticeLine[] = reviewed.flatMap((expense) => {
+      const line = paymentNotice(expense);
+      return line ? [line] : [];
+    });
+    for (const note of notes) {
+      if (note.startsWith("Deleted ") || note.startsWith("QuickBooks would not delete")) continue;
+      gaps.push(applyFailureNotice(note.slice(0, 80), note));
+    }
+    await sendAccountingAttention(
+      "Accounting: a payment could not be applied to invoices",
+      "A US Foods payment could not be applied to the invoices.",
+      gaps,
+    );
     return { closed, waiting, notes };
   } finally {
     running = false;
@@ -717,9 +732,12 @@ export async function applyPaymentDrafts(drafts: { date: string; reference: stri
   try {
     const previews = await previewDrafts(drafts);
     const books = await loadBooks();
+    const gaps: NoticeLine[] = [];
     for (const preview of previews) {
       if (preview.status !== "ready-offset" && preview.status !== "ready-payment") {
         notes.push(`${preview.reference}: ${preview.note}`);
+        const line = draftNotice(preview);
+        if (line) gaps.push(line);
         continue;
       }
       try {
@@ -734,9 +752,16 @@ export async function applyPaymentDrafts(drafts: { date: string; reference: stri
         applied += 1;
         notes.push(`${preview.reference}: ${preview.note}`);
       } catch (error) {
-        notes.push(`${preview.reference}: ${qbFault(error)}`);
+        const message = qbFault(error);
+        notes.push(`${preview.reference}: ${message}`);
+        gaps.push(applyFailureNotice(preview.reference, message));
       }
     }
+    await sendAccountingAttention(
+      "Accounting: a payment could not be applied to invoices",
+      "A US Foods payment could not be applied to the invoices.",
+      gaps,
+    );
     return { applied, previews, notes };
   } finally {
     running = false;

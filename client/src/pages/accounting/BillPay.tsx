@@ -39,6 +39,7 @@ type Payable = {
   analysis: StatementAnalysis | string | null;
   readAt: string | null;
   codingNote: string | null;
+  postNote: string | null;
   createdAt: string;
 };
 
@@ -217,7 +218,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
       <div>
         <h2 className="text-2xl font-semibold">Bill Pay</h2>
         <p className="text-muted-foreground mt-1 max-w-3xl">
-          Invoices emailed to bills@nashobawinery.com wait here for approval. A statement is filed on the Statements tab and compared with the invoices we already have.
+          Invoices emailed to bills@nashobawinery.com wait here for approval. Each day, an invoice that is already in QuickBooks is marked Posted and is not sent again. A statement is filed on the Statements tab and compared with the invoices we already have.
         </p>
       </div>
 
@@ -230,7 +231,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2"><Receipt className="h-4 w-4" /> Sent to QuickBooks</CardDescription>
+            <CardDescription className="flex items-center gap-2"><Receipt className="h-4 w-4" /> Posted</CardDescription>
             <CardTitle>{posted.length}</CardTitle>
           </CardHeader>
         </Card>
@@ -255,7 +256,7 @@ export default function BillPay({ companies }: { companies: Company[] }) {
           <CardTitle>For approval</CardTitle>
           {prepare.isPending && <CardDescription>Reading new mail and separating statements from invoices.</CardDescription>}
           <CardDescription>
-            Mail sent to {data?.inboxEmail ?? "bills@nashobawinery.com"} lands here and does not open a support ticket. Open one invoice, confirm the vendor and account, then approve it. Approval sends the bill to QuickBooks and attaches the file.
+            Mail sent to {data?.inboxEmail ?? "bills@nashobawinery.com"} lands here and does not open a support ticket. Open one invoice, confirm the vendor and account, then approve it. Approval sends the bill to QuickBooks and attaches the file. If QuickBooks already has that invoice, it is marked Posted instead.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -309,11 +310,14 @@ export default function BillPay({ companies }: { companies: Company[] }) {
           )}
           {posted.length > 0 && (
             <div className="border rounded-lg overflow-hidden">
-              <p className="px-3 py-2 text-sm font-medium border-b">Already approved</p>
+              <p className="px-3 py-2 text-sm font-medium border-b">Posted</p>
               {posted.map((document) => (
-                <div key={document.id} className="px-3 py-2 border-b last:border-0 text-sm flex flex-wrap justify-between gap-2">
-                  <span>{document.vendorName || document.originalFilename} · {document.invoiceNumber || "No number"}</span>
-                  <span className="text-muted-foreground">{money(document.amount)} · QuickBooks {document.qbBillId}</span>
+                <div key={document.id} className="px-3 py-2 border-b last:border-0 text-sm">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <span>{document.vendorName || document.originalFilename} · {document.invoiceNumber || "No number"}</span>
+                    <span className="text-muted-foreground">{money(document.amount)} · Posted · QuickBooks {document.qbBillId}</span>
+                  </div>
+                  {document.postNote && <p className="text-muted-foreground mt-1">{document.postNote}</p>}
                 </div>
               ))}
             </div>
@@ -593,7 +597,7 @@ function PayableRow({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {document.qbBillId && <Badge>QuickBooks {document.qbBillId}</Badge>}
+          {document.qbBillId && <Badge>Posted · QuickBooks {document.qbBillId}</Badge>}
           <Badge variant={document.documentKind === "unreviewed" ? "outline" : "secondary"}>{kindLabel[document.documentKind]}</Badge>
           <Button variant="outline" size="sm" disabled={reading || Boolean(document.qbBillId)} onClick={() => onRead(purpose)}>
             {reading ? "Reading" : "Read again"}

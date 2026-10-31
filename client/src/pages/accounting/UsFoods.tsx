@@ -109,7 +109,7 @@ export default function UsFoods() {
         <div>
           <h2 className="text-2xl font-semibold">US Foods</h2>
           <p className="text-muted-foreground mt-1 max-w-3xl">
-            Each morning this checks US Foods expenses. When the open invoices due that week add up to an expense, that expense is deleted and a bill payment for the same amount is applied to those invoices. If QuickBooks will not delete it because the line is matched to a bank download, the invoices are still paid and the cash is not taken a second time. A draft that does not match waits for the payment file.
+            US Foods invoices that are already in QuickBooks are marked Posted in Bill Pay, so the same invoice is not sent again. The bank withdrawal syncs into QuickBooks as an expense. Each day, when the open invoices due that week add up to that withdrawal, the expense is replaced with a bill payment for the same amount. If QuickBooks will not delete the line because it is already matched to the bank download, the invoices are still paid and the cash is not taken a second time. A withdrawal that does not match one set of invoices waits for the payment file.
           </p>
         </div>
         <div className="flex gap-2">

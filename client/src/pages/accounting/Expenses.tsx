@@ -193,7 +193,7 @@ function Bills({ documents, onOpen }: { documents: Payable[]; onOpen: () => void
             {invoices.map((document) => (
               <div key={document.id} className="px-3 py-2 border-b last:border-0 text-sm flex flex-wrap justify-between gap-2">
                 <span>{document.vendorName || "Vendor not chosen"} · {document.invoiceNumber || "No number"}</span>
-                <span className="text-muted-foreground">{document.billDate?.slice(0, 10) || "—"} · {money(document.amount)}{document.qbBillId ? ` · QuickBooks ${document.qbBillId}` : ""}</span>
+                <span className="text-muted-foreground">{document.billDate?.slice(0, 10) || "—"} · {money(document.amount)}{document.qbBillId ? ` · Posted · QuickBooks ${document.qbBillId}` : ""}</span>
               </div>
             ))}
           </div>

@@ -10,6 +10,9 @@ import { objectStorageClient } from "./objectStorage";
 import { postQuickBooks, queryQuickBooks, uploadQuickBooksAttachment } from "./quickbooks-routes";
 import { requirePlatformRole } from "./platformAuth";
 import { registerUsFoodsRoutes } from "./us-foods-sync";
+import { markPayableIfAlreadyPosted } from "./payable-posted";
+import { sendAccountingAttention } from "./accounting-notice";
+import { statementNotices } from "./accounting-notice-text";
 import { registerReconcileRoutes } from "./bank-reconcile";
 import { registerToastSalesRoutes } from "./toast-books";
 
@@ -558,6 +561,7 @@ export async function ensureAccountingTables() {
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS analysis jsonb;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS read_at timestamp;
     ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS coding_note text;
+    ALTER TABLE accounting_payables ADD COLUMN IF NOT EXISTS post_note text;
     CREATE TABLE IF NOT EXISTS accounting_vendor_analyses (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       qb_vendor_id varchar NOT NULL,
@@ -2697,6 +2701,8 @@ export async function receivePayableEmail(input: {
         } catch (error) {
           console.error("[Payables] Statement saved and the comparison failed:", error);
         }
+      } else {
+        await markPayableIfAlreadyPosted(id);
       }
       saved.push({ id, duplicate: false });
     } catch (error) {
@@ -2816,6 +2822,7 @@ async function applyBillReading(id: string, purpose?: string) {
     WHERE id = ${id}
   `);
   if (kind === "statement") await analyzePayableStatement(id);
+  else await markPayableIfAlreadyPosted(id);
   return reading.reason;
 }
 
@@ -3273,6 +3280,11 @@ async function analyzePayableStatement(id: string) {
     qbBalance: built.qbBalance,
     analysis: built.analysis,
   });
+  await sendAccountingAttention(
+    "Accounting: an invoice could not be reconciled",
+    `${document.vendorName || "A vendor"} statement could not be reconciled to the invoices.`,
+    statementNotices(document.vendorName || "Vendor", built.analysis.issues || []),
+  );
 }
 
 router.post("/vendor-analyses", isAdmin, (req, res) => {
@@ -3310,6 +3322,11 @@ router.post("/vendor-analyses", isAdmin, (req, res) => {
         RETURNING id, created_at as "createdAt"
       `);
       const saved = inserted.rows[0] as { id: string; createdAt: string };
+      await sendAccountingAttention(
+        "Accounting: an invoice could not be reconciled",
+        `${vendorName} statement could not be reconciled to the invoices.`,
+        statementNotices(vendorName, analysis.issues || []),
+      );
       res.status(201).json({
         id: saved.id,
         qbVendorId: vendorId,
@@ -3564,7 +3581,8 @@ router.get("/payables", isAdmin, async (_req, res) => {
              p.qb_account_id as "qbAccountId", p.qb_bill_id as "qbBillId", p.account_reason as "accountReason",
              p.original_filename as "originalFilename", p.stored_filename as "storedFilename",
              p.storage_key as "storageKey", p.source, p.from_email as "fromEmail",
-             p.subject, p.analysis, p.read_at as "readAt", p.coding_note as "codingNote", p.created_at as "createdAt"
+             p.subject, p.analysis, p.read_at as "readAt", p.coding_note as "codingNote",
+             p.post_note as "postNote", p.created_at as "createdAt"
       FROM accounting_payables p
       LEFT JOIN accounting_companies c ON c.id = p.company_id
       ORDER BY p.created_at DESC
@@ -3594,6 +3612,7 @@ router.get("/payables", isAdmin, async (_req, res) => {
         analysis: row.analysis,
         readAt: row.readAt,
         codingNote: row.codingNote,
+        postNote: row.postNote,
         createdAt: row.createdAt,
         hasFile,
       });
@@ -3640,6 +3659,8 @@ router.post("/payables", isAdmin, (req, res) => {
         } catch (error) {
           console.error("[Payables] Statement saved and the comparison failed:", error);
         }
+      } else {
+        await markPayableIfAlreadyPosted(id);
       }
       res.status(201).json({ id });
     } catch (error) {
@@ -3848,7 +3869,8 @@ router.post("/payables/:id/quickbooks", isAdmin, async (req, res) => {
           gl_account = ${glAccount || null},
           qb_vendor_id = ${vendorId},
           qb_account_id = ${accountId},
-          qb_bill_id = ${billId}
+          qb_bill_id = ${billId},
+          post_note = 'Posted from this inbox.'
       WHERE id = ${req.params.id}
     `);
     res.json({ qbBillId: billId, attachmentMessage });
