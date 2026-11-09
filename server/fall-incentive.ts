@@ -8,6 +8,7 @@ import {
   addDays,
   buildIncentiveReport,
   jobKey,
+  defaultWeatherCallouts,
   incentiveSignature,
   sanitizeFallIncentiveSetup,
   setupProblem,
@@ -235,7 +236,13 @@ async function readSetup(): Promise<FallIncentiveSetup> {
   if (typeof stored === "string") {
     try { parsed = JSON.parse(stored); } catch { parsed = null; }
   }
-  return sanitizeFallIncentiveSetup(parsed);
+  const hadCallouts = Boolean(parsed && typeof parsed === "object" && "callouts" in parsed);
+  const setup = sanitizeFallIncentiveSetup(parsed);
+  if (!hadCallouts) {
+    setup.callouts = defaultWeatherCallouts();
+    await writeSetup(setup);
+  }
+  return setup;
 }
 
 async function writeSetup(setup: FallIncentiveSetup): Promise<void> {
@@ -477,18 +484,29 @@ export function fallIncentiveWorkbook(report: IncentiveReport): Buffer {
     const firstShiftRow = lines.length;
     let shiftHours = 0;
     for (const day of person.days ?? []) {
+      const calledOff = day.callout ? "Scheduled but Called Off Due to Weather" : "";
       if (!day.punches || day.punches.length === 0) {
         shiftHours += day.hours ?? 0;
-        lines.push([day.date, weekdayName(day.date), day.worked ? "Yes" : "No", "", "", "", day.hours ?? 0]);
-        continue;
-      }
-      day.punches.forEach((punch) => {
-        shiftHours += punch.hours ?? 0;
         lines.push([
           day.date,
           weekdayName(day.date),
           day.worked ? "Yes" : "No",
-          punch.jobTitle,
+          calledOff,
+          "",
+          "",
+          day.hours ?? 0,
+        ]);
+        continue;
+      }
+      day.punches.forEach((punch, index) => {
+        shiftHours += punch.hours ?? 0;
+        lines.push([
+          day.date,
+          weekdayName(day.date),
+          day.calloutConflict ? "Conflict" : day.worked ? "Yes" : "No",
+          index === 0 && day.callout
+            ? `${punch.jobTitle} — Scheduled but Called Off Due to Weather${day.calloutConflict ? ". Toast also has hours on this day." : ""}`
+            : punch.jobTitle,
           clockText(punch.inAt),
           punch.open ? "Still clocked in" : clockText(punch.outAt),
           punch.hours ?? 0,
@@ -505,7 +523,8 @@ export function fallIncentiveWorkbook(report: IncentiveReport): Buffer {
     lines.push(["Incentive", person.total]);
     const shiftHoursRow = lines.length;
     lines.push(["Sum of shift hours", ""]);
-    lines.push(["Days worked", person.daysWorked, "Days add up across jobs. Ten days in each of three jobs are 30 days. Two shifts in the same job on the same date count as one day."]);
+    lines.push(["Days worked", person.daysWorked, "Each incentive date counts once. A weather call-off with no Toast hours counts as that one day. A flagged call-off, where Toast also has hours, still counts as that same one day."]);
+    lines.push(["Weather call-offs", person.calloutDays ?? 0, "Already included in days worked. Do not add this number again."]);
     const calcRow = lines.length;
     lines.push(["Calculation", ""]);
     if (person.openShift) lines.push(["Note", "A shift is still open, so these hours can change."]);
@@ -534,7 +553,7 @@ export function fallIncentiveWorkbook(report: IncentiveReport): Buffer {
       }
     }
     sheet["!cols"] = [
-      { wch: 16 }, { wch: 28 }, { wch: 12 }, { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 12 },
+      { wch: 16 }, { wch: 28 }, { wch: 12 }, { wch: 64 }, { wch: 16 }, { wch: 18 }, { wch: 12 },
     ];
     XLSX.utils.book_append_sheet(book, sheet, excelSheetName(person.name, used));
   }

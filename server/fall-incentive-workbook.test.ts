@@ -13,7 +13,7 @@ const report: IncentiveReport = {
   qualifiedCount: 1,
   total: 27,
   openShifts: 0,
-  dayBasis: "job",
+  dayBasis: "date",
   groups: [
     {
       key: "2-3",

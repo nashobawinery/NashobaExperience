@@ -1,5 +1,11 @@
 export type FallTierInput = { minDays: string; rate: string };
 
+export type WeatherCallout = {
+  date: string;
+  name: string;
+  employeeId: string;
+};
+
 export type FallIncentiveSetup = {
   startDate: string;
   endDate: string;
@@ -7,6 +13,8 @@ export type FallIncentiveSetup = {
   tiers: FallTierInput[];
   includedJobTitles: string[];
   excludedEmployeeIds: string[];
+  description: string;
+  callouts: WeatherCallout[];
 };
 
 export type HolidayChoice = {
@@ -47,7 +55,15 @@ export type IncentiveDay = {
   worked: boolean;
   hours: number;
   open: boolean;
+  callout?: boolean;
+  calloutConflict?: boolean;
   punches: { jobTitle: string; inAt: string | null; outAt: string | null; hours: number; open: boolean }[];
+};
+
+export type CalloutNote = {
+  date: string;
+  name: string;
+  message: string;
 };
 
 export type IncentiveEmployeeReport = {
@@ -61,6 +77,8 @@ export type IncentiveEmployeeReport = {
   rate: number;
   total: number;
   openShift: boolean;
+  calloutDays?: number;
+  calloutConflicts?: number;
   days: IncentiveDay[];
 };
 
@@ -83,7 +101,8 @@ export type IncentiveReport = {
   qualifiedCount: number;
   total: number;
   openShifts: number;
-  dayBasis: "job";
+  calloutNotes?: CalloutNote[];
+  dayBasis: "date";
 };
 
 export function emptyFallIncentiveSetup(): FallIncentiveSetup {
@@ -94,6 +113,8 @@ export function emptyFallIncentiveSetup(): FallIncentiveSetup {
     tiers: [{ minDays: "", rate: "" }],
     includedJobTitles: [],
     excludedEmployeeIds: [],
+    description: "",
+    callouts: [],
   };
 }
 
@@ -300,6 +321,7 @@ export function incentiveSignature(setup: FallIncentiveSetup): string {
     tiers: clean.tiers,
     includedJobTitles: [...clean.includedJobTitles].map((title) => jobKey(title)).sort(),
     excludedEmployeeIds: [...clean.excludedEmployeeIds].sort(),
+    callouts: clean.callouts.map((callout) => `${callout.date}|${callout.employeeId}|${callout.name.toLowerCase()}`).sort(),
   });
 }
 
@@ -320,7 +342,106 @@ export function sanitizeFallIncentiveSetup(value: unknown): FallIncentiveSetup {
     tiers: cleanTiers.length > 0 ? cleanTiers : [{ minDays: "", rate: "" }],
     includedJobTitles: cleanStringList(raw.includedJobTitles, 200),
     excludedEmployeeIds: cleanStringList(raw.excludedEmployeeIds, 2000),
+    description: cleanDescription(raw.description),
+    callouts: cleanCallouts(raw.callouts),
   };
+}
+
+function cleanDescription(value: unknown): string {
+  return String(value ?? "").replace(/\u0000/g, "").slice(0, 20000);
+}
+
+function cleanCallouts(value: unknown): WeatherCallout[] {
+  if (!Array.isArray(value)) return [];
+  const out: WeatherCallout[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const date = String(row.date ?? "");
+    if (!isIsoDate(date)) continue;
+    const name = String(row.name ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+    const employeeId = String(row.employeeId ?? "").trim().slice(0, 80);
+    if (!name && !employeeId) continue;
+    const key = `${date}|${employeeId}|${name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ date, name, employeeId });
+    if (out.length >= 500) break;
+  }
+  return out;
+}
+
+const calloutAliases: Record<string, string> = {
+  nacy: "nancy",
+  jackie: "jaclyn",
+  corrine: "corinne",
+  yaui: "yauri",
+};
+
+function calloutTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => calloutAliases[token] ?? token);
+}
+
+export type CalloutMatch = {
+  employeeIds: string[];
+  status: "matched" | "duplicate" | "ambiguous" | "unmatched";
+};
+
+export function matchCalloutName(label: string, employees: { id: string; name: string }[]): CalloutMatch {
+  const want = calloutTokens(label);
+  if (want.length === 0 || employees.length === 0) return { employeeIds: [], status: "unmatched" };
+  const scored = employees.map((person) => {
+    const have = calloutTokens(person.name);
+    const first = have[0] ?? "";
+    let score = 0;
+    if (first === want[0]) score += 10;
+    else if ((first.startsWith(want[0]) || want[0].startsWith(first)) && Math.min(first.length, want[0].length) >= 3) score += 4;
+    if (score === 0) return { id: person.id, name: person.name, score: 0 };
+    if (want.length === 1) return { id: person.id, name: person.name, score: score + 1 };
+    const wantLast = want.slice(1).join("");
+    const haveLast = have.slice(1).join("");
+    if (!haveLast) return { id: person.id, name: person.name, score: 0 };
+    if (wantLast.length === 1) return { id: person.id, name: person.name, score: haveLast.startsWith(wantLast) ? score + 6 : 0 };
+    if (haveLast === wantLast || haveLast.startsWith(wantLast) || wantLast.startsWith(haveLast) || haveLast.includes(wantLast)) {
+      return { id: person.id, name: person.name, score: score + 8 };
+    }
+    return { id: person.id, name: person.name, score: 0 };
+  }).filter((person) => person.score > 0);
+  const best = Math.max(0, ...scored.map((person) => person.score));
+  const winners = scored.filter((person) => person.score === best);
+  if (winners.length === 0) return { employeeIds: [], status: "unmatched" };
+  if (winners.length === 1) return { employeeIds: [winners[0].id], status: "matched" };
+  const sameName = new Set(winners.map((person) => calloutTokens(person.name).join(" "))).size === 1;
+  return {
+    employeeIds: winners.map((person) => person.id),
+    status: sameName ? "duplicate" : "ambiguous",
+  };
+}
+
+export function resolveCallout(callout: WeatherCallout, employees: { id: string; name: string }[]): CalloutMatch {
+  if (callout.employeeId) {
+    return employees.some((person) => person.id === callout.employeeId)
+      ? { employeeIds: [callout.employeeId], status: "matched" }
+      : { employeeIds: [], status: "unmatched" };
+  }
+  return matchCalloutName(callout.name, employees);
+}
+
+export function defaultWeatherCallouts(): WeatherCallout[] {
+  const groups: { date: string; names: string[] }[] = [
+    { date: "2026-09-13", names: ["Amy C", "Anna T", "Christina D", "Danielle", "Delia", "Donna", "Nancy"] },
+    { date: "2026-09-20", names: ["Amy C", "Andy", "Antonio", "Ashley B", "Ashley M", "Crystal", "Donna", "Erin F", "Erin D", "Kristy", "Maddy", "Mary D", "Nancy"] },
+    { date: "2026-09-26", names: ["Alex R", "Amy C", "Andy", "Antonio", "Ashley B", "Corrine", "Dan J", "Danielle", "Donna", "Erin D", "Erin Flynn", "Jess Shay", "Kristy", "Laura", "Mary K", "Nancy", "Ryan"] },
+    { date: "2026-09-27", names: ["Alex", "Amy C", "Andy", "Antonio", "Ashley B", "Ashley M", "Brenna", "Chris L", "Christina", "Corrine", "Crystal", "Dan J", "Danielle", "Donna", "Erin D", "Erin F", "Jenna", "Jess Yauri", "Jillian", "Laura M", "Mettaya", "Nancy", "Ryan"] },
+    { date: "2026-11-01", names: ["Ashley M", "Brenna", "Crystal", "Delia", "Erin F", "Jackie", "Jess Yauri", "Jillian B", "Nancy"] },
+  ];
+  return groups.flatMap((group) => group.names.map((name) => ({ date: group.date, name, employeeId: "" })));
 }
 
 function cleanNumberText(value: unknown): string {
@@ -341,15 +462,9 @@ function cleanStringList(value: unknown, max: number): string[] {
   return out;
 }
 
-export function jobDaysWorked(days: IncentiveDay[]): number {
-  const seen = new Set<string>();
-  for (const day of days) {
-    for (const punch of day.punches) {
-      if (punch.hours <= 0 && !punch.open) continue;
-      seen.add(`${day.date}|${jobKey(punch.jobTitle)}`);
-    }
-  }
-  return seen.size;
+export function daysWorkedCount(days: IncentiveDay[], dateCount: number): number {
+  const worked = days.filter((day) => day.worked).length;
+  return Math.min(worked, Math.max(0, dateCount));
 }
 
 export function buildIncentiveReport(input: {
@@ -359,6 +474,7 @@ export function buildIncentiveReport(input: {
   tiers: FallTierInput[];
   includedJobTitles: string[];
   excludedEmployeeIds: string[];
+  callouts?: WeatherCallout[];
   employees: IncentivePerson[];
   punches: IncentivePunch[];
 }): IncentiveReport {
@@ -370,6 +486,36 @@ export function buildIncentiveReport(input: {
   const people = input.employees.filter((person) =>
     !excluded.has(person.id) && person.jobTitles.some((title) => isJobIncluded(title, input.includedJobTitles)),
   );
+  const peopleIds = new Set(people.map((person) => person.id));
+  const calloutNotes: CalloutNote[] = [];
+  const calloutsByPerson = new Map<string, Set<string>>();
+  for (const callout of input.callouts ?? []) {
+    const resolved = resolveCallout(callout, input.employees);
+    if (!dateSet.has(callout.date)) {
+      calloutNotes.push({ date: callout.date, name: callout.name, message: "This date is not an incentive date, so it does not add a day." });
+      continue;
+    }
+    if (resolved.status === "unmatched") {
+      calloutNotes.push({ date: callout.date, name: callout.name, message: "No employee matches this name." });
+      continue;
+    }
+    if (resolved.status === "ambiguous") {
+      calloutNotes.push({ date: callout.date, name: callout.name, message: "More than one employee matches this name." });
+      continue;
+    }
+    if (resolved.status === "duplicate") {
+      calloutNotes.push({ date: callout.date, name: callout.name, message: "This name is on more than one Toast record, so the call-off is counted on each." });
+    }
+    for (const employeeId of resolved.employeeIds) {
+      if (!peopleIds.has(employeeId)) {
+        calloutNotes.push({ date: callout.date, name: callout.name, message: "This person is not included in the selected jobs." });
+        continue;
+      }
+      const datesForPerson = calloutsByPerson.get(employeeId) ?? new Set<string>();
+      datesForPerson.add(callout.date);
+      calloutsByPerson.set(employeeId, datesForPerson);
+    }
+  }
   const punchesByPerson = new Map<string, IncentivePunch[]>();
   for (const punch of input.punches) {
     if (!dateSet.has(punch.businessDate) || !isJobIncluded(punch.jobTitle, input.includedJobTitles)) continue;
@@ -392,11 +538,18 @@ export function buildIncentiveReport(input: {
       const dayPunches = byDate.get(date) ?? [];
       const hours = roundHours(dayPunches.reduce((sum, punch) => sum + punch.hours, 0));
       const open = dayPunches.some((punch) => punch.open);
+      const callout = calloutsByPerson.get(person.id)?.has(date) ?? false;
+      const calloutConflict = callout && (hours > 0 || open);
+      if (calloutConflict) {
+        calloutNotes.push({ date, name: person.name, message: "Called off due to weather, but Toast has hours on this day. This date still counts as one day." });
+      }
       return {
         date,
-        worked: hours > 0 || open,
+        worked: hours > 0 || open || callout,
         hours,
         open,
+        callout,
+        calloutConflict,
         punches: dayPunches.map((punch) => ({
           jobTitle: punch.jobTitle,
           inAt: punch.inAt,
@@ -406,7 +559,7 @@ export function buildIncentiveReport(input: {
         })),
       };
     });
-    const daysWorked = jobDaysWorked(days);
+    const daysWorked = daysWorkedCount(days, dates.length);
     const hours = roundHours(days.reduce((sum, day) => sum + day.hours, 0));
     const band = bandForDays(daysWorked, bands);
     const rate = band?.rate ?? 0;
@@ -421,6 +574,8 @@ export function buildIncentiveReport(input: {
       rate,
       total: roundMoney(hours * rate),
       openShift: days.some((day) => day.open),
+      calloutDays: days.filter((day) => day.callout).length,
+      calloutConflicts: days.filter((day) => day.calloutConflict).length,
       days,
     };
   });
@@ -464,7 +619,8 @@ export function buildIncentiveReport(input: {
     qualifiedCount: reports.filter((person) => person.rate > 0).length,
     total: roundMoney(reports.reduce((sum, person) => sum + person.total, 0)),
     openShifts: reports.filter((person) => person.openShift).length,
-    dayBasis: "job",
+    calloutNotes,
+    dayBasis: "date",
   };
 }
 

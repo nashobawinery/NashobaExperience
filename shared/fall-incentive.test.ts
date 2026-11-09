@@ -8,6 +8,7 @@ import {
   incentiveDates,
   incentiveSignature,
   majorHolidays,
+  matchCalloutName,
   parseTiers,
   tierBands,
 } from "./fall-incentive";
@@ -98,6 +99,8 @@ describe("fall incentive signature", () => {
     assert.notEqual(incentiveSignature({ ...setup, tiers: [{ minDays: "20", rate: "1" }] }), original);
     assert.notEqual(incentiveSignature({ ...setup, includedJobTitles: ["Server"] }), original);
     assert.notEqual(incentiveSignature({ ...setup, excludedEmployeeIds: ["a"] }), original);
+    assert.equal(incentiveSignature({ ...setup, description: "Mailed to the staff." }), original);
+    assert.notEqual(incentiveSignature({ ...setup, callouts: [{ date: "2026-09-13", name: "Amy C", employeeId: "" }] }), original);
   });
 });
 
@@ -142,7 +145,7 @@ describe("fall incentive report", () => {
     assert.equal(report.total, 31);
   });
 
-  it("adds days across jobs for the same employee", () => {
+  it("limits days worked to the incentive dates", () => {
     const report = buildIncentiveReport({
       startDate: "2026-11-07",
       endDate: "2026-11-08",
@@ -161,11 +164,12 @@ describe("fall incentive report", () => {
       ],
     });
 
-    const avery = report.groups[0].employees[0];
-    assert.equal(avery.daysWorked, 3);
+    const avery = report.groups.flatMap((group) => group.employees).find((person) => person.id === "a");
+    assert.equal(report.dateCount, 2);
+    assert.equal(avery.daysWorked, 2);
     assert.equal(avery.hours, 17);
-    assert.equal(avery.rate, 3);
-    assert.equal(avery.total, 51);
+    assert.equal(avery.rate, 0);
+    assert.equal(avery.total, 0);
   });
 
   it("writes a Retro Pay amount for people who qualify", () => {
@@ -212,5 +216,68 @@ describe("fall incentive report", () => {
     assert.equal(report.groups[0].employees[0].hours, 0);
     assert.equal(report.groups[0].employees[0].total, 0);
     assert.equal(report.openShifts, 1);
+  });
+
+  it("counts a weather call-off as a day with zero hours and flags hours on that day", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-08",
+      excludedHolidays: [],
+      tiers: [{ minDays: "2", rate: "3" }],
+      includedJobTitles: ["Server"],
+      excludedEmployeeIds: [],
+      callouts: [
+        { date: "2026-11-07", name: "Avery", employeeId: "" },
+        { date: "2026-11-08", name: "Blair", employeeId: "" },
+      ],
+      employees,
+      punches: [
+        { employeeId: "a", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T19:00:00.000Z", hours: 5, open: false },
+        { employeeId: "a", businessDate: "2026-11-08", jobTitle: "Server", inAt: "2026-11-08T14:00:00.000Z", outAt: "2026-11-08T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "b", businessDate: "2026-11-08", jobTitle: "Server", inAt: null, outAt: null, hours: 0, open: false },
+      ],
+    });
+
+    const people = report.groups.flatMap((group) => group.employees);
+    const avery = people.find((person) => person.id === "a");
+    const blair = people.find((person) => person.id === "b");
+    assert.equal(avery?.daysWorked, 2);
+    assert.equal(avery?.hours, 9);
+    assert.equal(avery?.days.filter((day) => day.date === "2026-11-07").length, 1);
+    assert.equal(avery?.days.find((day) => day.date === "2026-11-07")?.calloutConflict, true);
+    assert.equal(blair?.daysWorked, 1);
+    assert.equal(blair?.hours, 0);
+    assert.equal(blair?.days.find((day) => day.date === "2026-11-08")?.callout, true);
+    assert.equal(blair?.days.find((day) => day.date === "2026-11-08")?.calloutConflict, false);
+    assert.ok(report.calloutNotes?.some((note) => note.name === "Avery Cole" && note.message.includes("Toast has hours")));
+  });
+});
+
+describe("fall incentive callout names", () => {
+  const employees = [
+    { id: "amy-c", name: "Amy Courtemanche" },
+    { id: "amy-g", name: "Amy Germain" },
+    { id: "erin-f", name: "Erin Flynn" },
+    { id: "erin-d", name: "Erin DeCoste" },
+    { id: "jess", name: "Jess Shay" },
+    { id: "jessica", name: "Jessica Shay" },
+    { id: "yauri", name: "Jessica Yauri Cambi" },
+    { id: "jackie", name: "Jaclyn Quigley" },
+    { id: "ryan-1", name: "Ryan Schneider" },
+    { id: "ryan-2", name: "Ryan Schneider" },
+  ];
+
+  it("matches initials, nicknames, and duplicate Toast records", () => {
+    assert.deepEqual(matchCalloutName("Amy C", employees).employeeIds, ["amy-c"]);
+    assert.deepEqual(matchCalloutName("Erin F", employees).employeeIds, ["erin-f"]);
+    assert.deepEqual(matchCalloutName("Erin Flynn", employees).employeeIds, ["erin-f"]);
+    assert.deepEqual(matchCalloutName("Jess Shay", employees).employeeIds, ["jess"]);
+    assert.deepEqual(matchCalloutName("Jess Yauri", employees).employeeIds, ["yauri"]);
+    assert.deepEqual(matchCalloutName("Jess Yaui", employees).employeeIds, ["yauri"]);
+    assert.deepEqual(matchCalloutName("Jackie", employees).employeeIds, ["jackie"]);
+    assert.deepEqual(matchCalloutName("Nacy", employees.concat({ id: "nancy", name: "Nancy Nadeau" })).employeeIds, ["nancy"]);
+    const ryan = matchCalloutName("Ryan", employees);
+    assert.equal(ryan.status, "duplicate");
+    assert.deepEqual(ryan.employeeIds, ["ryan-1", "ryan-2"]);
   });
 });

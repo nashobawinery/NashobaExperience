@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -22,6 +23,7 @@ import {
   jobKey,
   majorHolidays,
   parseTiers,
+  resolveCallout,
   setupProblem,
   tierBands,
   toastImportCsv,
@@ -29,6 +31,7 @@ import {
   type TierBand,
   type IncentiveEmployeeReport,
   type IncentiveReport,
+  type WeatherCallout,
 } from "@shared/fall-incentive";
 
 type Roster = {
@@ -77,6 +80,16 @@ function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+function qualificationGap(report: IncentiveReport): string | null {
+  if (report.qualifiedCount > 0 || report.bands.length === 0) return null;
+  const lowest = report.bands[report.bands.length - 1].minDays;
+  const highest = Math.max(0, ...report.groups.flatMap((group) => group.employees.map((person) => person.daysWorked)));
+  if (lowest > report.dateCount) {
+    return `Days worked cannot be higher than the ${report.dateCount} incentive dates. The lowest tier starts at ${lowest} days, so nobody can qualify.`;
+  }
+  return `The most days anyone reached is ${highest}. The lowest tier starts at ${lowest} days, so nobody qualifies.`;
+}
+
 function bandSentence(band: TierBand) {
   const amount = money(band.rate);
   if (band.maxDays == null) return `${band.minDays} or more days earns ${amount} an hour.`;
@@ -118,7 +131,7 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
     sections: [{
       paragraphs: [
         "Add a line for each pay level.",
-        "At least this many days is the fewest days a person must work to earn that line. Days add up across every selected job. Ten days as a server, ten as a bartender, and ten as a cook are 30 days for that person.",
+        "At least this many days is the fewest incentive dates a person must work to earn that line. Working more than one job on the same date still counts as one day. A weather call-off counts as a day worked with zero hours. Days worked cannot be higher than the number of incentive dates.",
         "Amount per hour is paid for every hour worked on an incentive date. It is paid for each of those hours.",
         "A person earns only the highest line they reach. The lines below it stay unused.",
         "For $3 at 28 days, $2 when someone works more than 25 but fewer than 28, and $1 from 20 days, enter 28 at $3.00, 26 at $2.00, and 20 at $1.00. That pays $3 for 28 or more, $2 for 26 and 27, and $1 for 20 through 25.",
@@ -140,6 +153,31 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
       ],
     }],
   },
+  callouts: {
+    title: "Callouts",
+    description: "People who were called off due to weather.",
+    sections: [{
+      paragraphs: [
+        "Add each person who was called off, on the date they were called off.",
+        "A call-off counts as a day worked with zero hours. The hours imported from Toast stay as they are.",
+        "Days worked are the incentive dates they worked plus the incentive dates they were called off. A date they both worked and were called off still counts as one day.",
+        "On that person's detail, the day is marked Scheduled but Called Off Due to Weather.",
+        "If Toast also has hours, or an open shift, on a call-off day, the day is flagged. It still counts as one day, not two. The hours stay so you can check why that day has hours.",
+        "A call-off outside the incentive dates is saved and does not add a day.",
+        "Changing this list clears the report. Generate report again after a change.",
+      ],
+    }],
+  },
+  description: {
+    title: "Description",
+    description: "The incentive program that was mailed to the staff.",
+    sections: [{
+      paragraphs: [
+        "Paste the letter or program text here so it can be read later.",
+        "This text is saved with the incentive. It does not change days, hours, or the report.",
+      ],
+    }],
+  },
   report: {
     title: "Report and Toast Payroll",
     description: "How the report is calculated, and how to load the whole incentive onto the current payroll.",
@@ -148,10 +186,11 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
         heading: "Read the report",
         paragraphs: [
           "Generate report reads Toast time entries for the dates, jobs, and people you chose.",
-          "Days add up across the jobs you turned on. Ten days in each of three jobs are 30 days for that person. Two shifts in the same job on the same date count as one day. A shift that is still open counts, and those hours can change.",
-          "Hours are regular hours plus overtime. The amount is those hours times the one tier their days worked reach.",
-          "Click a name to see each incentive date on the screen.",
-          "Changing the dates, the tiers, or the jobs clears the report. Generate report again after a change.",
+          "Each incentive date counts once for a person, even when they worked more than one job that day. Two shifts on the same date still count as one day. A weather call-off counts as a day worked with zero hours, and the Toast hours on other days stay as they are. Days worked cannot be higher than the number of incentive dates. A shift that is still open counts, and those hours can change.",
+          "Hours are regular hours plus overtime from every turned-on job. A call-off does not add hours. The amount is the Toast hours times the one tier their days worked reach.",
+          "Click a name to see each incentive date on the screen. A call-off day is marked Scheduled but Called Off Due to Weather. A call-off day that also has Toast hours is marked as a conflict.",
+          "Changing the dates, the tiers, the jobs, or the call-offs clears the report. The description does not. Generate report again after a change.",
+          "Only a job that is turned on adds hours. If the lowest tier asks for more days than this range has, nobody can qualify.",
         ],
       },
       {
@@ -196,12 +235,86 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
   },
 };
 
+function CalloutList({
+  callouts,
+  employees,
+  onChange,
+}: {
+  callouts: WeatherCallout[];
+  employees: { id: string; name: string }[];
+  onChange: (callouts: WeatherCallout[]) => void;
+}) {
+  const dates: string[] = [];
+  for (const callout of callouts) {
+    if (!dates.includes(callout.date)) dates.push(callout.date);
+  }
+  dates.sort();
+  if (dates.length === 0) {
+    return <p className="text-sm text-muted-foreground">No call-offs yet.</p>;
+  }
+  return (
+    <div className="space-y-4">
+      {dates.map((date) => (
+        <div key={date} className="space-y-2">
+          <h3 className="font-medium">{formatDay(date)}</h3>
+          {callouts.filter((callout) => callout.date === date).map((callout) => {
+            const match = resolveCallout(callout, employees);
+            const names = match.employeeIds
+              .map((id) => employees.find((person) => person.id === id)?.name)
+              .filter((name): name is string => Boolean(name));
+            return (
+              <div key={`${callout.date}|${callout.employeeId}|${callout.name}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{callout.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {match.status === "matched" ? names[0] ?? callout.name : null}
+                    {match.status === "duplicate" ? `${names[0] ?? callout.name} is on ${match.employeeIds.length} Toast records, so this call-off is counted on each.` : null}
+                    {match.status === "ambiguous" ? "More than one employee matches this name. Choose the person." : null}
+                    {match.status === "unmatched" ? "No employee matches this name." : null}
+                  </p>
+                  {match.status === "ambiguous" ? (
+                    <select
+                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      value={callout.employeeId}
+                      onChange={(event) => {
+                        const employeeId = event.target.value;
+                        onChange(callouts.map((item) => item === callout ? { ...item, employeeId } : item));
+                      }}
+                      data-testid={`select-callout-${callout.date}-${callout.name}`}
+                    >
+                      <option value="">Choose the person</option>
+                      {match.employeeIds.map((id) => (
+                        <option key={id} value={id}>{employees.find((person) => person.id === id)?.name ?? id}</option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onChange(callouts.filter((item) => item !== callout))}
+                  data-testid={`button-remove-callout-${callout.date}-${callout.name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function PayrollSection() {
   const { toast } = useToast();
   const [setup, setSetup] = useState<FallIncentiveSetup>(emptyFallIncentiveSetup);
   const [ready, setReady] = useState(false);
   const [saveState, setSaveState] = useState("");
   const [jobQuery, setJobQuery] = useState("");
+  const [calloutDate, setCalloutDate] = useState("");
+  const [calloutName, setCalloutName] = useState("");
   const [report, setReport] = useState<IncentiveReport | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<keyof typeof instructionsCopy | null>(null);
@@ -249,7 +362,10 @@ export default function PayrollSection() {
   useEffect(() => {
     if (!ready || !savedReport.isSuccess || reportHydrated.current) return;
     reportHydrated.current = true;
-    if (!savedReport.data || savedReport.data.dayBasis !== "job" || loadedSetup.current !== incentiveSignature(setup)) return;
+    if (!savedReport.data || savedReport.data.dayBasis !== "date" || loadedSetup.current !== incentiveSignature(setup)) {
+      if (savedReport.data) setReportCleared(true);
+      return;
+    }
     reportBasis.current = loadedSetup.current;
     setReport(savedReport.data);
   }, [ready, savedReport.isSuccess, savedReport.data, setup]);
@@ -418,6 +534,8 @@ export default function PayrollSection() {
               <TabsTrigger value="dates" data-testid="tab-incentive-dates">Incentive Dates</TabsTrigger>
               <TabsTrigger value="incentive" data-testid="tab-incentive-tiers">Incentive</TabsTrigger>
               <TabsTrigger value="jobs" data-testid="tab-incentive-jobs">Jobs</TabsTrigger>
+              <TabsTrigger value="callouts" data-testid="tab-incentive-callouts">Callouts</TabsTrigger>
+              <TabsTrigger value="description" data-testid="tab-incentive-description">Description</TabsTrigger>
               <TabsTrigger value="report" data-testid="tab-incentive-report">Report</TabsTrigger>
             </TabsList>
 
@@ -687,13 +805,96 @@ export default function PayrollSection() {
               </Card>
             </TabsContent>
 
+            <TabsContent value="callouts" className="mt-4">
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>Callouts</CardTitle>
+                    <CardDescription>
+                      A weather call-off counts as a day worked with zero hours. Toast hours stay as they are. A call-off on a day that already has hours is flagged, and that date still counts once.
+                    </CardDescription>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => setInstructions("callouts")} data-testid="button-instructions-callouts">Instructions</Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="callout-date">Date</Label>
+                      <Input id="callout-date" type="date" value={calloutDate} onChange={(event) => setCalloutDate(event.target.value)} data-testid="input-callout-date" />
+                    </div>
+                    <div className="min-w-48 flex-1 space-y-1">
+                      <Label htmlFor="callout-name">Name</Label>
+                      <Input id="callout-name" value={calloutName} onChange={(event) => setCalloutName(event.target.value)} placeholder="Name from the call-off list" data-testid="input-callout-name" />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const name = calloutName.trim().replace(/\s+/g, " ");
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(calloutDate) || !name) return;
+                        setSetup((current) => {
+                          const callouts = current.callouts ?? [];
+                          const exists = callouts.some((item) => item.date === calloutDate && item.name.toLowerCase() === name.toLowerCase() && !item.employeeId);
+                          if (exists) return current;
+                          return { ...current, callouts: [...callouts, { date: calloutDate, name, employeeId: "" }] };
+                        });
+                        setCalloutName("");
+                      }}
+                      data-testid="button-add-callout"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add call-off
+                    </Button>
+                  </div>
+                  {roster.isLoading ? <p className="text-sm text-muted-foreground">Jobs are still loading, so names cannot be matched yet.</p> : null}
+                  <CalloutList
+                    callouts={setup.callouts ?? []}
+                    employees={roster.data?.employees ?? []}
+                    onChange={(callouts) => setSetup((current) => ({ ...current, callouts }))}
+                  />
+                  {report?.calloutNotes && report.calloutNotes.length > 0 ? (
+                    <div className="space-y-2" data-testid="callout-notes">
+                      <p className="text-sm font-medium">Notes from the last report</p>
+                      {report.calloutNotes.map((note) => (
+                        <p key={`${note.date}-${note.name}-${note.message}`} className="text-sm text-amber-700">
+                          {formatDay(note.date)} · {note.name}: {note.message}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="description" className="mt-4">
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>Description</CardTitle>
+                    <CardDescription>
+                      Paste the incentive program that was mailed to the staff. This is kept for reference and does not change the report.
+                    </CardDescription>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => setInstructions("description")} data-testid="button-instructions-description">Instructions</Button>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={setup.description}
+                    onChange={(event) => setSetup((current) => ({ ...current, description: event.target.value }))}
+                    className="min-h-80"
+                    placeholder="Paste the mailed incentive program here."
+                    data-testid="input-incentive-description"
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="report" className="mt-4 space-y-4">
               <Card>
                 <CardHeader className="flex flex-row items-start justify-between gap-4">
                   <div>
                     <CardTitle>Report</CardTitle>
                     <CardDescription>
-                      Days and hours come from Toast time entries on the incentive dates, for the jobs you turned on. Days add up across those jobs for each person. Regular hours and overtime both count. The amount is those hours times the one tier the employee reached. Instructions walks through the Toast Payroll import.
+                      Days and hours come from Toast time entries on the incentive dates, for the jobs you turned on. A weather call-off counts as a day worked with zero hours, and Toast hours stay as they are. Each incentive date counts once. Regular hours and overtime both count. The amount is those hours times the one tier the employee reached. Instructions walks through the Toast Payroll import.
                     </CardDescription>
                   </div>
                   <Button type="button" variant="outline" onClick={() => setInstructions("report")} data-testid="button-instructions-report">Instructions</Button>
@@ -703,7 +904,7 @@ export default function PayrollSection() {
                     {dates.length} incentive {dates.length === 1 ? "date" : "dates"} · {bands.length} {bands.length === 1 ? "tier" : "tiers"} · {includedPeople.length} {includedPeople.length === 1 ? "employee" : "employees"}
                   </p>
                   {reportProblem ? <p className="text-sm text-muted-foreground">{reportProblem}</p> : null}
-                  {!report && reportCleared ? <p className="text-sm text-muted-foreground">The dates, incentive, or jobs changed. Generate the report again.</p> : null}
+                  {!report && reportCleared ? <p className="text-sm text-muted-foreground">The dates, incentive, jobs, or call-offs changed. Generate the report again.</p> : null}
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" onClick={() => generate.mutate()} disabled={Boolean(reportProblem) || generate.isPending} data-testid="button-generate-incentive">
                       {generate.isPending ? "Reading Toast time entries…" : "Generate report"}
@@ -747,6 +948,10 @@ export default function PayrollSection() {
                       {report.openShifts} {report.openShifts === 1 ? "employee has a shift" : "employees have a shift"} that is still open, so those hours can change.
                     </p>
                   ) : null}
+                  {report.groups.some((group) => group.employees.some((person) => (person.calloutConflicts ?? 0) > 0)) ? (
+                    <p className="text-sm text-amber-700">A flagged call-off counts as one day, not two. The Toast hours stay so you can check why that day has hours.</p>
+                  ) : null}
+                  {qualificationGap(report) ? <p className="text-sm text-muted-foreground" data-testid="text-qualification-gap">{qualificationGap(report)}</p> : null}
                   {report.groups.map((group) => {
                     const body = group.employees.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No one reached this tier.</p>
@@ -768,7 +973,7 @@ export default function PayrollSection() {
                     );
                     if (group.key === "none") {
                       return (
-                        <details key={group.key} className="rounded-lg border p-4">
+                        <details key={group.key} className="rounded-lg border p-4" open={report.qualifiedCount === 0}>
                           <summary className="cursor-pointer font-medium">{group.label} · {group.employees.length}</summary>
                           <div className="mt-4">{body}</div>
                         </details>
@@ -794,11 +999,16 @@ export default function PayrollSection() {
           <DialogHeader>
             <DialogTitle>{detail?.name ?? "Employee"}</DialogTitle>
             <DialogDescription>
-              {detail ? `${detail.daysWorked} days worked across jobs · ${hoursText(detail.hours)} hours · ${money(detail.rate)} per hour · ${money(detail.total)}` : ""}
+              {detail ? `${detail.daysWorked} incentive ${detail.daysWorked === 1 ? "date" : "dates"} worked · ${hoursText(detail.hours)} hours · ${money(detail.rate)} per hour · ${money(detail.total)}` : ""}
             </DialogDescription>
           </DialogHeader>
-          {detail ? <p className="text-sm text-muted-foreground">Each selected job on a date counts as its own day. Two shifts in the same job on the same date count as one day.</p> : null}
+          {detail ? <p className="text-sm text-muted-foreground">Each incentive date counts once. A weather call-off counts as a day worked with zero hours.</p> : null}
           {detail?.openShift ? <p className="text-sm text-amber-700">A shift is still open, so these hours can change.</p> : null}
+          {detail && (detail.calloutConflicts ?? 0) > 0 ? (
+            <p className="text-sm text-amber-700">
+              {detail.calloutConflicts} {detail.calloutConflicts === 1 ? "day is" : "days are"} flagged because Toast has hours on a weather call-off. Each flagged date still counts as one day.
+            </p>
+          ) : null}
           {detail ? (
             <div className="max-h-[60vh] overflow-auto">
               <Table>
@@ -814,13 +1024,19 @@ export default function PayrollSection() {
                   {detail.days.map((day) => (
                     <TableRow key={day.date}>
                       <TableCell>{formatDay(day.date)}</TableCell>
-                      <TableCell>{day.worked ? "Yes" : "No"}</TableCell>
+                      <TableCell>{day.calloutConflict ? "Conflict" : day.worked ? "Yes" : "No"}</TableCell>
                       <TableCell>
-                        {day.punches.length === 0 ? "—" : day.punches.map((punch, index) => (
+                        {day.punches.length === 0 && !day.callout ? "—" : null}
+                        {day.punches.map((punch, index) => (
                           <div key={`${punch.inAt ?? index}-${punch.jobTitle}`}>
                             {punch.jobTitle}: {clock(punch.inAt) || "—"} – {punch.open ? "Still clocked in" : clock(punch.outAt) || "—"}
                           </div>
                         ))}
+                        {day.callout ? (
+                          <div className={day.calloutConflict ? "text-amber-700" : undefined}>
+                            Scheduled but Called Off Due to Weather{day.calloutConflict ? ". Toast also has hours on this day." : ""}
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{hoursText(day.hours)}</TableCell>
                     </TableRow>
@@ -885,6 +1101,7 @@ function EmployeeTable({
                 {person.name}
               </button>
               {person.openShift ? <span className="block text-xs text-amber-700">Shift still open</span> : null}
+              {(person.calloutConflicts ?? 0) > 0 ? <span className="block text-xs text-amber-700">Flagged call-off, counted once</span> : null}
               {showRestaurant ? <span className="block text-xs text-muted-foreground">{person.restaurantName}</span> : null}
             </TableCell>
             <TableCell className="text-right tabular-nums">{person.daysWorked}</TableCell>
