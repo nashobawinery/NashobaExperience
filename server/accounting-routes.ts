@@ -14,7 +14,9 @@ import { markPayableIfAlreadyPosted } from "./payable-posted";
 import { sendAccountingAttention } from "./accounting-notice";
 import { statementNotices } from "./accounting-notice-text";
 import { registerReconcileRoutes } from "./bank-reconcile";
+import { registerFarmCreditRoutes } from "./farm-credit";
 import { registerToastSalesRoutes } from "./toast-books";
+import { registerFallIncentiveRoutes } from "./fall-incentive";
 
 const router = Router();
 const isAdmin = requirePlatformRole(["super_admin"]);
@@ -3891,6 +3893,8 @@ export function initHealthcareBillUploadReminders() {
 
 registerUsFoodsRoutes(router);
 registerToastSalesRoutes(router);
+registerFallIncentiveRoutes(router);
 registerReconcileRoutes(router);
+registerFarmCreditRoutes(router);
 
 export default router;

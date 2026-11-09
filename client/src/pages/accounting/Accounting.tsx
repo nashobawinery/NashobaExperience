@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import Expenses from "./Expenses";
 import Reconcile from "./Reconcile";
 import ToastSales from "./ToastSales";
+import Lending from "./Lending";
+import PayrollSection from "./FallIncentive";
 
 type BooksSection =
   | "accounting"
@@ -1761,6 +1763,10 @@ export default function AccountingPage() {
           <Reconcile />
         ) : section === "dsr" ? (
           <ToastSales />
+        ) : section === "lending" ? (
+          <Lending />
+        ) : section === "payroll" ? (
+          <PayrollSection />
         ) : (
           <div>
             <h2 className="text-2xl font-semibold">{ribbon.find((item) => item.id === section)?.label}</h2>
