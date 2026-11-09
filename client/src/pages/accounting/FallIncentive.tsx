@@ -24,6 +24,7 @@ import {
   parseTiers,
   setupProblem,
   tierBands,
+  toastImportCsv,
   type FallIncentiveSetup,
   type TierBand,
   type IncentiveEmployeeReport,
@@ -76,14 +77,10 @@ function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function bandSentence(band: TierBand, dateCount: number) {
+function bandSentence(band: TierBand) {
   const amount = money(band.rate);
-  if (dateCount > 0) {
-    if (band.maxDays == null) return `${band.minDays} or more of the ${dateCount} incentive dates earns ${amount} an hour.`;
-    if (band.maxDays <= band.minDays) return `${band.minDays} of the ${dateCount} incentive dates earns ${amount} an hour.`;
-    return `${band.minDays} to ${band.maxDays} of the ${dateCount} incentive dates earns ${amount} an hour.`;
-  }
   if (band.maxDays == null) return `${band.minDays} or more days earns ${amount} an hour.`;
+  if (band.maxDays <= band.minDays) return `${band.minDays} ${band.minDays === 1 ? "day" : "days"} earns ${amount} an hour.`;
   return `${band.label} earns ${amount} an hour.`;
 }
 
@@ -94,51 +91,110 @@ function tierIssue(tier: { minDays: string; rate: string }) {
   return null;
 }
 
-const instructionsCopy = {
+type InstructionSection = {
+  heading?: string;
+  paragraphs: readonly string[];
+  steps?: readonly string[];
+};
+
+const instructionsCopy: Record<string, { title: string; description: string; sections: readonly InstructionSection[] }> = {
   dates: {
     title: "Incentive dates",
-    paragraphs: [
-      "Enter the first day and the last day of the incentive.",
-      "Saturdays and Sundays between those dates count. A weekday counts only when its holiday box is checked.",
-      "Each major holiday in the range is listed with a box, and the boxes start checked.",
-      "A holiday on a weekday is added while its box is checked. Clear the box to leave that day out.",
-      "A holiday on a weekend is already counted as a weekend day. Clear its box to remove that Saturday or Sunday.",
-      "The large number is how many incentive dates you have. The Incentive tab uses that count.",
-    ],
+    description: "What to enter on this tab.",
+    sections: [{
+      paragraphs: [
+        "Enter the first day and the last day of the incentive.",
+        "Saturdays and Sundays between those dates count. A weekday counts only when its holiday box is checked.",
+        "Each major holiday in the range is listed with a box, and the boxes start checked.",
+        "A holiday on a weekday is added while its box is checked. Clear the box to leave that day out.",
+        "A holiday on a weekend is already counted as a weekend day. Clear its box to remove that Saturday or Sunday.",
+        "The large number is how many incentive dates you have. The Incentive tab uses that count.",
+      ],
+    }],
   },
   incentive: {
     title: "Incentive",
-    paragraphs: [
-      "Add a line for each pay level.",
-      "At least this many days is the fewest incentive dates a person must work to earn that line.",
-      "Amount per hour is paid for every hour worked on an incentive date. It is not paid once per day.",
-      "A person earns only the highest line they reach. The lines below it are not added on top.",
-      "For $3 at 28 days, $2 when someone works more than 25 but fewer than 28, and $1 from 20 days, enter 28 at $3.00, 26 at $2.00, and 20 at $1.00. That pays $3 for 28 or more, $2 for 26 and 27, and $1 for 20 through 25.",
-      "Add a line adds another level. The trash button removes a line.",
-      "The box under the lines reads the rules back, using the date count from Incentive Dates.",
-    ],
+    description: "What to enter on this tab.",
+    sections: [{
+      paragraphs: [
+        "Add a line for each pay level.",
+        "At least this many days is the fewest days a person must work to earn that line. Days add up across every selected job. Ten days as a server, ten as a bartender, and ten as a cook are 30 days for that person.",
+        "Amount per hour is paid for every hour worked on an incentive date. It is paid for each of those hours.",
+        "A person earns only the highest line they reach. The lines below it stay unused.",
+        "For $3 at 28 days, $2 when someone works more than 25 but fewer than 28, and $1 from 20 days, enter 28 at $3.00, 26 at $2.00, and 20 at $1.00. That pays $3 for 28 or more, $2 for 26 and 27, and $1 for 20 through 25.",
+        "Add a line adds another level. The trash button removes a line.",
+        "The box under the lines reads the rules back, using the date count from Incentive Dates.",
+      ],
+    }],
   },
   jobs: {
     title: "Jobs",
-    paragraphs: [
-      "This list is the job titles from Toast.",
-      "Turn a job on to include the people who hold it. Their names appear under the job and start included.",
-      "Turn a person off to leave them out. If they also hold another selected job, they are left out of that job too.",
-      "Only hours worked in a job you turned on are counted.",
-      "Find a job narrows the list. Refresh jobs reads the titles and names from Toast again.",
-    ],
+    description: "What to enter on this tab.",
+    sections: [{
+      paragraphs: [
+        "This list is the job titles from Toast.",
+        "Turn a job on to include the people who hold it. Their names appear under the job and start included.",
+        "Turn a person off to leave them out. If they also hold another selected job, they are left out of that job too.",
+        "Only hours worked in a job you turned on are counted.",
+        "Find a job narrows the list. Refresh jobs reads the titles and names from Toast again.",
+      ],
+    }],
   },
   report: {
-    title: "Report",
-    paragraphs: [
-      "Generate report reads Toast time entries for the dates, jobs, and people you chose.",
-      "A day counts when the person has hours on that incentive date in a selected job. A shift that is still open counts as a day, and those hours can change.",
-      "Hours are regular hours plus overtime. The amount is those hours times the one tier their days worked reach.",
-      "Click a name to see each incentive date on the screen.",
-      "Download Excel saves a Summary sheet and one sheet for every person on this report. Each person's sheet lists every incentive date, the job, the shift start and end, the hours, and the calculation of hours times the amount per hour.",
+    title: "Report and Toast Payroll",
+    description: "How the report is calculated, and how to load the whole incentive onto the current payroll.",
+    sections: [
+      {
+        heading: "Read the report",
+        paragraphs: [
+          "Generate report reads Toast time entries for the dates, jobs, and people you chose.",
+          "Days add up across the jobs you turned on. Ten days in each of three jobs are 30 days for that person. Two shifts in the same job on the same date count as one day. A shift that is still open counts, and those hours can change.",
+          "Hours are regular hours plus overtime. The amount is those hours times the one tier their days worked reach.",
+          "Click a name to see each incentive date on the screen.",
+          "Changing the dates, the tiers, or the jobs clears the report. Generate report again after a change.",
+        ],
+      },
+      {
+        heading: "Excel workbook",
+        paragraphs: [
+          "Download Excel saves a Summary sheet and one sheet for every person on this report. Each person's sheet lists every incentive date, the job, the shift start and end, the hours, and the calculation of hours times the amount per hour.",
+          "Use the workbook to review the incentive. The Toast file is a separate download.",
+        ],
+      },
+      {
+        heading: "Toast file",
+        paragraphs: [
+          "Download Toast import saves one row for each person who reached a tier. People below every tier are left out.",
+          "EE Number is the Toast payroll number. When a person has no payroll number, the page lists their name and that cell is blank. Fill in the payroll number before you import, or Toast will leave that row unmatched.",
+          "EE Name is there so you can read the file. The template leaves that column unused.",
+          "Job is the included job with the most hours. The name has to match the job name in Toast Payroll. A name that differs shows up as an exception on the Toast preview.",
+          "Retro Pay is the whole dollar total for that person, with two decimals and no dollar sign. 36.00 is valid. $36.00 is not.",
+          "Week is always 1. The hours may have been worked in an earlier week. The whole amount still posts on the payroll you import into, on week 1 of that payroll.",
+          "The file name starts with fall-incentive-retro-pay and includes the first and last incentive dates.",
+        ],
+      },
+      {
+        heading: "Load it into Toast Payroll",
+        paragraphs: [
+          "The template Fall Incentive Retro Pay is already saved in Toast Payroll under Settings, Payroll, Custom Import. Choose that template during the import. You do not create it again.",
+          "This is a one-time import. Run it on the payroll you are paying now. The template adds Retro Pay and leaves hours, tips, and the other earnings already on that payroll as they are.",
+        ],
+        steps: [
+          "On this page, press Generate report. If the page asks you to generate again so the Toast file includes payroll numbers, do that before you download.",
+          "Read the note under the buttons. It names anyone whose EE Number cell will be blank.",
+          "Press Download Toast import.",
+          "In Toast Payroll, open the payroll you are updating. Leave earlier payrolls closed.",
+          "Open Employee Earnings.",
+          "Open Advanced actions, then Add Custom Import.",
+          "Choose the template Fall Incentive Retro Pay.",
+          "Choose the file you just downloaded.",
+          "Preview the import. Each person who qualified should show one Retro Pay amount. Hours, tips, and the other earnings stay as they are.",
+          "Import when the preview looks right.",
+        ],
+      },
     ],
   },
-} as const;
+};
 
 export default function PayrollSection() {
   const { toast } = useToast();
@@ -193,7 +249,7 @@ export default function PayrollSection() {
   useEffect(() => {
     if (!ready || !savedReport.isSuccess || reportHydrated.current) return;
     reportHydrated.current = true;
-    if (!savedReport.data || loadedSetup.current !== incentiveSignature(setup)) return;
+    if (!savedReport.data || savedReport.data.dayBasis !== "job" || loadedSetup.current !== incentiveSignature(setup)) return;
     reportBasis.current = loadedSetup.current;
     setReport(savedReport.data);
   }, [ready, savedReport.isSuccess, savedReport.data, setup]);
@@ -263,6 +319,9 @@ export default function PayrollSection() {
       ? (roster.error as Error).message.replace(/^\d+:\s*/, "")
       : setupProblem(setup) ?? (includedPeople.length === 0 ? "Choose at least one employee." : null);
   const detail = report?.groups.flatMap((group) => group.employees).find((person) => person.id === detailId) ?? null;
+  const toastEmployees = report?.groups.flatMap((group) => group.employees) ?? [];
+  const toastReady = toastEmployees.every((person) => typeof person.payrollNumber === "string");
+  const toastMissing = toastEmployees.filter((person) => person.rate > 0 && person.total > 0 && !person.payrollNumber).map((person) => person.name);
 
   const generate = useMutation({
     mutationFn: async () => {
@@ -294,6 +353,20 @@ export default function PayrollSection() {
       ...current,
       tiers: current.tiers.map((tier, tierIndex) => tierIndex === index ? { ...tier, [field]: value } : tier),
     }));
+  }
+
+  function downloadToast() {
+    if (!report) return;
+    const csv = toastImportCsv(report);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const first = report.dates[0] ?? "report";
+    const last = report.dates[report.dates.length - 1] ?? first;
+    link.href = url;
+    link.download = `fall-incentive-retro-pay-${first}-to-${last}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function downloadExcel() {
@@ -500,7 +573,7 @@ export default function PayrollSection() {
                   {bands.length > 0 ? (
                     <div className="rounded-md border p-4 text-sm space-y-1" data-testid="text-incentive-ladder">
                       {bands.map((band) => (
-                        <p key={`${band.minDays}-${band.rate}`}>{bandSentence(band, dates.length)}</p>
+                        <p key={`${band.minDays}-${band.rate}`}>{bandSentence(band)}</p>
                       ))}
                       {lowest && lowest.minDays > 1 ? <p>Fewer than {lowest.minDays} days earns no incentive.</p> : null}
                     </div>
@@ -620,7 +693,7 @@ export default function PayrollSection() {
                   <div>
                     <CardTitle>Report</CardTitle>
                     <CardDescription>
-                      Days and hours come from Toast time entries on the incentive dates, for the jobs you turned on. Regular hours and overtime both count. The amount is those hours times the one tier the employee reached.
+                      Days and hours come from Toast time entries on the incentive dates, for the jobs you turned on. Days add up across those jobs for each person. Regular hours and overtime both count. The amount is those hours times the one tier the employee reached. Instructions walks through the Toast Payroll import.
                     </CardDescription>
                   </div>
                   <Button type="button" variant="outline" onClick={() => setInstructions("report")} data-testid="button-instructions-report">Instructions</Button>
@@ -638,7 +711,16 @@ export default function PayrollSection() {
                     <Button type="button" variant="outline" onClick={() => void downloadExcel()} disabled={!report || downloading} data-testid="button-download-incentive">
                       {downloading ? "Preparing Excel…" : "Download Excel"}
                     </Button>
+                    <Button type="button" variant="outline" onClick={downloadToast} disabled={!report || !toastReady} data-testid="button-download-toast">
+                      Download Toast import
+                    </Button>
                   </div>
+                  {report && !toastReady ? <p className="text-sm text-muted-foreground">Generate the report again so the Toast file includes payroll numbers.</p> : null}
+                  {toastReady && toastMissing.length > 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      These people have no Toast payroll number, so their EE Number cell is blank: {toastMissing.join(", ")}.
+                    </p>
+                  ) : null}
                 </CardContent>
               </Card>
 
@@ -712,9 +794,10 @@ export default function PayrollSection() {
           <DialogHeader>
             <DialogTitle>{detail?.name ?? "Employee"}</DialogTitle>
             <DialogDescription>
-              {detail ? `${detail.daysWorked} of ${report?.dateCount ?? 0} incentive days · ${hoursText(detail.hours)} hours · ${money(detail.rate)} per hour · ${money(detail.total)}` : ""}
+              {detail ? `${detail.daysWorked} days worked across jobs · ${hoursText(detail.hours)} hours · ${money(detail.rate)} per hour · ${money(detail.total)}` : ""}
             </DialogDescription>
           </DialogHeader>
+          {detail ? <p className="text-sm text-muted-foreground">Each selected job on a date counts as its own day. Two shifts in the same job on the same date count as one day.</p> : null}
           {detail?.openShift ? <p className="text-sm text-amber-700">A shift is still open, so these hours can change.</p> : null}
           {detail ? (
             <div className="max-h-[60vh] overflow-auto">
@@ -750,13 +833,23 @@ export default function PayrollSection() {
       </Dialog>
 
       <Dialog open={instructions !== null} onOpenChange={(open) => { if (!open) setInstructions(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{instructions ? instructionsCopy[instructions].title : "Instructions"}</DialogTitle>
-            <DialogDescription>What to enter on this tab.</DialogDescription>
+            <DialogDescription>{instructions ? instructionsCopy[instructions].description : "What to enter on this tab."}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            {instructions ? instructionsCopy[instructions].paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>) : null}
+          <div className="space-y-5 text-sm">
+            {instructions ? instructionsCopy[instructions].sections.map((section) => (
+              <section key={section.heading ?? section.paragraphs[0]} className="space-y-3">
+                {section.heading ? <h3 className="font-medium">{section.heading}</h3> : null}
+                {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                {section.steps ? (
+                  <ol className="list-decimal space-y-2 pl-5">
+                    {section.steps.map((step) => <li key={step}>{step}</li>)}
+                  </ol>
+                ) : null}
+              </section>
+            )) : null}
           </div>
         </DialogContent>
       </Dialog>

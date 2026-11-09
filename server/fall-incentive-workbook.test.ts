@@ -13,6 +13,7 @@ const report: IncentiveReport = {
   qualifiedCount: 1,
   total: 27,
   openShifts: 0,
+  dayBasis: "job",
   groups: [
     {
       key: "2-3",
@@ -26,6 +27,7 @@ const report: IncentiveReport = {
           name: "Avery Cole",
           restaurantName: "Winery",
           jobTitles: ["Server"],
+          payrollNumber: "7756",
           daysWorked: 2,
           hours: 9,
           rate: 3,

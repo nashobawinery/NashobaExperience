@@ -74,6 +74,14 @@ function personName(employee: { chosenName?: string; firstName?: string; lastNam
   return [first, last].filter(Boolean).join(" ") || "Unnamed employee";
 }
 
+function payrollNumber(employee: { externalEmployeeId?: unknown; externalId?: unknown }): string {
+  for (const value of [employee.externalEmployeeId, employee.externalId]) {
+    const text = String(value ?? "").trim();
+    if (/^\d+$/.test(text)) return text;
+  }
+  return "";
+}
+
 function asList(value: unknown): any[] {
   if (Array.isArray(value)) return value;
   if (value == null) return [];
@@ -129,6 +137,7 @@ async function readRoster(): Promise<Roster> {
         name: personName(employee),
         restaurantName: label,
         jobTitles: uniqueTitles,
+        payrollNumber: payrollNumber(employee),
       };
       people.push(person);
       for (const title of uniqueTitles) {
@@ -496,7 +505,7 @@ export function fallIncentiveWorkbook(report: IncentiveReport): Buffer {
     lines.push(["Incentive", person.total]);
     const shiftHoursRow = lines.length;
     lines.push(["Sum of shift hours", ""]);
-    lines.push(["Days worked", person.daysWorked, "Each incentive date counts once, even when there is more than one shift."]);
+    lines.push(["Days worked", person.daysWorked, "Days add up across jobs. Ten days in each of three jobs are 30 days. Two shifts in the same job on the same date count as one day."]);
     const calcRow = lines.length;
     lines.push(["Calculation", ""]);
     if (person.openShift) lines.push(["Note", "A shift is still open, so these hours can change."]);

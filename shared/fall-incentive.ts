@@ -29,6 +29,7 @@ export type IncentivePerson = {
   name: string;
   restaurantName: string;
   jobTitles: string[];
+  payrollNumber?: string;
 };
 
 export type IncentivePunch = {
@@ -54,6 +55,7 @@ export type IncentiveEmployeeReport = {
   name: string;
   restaurantName: string;
   jobTitles: string[];
+  payrollNumber: string;
   daysWorked: number;
   hours: number;
   rate: number;
@@ -81,6 +83,7 @@ export type IncentiveReport = {
   qualifiedCount: number;
   total: number;
   openShifts: number;
+  dayBasis: "job";
 };
 
 export function emptyFallIncentiveSetup(): FallIncentiveSetup {
@@ -338,6 +341,17 @@ function cleanStringList(value: unknown, max: number): string[] {
   return out;
 }
 
+export function jobDaysWorked(days: IncentiveDay[]): number {
+  const seen = new Set<string>();
+  for (const day of days) {
+    for (const punch of day.punches) {
+      if (punch.hours <= 0 && !punch.open) continue;
+      seen.add(`${day.date}|${jobKey(punch.jobTitle)}`);
+    }
+  }
+  return seen.size;
+}
+
 export function buildIncentiveReport(input: {
   startDate: string;
   endDate: string;
@@ -392,7 +406,7 @@ export function buildIncentiveReport(input: {
         })),
       };
     });
-    const daysWorked = days.filter((day) => day.worked).length;
+    const daysWorked = jobDaysWorked(days);
     const hours = roundHours(days.reduce((sum, day) => sum + day.hours, 0));
     const band = bandForDays(daysWorked, bands);
     const rate = band?.rate ?? 0;
@@ -401,6 +415,7 @@ export function buildIncentiveReport(input: {
       name: person.name,
       restaurantName: person.restaurantName,
       jobTitles: person.jobTitles.filter((title) => isJobIncluded(title, input.includedJobTitles)),
+      payrollNumber: person.payrollNumber ?? "",
       daysWorked,
       hours,
       rate,
@@ -449,5 +464,43 @@ export function buildIncentiveReport(input: {
     qualifiedCount: reports.filter((person) => person.rate > 0).length,
     total: roundMoney(reports.reduce((sum, person) => sum + person.total, 0)),
     openShifts: reports.filter((person) => person.openShift).length,
+    dayBasis: "job",
   };
+}
+
+export function toastImportCsv(report: IncentiveReport): string {
+  const lines = ["EE Number,EE Name,Job,Retro Pay,Week"];
+  const rows = report.groups
+    .filter((group) => group.rate > 0)
+    .flatMap((group) => group.employees)
+    .filter((person) => person.total > 0)
+    .slice()
+    .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+  for (const person of rows) {
+    lines.push([
+      csvCell(person.payrollNumber ?? ""),
+      csvCell(person.name),
+      csvCell(primaryJob(person)),
+      person.total.toFixed(2),
+      "1",
+    ].join(","));
+  }
+  return `${lines.join("\r\n")}\r\n`;
+}
+
+function primaryJob(person: IncentiveEmployeeReport): string {
+  const hours = new Map<string, number>();
+  for (const day of person.days) {
+    for (const punch of day.punches) {
+      if (!punch.jobTitle) continue;
+      hours.set(punch.jobTitle, (hours.get(punch.jobTitle) ?? 0) + punch.hours);
+    }
+  }
+  const ranked = [...hours.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+  return ranked[0]?.[0] || person.jobTitles[0] || "";
+}
+
+function csvCell(value: string): string {
+  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
 }

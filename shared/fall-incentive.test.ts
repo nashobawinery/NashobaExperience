@@ -4,6 +4,7 @@ import {
   bandForDays,
   buildIncentiveReport,
   emptyFallIncentiveSetup,
+  toastImportCsv,
   incentiveDates,
   incentiveSignature,
   majorHolidays,
@@ -139,6 +140,57 @@ describe("fall incentive report", () => {
     assert.equal(blair?.rate, 1);
     assert.equal(blair?.total, 4);
     assert.equal(report.total, 31);
+  });
+
+  it("adds days across jobs for the same employee", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-08",
+      excludedHolidays: [],
+      tiers: [{ minDays: "3", rate: "3" }],
+      includedJobTitles: ["Server", "Bartender", "Cook"],
+      excludedEmployeeIds: [],
+      employees: [
+        { id: "a", name: "Avery Cole", restaurantName: "Winery", jobTitles: ["Server", "Bartender", "Cook"] },
+      ],
+      punches: [
+        { employeeId: "a", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "a", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T18:00:00.000Z", outAt: "2026-11-07T19:00:00.000Z", hours: 1, open: false },
+        { employeeId: "a", businessDate: "2026-11-07", jobTitle: "Bartender", inAt: "2026-11-07T19:00:00.000Z", outAt: "2026-11-07T23:00:00.000Z", hours: 4, open: false },
+        { employeeId: "a", businessDate: "2026-11-08", jobTitle: "Cook", inAt: "2026-11-08T14:00:00.000Z", outAt: "2026-11-08T22:00:00.000Z", hours: 8, open: false },
+      ],
+    });
+
+    const avery = report.groups[0].employees[0];
+    assert.equal(avery.daysWorked, 3);
+    assert.equal(avery.hours, 17);
+    assert.equal(avery.rate, 3);
+    assert.equal(avery.total, 51);
+  });
+
+  it("writes a Retro Pay amount for people who qualify", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-08",
+      excludedHolidays: [],
+      tiers: [{ minDays: "2", rate: "3" }],
+      includedJobTitles: ["Server", "Cook"],
+      excludedEmployeeIds: [],
+      employees: [
+        { id: "a", name: "Cole, Avery", restaurantName: "Winery", jobTitles: ["Server", "Cook"], payrollNumber: "7756" },
+        { id: "b", name: "Blair Host", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "" },
+      ],
+      punches: [
+        { employeeId: "a", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "a", businessDate: "2026-11-08", jobTitle: "Cook", inAt: "2026-11-08T14:00:00.000Z", outAt: "2026-11-08T22:00:00.000Z", hours: 8, open: false },
+        { employeeId: "b", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T18:00:00.000Z", hours: 4, open: false },
+      ],
+    });
+
+    assert.equal(
+      toastImportCsv(report),
+      'EE Number,EE Name,Job,Retro Pay,Week\r\n7756,"Cole, Avery",Cook,36.00,1\r\n',
+    );
   });
 
   it("counts an open shift as a day worked and leaves an unchecked employee out", () => {
