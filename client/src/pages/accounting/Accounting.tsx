@@ -19,6 +19,7 @@ import Expenses from "./Expenses";
 import Reconcile from "./Reconcile";
 import ToastSales from "./ToastSales";
 import Lending from "./Lending";
+import BusinessTax from "./BusinessTax";
 import PayrollSection from "./FallIncentive";
 
 type BooksSection =
@@ -1765,6 +1766,8 @@ export default function AccountingPage() {
           <ToastSales />
         ) : section === "lending" ? (
           <Lending />
+        ) : section === "business-tax" ? (
+          <BusinessTax />
         ) : section === "payroll" ? (
           <PayrollSection />
         ) : (

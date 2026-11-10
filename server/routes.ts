@@ -54,6 +54,7 @@ import quickbooksRouter, { initQuickBooksTokenRenewal } from "./quickbooks-route
 import { initUsFoodsDailyCheck } from "./us-foods-sync";
 import { initPayablePostedReview } from "./payable-posted";
 import { initToastDepositCheck } from "./toast-books";
+import { initBusinessTaxReports } from "./business-tax";
 import mediaFlyerRouter from "./media-flyer-routes";
 import { fetchDailyRevenue, syncToastRevenueDetailToDb } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
@@ -20626,6 +20627,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   initUsFoodsDailyCheck();
   initPayablePostedReview();
   initToastDepositCheck();
+  initBusinessTaxReports();
 
   initComplianceReminders();
 

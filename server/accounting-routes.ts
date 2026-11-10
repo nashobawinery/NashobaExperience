@@ -15,6 +15,7 @@ import { sendAccountingAttention } from "./accounting-notice";
 import { statementNotices } from "./accounting-notice-text";
 import { registerReconcileRoutes } from "./bank-reconcile";
 import { registerFarmCreditRoutes } from "./farm-credit";
+import { registerBusinessTaxRoutes } from "./business-tax";
 import { registerToastSalesRoutes } from "./toast-books";
 import { registerFallIncentiveRoutes } from "./fall-incentive";
 
@@ -3896,5 +3897,6 @@ registerToastSalesRoutes(router);
 registerFallIncentiveRoutes(router);
 registerReconcileRoutes(router);
 registerFarmCreditRoutes(router);
+registerBusinessTaxRoutes(router);
 
 export default router;

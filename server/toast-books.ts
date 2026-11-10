@@ -460,7 +460,7 @@ function unbalancedCheck(
   };
 }
 
-async function toastBuckets(businessDate: string) {
+async function toastBuckets(businessDate: string, options?: { ledger?: boolean }) {
   const buckets = new Map<string, Bucket>();
   const movements: DepositMovement[] = [];
   const breaks: CheckBreak[] = [];
@@ -595,14 +595,29 @@ async function toastBuckets(businessDate: string) {
   const list: Bucket[] = [];
   buckets.forEach((bucket) => list.push(bucket));
   let ledgerSaved = true;
-  try {
-    await saveGuestDepositDay(businessDate, movements);
-  } catch (error) {
-    ledgerSaved = false;
-    console.error("[Toast deposits] customer ledger was not saved:", error instanceof Error ? error.message : error);
+  if (options?.ledger !== false) {
+    try {
+      await saveGuestDepositDay(businessDate, movements);
+    } catch (error) {
+      ledgerSaved = false;
+      console.error("[Toast deposits] customer ledger was not saved:", error instanceof Error ? error.message : error);
+    }
   }
   breaks.sort((left, right) => Math.abs(right.amount) - Math.abs(left.amount));
   return { orders, buckets: list, cashEntries, openChecks, cashDrawerWarning, movements, ledgerSaved, breaks };
+}
+
+export async function toastBusinessTotals(businessDate: string) {
+  const toast = await toastBuckets(businessDate, { ledger: false });
+  let sales = 0;
+  let discounts = 0;
+  const taxes: { name: string; cents: number }[] = [];
+  for (const bucket of toast.buckets) {
+    if (bucket.kind === "DEPSALE" || bucket.kind === "ALLSALES") sales += bucket.cents;
+    else if (bucket.kind === "DISCOUNT" || bucket.kind === "ALLDISCOUNTS") discounts += bucket.cents;
+    else if (bucket.kind === "TAX" || bucket.kind === "ALLTAX") taxes.push({ name: bucket.name, cents: bucket.cents });
+  }
+  return { orders: toast.orders, salesCents: sales - discounts, taxes };
 }
 
 function fallbackKind(kind: string) {
