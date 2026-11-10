@@ -196,6 +196,7 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
           "Click a name to see each incentive date on the screen. A call-off day is marked Scheduled but Called Off Due to Weather. A call-off day that also has Toast hours is marked as a conflict.",
           "Changing the dates, the tiers, the jobs, or the call-offs clears the report. The description does not. Generate report again after a change.",
           "Only a job that is turned on adds hours. If the lowest tier asks for more days than this range has, nobody can qualify.",
+          "An employee terminated on or after the last day of this incentive stays in the payout. Hours and weather call-offs on the incentive dates stay in the calculation. A termination before the last day does not remove hours already worked.",
         ],
       },
       {

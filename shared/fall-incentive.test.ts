@@ -11,6 +11,9 @@ import {
   majorHolidays,
   combinePeople,
   matchCalloutName,
+  rosterForPayout,
+  terminatedOnOrAfter,
+  terminationDay,
   parseTiers,
   suggestedSamePeople,
   tierBands,
@@ -373,6 +376,67 @@ describe("fall incentive same person", () => {
     assert.equal(people[0].daysWorked, 2);
     assert.equal(people[0].hours, 5);
     assert.equal(people[0].payrollNumber, "5");
+  });
+
+  it("keeps a removed Toast employee who has hours and leaves out one with none", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-08",
+      excludedHolidays: [],
+      tiers: [{ minDays: "1", rate: "2" }],
+      includedJobTitles: ["Server"],
+      excludedEmployeeIds: [],
+      employees: [
+        { id: "a", name: "Avery Cole", restaurantName: "Winery", jobTitles: ["Server"], inactive: true, terminatedOn: "2026-11-08" },
+        { id: "b", name: "Blair Diaz", restaurantName: "Winery", jobTitles: ["Server"], inactive: true, terminatedOn: "2024-11-26" },
+      ],
+      punches: [
+        { employeeId: "a", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T19:00:00.000Z", hours: 5, open: false },
+      ],
+    });
+    const people = report.groups.flatMap((group) => group.employees);
+    assert.deepEqual(people.map((person) => person.name), ["Avery Cole"]);
+    assert.equal(people[0].terminatedOn, "2026-11-08");
+    assert.equal(people[0].total, 10);
+  });
+
+  it("keeps hours when termination is before the last incentive date", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-08",
+      excludedHolidays: [],
+      tiers: [{ minDays: "1", rate: "2" }],
+      includedJobTitles: ["Server"],
+      excludedEmployeeIds: [],
+      employees: [
+        { id: "r", name: "Randi Holbrook", restaurantName: "Winery", jobTitles: ["Server"], inactive: true, terminatedOn: "2026-11-07" },
+      ],
+      punches: [
+        { employeeId: "r", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T19:00:00.000Z", hours: 5, open: false },
+      ],
+    });
+    const people = report.groups.flatMap((group) => group.employees);
+    assert.equal(people[0].name, "Randi Holbrook");
+    assert.equal(people[0].total, 10);
+  });
+
+  it("puts employees terminated on or after the last day back on their jobs", () => {
+    assert.equal(terminationDay("2026-11-09T15:04:00.000Z"), "2026-11-09");
+    assert.equal(terminatedOnOrAfter("2026-11-09", "2026-11-01"), true);
+    assert.equal(terminatedOnOrAfter("2026-10-30", "2026-11-01"), false);
+    const roster = rosterForPayout({
+      jobs: [{ title: "Server", employees: [{ id: "active", name: "Amy Courtemanche", restaurantName: "Winery" }] }],
+      employees: [
+        { id: "active", name: "Amy Courtemanche", restaurantName: "Winery", jobTitles: ["Server"] },
+        { id: "late", name: "Nancy Nadeau", restaurantName: "Winery", jobTitles: ["Server"], inactive: true, terminatedOn: "2026-11-09" },
+        { id: "early", name: "Randi Holbrook", restaurantName: "Winery", jobTitles: ["Server"], inactive: true, terminatedOn: "2026-10-30" },
+        { id: "old", name: "Laura Bowler", restaurantName: "Winery", jobTitles: ["Server"], inactive: true, terminatedOn: "2024-11-26" },
+      ],
+    }, { endDate: "2026-11-01", callouts: [] }, [
+      { employeeId: "early" },
+    ]);
+    assert.deepEqual(roster.jobs[0].employees.map((person) => person.name), ["Amy Courtemanche", "Nancy Nadeau", "Randi Holbrook"]);
+    assert.deepEqual(roster.employees.map((person) => person.name), ["Amy Courtemanche", "Nancy Nadeau", "Randi Holbrook"]);
   });
 });
 

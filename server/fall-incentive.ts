@@ -8,6 +8,8 @@ import {
   addDays,
   buildIncentiveReport,
   jobKey,
+  rosterForPayout,
+  terminationDay,
   defaultWeatherCallouts,
   incentiveSignature,
   sanitizeFallIncentiveSetup,
@@ -32,6 +34,7 @@ type Roster = {
 
 let rosterCache: { at: number; data: Roster } | null = null;
 let rosterInflight: Promise<Roster> | null = null;
+let punchCache: { key: string; at: number; data: IncentivePunch[] } | null = null;
 const rosterTtlMs = 5 * 60 * 1000;
 let tableReady: Promise<void> | null = null;
 
@@ -116,16 +119,15 @@ async function readRoster(): Promise<Roster> {
     ]);
     const titleByGuid = new Map<string, string>();
     for (const job of asList(jobs)) {
-      if (job?.deleted) continue;
       const title = String(job?.title || "").trim().replace(/\s+/g, " ");
       const jobGuid = String(job?.guid || "");
       if (!title || !jobGuid) continue;
       titleByGuid.set(jobGuid, title);
+      if (job?.deleted) continue;
       const key = jobKey(title);
       if (!titles.has(key)) titles.set(key, { title, employees: new Map() });
     }
     for (const employee of asList(employees)) {
-      if (employee?.deleted) continue;
       const employeeGuid = String(employee?.guid || "");
       if (!employeeGuid) continue;
       const jobTitles = asList(employee.jobReferences)
@@ -133,14 +135,18 @@ async function readRoster(): Promise<Roster> {
         .filter((title): title is string => Boolean(title));
       const uniqueTitles = [...new Set(jobTitles)];
       if (uniqueTitles.length === 0) continue;
+      const inactive = Boolean(employee?.deleted);
       const person: IncentivePerson = {
         id: `${guid}:${employeeGuid}`,
         name: personName(employee),
         restaurantName: label,
         jobTitles: uniqueTitles,
         payrollNumber: payrollNumber(employee),
+        inactive,
+        terminatedOn: inactive ? terminationDay(employee?.deletedDate) || undefined : undefined,
       };
       people.push(person);
+      if (inactive) continue;
       for (const title of uniqueTitles) {
         const group = titles.get(jobKey(title));
         group?.employees.set(person.id, { id: person.id, name: person.name, restaurantName: person.restaurantName });
@@ -184,6 +190,21 @@ function businessIso(entry: { businessDate?: string; inDate?: string }): string 
   const date = new Date(entry.inDate);
   if (Number.isNaN(date.getTime())) return null;
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(date);
+}
+
+async function loadPunches(start: string, end: string, force = false): Promise<IncentivePunch[]> {
+  const key = `${start}|${end}`;
+  if (!force && punchCache?.key === key && Date.now() - punchCache.at < rosterTtlMs) return punchCache.data;
+  const data = await readPunches(start, end);
+  punchCache = { key, at: Date.now(), data };
+  return data;
+}
+
+export async function assembleFallIncentiveReport(setup: FallIncentiveSetup): Promise<IncentiveReport> {
+  const roster = await loadRoster(true);
+  const punches = await loadPunches(setup.startDate, setup.endDate, true);
+  const payable = rosterForPayout(roster, setup, punches);
+  return buildIncentiveReport({ ...setup, employees: payable.employees, punches });
 }
 
 async function readPunches(start: string, end: string): Promise<IncentivePunch[]> {
@@ -324,8 +345,11 @@ export function registerFallIncentiveRoutes(router: Router) {
 
   router.get("/fall-incentive/roster", isAdmin, async (req, res) => {
     try {
-      const roster = await loadRoster(req.query.refresh === "1");
-      res.json(roster);
+      const force = req.query.refresh === "1";
+      const roster = await loadRoster(force);
+      const setup = await readSetup();
+      const punches = await loadPunches(setup.startDate, setup.endDate, force);
+      res.json(rosterForPayout(roster, setup, punches));
     } catch (error) {
       res.status(502).json({ message: laborMessage(error) });
     }
@@ -346,17 +370,11 @@ export function registerFallIncentiveRoutes(router: Router) {
       return;
     }
     try {
-      const roster = await loadRoster();
-      const included = roster.employees.some((person) =>
-        !setup.excludedEmployeeIds.includes(person.id)
-        && person.jobTitles.some((title) => setup.includedJobTitles.some((item) => jobKey(item) === jobKey(title))),
-      );
-      if (!included) {
+      const report = await assembleFallIncentiveReport(setup);
+      if (report.employeeCount === 0) {
         res.status(400).json({ message: "Choose at least one employee." });
         return;
       }
-      const punches = await readPunches(setup.startDate, setup.endDate);
-      const report = buildIncentiveReport({ ...setup, employees: roster.employees, punches });
       await writeReport(report);
       res.json(report);
     } catch (error) {

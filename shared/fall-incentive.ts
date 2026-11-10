@@ -42,6 +42,8 @@ export type IncentivePerson = {
   jobTitles: string[];
   payrollNumber?: string;
   alsoKnownAs?: string[];
+  inactive?: boolean;
+  terminatedOn?: string;
 };
 
 export type IncentivePunch = {
@@ -84,6 +86,8 @@ export type IncentiveEmployeeReport = {
   calloutDays?: number;
   calloutConflicts?: number;
   alsoKnownAs?: string[];
+  inactive?: boolean;
+  terminatedOn?: string;
   tierPromoted?: boolean;
   tierPromotionRate?: number;
   days: IncentiveDay[];
@@ -515,6 +519,52 @@ export function matchCalloutName(label: string, employees: { id: string; name: s
   };
 }
 
+export function terminationDay(value: unknown): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(date);
+}
+
+export function terminatedOnOrAfter(terminatedOn: string | undefined, endDate: string): boolean {
+  return Boolean(terminatedOn && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && terminatedOn >= endDate);
+}
+
+export function rosterForPayout<T extends {
+  jobs: { title: string; employees: { id: string; name: string; restaurantName: string }[] }[];
+  employees: IncentivePerson[];
+}>(roster: T, setup: { endDate: string; callouts: WeatherCallout[] }, punches: { employeeId: string }[]): T {
+  const punched = new Set(punches.map((punch) => punch.employeeId));
+  const held = new Set<string>();
+  for (const callout of setup.callouts) {
+    const match = resolveCallout(callout, roster.employees);
+    if (match.status !== "ambiguous" && match.status !== "duplicate") continue;
+    for (const id of match.employeeIds) held.add(id);
+  }
+  const employees = roster.employees.filter((person) => {
+    if (!person.inactive) return true;
+    if (terminatedOnOrAfter(person.terminatedOn, setup.endDate)) return true;
+    if (punched.has(person.id)) return true;
+    return held.has(person.id);
+  });
+  const jobs = roster.jobs.map((job) => {
+    const listed = [...job.employees];
+    const seen = new Set(listed.map((person) => person.id));
+    for (const person of employees) {
+      const earned = terminatedOnOrAfter(person.terminatedOn, setup.endDate) || punched.has(person.id);
+      if (!person.inactive || !earned) continue;
+      if (!person.jobTitles.some((title) => jobKey(title) === jobKey(job.title))) continue;
+      if (seen.has(person.id)) continue;
+      seen.add(person.id);
+      listed.push({ id: person.id, name: person.name, restaurantName: person.restaurantName });
+    }
+    listed.sort((left, right) => left.name.localeCompare(right.name) || left.restaurantName.localeCompare(right.restaurantName));
+    return { ...job, employees: listed };
+  });
+  return { ...roster, jobs, employees };
+}
+
 export function resolveCallout(callout: WeatherCallout, employees: { id: string; name: string }[]): CalloutMatch {
   if (callout.employeeId) {
     return employees.some((person) => person.id === callout.employeeId)
@@ -659,6 +709,10 @@ export function combinePeople(
       jobTitles,
       payrollNumber: primary.payrollNumber || members.find((member) => member.payrollNumber)?.payrollNumber || "",
       alsoKnownAs: also,
+      inactive: members.every((member) => member.inactive),
+      terminatedOn: members.every((member) => member.inactive)
+        ? members.map((member) => member.terminatedOn).filter((day): day is string => Boolean(day)).sort().slice(-1)[0]
+        : undefined,
     });
     if (members.length > 1) groups.push({ id: primary.id, name: primary.name, also, memberIds: members.map((member) => member.id) });
   }
@@ -822,9 +876,11 @@ export function buildIncentiveReport(input: {
       calloutDays: days.filter((day) => day.callout).length,
       calloutConflicts: days.filter((day) => day.calloutConflict).length,
       alsoKnownAs: person.alsoKnownAs ?? [],
+      inactive: person.inactive || undefined,
+      terminatedOn: person.terminatedOn,
       days,
     };
-  });
+  }).filter((person) => person.daysWorked > 0 || person.hours > 0 || !person.inactive);
 
   reports.sort((left, right) => right.daysWorked - left.daysWorked || left.name.localeCompare(right.name));
   const placed = new Set<string>();
