@@ -13,6 +13,9 @@ export type FallIncentiveSetup = {
   tiers: FallTierInput[];
   includedJobTitles: string[];
   excludedEmployeeIds: string[];
+  separateEmployeeIds: string[];
+  samePeople: string[][];
+  tierPromotions: string[];
   description: string;
   callouts: WeatherCallout[];
 };
@@ -38,6 +41,7 @@ export type IncentivePerson = {
   restaurantName: string;
   jobTitles: string[];
   payrollNumber?: string;
+  alsoKnownAs?: string[];
 };
 
 export type IncentivePunch = {
@@ -79,6 +83,9 @@ export type IncentiveEmployeeReport = {
   openShift: boolean;
   calloutDays?: number;
   calloutConflicts?: number;
+  alsoKnownAs?: string[];
+  tierPromoted?: boolean;
+  tierPromotionRate?: number;
   days: IncentiveDay[];
 };
 
@@ -103,6 +110,7 @@ export type IncentiveReport = {
   openShifts: number;
   calloutNotes?: CalloutNote[];
   dayBasis: "date";
+  peopleCombined?: boolean;
 };
 
 export function emptyFallIncentiveSetup(): FallIncentiveSetup {
@@ -113,6 +121,9 @@ export function emptyFallIncentiveSetup(): FallIncentiveSetup {
     tiers: [{ minDays: "", rate: "" }],
     includedJobTitles: [],
     excludedEmployeeIds: [],
+    separateEmployeeIds: [],
+    samePeople: [],
+    tierPromotions: [],
     description: "",
     callouts: [],
   };
@@ -287,6 +298,67 @@ export function bandForDays(days: number, bands: TierBand[]): TierBand | null {
   return bands.find((band) => days >= band.minDays && (band.maxDays == null || days <= band.maxDays)) ?? null;
 }
 
+export function nextTierUp(days: number, bands: TierBand[]): TierBand | null {
+  const next = bands.find((band) => band.minDays === days + 1);
+  if (!next) return null;
+  const current = bandForDays(days, bands);
+  if (current && current.rate >= next.rate) return null;
+  return next;
+}
+
+export function applyTierPromotions(report: IncentiveReport, promotedIds: string[]): IncentiveReport {
+  const promoted = new Set(promotedIds);
+  const people = report.groups.flatMap((group) => group.employees).map((person) => {
+    const next = nextTierUp(person.daysWorked, report.bands);
+    const tierPromoted = Boolean(next && promoted.has(person.id));
+    const base = bandForDays(person.daysWorked, report.bands);
+    const rate = tierPromoted && next ? next.rate : base?.rate ?? 0;
+    return {
+      ...person,
+      rate,
+      total: roundMoney(person.hours * rate),
+      tierPromoted,
+      tierPromotionRate: next?.rate,
+    };
+  });
+  const placed = new Set<string>();
+  const groups: IncentiveReportGroup[] = report.bands.map((band) => {
+    const employees = people.filter((person) => {
+      const next = nextTierUp(person.daysWorked, report.bands);
+      const match = person.tierPromoted && next
+        ? next.minDays === band.minDays && next.rate === band.rate
+        : person.daysWorked >= band.minDays && (band.maxDays == null || person.daysWorked <= band.maxDays);
+      if (match) placed.add(person.id);
+      return match;
+    });
+    return {
+      key: `${band.minDays}-${band.rate}`,
+      label: band.label,
+      rate: band.rate,
+      employees,
+      hours: roundHours(employees.reduce((sum, person) => sum + person.hours, 0)),
+      total: roundMoney(employees.reduce((sum, person) => sum + person.total, 0)),
+    };
+  });
+  const missed = people.filter((person) => !placed.has(person.id));
+  if (missed.length > 0) {
+    groups.push({
+      key: "none",
+      label: report.missedLabel,
+      rate: 0,
+      employees: missed,
+      hours: roundHours(missed.reduce((sum, person) => sum + person.hours, 0)),
+      total: 0,
+    });
+  }
+  return {
+    ...report,
+    groups,
+    qualifiedCount: people.filter((person) => person.rate > 0).length,
+    total: roundMoney(people.reduce((sum, person) => sum + person.total, 0)),
+  };
+}
+
 export function setupProblem(setup: FallIncentiveSetup): string | null {
   if (!isIsoDate(setup.startDate) || !isIsoDate(setup.endDate)) return "Enter a start date and an end date.";
   if (setup.endDate < setup.startDate) return "The end date has to be on or after the start date.";
@@ -321,6 +393,8 @@ export function incentiveSignature(setup: FallIncentiveSetup): string {
     tiers: clean.tiers,
     includedJobTitles: [...clean.includedJobTitles].map((title) => jobKey(title)).sort(),
     excludedEmployeeIds: [...clean.excludedEmployeeIds].sort(),
+    separateEmployeeIds: [...clean.separateEmployeeIds].sort(),
+    samePeople: clean.samePeople.map((group) => [...group].sort()).sort(),
     callouts: clean.callouts.map((callout) => `${callout.date}|${callout.employeeId}|${callout.name.toLowerCase()}`).sort(),
   });
 }
@@ -342,9 +416,26 @@ export function sanitizeFallIncentiveSetup(value: unknown): FallIncentiveSetup {
     tiers: cleanTiers.length > 0 ? cleanTiers : [{ minDays: "", rate: "" }],
     includedJobTitles: cleanStringList(raw.includedJobTitles, 200),
     excludedEmployeeIds: cleanStringList(raw.excludedEmployeeIds, 2000),
+    separateEmployeeIds: cleanStringList(raw.separateEmployeeIds, 2000),
+    samePeople: cleanSamePeople(raw.samePeople),
+    tierPromotions: cleanStringList(raw.tierPromotions, 2000),
     description: cleanDescription(raw.description),
     callouts: cleanCallouts(raw.callouts),
   };
+}
+
+function cleanSamePeople(value: unknown): string[][] {
+  if (!Array.isArray(value)) return [];
+  const groups: string[][] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const ids = cleanStringList(item, 10).filter((id) => !seen.has(id));
+    if (ids.length < 2) continue;
+    ids.forEach((id) => seen.add(id));
+    groups.push(ids);
+    if (groups.length >= 100) break;
+  }
+  return groups;
 }
 
 function cleanDescription(value: unknown): string {
@@ -462,6 +553,151 @@ function cleanStringList(value: unknown, max: number): string[] {
   return out;
 }
 
+export type CombinedPeople = {
+  people: IncentivePerson[];
+  memberIds: Map<string, string>;
+  groups: { id: string; name: string; also: string[]; memberIds: string[] }[];
+};
+
+function personTokens(value: string): string[] {
+  return value.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+export function combinePeople(
+  employees: IncentivePerson[],
+  separateEmployeeIds: string[] = [],
+  samePeople: string[][] = [],
+): CombinedPeople {
+  const separate = new Set(separateEmployeeIds);
+  const parent = employees.map((_, index) => index);
+  const find = (index: number): number => {
+    let cursor = index;
+    while (parent[cursor] !== cursor) {
+      parent[cursor] = parent[parent[cursor]];
+      cursor = parent[cursor];
+    }
+    return cursor;
+  };
+  const union = (left: number, right: number) => {
+    if (separate.has(employees[left].id) || separate.has(employees[right].id)) return;
+    const a = find(left);
+    const b = find(right);
+    if (a !== b) parent[b] = a;
+  };
+  const indexOf = new Map(employees.map((person, index) => [person.id, index]));
+  for (const group of samePeople) {
+    const indexes = group.map((id) => indexOf.get(id)).filter((index): index is number => index != null);
+    for (let cursor = 1; cursor < indexes.length; cursor += 1) union(indexes[0], indexes[cursor]);
+  }
+  const byName = new Map<string, number[]>();
+  employees.forEach((person, index) => {
+    const key = personTokens(person.name).join(" ");
+    if (!key) return;
+    const list = byName.get(key) ?? [];
+    list.push(index);
+    byName.set(key, list);
+  });
+  for (const indexes of byName.values()) {
+    for (let cursor = 1; cursor < indexes.length; cursor += 1) union(indexes[0], indexes[cursor]);
+  }
+  employees.forEach((person, index) => {
+    if (separate.has(person.id) || person.payrollNumber) return;
+    const tokens = personTokens(person.name);
+    if (tokens.length !== 2 || tokens[1].length !== 1) return;
+    const matches = employees.filter((other, otherIndex) => {
+      if (otherIndex === index || separate.has(other.id)) return false;
+      const have = personTokens(other.name);
+      const last = have.slice(1).join("");
+      return have[0] === tokens[0] && last.startsWith(tokens[1]) && last.length > 1;
+    });
+    const roots = new Set(matches.map((other) => find(indexOf.get(other.id) ?? index)));
+    if (roots.size === 1 && matches[0]) union(index, indexOf.get(matches[0].id) ?? index);
+  });
+  employees.forEach((person, index) => {
+    if (separate.has(person.id) || person.payrollNumber) return;
+    const tokens = personTokens(person.name);
+    if (tokens.length < 2) return;
+    const last = tokens.slice(1).join("");
+    const matches = employees.filter((other, otherIndex) => {
+      if (otherIndex === index || separate.has(other.id)) return false;
+      const have = personTokens(other.name);
+      if (have.length < 2 || have.slice(1).join("") !== last) return false;
+      const first = have[0];
+      return first !== tokens[0] && (first.startsWith(tokens[0]) || tokens[0].startsWith(first)) && Math.min(first.length, tokens[0].length) >= 3;
+    });
+    const roots = new Set(matches.map((other) => find(indexOf.get(other.id) ?? index)));
+    if (roots.size === 1 && matches[0]) union(index, indexOf.get(matches[0].id) ?? index);
+  });
+
+  const buckets = new Map<number, IncentivePerson[]>();
+  employees.forEach((person, index) => {
+    const root = find(index);
+    const list = buckets.get(root) ?? [];
+    list.push(person);
+    buckets.set(root, list);
+  });
+  const people: IncentivePerson[] = [];
+  const memberIds = new Map<string, string>();
+  const groups: CombinedPeople["groups"] = [];
+  for (const members of buckets.values()) {
+    const primary = members.slice().sort((left, right) => {
+      const score = (person: IncentivePerson) => (person.payrollNumber ? 100 : 0) + Math.min(person.name.length, 40) + Math.min(person.jobTitles.length, 20);
+      return score(right) - score(left) || left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+    })[0];
+    const jobTitles: string[] = [];
+    for (const member of members) {
+      memberIds.set(member.id, primary.id);
+      for (const title of member.jobTitles) {
+        if (!jobTitles.some((item) => jobKey(title) === jobKey(item))) jobTitles.push(title);
+      }
+    }
+    const also = [...new Set(members.map((member) => member.name).filter((name) => name !== primary.name))].sort((left, right) => left.localeCompare(right));
+    people.push({
+      id: primary.id,
+      name: primary.name,
+      restaurantName: primary.restaurantName,
+      jobTitles,
+      payrollNumber: primary.payrollNumber || members.find((member) => member.payrollNumber)?.payrollNumber || "",
+      alsoKnownAs: also,
+    });
+    if (members.length > 1) groups.push({ id: primary.id, name: primary.name, also, memberIds: members.map((member) => member.id) });
+  }
+  people.sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+  groups.sort((left, right) => left.name.localeCompare(right.name));
+  return { people, memberIds, groups };
+}
+
+export function suggestedSamePeople(
+  employees: IncentivePerson[],
+  separateEmployeeIds: string[] = [],
+  samePeople: string[][] = [],
+): { ids: string[]; label: string }[] {
+  const combined = combinePeople(employees, separateEmployeeIds, samePeople);
+  const suggestions: { ids: string[]; label: string }[] = [];
+  const seen = new Set<string>();
+  for (const person of employees) {
+    if (person.payrollNumber) continue;
+    const tokens = personTokens(person.name);
+    if (tokens.length < 2) continue;
+    const last = tokens.slice(1).join("");
+    const matches = employees.filter((other) => {
+      if (other.id === person.id) return false;
+      const have = personTokens(other.name);
+      if (have.length < 2 || have.slice(1).join("") !== last) return false;
+      const first = have[0];
+      return first !== tokens[0] && (first.startsWith(tokens[0]) || tokens[0].startsWith(first)) && Math.min(first.length, tokens[0].length) >= 3;
+    });
+    if (matches.length !== 1) continue;
+    const other = matches[0];
+    if (combined.memberIds.get(person.id) === combined.memberIds.get(other.id)) continue;
+    const key = [person.id, other.id].sort().join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    suggestions.push({ ids: [other.id, person.id], label: `${other.name} and ${person.name}` });
+  }
+  return suggestions.sort((left, right) => left.label.localeCompare(right.label));
+}
+
 export function daysWorkedCount(days: IncentiveDay[], dateCount: number): number {
   const worked = days.filter((day) => day.worked).length;
   return Math.min(worked, Math.max(0, dateCount));
@@ -474,6 +710,8 @@ export function buildIncentiveReport(input: {
   tiers: FallTierInput[];
   includedJobTitles: string[];
   excludedEmployeeIds: string[];
+  separateEmployeeIds?: string[];
+  samePeople?: string[][];
   callouts?: WeatherCallout[];
   employees: IncentivePerson[];
   punches: IncentivePunch[];
@@ -482,15 +720,20 @@ export function buildIncentiveReport(input: {
   const dateSet = new Set(dates);
   const bands = tierBands(parseTiers(input.tiers));
   const none = missedLabel(bands);
+  const combined = combinePeople(input.employees, input.separateEmployeeIds ?? [], input.samePeople ?? []);
+  const canonical = (id: string) => combined.memberIds.get(id) ?? id;
   const excluded = new Set(input.excludedEmployeeIds);
-  const people = input.employees.filter((person) =>
+  const people = combined.people.filter((person) =>
     !excluded.has(person.id) && person.jobTitles.some((title) => isJobIncluded(title, input.includedJobTitles)),
   );
   const peopleIds = new Set(people.map((person) => person.id));
   const calloutNotes: CalloutNote[] = [];
   const calloutsByPerson = new Map<string, Set<string>>();
   for (const callout of input.callouts ?? []) {
-    const resolved = resolveCallout(callout, input.employees);
+    const resolved = resolveCallout(
+      { ...callout, employeeId: callout.employeeId ? canonical(callout.employeeId) : "" },
+      combined.people,
+    );
     if (!dateSet.has(callout.date)) {
       calloutNotes.push({ date: callout.date, name: callout.name, message: "This date is not an incentive date, so it does not add a day." });
       continue;
@@ -503,10 +746,11 @@ export function buildIncentiveReport(input: {
       calloutNotes.push({ date: callout.date, name: callout.name, message: "More than one employee matches this name." });
       continue;
     }
-    if (resolved.status === "duplicate") {
+    const resolvedIds = [...new Set(resolved.employeeIds.map((employeeId) => canonical(employeeId)))];
+    if (resolvedIds.length > 1 && resolved.status === "duplicate") {
       calloutNotes.push({ date: callout.date, name: callout.name, message: "This name is on more than one Toast record, so the call-off is counted on each." });
     }
-    for (const employeeId of resolved.employeeIds) {
+    for (const employeeId of resolvedIds) {
       if (!peopleIds.has(employeeId)) {
         calloutNotes.push({ date: callout.date, name: callout.name, message: "This person is not included in the selected jobs." });
         continue;
@@ -519,9 +763,10 @@ export function buildIncentiveReport(input: {
   const punchesByPerson = new Map<string, IncentivePunch[]>();
   for (const punch of input.punches) {
     if (!dateSet.has(punch.businessDate) || !isJobIncluded(punch.jobTitle, input.includedJobTitles)) continue;
-    const list = punchesByPerson.get(punch.employeeId) ?? [];
+    const employeeId = canonical(punch.employeeId);
+    const list = punchesByPerson.get(employeeId) ?? [];
     list.push(punch);
-    punchesByPerson.set(punch.employeeId, list);
+    punchesByPerson.set(employeeId, list);
   }
 
   const reports: IncentiveEmployeeReport[] = people.map((person) => {
@@ -576,6 +821,7 @@ export function buildIncentiveReport(input: {
       openShift: days.some((day) => day.open),
       calloutDays: days.filter((day) => day.callout).length,
       calloutConflicts: days.filter((day) => day.calloutConflict).length,
+      alsoKnownAs: person.alsoKnownAs ?? [],
       days,
     };
   });
@@ -621,6 +867,7 @@ export function buildIncentiveReport(input: {
     openShifts: reports.filter((person) => person.openShift).length,
     calloutNotes,
     dayBasis: "date",
+    peopleCombined: true,
   };
 }
 

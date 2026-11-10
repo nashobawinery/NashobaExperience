@@ -447,8 +447,8 @@ export function fallIncentiveWorkbook(report: IncentiveReport): Buffer {
       (row.person.jobTitles ?? []).join(", "),
       row.person.daysWorked,
       row.person.hours,
-      row.tier,
-      row.rate,
+      row.person.tierPromoted ? `${row.tier} · moved up one tier` : row.tier,
+      row.person.rate,
       row.person.total,
     ]);
   }
@@ -475,12 +475,15 @@ export function fallIncentiveWorkbook(report: IncentiveReport): Buffer {
     const person = row.person;
     const lines: (string | number)[][] = [
       [person.name],
+    ];
+    if ((person.alsoKnownAs ?? []).length > 0) lines.push(["Also", person.alsoKnownAs?.join(", ") ?? ""]);
+    lines.push(
       ["Location", person.restaurantName],
       ["Jobs", (person.jobTitles ?? []).join(", ")],
       ["Tier", row.tier],
       [],
       ["Date", "Day", "Worked", "Job", "Shift start", "Shift end", "Hours"],
-    ];
+    );
     const firstShiftRow = lines.length;
     let shiftHours = 0;
     for (const day of person.days ?? []) {
@@ -528,6 +531,7 @@ export function fallIncentiveWorkbook(report: IncentiveReport): Buffer {
     const calcRow = lines.length;
     lines.push(["Calculation", ""]);
     if (person.openShift) lines.push(["Note", "A shift is still open, so these hours can change."]);
+    if (person.tierPromoted) lines.push(["Note", "Moved up one tier. Days worked are unchanged."]);
 
     const sheet = XLSX.utils.aoa_to_sheet(lines);
     if (lastShiftRow >= firstShiftRow) {

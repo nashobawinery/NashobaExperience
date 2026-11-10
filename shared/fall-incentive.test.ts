@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyTierPromotions,
   bandForDays,
   buildIncentiveReport,
   emptyFallIncentiveSetup,
@@ -8,8 +9,10 @@ import {
   incentiveDates,
   incentiveSignature,
   majorHolidays,
+  combinePeople,
   matchCalloutName,
   parseTiers,
+  suggestedSamePeople,
   tierBands,
 } from "./fall-incentive";
 
@@ -100,6 +103,7 @@ describe("fall incentive signature", () => {
     assert.notEqual(incentiveSignature({ ...setup, includedJobTitles: ["Server"] }), original);
     assert.notEqual(incentiveSignature({ ...setup, excludedEmployeeIds: ["a"] }), original);
     assert.equal(incentiveSignature({ ...setup, description: "Mailed to the staff." }), original);
+    assert.equal(incentiveSignature({ ...setup, tierPromotions: ["a"] }), original);
     assert.notEqual(incentiveSignature({ ...setup, callouts: [{ date: "2026-09-13", name: "Amy C", employeeId: "" }] }), original);
   });
 });
@@ -279,5 +283,144 @@ describe("fall incentive callout names", () => {
     const ryan = matchCalloutName("Ryan", employees);
     assert.equal(ryan.status, "duplicate");
     assert.deepEqual(ryan.employeeIds, ["ryan-1", "ryan-2"]);
+  });
+});
+
+describe("fall incentive same person", () => {
+  it("combines duplicate Toast records and a last-initial record, and leaves different people apart", () => {
+    const employees = [
+      { id: "winery", name: "Ryan Schneider", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "100" },
+      { id: "knoll", name: "Ryan Schneider", restaurantName: "Knoll", jobTitles: ["Server"], payrollNumber: "" },
+      { id: "karley-b", name: "Karley B", restaurantName: "Knoll", jobTitles: ["Server"], payrollNumber: "" },
+      { id: "karley", name: "Karley Besozzi", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "300" },
+      { id: "amy-c", name: "Amy Courtemanche", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "1" },
+      { id: "amy-g", name: "Amy Germain", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "2" },
+      { id: "ashley-b", name: "Ashley B", restaurantName: "Knoll", jobTitles: ["Server"], payrollNumber: "" },
+      { id: "ashley-ber", name: "Ashley Berardi", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "3" },
+      { id: "ashley-mah", name: "Ashley Mahoney", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "4" },
+      { id: "sam", name: "Sam S", restaurantName: "Knoll", jobTitles: ["Server"], payrollNumber: "" },
+      { id: "smith", name: "Sam Smith", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "8" },
+      { id: "stone", name: "Sam Stone", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "9" },
+      { id: "jess", name: "Jess Shay", restaurantName: "Knoll", jobTitles: ["Server"], payrollNumber: "" },
+      { id: "jessica", name: "Jessica Shay", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "5" },
+    ];
+    const combined = combinePeople(employees);
+    assert.equal(combined.memberIds.get("knoll"), "winery");
+    assert.equal(combined.memberIds.get("karley-b"), "karley");
+    assert.equal(combined.memberIds.get("amy-c"), "amy-c");
+    assert.equal(combined.memberIds.get("ashley-b"), "ashley-ber");
+    assert.equal(combined.memberIds.get("sam"), "sam");
+    assert.equal(combined.memberIds.get("jess"), "jessica");
+    assert.deepEqual(suggestedSamePeople(employees), []);
+
+    const separated = combinePeople(employees, ["knoll"]);
+    assert.equal(separated.memberIds.get("knoll"), "knoll");
+    const linked = combinePeople(employees, [], [["jess", "jessica"]]);
+    assert.equal(linked.memberIds.get("jess"), "jessica");
+  });
+
+  it("keeps a call-off pinned to the empty record on the same person and counts that date once", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-08",
+      excludedHolidays: [],
+      tiers: [{ minDays: "2", rate: "3" }],
+      includedJobTitles: ["Server"],
+      excludedEmployeeIds: [],
+      callouts: [
+        { date: "2026-11-07", name: "Ryan", employeeId: "winery" },
+        { date: "2026-11-08", name: "Ryan", employeeId: "knoll" },
+      ],
+      employees: [
+        { id: "winery", name: "Ryan Schneider", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "100" },
+        { id: "knoll", name: "Ryan Schneider", restaurantName: "Knoll", jobTitles: ["Server"], payrollNumber: "" },
+        { id: "reis", name: "Ryan Reis", restaurantName: "Winery", jobTitles: ["Cook"], payrollNumber: "200" },
+      ],
+      punches: [
+        { employeeId: "winery", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T19:00:00.000Z", hours: 5, open: false },
+      ],
+    });
+    const ryans = report.groups.flatMap((group) => group.employees).filter((person) => person.name === "Ryan Schneider");
+    assert.equal(ryans.length, 1);
+    assert.equal(ryans[0].daysWorked, 2);
+    assert.equal(ryans[0].hours, 5);
+    assert.equal(ryans[0].rate, 3);
+    assert.equal(ryans[0].payrollNumber, "100");
+    assert.equal(report.employeeCount, 1);
+  });
+
+  it("counts Jess Shay and Jessica Shay as one person", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-08",
+      excludedHolidays: [],
+      tiers: [{ minDays: "2", rate: "3" }],
+      includedJobTitles: ["Server"],
+      excludedEmployeeIds: [],
+      callouts: [{ date: "2026-11-08", name: "Jess Shay", employeeId: "jess" }],
+      employees: [
+        { id: "jessica", name: "Jessica Shay", restaurantName: "Winery", jobTitles: ["Server"], payrollNumber: "5" },
+        { id: "jess", name: "Jess Shay", restaurantName: "Knoll", jobTitles: ["Server"], payrollNumber: "" },
+      ],
+      punches: [
+        { employeeId: "jessica", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T19:00:00.000Z", hours: 5, open: false },
+      ],
+    });
+    const people = report.groups.flatMap((group) => group.employees);
+    assert.equal(people.length, 1);
+    assert.equal(people[0].name, "Jessica Shay");
+    assert.deepEqual(people[0].alsoKnownAs, ["Jess Shay"]);
+    assert.equal(people[0].daysWorked, 2);
+    assert.equal(people[0].hours, 5);
+    assert.equal(people[0].payrollNumber, "5");
+  });
+});
+
+describe("fall incentive tier promotion", () => {
+  it("moves a person up one tier when they are one day short, and moves them back", () => {
+    const report = buildIncentiveReport({
+      startDate: "2026-11-07",
+      endDate: "2026-11-15",
+      excludedHolidays: [],
+      tiers: [{ minDays: "4", rate: "3" }, { minDays: "3", rate: "2" }, { minDays: "2", rate: "1" }],
+      includedJobTitles: ["Server"],
+      excludedEmployeeIds: [],
+      employees: [
+        { id: "a", name: "Avery Cole", restaurantName: "Winery", jobTitles: ["Server"] },
+        { id: "b", name: "Blair Diaz", restaurantName: "Winery", jobTitles: ["Server"] },
+        { id: "c", name: "Casey Ng", restaurantName: "Winery", jobTitles: ["Server"] },
+      ],
+      punches: [
+        { employeeId: "a", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T19:00:00.000Z", hours: 5, open: false },
+        { employeeId: "a", businessDate: "2026-11-08", jobTitle: "Server", inAt: "2026-11-08T14:00:00.000Z", outAt: "2026-11-08T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "a", businessDate: "2026-11-14", jobTitle: "Server", inAt: "2026-11-14T14:00:00.000Z", outAt: "2026-11-14T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "b", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "c", businessDate: "2026-11-07", jobTitle: "Server", inAt: "2026-11-07T14:00:00.000Z", outAt: "2026-11-07T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "c", businessDate: "2026-11-08", jobTitle: "Server", inAt: "2026-11-08T14:00:00.000Z", outAt: "2026-11-08T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "c", businessDate: "2026-11-14", jobTitle: "Server", inAt: "2026-11-14T14:00:00.000Z", outAt: "2026-11-14T18:00:00.000Z", hours: 4, open: false },
+        { employeeId: "c", businessDate: "2026-11-15", jobTitle: "Server", inAt: "2026-11-15T14:00:00.000Z", outAt: "2026-11-15T18:00:00.000Z", hours: 4, open: false },
+      ],
+    });
+
+    const promoted = applyTierPromotions(report, ["a", "c"]);
+    const avery = promoted.groups.flatMap((group) => group.employees).find((person) => person.id === "a");
+    const blair = promoted.groups.flatMap((group) => group.employees).find((person) => person.id === "b");
+    const casey = promoted.groups.flatMap((group) => group.employees).find((person) => person.id === "c");
+    assert.equal(avery?.daysWorked, 3);
+    assert.equal(avery?.tierPromoted, true);
+    assert.equal(avery?.rate, 3);
+    assert.equal(avery?.total, 39);
+    assert.equal(blair?.tierPromoted, false);
+    assert.equal(blair?.tierPromotionRate, 1);
+    assert.equal(blair?.rate, 0);
+    assert.equal(casey?.tierPromoted, false);
+    assert.equal(casey?.rate, 3);
+    assert.equal(promoted.groups.find((group) => group.rate === 3)?.employees.some((person) => person.id === "a"), true);
+
+    const restored = applyTierPromotions(report, []);
+    const averyAgain = restored.groups.flatMap((group) => group.employees).find((person) => person.id === "a");
+    assert.equal(averyAgain?.tierPromoted, false);
+    assert.equal(averyAgain?.rate, 2);
+    assert.equal(averyAgain?.total, 26);
   });
 });

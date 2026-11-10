@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  applyTierPromotions,
+  combinePeople,
   daysInRange,
   emptyFallIncentiveSetup,
   incentiveDates,
@@ -25,6 +27,7 @@ import {
   parseTiers,
   resolveCallout,
   setupProblem,
+  suggestedSamePeople,
   tierBands,
   toastImportCsv,
   type FallIncentiveSetup,
@@ -37,7 +40,7 @@ import {
 type Roster = {
   restaurantCount: number;
   jobs: { title: string; employees: { id: string; name: string; restaurantName: string }[] }[];
-  employees: { id: string; name: string; restaurantName: string; jobTitles: string[] }[];
+  employees: { id: string; name: string; restaurantName: string; jobTitles: string[]; payrollNumber?: string }[];
 };
 
 function money(value: number) {
@@ -148,6 +151,7 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
         "This list is the job titles from Toast.",
         "Turn a job on to include the people who hold it. Their names appear under the job and start included.",
         "Turn a person off to leave them out. If they also hold another selected job, they are left out of that job too.",
+        "Toast sometimes has two records for one person. The same name is counted together, and so is a shortened first name with the same last name, such as Jess Shay and Jessica Shay. A date still counts once, and the pay file uses the record that has a payroll number. Count separately undoes that.",
         "Only hours worked in a job you turned on are counted.",
         "Find a job narrows the list. Refresh jobs reads the titles and names from Toast again.",
       ],
@@ -188,6 +192,7 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
           "Generate report reads Toast time entries for the dates, jobs, and people you chose.",
           "Each incentive date counts once for a person, even when they worked more than one job that day. Two shifts on the same date still count as one day. A weather call-off counts as a day worked with zero hours, and the Toast hours on other days stay as they are. Days worked cannot be higher than the number of incentive dates. A shift that is still open counts, and those hours can change.",
           "Hours are regular hours plus overtime from every turned-on job. A call-off does not add hours. The amount is the Toast hours times the one tier their days worked reach.",
+          "Move up one tier is available only when someone is one day short of the next tier. Their days and hours stay the same, and the higher amount per hour is used. Move back returns them to the tier their days earned. This does not clear the report.",
           "Click a name to see each incentive date on the screen. A call-off day is marked Scheduled but Called Off Due to Weather. A call-off day that also has Toast hours is marked as a conflict.",
           "Changing the dates, the tiers, the jobs, or the call-offs clears the report. The description does not. Generate report again after a change.",
           "Only a job that is turned on adds hours. If the lowest tier asks for more days than this range has, nobody can qualify.",
@@ -238,10 +243,12 @@ const instructionsCopy: Record<string, { title: string; description: string; sec
 function CalloutList({
   callouts,
   employees,
+  memberIds,
   onChange,
 }: {
   callouts: WeatherCallout[];
   employees: { id: string; name: string }[];
+  memberIds: Map<string, string>;
   onChange: (callouts: WeatherCallout[]) => void;
 }) {
   const dates: string[] = [];
@@ -258,7 +265,10 @@ function CalloutList({
         <div key={date} className="space-y-2">
           <h3 className="font-medium">{formatDay(date)}</h3>
           {callouts.filter((callout) => callout.date === date).map((callout) => {
-            const match = resolveCallout(callout, employees);
+            const match = resolveCallout(
+              { ...callout, employeeId: callout.employeeId ? (memberIds.get(callout.employeeId) ?? callout.employeeId) : "" },
+              employees,
+            );
             const names = match.employeeIds
               .map((id) => employees.find((person) => person.id === id)?.name)
               .filter((name): name is string => Boolean(name));
@@ -362,7 +372,7 @@ export default function PayrollSection() {
   useEffect(() => {
     if (!ready || !savedReport.isSuccess || reportHydrated.current) return;
     reportHydrated.current = true;
-    if (!savedReport.data || savedReport.data.dayBasis !== "date" || loadedSetup.current !== incentiveSignature(setup)) {
+    if (!savedReport.data || savedReport.data.dayBasis !== "date" || savedReport.data.peopleCombined !== true || loadedSetup.current !== incentiveSignature(setup)) {
       if (savedReport.data) setReportCleared(true);
       return;
     }
@@ -413,11 +423,19 @@ export default function PayrollSection() {
     return [...counts.entries()].filter(([, count]) => count > 1).map(([days]) => days);
   }, [setup.tiers]);
 
+  const combinedPeople = useMemo(
+    () => combinePeople(roster.data?.employees ?? [], setup.separateEmployeeIds ?? [], setup.samePeople ?? []),
+    [roster.data, setup.separateEmployeeIds, setup.samePeople],
+  );
+  const personSuggestions = useMemo(
+    () => suggestedSamePeople(roster.data?.employees ?? [], setup.separateEmployeeIds ?? [], setup.samePeople ?? []),
+    [roster.data, setup.separateEmployeeIds, setup.samePeople],
+  );
   const includedPeople = useMemo(() => {
-    return (roster.data?.employees ?? []).filter((person) =>
+    return combinedPeople.people.filter((person) =>
       !setup.excludedEmployeeIds.includes(person.id) && person.jobTitles.some((title) => isJobIncluded(title, setup.includedJobTitles)),
     );
-  }, [roster.data, setup.excludedEmployeeIds, setup.includedJobTitles]);
+  }, [combinedPeople, setup.excludedEmployeeIds, setup.includedJobTitles]);
 
   const showRestaurant = (roster.data?.restaurantCount ?? 0) > 1;
   const visibleJobs = (roster.data?.jobs ?? []).filter((job) => job.title.toLowerCase().includes(jobQuery.trim().toLowerCase()));
@@ -434,8 +452,21 @@ export default function PayrollSection() {
     : roster.isError
       ? (roster.error as Error).message.replace(/^\d+:\s*/, "")
       : setupProblem(setup) ?? (includedPeople.length === 0 ? "Choose at least one employee." : null);
-  const detail = report?.groups.flatMap((group) => group.employees).find((person) => person.id === detailId) ?? null;
-  const toastEmployees = report?.groups.flatMap((group) => group.employees) ?? [];
+  const viewedReport = useMemo(
+    () => report ? applyTierPromotions(report, setup.tierPromotions ?? []) : null,
+    [report, setup.tierPromotions],
+  );
+  function toggleTier(id: string) {
+    setSetup((current) => {
+      const list = current.tierPromotions ?? [];
+      return {
+        ...current,
+        tierPromotions: list.includes(id) ? list.filter((item) => item !== id) : [...list, id],
+      };
+    });
+  }
+  const detail = viewedReport?.groups.flatMap((group) => group.employees).find((person) => person.id === detailId) ?? null;
+  const toastEmployees = viewedReport?.groups.flatMap((group) => group.employees) ?? [];
   const toastReady = toastEmployees.every((person) => typeof person.payrollNumber === "string");
   const toastMissing = toastEmployees.filter((person) => person.rate > 0 && person.total > 0 && !person.payrollNumber).map((person) => person.name);
 
@@ -472,13 +503,13 @@ export default function PayrollSection() {
   }
 
   function downloadToast() {
-    if (!report) return;
-    const csv = toastImportCsv(report);
+    if (!viewedReport) return;
+    const csv = toastImportCsv(viewedReport);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const first = report.dates[0] ?? "report";
-    const last = report.dates[report.dates.length - 1] ?? first;
+    const first = viewedReport.dates[0] ?? "report";
+    const last = viewedReport.dates[viewedReport.dates.length - 1] ?? first;
     link.href = url;
     link.download = `fall-incentive-retro-pay-${first}-to-${last}.csv`;
     link.click();
@@ -486,15 +517,15 @@ export default function PayrollSection() {
   }
 
   async function downloadExcel() {
-    if (!report) return;
+    if (!viewedReport) return;
     setDownloading(true);
     try {
-      const response = await apiRequest("POST", "/api/accounting/fall-incentive/export", report);
+      const response = await apiRequest("POST", "/api/accounting/fall-incentive/export", viewedReport);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      const first = report.dates[0] ?? "report";
-      const last = report.dates[report.dates.length - 1] ?? first;
+      const first = viewedReport.dates[0] ?? "report";
+      const last = viewedReport.dates[viewedReport.dates.length - 1] ?? first;
       link.href = url;
       link.download = `fall-incentive-${first}-to-${last}.xlsx`;
       link.click();
@@ -735,6 +766,64 @@ export default function PayrollSection() {
                       <p className="text-sm text-muted-foreground">
                         {setup.includedJobTitles.length} {setup.includedJobTitles.length === 1 ? "job" : "jobs"} included · {includedPeople.length} {includedPeople.length === 1 ? "employee" : "employees"} included
                       </p>
+                      {combinedPeople.groups.length > 0 ? (
+                        <div className="space-y-2 rounded-md border p-3" data-testid="same-person-groups">
+                          <p className="text-sm">Toast has more than one record for these people. Their days are counted together, and a date still counts once.</p>
+                          {combinedPeople.groups.map((group) => (
+                            <div key={group.id} className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm">
+                                <span className="font-medium">{group.name}</span>
+                                {group.also.length > 0 ? ` — also ${group.also.join(", ")}` : " — two Toast records with this name"}
+                              </p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  const secondary = group.memberIds.filter((id) => id !== group.id);
+                                  setSetup((current) => {
+                                    const separateEmployeeIds = [...(current.separateEmployeeIds ?? [])];
+                                    for (const id of secondary) {
+                                      if (!separateEmployeeIds.includes(id)) separateEmployeeIds.push(id);
+                                    }
+                                    return {
+                                      ...current,
+                                      separateEmployeeIds,
+                                      samePeople: (current.samePeople ?? []).map((ids) => ids.filter((id) => !group.memberIds.includes(id))).filter((ids) => ids.length > 1),
+                                    };
+                                  });
+                                }}
+                                data-testid={`button-separate-${group.id}`}
+                              >
+                                Count separately
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {personSuggestions.length > 0 ? (
+                        <div className="space-y-2 rounded-md border p-3" data-testid="same-person-suggestions">
+                          <p className="text-sm">These names may be the same person. They stay separate until you combine them.</p>
+                          {personSuggestions.map((suggestion) => (
+                            <div key={suggestion.ids.join("|")} className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm">{suggestion.label}</p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  setSetup((current) => ({
+                                    ...current,
+                                    separateEmployeeIds: (current.separateEmployeeIds ?? []).filter((id) => !suggestion.ids.includes(id)),
+                                    samePeople: [...(current.samePeople ?? []), suggestion.ids],
+                                  }));
+                                }}
+                                data-testid={`button-combine-${suggestion.ids.join("-")}`}
+                              >
+                                Count as one person
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="max-w-sm space-y-2">
                         <Label htmlFor="job-search">Find a job</Label>
                         <Input id="job-search" value={jobQuery} onChange={(event) => setJobQuery(event.target.value)} placeholder="Server, cook, host" data-testid="input-job-search" />
@@ -771,6 +860,15 @@ export default function PayrollSection() {
                                 <div className="space-y-2 border-t px-3 py-3">
                                   {job.employees.length === 0 ? <p className="text-sm text-muted-foreground">Nobody is assigned to this job.</p> : null}
                                   {job.employees.map((person) => {
+                                    const primaryId = combinedPeople.memberIds.get(person.id) ?? person.id;
+                                    if (primaryId !== person.id) {
+                                      const primary = combinedPeople.people.find((item) => item.id === primaryId);
+                                      return (
+                                        <p key={person.id} className="text-sm text-muted-foreground">
+                                          {person.name} is counted with {primary?.name ?? "the other record"}.
+                                        </p>
+                                      );
+                                    }
                                     const included = !setup.excludedEmployeeIds.includes(person.id);
                                     return (
                                       <div key={person.id} className="flex items-center justify-between gap-3">
@@ -848,7 +946,8 @@ export default function PayrollSection() {
                   {roster.isLoading ? <p className="text-sm text-muted-foreground">Jobs are still loading, so names cannot be matched yet.</p> : null}
                   <CalloutList
                     callouts={setup.callouts ?? []}
-                    employees={roster.data?.employees ?? []}
+                    employees={combinedPeople.people}
+                    memberIds={combinedPeople.memberIds}
                     onChange={(callouts) => setSetup((current) => ({ ...current, callouts }))}
                   />
                   {report?.calloutNotes && report.calloutNotes.length > 0 ? (
@@ -904,7 +1003,7 @@ export default function PayrollSection() {
                     {dates.length} incentive {dates.length === 1 ? "date" : "dates"} · {bands.length} {bands.length === 1 ? "tier" : "tiers"} · {includedPeople.length} {includedPeople.length === 1 ? "employee" : "employees"}
                   </p>
                   {reportProblem ? <p className="text-sm text-muted-foreground">{reportProblem}</p> : null}
-                  {!report && reportCleared ? <p className="text-sm text-muted-foreground">The dates, incentive, jobs, or call-offs changed. Generate the report again.</p> : null}
+                  {!report && reportCleared ? <p className="text-sm text-muted-foreground">The dates, incentive, jobs, call-offs, or combined people changed. Generate the report again.</p> : null}
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" onClick={() => generate.mutate()} disabled={Boolean(reportProblem) || generate.isPending} data-testid="button-generate-incentive">
                       {generate.isPending ? "Reading Toast time entries…" : "Generate report"}
@@ -925,34 +1024,34 @@ export default function PayrollSection() {
                 </CardContent>
               </Card>
 
-              {report ? (
+              {viewedReport ? (
                 <div className="space-y-4" data-testid="incentive-report">
                   <Card>
                     <CardContent className="grid gap-4 py-6 sm:grid-cols-3">
                       <div>
                         <p className="text-sm text-muted-foreground">Incentive total</p>
-                        <p className="text-2xl font-semibold tabular-nums">{money(report.total)}</p>
+                        <p className="text-2xl font-semibold tabular-nums">{money(viewedReport.total)}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Employees who qualify</p>
-                        <p className="text-2xl font-semibold tabular-nums">{report.qualifiedCount} of {report.employeeCount}</p>
+                        <p className="text-2xl font-semibold tabular-nums">{viewedReport.qualifiedCount} of {viewedReport.employeeCount}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Incentive dates</p>
-                        <p className="text-2xl font-semibold tabular-nums">{report.dateCount}</p>
+                        <p className="text-2xl font-semibold tabular-nums">{viewedReport.dateCount}</p>
                       </div>
                     </CardContent>
                   </Card>
-                  {report.openShifts > 0 ? (
+                  {viewedReport.openShifts > 0 ? (
                     <p className="text-sm text-amber-700">
-                      {report.openShifts} {report.openShifts === 1 ? "employee has a shift" : "employees have a shift"} that is still open, so those hours can change.
+                      {viewedReport.openShifts} {viewedReport.openShifts === 1 ? "employee has a shift" : "employees have a shift"} that is still open, so those hours can change.
                     </p>
                   ) : null}
-                  {report.groups.some((group) => group.employees.some((person) => (person.calloutConflicts ?? 0) > 0)) ? (
+                  {viewedReport.groups.some((group) => group.employees.some((person) => (person.calloutConflicts ?? 0) > 0)) ? (
                     <p className="text-sm text-amber-700">A flagged call-off counts as one day, not two. The Toast hours stay so you can check why that day has hours.</p>
                   ) : null}
-                  {qualificationGap(report) ? <p className="text-sm text-muted-foreground" data-testid="text-qualification-gap">{qualificationGap(report)}</p> : null}
-                  {report.groups.map((group) => {
+                  {qualificationGap(viewedReport) ? <p className="text-sm text-muted-foreground" data-testid="text-qualification-gap">{qualificationGap(viewedReport)}</p> : null}
+                  {viewedReport.groups.map((group) => {
                     const body = group.employees.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No one reached this tier.</p>
                     ) : (
@@ -960,6 +1059,7 @@ export default function PayrollSection() {
                         employees={group.employees}
                         showRestaurant={showRestaurant}
                         onOpen={setDetailId}
+                        onToggleTier={toggleTier}
                       />
                     );
                     const heading = (
@@ -973,7 +1073,7 @@ export default function PayrollSection() {
                     );
                     if (group.key === "none") {
                       return (
-                        <details key={group.key} className="rounded-lg border p-4" open={report.qualifiedCount === 0}>
+                        <details key={group.key} className="rounded-lg border p-4" open={viewedReport.qualifiedCount === 0}>
                           <summary className="cursor-pointer font-medium">{group.label} · {group.employees.length}</summary>
                           <div className="mt-4">{body}</div>
                         </details>
@@ -1003,6 +1103,14 @@ export default function PayrollSection() {
             </DialogDescription>
           </DialogHeader>
           {detail ? <p className="text-sm text-muted-foreground">Each incentive date counts once. A weather call-off counts as a day worked with zero hours.</p> : null}
+          {detail && (detail.alsoKnownAs ?? []).length > 0 ? <p className="text-sm text-muted-foreground">Also counted with {detail.alsoKnownAs?.join(", ")}.</p> : null}
+          {detail?.tierPromotionRate != null ? (
+            <div>
+              <Button type="button" variant="outline" onClick={() => toggleTier(detail.id)} data-testid="button-tier-detail">
+                {detail.tierPromoted ? "Move back" : `Move up to ${money(detail.tierPromotionRate)} per hour`}
+              </Button>
+            </div>
+          ) : null}
           {detail?.openShift ? <p className="text-sm text-amber-700">A shift is still open, so these hours can change.</p> : null}
           {detail && (detail.calloutConflicts ?? 0) > 0 ? (
             <p className="text-sm text-amber-700">
@@ -1077,10 +1185,12 @@ function EmployeeTable({
   employees,
   showRestaurant,
   onOpen,
+  onToggleTier,
 }: {
   employees: IncentiveEmployeeReport[];
   showRestaurant: boolean;
   onOpen: (id: string) => void;
+  onToggleTier: (id: string) => void;
 }) {
   return (
     <Table>
@@ -1102,6 +1212,12 @@ function EmployeeTable({
               </button>
               {person.openShift ? <span className="block text-xs text-amber-700">Shift still open</span> : null}
               {(person.calloutConflicts ?? 0) > 0 ? <span className="block text-xs text-amber-700">Flagged call-off, counted once</span> : null}
+              {(person.alsoKnownAs ?? []).length > 0 ? <span className="block text-xs text-muted-foreground">Also {person.alsoKnownAs?.join(", ")}</span> : null}
+              {person.tierPromotionRate != null ? (
+                <Button type="button" variant="outline" className="mt-1 h-7 px-2 text-xs" onClick={() => onToggleTier(person.id)} data-testid={`button-tier-${person.id}`}>
+                  {person.tierPromoted ? "Move back" : `Move up to ${money(person.tierPromotionRate)} per hour`}
+                </Button>
+              ) : null}
               {showRestaurant ? <span className="block text-xs text-muted-foreground">{person.restaurantName}</span> : null}
             </TableCell>
             <TableCell className="text-right tabular-nums">{person.daysWorked}</TableCell>
